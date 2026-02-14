@@ -1,0 +1,40 @@
+hulls:
+  interceptor:
+    hp: 80
+    radius: 12.0
+    speed: 300.0
+    turn_rate: 180.0    # degrees per second
+    thrust: 400.0       # acceleration units/s^2
+    weapon_slots:
+      small: 2
+      medium: 0
+
+  fighter:
+    hp: 150
+    radius: 18.0
+    speed: 220.0
+    turn_rate: 120.0
+    thrust: 300.0
+    weapon_slots:
+      small: 2
+      medium: 1
+
+  gunboat:
+    hp: 250
+    radius: 25.0
+    speed: 160.0
+    turn_rate: 80.0
+    thrust: 200.0
+    weapon_slots:
+      small: 1
+      medium: 2
+
+  bomber:
+    hp: 120
+    radius: 16.0
+    speed: 200.0
+    turn_rate: 100.0
+    thrust: 350.0
+    weapon_slots:
+      small: 2
+      medium: 1

@@ -1,0 +1,12 @@
+weapons:
+  gauss_gun:
+    type: bullet
+    damage: 15.0
+    damage_type: kinetic
+    speed: 500.0
+    range: 800.0           # max travel distance
+    fire_rate: 5.0          # shots per second within a magazine
+    magazine_size: 6        # shots per magazine
+    reload_time: 2.0        # seconds to reload empty magazine
+    energy_cost: 3.0
+    slot_size: small
