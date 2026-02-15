@@ -48,6 +48,14 @@ def ppo_update(
     total = obs.shape[0]
     device = next(model.parameters()).device
 
+    # Move all data to GPU once (avoids per-minibatch H2D transfers)
+    obs = obs.to(device)
+    critic_obs = critic_obs.to(device)
+    raw_actions = raw_actions.to(device)
+    old_log_probs = old_log_probs.to(device)
+    advantages = advantages.to(device)
+    returns = returns.to(device)
+
     # Normalize advantages
     adv_mean = advantages.mean()
     adv_std = advantages.std()
@@ -59,17 +67,17 @@ def ppo_update(
     n_updates = 0
 
     for _ in range(k_epochs):
-        indices = torch.randperm(total)
+        indices = torch.randperm(total, device=device)
         for start in range(0, total, batch_size):
             end = min(start + batch_size, total)
             mb_idx = indices[start:end]
 
-            mb_obs = obs[mb_idx].to(device)
-            mb_critic_obs = critic_obs[mb_idx].to(device)
-            mb_actions = raw_actions[mb_idx].to(device)
-            mb_old_lp = old_log_probs[mb_idx].to(device)
-            mb_adv = advantages[mb_idx].to(device)
-            mb_ret = returns[mb_idx].to(device)
+            mb_obs = obs[mb_idx]
+            mb_critic_obs = critic_obs[mb_idx]
+            mb_actions = raw_actions[mb_idx]
+            mb_old_lp = old_log_probs[mb_idx]
+            mb_adv = advantages[mb_idx]
+            mb_ret = returns[mb_idx]
 
             new_log_probs, entropy, values = model.evaluate_actions(
                 mb_obs, mb_critic_obs, mb_actions

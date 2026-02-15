@@ -9,6 +9,9 @@ from spacefight.rl.obs import OBS_DIM, build_egocentric_obs
 from spacefight.sim.core import TEAM_SIZE, SimState, load_hulls, reset, step
 
 
+_TEAMMATE_MAP_4 = np.array([1, 0, 3, 2], dtype=np.int32)
+
+
 def build_critic_obs(obs: NDArray[np.float32], n_ships: int) -> NDArray[np.float32]:
     """Build centralized critic observations by concatenating teammate obs.
 
@@ -22,22 +25,8 @@ def build_critic_obs(obs: NDArray[np.float32], n_ships: int) -> NDArray[np.float
         Critic observations, shape [N, S, obs_dim * 2].
     """
     N, S, D = obs.shape
-    critic_obs = np.zeros((N, S, D * 2), dtype=np.float32)
-
-    for s in range(S):
-        team_id = s // TEAM_SIZE
-        # Find teammate
-        teammate = -1
-        for other in range(S):
-            if other != s and other // TEAM_SIZE == team_id:
-                teammate = other
-                break
-
-        critic_obs[:, s, :D] = obs[:, s]
-        if teammate >= 0:
-            critic_obs[:, s, D:] = obs[:, teammate]
-
-    return critic_obs
+    teammate_idx = _TEAMMATE_MAP_4[:S]
+    return np.concatenate([obs, obs[:, teammate_idx]], axis=2)
 
 
 class VecEnv:
