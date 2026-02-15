@@ -1,6 +1,6 @@
 # RL Fighter
 
-A reinforcement learning environment for 1v1 space combat. Ships fight in a 2D arena using thrust, turning, braking, and a gauss gun. Agents are trained via PPO self-play with egocentric observations, so both ships share the same policy.
+A reinforcement learning environment for 2v2 space combat. Ships fight in a 2D arena using thrust, turning, braking, and a gauss gun. Agents are trained via PPO self-play with egocentric observations — all four ships share the same policy.
 
 ## Setup
 
@@ -19,6 +19,7 @@ spacefight/
   rl/            # PPO training components (obs, policy, buffer, update)
 vis/             # Pygame match viewer
 data/            # YAML definitions for hulls and weapons
+docs/            # Design spec and simulation overview
 tests/           # pytest suite
 train.py         # Training entry point
 ```
@@ -70,7 +71,7 @@ uv run python -m pytest tests/ -v
 
 ### Simulation
 
-The sim runs at 30 Hz with batched NumPy arrays. Each match has 2 ships with 4 discrete actions per tick:
+The sim runs at 30 Hz with batched NumPy arrays. Each match has 4 ships (2v2) with 4 discrete actions per tick:
 
 | Action | Values | Effect |
 |--------|--------|--------|
@@ -79,33 +80,35 @@ The sim runs at 30 Hz with batched NumPy arrays. Each match has 2 ships with 4 d
 | Brake | 0, 1 | Apply drag to slow down |
 | Fire | 0, 1 | Shoot gauss gun (if off cooldown) |
 
-Ships have hull HP, a speed cap with soft drag, and a shared projectile pool (64 bullets per match). A match ends when any ship reaches 0 HP or after 1800 ticks (60s).
+Ships have hull HP, a speed cap with soft drag, and a shared projectile pool (128 bullets per match). The gauss gun has a 6-shot magazine with 2-second reload. A match ends when an entire team is eliminated or after 2700 ticks (90s).
+
+Teams spawn 1040–1440 units apart (outside the 800-unit weapon range) and must maneuver to engage. An engagement zone penalizes ships that stray too far or avoid combat.
+
+### Hulls
+
+Four hull types with different trade-offs (all fighters by default, randomization available):
+
+| Hull | HP | Speed | Turn (°/s) | Character |
+|------|-----|-------|-----------|-----------|
+| Interceptor | 80 | 300 | 180 | Fast, fragile, agile |
+| Fighter | 150 | 220 | 120 | Balanced all-rounder |
+| Gunboat | 250 | 160 | 80 | Slow and tough |
+| Bomber | 120 | 200 | 100 | Quick, high thrust |
 
 ### Observations
 
-Each ship gets a 14-dimensional egocentric observation. All spatial values are rotated into the ship's heading frame so "forward" is always +x:
-
-| # | Feature | Range |
-|---|---------|-------|
-| 0-1 | Opponent relative position (heading frame) | /1000 |
-| 2-3 | Opponent relative velocity (heading frame) | /500 |
-| 4 | Distance to opponent | /1000 |
-| 5 | Bearing to opponent | /pi |
-| 6 | Own speed | /max_speed |
-| 7 | Own hull fraction | [0,1] |
-| 8 | Opponent hull fraction | [0,1] |
-| 9 | Weapon cooldown fraction | /fire_interval |
-| 10-11 | sin(heading), cos(heading) | [-1,1] |
-| 12 | Opponent alive | 0/1 |
-| 13 | Forward speed component | /max_speed |
+Each ship gets a 36-dimensional egocentric observation rotated into its body frame (forward = +x). Features include self state (speed, hull, ammo, cooldown), ship properties, 1 ally, 2 enemies sorted by distance, and engagement zone info.
 
 ### Policy
 
-Separate actor and critic MLPs (2 hidden layers, 128 units each, ReLU). The actor has 4 independent categorical heads for each action. Both ships use the same network — self-play is implicit through the egocentric obs.
+MAPPO-style architecture: decentralized actor (2x256 MLP with 4 categorical action heads) and centralized critic (sees own + teammate observations). All ships share the same network — self-play is implicit through the egocentric observations.
 
 ### Rewards
 
-- **+1.0** for winning (opponent destroyed)
-- **-1.0** for losing
+- **+1.0** for team win (all enemies eliminated)
+- **-1.0** for team loss
 - **+0.01** per HP of damage dealt
 - **-0.01** per HP of damage taken
+- Quadratic zone penalty for straying from the engagement area
+
+See [docs/SIMULATION.md](docs/SIMULATION.md) for full details.

@@ -48,7 +48,7 @@ Headless, vectorized NumPy physics engine. **SimState** is a dataclass of batche
 YAML-driven hull and weapon definitions. 4 hull types (interceptor/fighter/gunboat/bomber) with different HP/speed/turn/thrust trade-offs. Gauss gun: 15 dmg, 6-shot magazine, 2s reload.
 
 ### Visualization (`vis/pygame_vis.py`)
-Pygame match viewer. Ships as colored triangles, bullets, HP bars. Controls: Space=pause, R=reset, Q=quit.
+Pygame match viewer. Ships as hull-specific colored polygons, bullets, HP bars. Controls: Space=pause, R=reset, Q=quit.
 
 ### Key Design Decisions
 - Same policy plays all ships (egocentric obs enables implicit self-play)
