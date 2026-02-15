@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import random
 import sys
 
 import numpy as np
@@ -184,6 +185,118 @@ def draw_bullet(
     pygame.draw.circle(surface, bullet_color, (sx, sy), BULLET_RADIUS)
 
 
+# --- Explosion visual effects ---
+
+# Hit explosion: small, fast flash
+HIT_EXPLOSION_RADIUS = 6.0  # max screen-space radius
+HIT_EXPLOSION_DURATION = 8  # ticks (~0.27s at 30 Hz)
+
+# Death explosion: multiple bursts around the hull
+DEATH_EXPLOSION_RADIUS = 9.0
+DEATH_EXPLOSION_DURATION = 10  # ticks per burst
+DEATH_BURST_COUNT = 8  # total bursts to spawn
+DEATH_BURST_SPREAD = 1.5  # seconds over which bursts appear
+DEATH_BURST_SCATTER = 30.0  # world-space scatter radius around ship center
+
+
+class Explosion:
+    """A single explosion effect fixed in world space."""
+
+    __slots__ = ("wx", "wy", "age", "max_radius", "duration")
+
+    def __init__(self, wx: float, wy: float, max_radius: float, duration: int) -> None:
+        self.wx = wx
+        self.wy = wy
+        self.age = 0
+        self.max_radius = max_radius
+        self.duration = duration
+
+    @property
+    def alive(self) -> bool:
+        return self.age < self.duration
+
+    def tick(self) -> None:
+        self.age += 1
+
+    def draw(self, surface: pygame.Surface) -> None:
+        if not self.alive:
+            return
+        t = self.age / self.duration  # 0..1
+        # Radius: quick expand then hold
+        r = self.max_radius * min(1.0, t * 4.0)
+        # Alpha: bright at start, fading out
+        alpha = max(0, int(255 * (1.0 - t)))
+        if alpha <= 0 or r < 1:
+            return
+        sx, sy = world_to_screen(self.wx, self.wy)
+        # Draw filled circle with fading color (yellow -> orange -> dark)
+        color = (
+            min(255, 255),
+            min(255, int(200 * (1.0 - t * 0.5))),
+            max(0, int(60 * (1.0 - t))),
+        )
+        # Use a surface with per-pixel alpha for smooth fade
+        diameter = int(r * 2) + 2
+        if diameter < 2:
+            return
+        circle_surf = pygame.Surface((diameter, diameter), pygame.SRCALPHA)
+        pygame.draw.circle(
+            circle_surf, (*color, alpha), (diameter // 2, diameter // 2), int(r)
+        )
+        surface.blit(circle_surf, (sx - diameter // 2, sy - diameter // 2))
+
+
+class ExplosionManager:
+    """Manages all active explosions."""
+
+    def __init__(self) -> None:
+        self.explosions: list[Explosion] = []
+        # Pending death bursts: list of (wx, wy, ticks_remaining, scatter_radius)
+        self._death_queues: list[tuple[float, float, int, float]] = []
+
+    def spawn_hit(self, wx: float, wy: float) -> None:
+        """Spawn a small hit explosion at the given world position."""
+        self.explosions.append(
+            Explosion(wx, wy, HIT_EXPLOSION_RADIUS, HIT_EXPLOSION_DURATION)
+        )
+
+    def spawn_death(self, wx: float, wy: float, hull_radius: float) -> None:
+        """Queue a series of explosions around a destroyed ship."""
+        scatter = max(DEATH_BURST_SCATTER, hull_radius * 1.5)
+        total_ticks = int(DEATH_BURST_SPREAD * FPS)
+        for _ in range(DEATH_BURST_COUNT):
+            delay = random.randint(0, total_ticks)
+            ox = random.gauss(0, scatter * 0.5)
+            oy = random.gauss(0, scatter * 0.5)
+            self._death_queues.append((wx + ox, wy + oy, delay, DEATH_EXPLOSION_RADIUS))
+
+    def tick(self) -> None:
+        """Advance all explosions and spawn pending death bursts."""
+        # Process death queues
+        remaining = []
+        for wx, wy, ticks_left, radius in self._death_queues:
+            if ticks_left <= 0:
+                self.explosions.append(
+                    Explosion(wx, wy, radius, DEATH_EXPLOSION_DURATION)
+                )
+            else:
+                remaining.append((wx, wy, ticks_left - 1, radius))
+        self._death_queues = remaining
+
+        # Tick and prune active explosions
+        for e in self.explosions:
+            e.tick()
+        self.explosions = [e for e in self.explosions if e.alive]
+
+    def draw(self, surface: pygame.Surface) -> None:
+        for e in self.explosions:
+            e.draw(surface)
+
+    def clear(self) -> None:
+        self.explosions.clear()
+        self._death_queues.clear()
+
+
 RESPAWN_DELAY_TICKS = 60  # 2 seconds at 30 Hz
 RESPAWN_ZONE_PAD = 200.0  # spawn 200–400 units outside zone edge
 
@@ -284,6 +397,7 @@ def run_visualizer(checkpoint_path: str | None = None, seed: int = 42, demo: boo
 
     state = make_state()
     respawn_timers = np.zeros(n_ships, dtype=np.int32)
+    explosions = ExplosionManager()
     paused = False
     outcome_text = ""
 
@@ -300,6 +414,7 @@ def run_visualizer(checkpoint_path: str | None = None, seed: int = 42, demo: boo
                 elif event.key == pygame.K_r:
                     state = make_state()
                     respawn_timers[:] = 0
+                    explosions.clear()
                     outcome_text = ""
 
         if not paused and (demo or not state.done[0]):
@@ -330,7 +445,40 @@ def run_visualizer(checkpoint_path: str | None = None, seed: int = 42, demo: boo
                 actions[:, :, 2] = rng.integers(0, 2, size=(1, n_ships))
                 actions[:, :, 3] = rng.integers(0, 2, size=(1, n_ships))
 
+            # Snapshot state before step for hit/death detection
+            prev_alive = state.alive[0].copy()
+            prev_proj_alive = state.proj_alive[0].copy()
+
             state, rewards, dones = step(state, actions)
+
+            # Find projectiles that just died (hit a ship or expired)
+            newly_dead_projs = prev_proj_alive & ~state.proj_alive[0]
+            dead_indices = np.where(newly_dead_projs)[0]
+
+            # For each newly dead projectile near a ship, spawn hit explosion
+            # at the projectile's position (where it intersected the hull)
+            for p_idx in dead_indices:
+                px = float(state.proj_x[0, p_idx])
+                py = float(state.proj_y[0, p_idx])
+                # Check if this projectile is within any ship's radius
+                for s in range(n_ships):
+                    if not state.alive[0, s] and not prev_alive[s]:
+                        continue
+                    dx = px - float(state.x[0, s])
+                    dy = py - float(state.y[0, s])
+                    r = float(state.radius[0, s])
+                    if dx * dx + dy * dy < r * r * 4:  # generous check
+                        explosions.spawn_hit(px, py)
+                        break
+
+            # Detect deaths
+            for s in range(n_ships):
+                if prev_alive[s] and not state.alive[0, s]:
+                    explosions.spawn_death(
+                        float(state.x[0, s]),
+                        float(state.y[0, s]),
+                        float(state.radius[0, s]),
+                    )
 
             # Demo mode: tick respawn timers and respawn when ready
             if demo:
@@ -350,6 +498,9 @@ def run_visualizer(checkpoint_path: str | None = None, seed: int = 42, demo: boo
                     outcome_text = "RED TEAM WINS"
                 else:
                     outcome_text = "DRAW"
+
+        # Tick explosions even when sim is paused (so they fade out)
+        explosions.tick()
 
         # --- Render ---
         screen.fill(BG_COLOR)
@@ -394,6 +545,9 @@ def run_visualizer(checkpoint_path: str | None = None, seed: int = 42, demo: boo
                 float(state.y[0, s]),
                 hull_frac,
             )
+
+        # Draw explosions
+        explosions.draw(screen)
 
         # HUD
         tick_text = font.render(f"Tick: {int(state.tick[0])}", True, (200, 200, 200))
