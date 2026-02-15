@@ -17,11 +17,13 @@ from spacefight.env.vec_env import VecEnv, build_critic_obs
 from spacefight.rl.policy import ActorCritic, OBS_DIM, CRITIC_OBS_DIM, TURN_MAP
 from spacefight.rl.rollout_buffer import RolloutBuffer
 from spacefight.rl.ppo import ppo_update
+from spacefight.rl.credit import CreditAssigner
 
 # Hyperparameters
 N_ENVS = 256
 N_SHIPS = 4
 T_STEPS = 128
+T_TAIL = 48  # tail buffer for retroactive credit (covers bullet/gauss TTL)
 N_UPDATES = 5000
 GAMMA = 0.99
 LAM = 0.95
@@ -54,6 +56,7 @@ def train(args: argparse.Namespace) -> None:
     print(f"Training started: {time.strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"Config: {args.n_envs} envs × {N_SHIPS} ships × {T_STEPS} steps = "
           f"{args.n_envs * N_SHIPS * T_STEPS:,} transitions/update")
+    print(f"Credit assignment: T_TAIL={T_TAIL} ({T_TAIL/30:.1f}s)")
 
     CHECKPOINT_DIR.mkdir(exist_ok=True)
 
@@ -72,12 +75,20 @@ def train(args: argparse.Namespace) -> None:
         n_ships=N_SHIPS,
         obs_dim=OBS_DIM,
         critic_obs_dim=CRITIC_OBS_DIM,
+        t_tail=T_TAIL,
+    )
+
+    credit = CreditAssigner(
+        n_envs=args.n_envs,
+        n_ships=N_SHIPS,
+        buf_len=T_STEPS + T_TAIL,
     )
 
     obs = env.reset()  # [N, S, OBS_DIM]
 
     total_episodes = 0
     episode_rewards = []
+    tail_data = None
 
     steps_per_update = args.n_envs * N_SHIPS * T_STEPS
 
@@ -88,12 +99,25 @@ def train(args: argparse.Namespace) -> None:
         zone_total_count = 0
         first_damage_ticks: list[int] = []
         episode_has_damage = np.zeros(args.n_envs, dtype=np.bool_)
+        credit_hits = 0
 
         # --- Rollout phase ---
         model.eval()
         buf.reset()
+        credit.reset_for_rollout()
+
+        # Prepend tail from previous rollout
+        tail_size = 0
+        if tail_data is not None:
+            buf.prepend_tail(tail_data)
+            tail_size = T_TAIL
 
         for t in range(T_STEPS):
+            buf_step = tail_size + t
+
+            # Stamp episode generation for credit tracking
+            credit.stamp_step(buf_step)
+
             obs_tensor = torch.from_numpy(obs).to(device)
             critic_obs_np = build_critic_obs(obs, N_SHIPS)
             critic_obs_tensor = torch.from_numpy(critic_obs_np).to(device)
@@ -110,7 +134,20 @@ def train(args: argparse.Namespace) -> None:
             raw_actions_np = actions_np.copy().astype(np.int64)
             raw_actions_np[:, :, 0] = actions_np[:, :, 0] + 1  # -1/0/1 -> 0/1/2
 
-            next_obs, rewards, dones, infos = env.step(actions_np)
+            next_obs, rewards, dones, infos = env.step(actions_np, rollout_step=buf_step)
+
+            # Record projectile hits for credit assignment
+            if "proj_hit" in infos:
+                proj_hit = infos["proj_hit"]
+                if np.any(proj_hit):
+                    credit.record_hits(
+                        buf_step,
+                        proj_hit,
+                        infos["proj_owner"],
+                        infos["proj_damage"],
+                        infos["proj_fire_step"],
+                    )
+                    credit_hits += int(proj_hit.sum())
 
             # Zone violation tracking
             st = env.state
@@ -128,8 +165,9 @@ def train(args: argparse.Namespace) -> None:
                     first_damage_ticks.append(int(st.tick[idx]))
                 episode_has_damage |= newly_damaged
 
-            # Reset tracking for auto-reset episodes
+            # Handle episode resets for credit tracking
             if dones.any():
+                credit.on_reset(np.where(dones)[0])
                 episode_has_damage[dones] = False
 
             buf.insert(
@@ -152,6 +190,9 @@ def train(args: argparse.Namespace) -> None:
 
         t_rollout_end = time.time()
 
+        # --- Inject retroactive credits into reward buffer ---
+        credit.inject_into_rewards(buf.rewards, 0, tail_size + T_STEPS)
+
         # --- Compute GAE ---
         with torch.no_grad():
             last_obs_tensor = torch.from_numpy(obs).to(device)
@@ -163,17 +204,18 @@ def train(args: argparse.Namespace) -> None:
         # dones from last step of rollout (already in buf, use env state)
         last_dones = env.state.done
 
-        advantages, returns = buf.compute_gae(
+        advantages, returns = buf.compute_gae_with_tail(
             last_values=last_values,
             last_dones=last_dones,
             gamma=GAMMA,
             lam=LAM,
+            tail_size=tail_size,
         )
 
         # --- PPO update phase ---
         model.train()
         flat_obs, flat_critic_obs, flat_actions, flat_lp, flat_vals = (
-            buf.get_flat_tensors()
+            buf.get_flat_tensors(skip=tail_size)
         )
 
         stats = ppo_update(
@@ -192,6 +234,10 @@ def train(args: argparse.Namespace) -> None:
             k_epochs=K_EPOCHS,
             batch_size=BATCH_SIZE,
         )
+
+        # --- Save tail for next rollout ---
+        tail_data = buf.extract_tail()
+        credit.shift_tail(T_STEPS)
 
         t_end = time.time()
         elapsed = t_end - t_start
@@ -214,7 +260,7 @@ def train(args: argparse.Namespace) -> None:
                 f"U {update:4d} | "
                 f"r {mean_reward:+.4f} pg {stats['pg_loss']:.4f} "
                 f"vf {stats['vf_loss']:.4f} ent {stats['entropy']:.3f} | "
-                f"ep {total_episodes} zv {zone_viol_frac:.3f} fd {mean_first_dmg:.0f} | "
+                f"ep {total_episodes} zv {zone_viol_frac:.3f} fd {mean_first_dmg:.0f} ch {credit_hits} | "
                 f"{elapsed:.1f}s {sim_steps_sec/1000:.0f}k sps | "
                 f"{_fmt_duration(total_elapsed)} eta {_fmt_duration(remaining)}"
             )

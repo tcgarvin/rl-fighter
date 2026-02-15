@@ -85,18 +85,19 @@ class VecEnv:
         return self._observe()
 
     def step(
-        self, actions: NDArray[np.int32]
+        self, actions: NDArray[np.int32], rollout_step: int = -1,
     ) -> tuple[NDArray[np.float32], NDArray[np.float32], NDArray[np.bool_], dict]:
         """Step all environments.
 
         Args:
             actions: [N, S, 5] int32 array (turn, thrust, brake, fire, reload).
+            rollout_step: Current rollout buffer step index for credit assignment (-1 = disabled).
 
         Returns:
             (obs, rewards, dones, infos) tuple.
         """
         state = self.state
-        self._state, rewards, dones = step(state, actions)
+        self._state, rewards, dones = step(state, actions, rollout_step=rollout_step)
 
         # Time limit
         time_done = self._state.tick >= self.max_steps
@@ -108,6 +109,13 @@ class VecEnv:
             "hull": self._state.hull.copy(),
             "alive": self._state.alive.copy(),
         }
+
+        # Expose projectile hit info for credit assignment (before auto-reset)
+        if self._state.last_proj_hit is not None:
+            infos["proj_hit"] = self._state.last_proj_hit.copy()
+            infos["proj_owner"] = self._state.proj_owner.copy()
+            infos["proj_damage"] = self._state.proj_damage.copy()
+            infos["proj_fire_step"] = self._state.proj_fire_step.copy()
 
         # Snapshot dones before auto-reset mutates state.done
         dones_out = dones.copy()
@@ -143,7 +151,7 @@ class VecEnv:
             "shots_per_fire", "weapon_offset",
             "proj_x", "proj_y", "proj_vx", "proj_vy",
             "proj_alive", "proj_owner", "proj_ttl",
-            "proj_damage", "proj_type", "proj_target",
+            "proj_damage", "proj_type", "proj_target", "proj_fire_step",
             "zone_cx", "zone_cy", "zone_r", "t_since_damage",
         ]:
             getattr(state, attr)[indices] = getattr(fresh, attr)

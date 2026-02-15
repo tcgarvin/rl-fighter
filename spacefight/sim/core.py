@@ -36,6 +36,8 @@ REWARD_LOSE = -1.0
 REWARD_DAMAGE_DEALT = 0.01
 REWARD_DAMAGE_TAKEN = -0.01
 REWARD_FIRE_COST = -0.005  # per trigger pull
+REWARD_RELOAD_FULL = -0.005  # reload cmd when magazine already full
+REWARD_FIRE_DURING_RELOAD = -0.005  # fire cmd while reloading
 
 # Engagement zone shaping
 ZONE_K = 0.1  # quadratic penalty scale outside zone
@@ -131,6 +133,7 @@ class SimState:
     proj_damage: NDArray[np.float32] = field(repr=False)
     proj_type: NDArray[np.int32] = field(repr=False)   # 0=bullet, 1=missile
     proj_target: NDArray[np.int32] = field(repr=False)  # target ship index, -1=none
+    proj_fire_step: NDArray[np.int32] = field(repr=False)  # rollout step when fired, -1=none
 
     # Engagement zone (per episode, constant after reset) [N]
     zone_cx: NDArray[np.float32] = field(repr=False)
@@ -154,6 +157,9 @@ class SimState:
 
     # Laser hit info for visualizer (set each tick, not persistent)
     laser_hits: list | None = field(default=None, repr=False)
+
+    # Last tick's projectile hit mask [N, P] (set each tick, not persistent)
+    last_proj_hit: NDArray[np.bool_] | None = field(default=None, repr=False)
 
 
 def reset(
@@ -306,6 +312,7 @@ def reset(
         proj_damage=np.zeros((N, P), dtype=np.float32),
         proj_type=np.zeros((N, P), dtype=np.int32),
         proj_target=np.full((N, P), -1, dtype=np.int32),
+        proj_fire_step=np.full((N, P), -1, dtype=np.int32),
         zone_cx=zone_cx,
         zone_cy=zone_cy,
         zone_r=zone_r,
@@ -321,6 +328,7 @@ def reset(
 def step(
     state: SimState,
     actions: NDArray[np.int32],
+    rollout_step: int = -1,
 ) -> tuple[SimState, NDArray[np.float32], NDArray[np.bool_]]:
     """Advance simulation by one tick.
 
@@ -328,6 +336,7 @@ def step(
         state: Current SimState.
         actions: Action array [N, S, 5] where the 5 action heads are:
                  [turn(-1/0/1), thrust(0/1), brake(0/1), fire(0/1), reload(0/1)]
+        rollout_step: Current rollout buffer step index for credit assignment (-1 = disabled).
 
     Returns:
         (state, rewards [N, S], dones [N]).
@@ -439,6 +448,8 @@ def step(
             state.reload_time,
             state.shots_per_fire,
             state.weapon_offset,
+            state.proj_fire_step if rollout_step >= 0 else None,
+            rollout_step,
         )
 
     # --- Fire lasers ---
@@ -508,6 +519,8 @@ def step(
             state.magazine_size,
             state.reload_time,
             state.team,
+            state.proj_fire_step if rollout_step >= 0 else None,
+            rollout_step,
         )
 
     # Advance projectiles (includes missile guidance)
@@ -535,7 +548,7 @@ def step(
     )
 
     # Per-projectile damage for hit detection
-    damage, state.proj_alive = check_hits(
+    damage, state.proj_alive, state.last_proj_hit = check_hits(
         state.proj_x,
         state.proj_y,
         state.proj_alive,
@@ -574,6 +587,13 @@ def step(
 
     # --- Fire cost ---
     rewards += REWARD_FIRE_COST * (fire_cmd & state.alive).astype(np.float32)
+
+    # --- Reload discipline ---
+    # Penalize reload command when magazine is already full
+    reload_when_full = reload_cmd & state.alive & (state.ammo >= state.magazine_size)
+    rewards += REWARD_RELOAD_FULL * reload_when_full.astype(np.float32)
+    # Penalize fire command while reloading (on top of self-damage)
+    rewards += REWARD_FIRE_DURING_RELOAD * fire_while_reload.astype(np.float32)
 
     # --- Zone penalty ---
     dx_zone = state.x - state.zone_cx[:, None]

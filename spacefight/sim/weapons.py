@@ -48,6 +48,8 @@ def fire_bullets(
     reload_time: NDArray[np.float32],     # [N, S]
     shots_per_fire: NDArray[np.int32],    # [N, S]
     weapon_offset: NDArray[np.float32],   # [N, S] lateral offset in world units
+    proj_fire_step: NDArray[np.int32] | None = None,  # [N, P]
+    rollout_step: int = -1,
 ) -> tuple[
     NDArray[np.float32], NDArray[np.float32],
     NDArray[np.float32], NDArray[np.float32],
@@ -108,6 +110,8 @@ def fire_bullets(
                 proj_ttl[n, slot] = ttl
                 proj_damage[n, slot] = b_damage
                 proj_type[n, slot] = 0  # bullet
+                if proj_fire_step is not None:
+                    proj_fire_step[n, slot] = rollout_step
 
         cooldown[firing_indices, s] = fire_interval[fi0, s]
         ammo[firing_indices, s] -= 1
@@ -242,6 +246,8 @@ def fire_missiles(
     magazine_size: NDArray[np.int32],     # [N, S]
     reload_time: NDArray[np.float32],     # [N, S]
     ship_team: NDArray[np.int32],         # [N, S]
+    proj_fire_step: NDArray[np.int32] | None = None,  # [N, P]
+    rollout_step: int = -1,
 ) -> tuple[
     NDArray[np.float32], NDArray[np.float32],
     NDArray[np.float32], NDArray[np.float32],
@@ -310,6 +316,8 @@ def fire_missiles(
             proj_damage[n, slot] = m_damage
             proj_type[n, slot] = 1  # missile
             proj_target[n, slot] = best_target
+            if proj_fire_step is not None:
+                proj_fire_step[n, slot] = rollout_step
 
         cooldown[firing_indices, s] = float(fire_interval[fi0, s])
         ammo[firing_indices, s] -= 1
@@ -422,13 +430,13 @@ def check_hits(
     ship_radius: NDArray[np.float32],
     ship_alive: NDArray[np.bool_],
     ship_team: NDArray[np.int32],
-) -> tuple[NDArray[np.float32], NDArray[np.bool_]]:
+) -> tuple[NDArray[np.float32], NDArray[np.bool_], NDArray[np.bool_]]:
     """Check for projectile-ship collisions with team-based friendly fire prevention.
 
     Uses per-projectile damage instead of a scalar bullet_damage.
 
     Returns:
-        (damage_per_ship [N, S], updated proj_alive [N, P]).
+        (damage_per_ship [N, S], updated proj_alive [N, P], proj_hit [N, P]).
     """
     N, S = ship_x.shape
     P = proj_x.shape[1]
@@ -476,4 +484,4 @@ def check_hits(
     pd = proj_damage[:, :, np.newaxis]  # [N, P, 1]
     damage = np.sum(hit_mask.astype(np.float32) * pd, axis=1)  # [N, S]
 
-    return damage, proj_alive
+    return damage, proj_alive, proj_hit

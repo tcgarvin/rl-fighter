@@ -313,7 +313,7 @@ class TestCheckHits:
         ship_alive = np.ones((N, S), dtype=np.bool_)
         ship_team = np.array([[0, 0, 1, 1]], dtype=np.int32)
 
-        damage, alive = check_hits(
+        damage, alive, _ = check_hits(
             proj_x, proj_y, proj_alive, proj_owner, proj_ttl,
             proj_damage,
             ship_x, ship_y, ship_radius, ship_alive, ship_team,
@@ -340,7 +340,7 @@ class TestCheckHits:
         ship_alive = np.ones((N, S), dtype=np.bool_)
         ship_team = np.array([[0, 0, 1, 1]], dtype=np.int32)
 
-        damage, alive = check_hits(
+        damage, alive, _ = check_hits(
             proj_x, proj_y, proj_alive, proj_owner, proj_ttl,
             proj_damage,
             ship_x, ship_y, ship_radius, ship_alive, ship_team,
@@ -365,7 +365,7 @@ class TestCheckHits:
         ship_alive = np.ones((N, S), dtype=np.bool_)
         ship_team = np.array([[0, 0, 1, 1]], dtype=np.int32)
 
-        damage, alive = check_hits(
+        damage, alive, _ = check_hits(
             proj_x, proj_y, proj_alive, proj_owner, proj_ttl,
             proj_damage,
             ship_x, ship_y, ship_radius, ship_alive, ship_team,
@@ -392,7 +392,7 @@ class TestCheckHits:
         ship_alive = np.ones((N, S), dtype=np.bool_)
         ship_team = np.array([[0, 0, 1, 1]], dtype=np.int32)
 
-        damage, alive = check_hits(
+        damage, alive, _ = check_hits(
             proj_x, proj_y, proj_alive, proj_owner, proj_ttl,
             proj_damage,
             ship_x, ship_y, ship_radius, ship_alive, ship_team,
