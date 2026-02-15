@@ -17,7 +17,7 @@ import sys
 import numpy as np
 import pygame
 
-from spacefight.sim.core import SimState, reset, step
+from spacefight.sim.core import SimState, load_hulls, reset, step
 
 # Display constants
 WINDOW_W = 1200
@@ -35,7 +35,16 @@ SHIP_COLORS = [
 TEAM_NAMES = ["Blue-1", "Blue-2", "Red-1", "Red-2"]
 DEAD_COLOR = (100, 100, 100)
 BULLET_RADIUS = 3
-SHIP_SIZE = 14  # half-length of triangle
+BASE_SHIP_SIZE = 14  # reference half-length (scaled per hull radius)
+REFERENCE_RADIUS = 18.0  # "fighter" radius used as the 1x baseline
+
+# Hull type abbreviations for HUD
+HULL_ABBREVS = {
+    "interceptor": "INT",
+    "fighter": "FTR",
+    "gunboat": "GUN",
+    "bomber": "BMR",
+}
 
 # HP bar
 HP_BAR_W = 40
@@ -55,6 +64,72 @@ def world_to_screen(wx: float, wy: float) -> tuple[int, int]:
     return sx, sy
 
 
+def _rotated_point(
+    sx: int, sy: int, size: float, theta: float, local_angle: float, local_r: float
+) -> tuple[int, int]:
+    """Compute a screen-space point rotated around (sx, sy)."""
+    angle = theta + local_angle
+    return (
+        sx + int(size * local_r * math.cos(angle)),
+        sy - int(size * local_r * math.sin(angle)),
+    )
+
+
+def _ship_vertices_interceptor(
+    sx: int, sy: int, size: float, theta: float
+) -> list[tuple[int, int]]:
+    """Narrow/pointy triangle for interceptor (fast, small)."""
+    nose = (sx + int(size * 1.2 * math.cos(theta)),
+            sy - int(size * 1.2 * math.sin(theta)))
+    left = _rotated_point(sx, sy, size, theta, 2.6, 0.5)
+    right = _rotated_point(sx, sy, size, theta, -2.6, 0.5)
+    return [nose, left, right]
+
+
+def _ship_vertices_fighter(
+    sx: int, sy: int, size: float, theta: float
+) -> list[tuple[int, int]]:
+    """Standard triangle for fighter (default shape)."""
+    nose = (sx + int(size * math.cos(theta)),
+            sy - int(size * math.sin(theta)))
+    left = _rotated_point(sx, sy, size, theta, 2.4, 0.6)
+    right = _rotated_point(sx, sy, size, theta, -2.4, 0.6)
+    return [nose, left, right]
+
+
+def _ship_vertices_gunboat(
+    sx: int, sy: int, size: float, theta: float
+) -> list[tuple[int, int]]:
+    """Wide/blunt pentagon for gunboat — elongated along heading for clarity."""
+    nose = (sx + int(size * 1.0 * math.cos(theta)),
+            sy - int(size * 1.0 * math.sin(theta)))
+    fl = _rotated_point(sx, sy, size, theta, 1.0, 0.6)
+    fr = _rotated_point(sx, sy, size, theta, -1.0, 0.6)
+    bl = _rotated_point(sx, sy, size, theta, 2.3, 0.7)
+    br = _rotated_point(sx, sy, size, theta, -2.3, 0.7)
+    return [nose, fl, bl, br, fr]
+
+
+def _ship_vertices_bomber(
+    sx: int, sy: int, size: float, theta: float
+) -> list[tuple[int, int]]:
+    """Diamond/kite shape for bomber."""
+    nose = (sx + int(size * 1.0 * math.cos(theta)),
+            sy - int(size * 1.0 * math.sin(theta)))
+    left = _rotated_point(sx, sy, size, theta, math.pi / 2, 0.55)
+    tail = _rotated_point(sx, sy, size, theta, math.pi, 0.7)
+    right = _rotated_point(sx, sy, size, theta, -math.pi / 2, 0.55)
+    return [nose, left, tail, right]
+
+
+_HULL_SHAPE_FN = {
+    "interceptor": _ship_vertices_interceptor,
+    "fighter": _ship_vertices_fighter,
+    "gunboat": _ship_vertices_gunboat,
+    "bomber": _ship_vertices_bomber,
+}
+
+
 def draw_ship(
     surface: pygame.Surface,
     x: float,
@@ -62,29 +137,16 @@ def draw_ship(
     theta: float,
     color: tuple[int, int, int],
     alive: bool,
+    hull_type: str = "fighter",
+    radius: float = REFERENCE_RADIUS,
 ) -> None:
-    """Draw a ship as a triangle pointing in its heading direction."""
+    """Draw a ship using a hull-type-specific polygon scaled by radius."""
     draw_color = color if alive else DEAD_COLOR
     sx, sy = world_to_screen(x, y)
-
-    # Triangle vertices: nose, left wing, right wing
-    cos_t = math.cos(theta)
-    sin_t = math.sin(theta)
-
-    nose = (
-        sx + int(SHIP_SIZE * cos_t),
-        sy - int(SHIP_SIZE * sin_t),
-    )
-    left = (
-        sx + int(SHIP_SIZE * 0.6 * math.cos(theta + 2.4)),
-        sy - int(SHIP_SIZE * 0.6 * math.sin(theta + 2.4)),
-    )
-    right = (
-        sx + int(SHIP_SIZE * 0.6 * math.cos(theta - 2.4)),
-        sy - int(SHIP_SIZE * 0.6 * math.sin(theta - 2.4)),
-    )
-
-    pygame.draw.polygon(surface, draw_color, [nose, left, right])
+    size = BASE_SHIP_SIZE * (radius / REFERENCE_RADIUS)
+    shape_fn = _HULL_SHAPE_FN.get(hull_type, _ship_vertices_fighter)
+    vertices = shape_fn(sx, sy, size, theta)
+    pygame.draw.polygon(surface, draw_color, vertices)
 
 
 def draw_hp_bar(
@@ -147,9 +209,16 @@ def run_visualizer(checkpoint_path: str | None = None, seed: int = 42) -> None:
             policy = None
 
     rng = np.random.default_rng(seed)
+    hull_types = list(load_hulls().keys())
 
     def make_state() -> SimState:
-        return reset(n_envs=1, seed=int(rng.integers(0, 2**31)), n_ships=n_ships)
+        hull_names = [str(rng.choice(hull_types)) for _ in range(n_ships)]
+        return reset(
+            n_envs=1,
+            hull_names=hull_names,
+            seed=int(rng.integers(0, 2**31)),
+            n_ships=n_ships,
+        )
 
     state = make_state()
     paused = False
@@ -243,6 +312,8 @@ def run_visualizer(checkpoint_path: str | None = None, seed: int = 42) -> None:
                 float(state.theta[0, s]),
                 SHIP_COLORS[s % len(SHIP_COLORS)],
                 bool(state.alive[0, s]),
+                hull_type=state.hull_names[s],
+                radius=float(state.radius[0, s]),
             )
             hull_frac = float(state.hull[0, s] / max_hull[s])
             draw_hp_bar(
@@ -259,6 +330,7 @@ def run_visualizer(checkpoint_path: str | None = None, seed: int = 42) -> None:
         y_offset = 35
         for s in range(state.n_ships):
             name = TEAM_NAMES[s] if s < len(TEAM_NAMES) else f"Ship {s}"
+            hull_abbrev = HULL_ABBREVS.get(state.hull_names[s], "???")
             ammo_str = f"{state.ammo[0, s]}/{state.magazine_size}"
             reload_str = (
                 f" R:{state.reload_timer[0, s]:.1f}s"
@@ -266,7 +338,8 @@ def run_visualizer(checkpoint_path: str | None = None, seed: int = 42) -> None:
                 else ""
             )
             hull_str = (
-                f"{name} HP:{state.hull[0, s]:.0f}/{state.max_hull[0, s]:.0f}"
+                f"{name} [{hull_abbrev}]"
+                f" HP:{state.hull[0, s]:.0f}/{state.max_hull[0, s]:.0f}"
                 f" Ammo:{ammo_str}{reload_str}"
             )
             color = SHIP_COLORS[s % len(SHIP_COLORS)]

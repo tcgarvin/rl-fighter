@@ -109,6 +109,9 @@ class SimState:
     # Idleness tracker [N]
     t_since_damage: NDArray[np.int32] = field(repr=False)
 
+    # Per-ship hull type name (non-array, length S)
+    hull_names: list[str] = field(repr=False)
+
     # Episode tracking
     done: NDArray[np.bool_] = field(repr=False)  # [N]
     tick: NDArray[np.int32] = field(repr=False)  # [N]
@@ -232,6 +235,7 @@ def reset(
         zone_cx=zone_cx,
         zone_cy=zone_cy,
         zone_r=zone_r,
+        hull_names=hull_names,
         t_since_damage=np.zeros(N, dtype=np.int32),
         done=np.zeros(N, dtype=np.bool_),
         tick=np.zeros(N, dtype=np.int32),
