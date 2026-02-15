@@ -184,7 +184,55 @@ def draw_bullet(
     pygame.draw.circle(surface, bullet_color, (sx, sy), BULLET_RADIUS)
 
 
-def run_visualizer(checkpoint_path: str | None = None, seed: int = 42) -> None:
+RESPAWN_DELAY_TICKS = 60  # 2 seconds at 30 Hz
+RESPAWN_ZONE_PAD = 200.0  # spawn 200–400 units outside zone edge
+
+
+def _update_respawns(
+    state: SimState,
+    respawn_timers: NDArray[np.int32],
+    hulls_data: dict,
+    hull_types: list[str],
+    rng: np.random.Generator,
+) -> None:
+    """Track respawn countdowns and respawn ships outside the zone when ready."""
+    for s in range(state.n_ships):
+        if not state.alive[0, s]:
+            if respawn_timers[s] <= 0:
+                # Just died — start countdown
+                respawn_timers[s] = RESPAWN_DELAY_TICKS
+            else:
+                respawn_timers[s] -= 1
+                if respawn_timers[s] <= 0:
+                    # Pick a random hull type
+                    new_hull = str(rng.choice(hull_types))
+                    h = hulls_data[new_hull]
+                    state.hull_names[s] = new_hull
+                    state.max_hull[0, s] = h["hp"]
+                    state.radius[0, s] = h["radius"]
+                    state.max_speed[0, s] = h["speed"]
+                    state.turn_rate[0, s] = math.radians(h["turn_rate"])
+                    state.thrust_accel[0, s] = h["thrust"]
+
+                    # Respawn outside the engagement zone, aimed inward
+                    state.alive[0, s] = True
+                    state.hull[0, s] = h["hp"]
+                    angle = rng.uniform(0, 2 * math.pi)
+                    zone_r = float(state.zone_r[0])
+                    dist = zone_r + rng.uniform(RESPAWN_ZONE_PAD, RESPAWN_ZONE_PAD * 2)
+                    state.x[0, s] = float(state.zone_cx[0]) + dist * math.cos(angle)
+                    state.y[0, s] = float(state.zone_cy[0]) + dist * math.sin(angle)
+                    state.vx[0, s] = 0.0
+                    state.vy[0, s] = 0.0
+                    # Face toward zone center
+                    state.theta[0, s] = angle + math.pi
+                    # Reset weapon state
+                    state.cooldown[0, s] = 0.0
+                    state.ammo[0, s] = state.magazine_size
+                    state.reload_timer[0, s] = 0.0
+
+
+def run_visualizer(checkpoint_path: str | None = None, seed: int = 42, demo: bool = False) -> None:
     """Main visualization loop."""
     global WINDOW_W, WINDOW_H, SCALE
 
@@ -222,7 +270,8 @@ def run_visualizer(checkpoint_path: str | None = None, seed: int = 42) -> None:
             policy = None
 
     rng = np.random.default_rng(seed)
-    hull_types = list(load_hulls().keys())
+    hulls_data = load_hulls()
+    hull_types = list(hulls_data.keys())
 
     def make_state() -> SimState:
         hull_names = [str(rng.choice(hull_types)) for _ in range(n_ships)]
@@ -234,6 +283,7 @@ def run_visualizer(checkpoint_path: str | None = None, seed: int = 42) -> None:
         )
 
     state = make_state()
+    respawn_timers = np.zeros(n_ships, dtype=np.int32)
     paused = False
     outcome_text = ""
 
@@ -249,9 +299,14 @@ def run_visualizer(checkpoint_path: str | None = None, seed: int = 42) -> None:
                     paused = not paused
                 elif event.key == pygame.K_r:
                     state = make_state()
+                    respawn_timers[:] = 0
                     outcome_text = ""
 
-        if not paused and not state.done[0]:
+        if not paused and (demo or not state.done[0]):
+            # In demo mode, keep the episode alive
+            if demo:
+                state.done[0] = False
+
             # Get actions
             if policy is not None:
                 import torch
@@ -277,7 +332,11 @@ def run_visualizer(checkpoint_path: str | None = None, seed: int = 42) -> None:
 
             state, rewards, dones = step(state, actions)
 
-            if dones[0] and not outcome_text:
+            # Demo mode: tick respawn timers and respawn when ready
+            if demo:
+                _update_respawns(state, respawn_timers, hulls_data, hull_types, rng)
+
+            if not demo and dones[0] and not outcome_text:
                 # Check which team won
                 team_0_alive = any(
                     state.alive[0, s] for s in range(n_ships) if state.team[0, s] == 0
@@ -359,6 +418,10 @@ def run_visualizer(checkpoint_path: str | None = None, seed: int = 42) -> None:
             screen.blit(font.render(hull_str, True, color), (10, y_offset))
             y_offset += 20
 
+        if demo:
+            demo_surf = font.render("DEMO", True, (255, 200, 0))
+            screen.blit(demo_surf, (WINDOW_W - demo_surf.get_width() - 10, 10))
+
         if paused:
             pause_surf = font.render("PAUSED", True, (255, 255, 0))
             screen.blit(pause_surf, (WINDOW_W // 2 - 40, 10))
@@ -380,8 +443,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Space Fight 2v2 Visualizer")
     parser.add_argument("--checkpoint", type=str, default=None, help="Policy checkpoint .pt file")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--demo", action="store_true", help="Demo mode: respawn destroyed ships for endless combat")
     args = parser.parse_args()
-    run_visualizer(checkpoint_path=args.checkpoint, seed=args.seed)
+    run_visualizer(checkpoint_path=args.checkpoint, seed=args.seed, demo=args.demo)
 
 
 if __name__ == "__main__":
