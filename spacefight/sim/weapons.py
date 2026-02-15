@@ -72,11 +72,12 @@ def fire_bullets(
             continue
 
         firing_indices = np.where(batch_mask)[0]
-        n_shots = int(shots_per_fire[0, s])  # same across batch
-        lateral = float(weapon_offset[0, s])
-        b_speed = float(weapon_speed[0, s])
-        b_range = float(weapon_range[0, s])
-        b_damage = float(weapon_damage[0, s])
+        fi0 = firing_indices[0]  # representative firing env
+        n_shots = int(shots_per_fire[fi0, s])
+        lateral = float(weapon_offset[fi0, s])
+        b_speed = float(weapon_speed[fi0, s])
+        b_range = float(weapon_range[fi0, s])
+        b_damage = float(weapon_damage[fi0, s])
         ttl = b_range / b_speed
 
         # Compute lateral offsets for each shot (perpendicular to heading)
@@ -108,7 +109,7 @@ def fire_bullets(
                 proj_damage[n, slot] = b_damage
                 proj_type[n, slot] = 0  # bullet
 
-        cooldown[firing_indices, s] = fire_interval[0, s]
+        cooldown[firing_indices, s] = fire_interval[fi0, s]
         ammo[firing_indices, s] -= 1
 
     # Auto-reload when magazine is empty
@@ -157,8 +158,9 @@ def fire_lasers(
             continue
 
         firing_indices = np.where(batch_mask)[0]
-        l_range = float(weapon_range[0, s])
-        l_damage = float(weapon_damage[0, s])
+        fi0 = firing_indices[0]  # representative firing env
+        l_range = float(weapon_range[fi0, s])
+        l_damage = float(weapon_damage[fi0, s])
 
         for n in firing_indices:
             sx = float(ship_x[n, s])
@@ -210,7 +212,7 @@ def fire_lasers(
             else:
                 laser_hits.append((int(n), s, end_x, end_y, end_x, end_y))
 
-            cooldown[n, s] = float(fire_interval[0, s])
+            cooldown[n, s] = float(fire_interval[n, s])
             ammo[n, s] -= 1
 
     # Auto-reload when magazine is empty
@@ -272,9 +274,10 @@ def fire_missiles(
             continue
 
         firing_indices = np.where(batch_mask)[0]
-        m_speed = float(weapon_speed[0, s])
-        m_range = float(weapon_range[0, s])
-        m_damage = float(weapon_damage[0, s])
+        fi0 = firing_indices[0]  # representative firing env
+        m_speed = float(weapon_speed[fi0, s])
+        m_range = float(weapon_range[fi0, s])
+        m_damage = float(weapon_damage[fi0, s])
         ttl = m_range / m_speed
 
         for n in firing_indices:
@@ -316,7 +319,7 @@ def fire_missiles(
             proj_type[n, slot] = 1  # missile
             proj_target[n, slot] = best_target
 
-        cooldown[firing_indices, s] = float(fire_interval[0, s])
+        cooldown[firing_indices, s] = float(fire_interval[fi0, s])
         ammo[firing_indices, s] -= 1
 
     # Auto-reload when magazine is empty
