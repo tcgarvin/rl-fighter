@@ -35,6 +35,7 @@ REWARD_WIN = 1.0
 REWARD_LOSE = -1.0
 REWARD_DAMAGE_DEALT = 0.01
 REWARD_DAMAGE_TAKEN = -0.01
+REWARD_FIRE_COST = -0.005  # per trigger pull
 
 # Engagement zone shaping
 ZONE_K = 0.1  # quadratic penalty scale outside zone
@@ -570,6 +571,9 @@ def step(
             if state.team[0, e_idx] != own_team:
                 rewards[:, s_idx] += REWARD_DAMAGE_DEALT * damage[:, e_idx]
         rewards[:, s_idx] += REWARD_DAMAGE_TAKEN * damage[:, s_idx]
+
+    # --- Fire cost ---
+    rewards += REWARD_FIRE_COST * (fire_cmd & state.alive).astype(np.float32)
 
     # --- Zone penalty ---
     dx_zone = state.x - state.zone_cx[:, None]

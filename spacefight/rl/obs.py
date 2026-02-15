@@ -3,7 +3,7 @@
 Each ship sees the world from its own heading frame: relative vectors
 are rotated by -theta so that "forward" is always along the +x axis.
 
-Observation vector (36 features per ship):
+Observation vector (53 features per ship):
   Self features (8):
     0: speed / max_speed
     1: hull fraction
@@ -20,20 +20,39 @@ Observation vector (36 features per ship):
     10: turn_rate / pi
     11: thrust_accel / 400 (normalized by interceptor thrust)
 
-  Ally (1 ally in 2v2) (7):
-    12-13: relative position (x, y) in body frame / 1000
-    14-15: relative velocity (x, y) in body frame / 500
-    16: distance / 1000
-    17: hull fraction
-    18: alive flag
+  Weapon descriptors (5) — weapon identity and ballistic properties:
+    12: is_projectile (bullet or double_gauss)
+    13: is_hitscan (laser)
+    14: is_guided (missile)
+    15: effective_range / 1500
+    16: projectile_speed / 500 (0 for hitscan)
 
-  Enemies (2 enemies in 2v2, sorted by distance) (7 each = 14):
-    19-25: enemy 0 (nearest): rel pos, rel vel, dist, hull frac, alive
-    26-32: enemy 1: rel pos, rel vel, dist, hull frac, alive
+  Ally (1 ally in 2v2) (7):
+    17-18: relative position (x, y) in body frame / 1000
+    19-20: relative velocity (x, y) in body frame / 500
+    21: distance / 1000
+    22: hull fraction
+    23: alive flag
+
+  Enemies (2 enemies in 2v2, sorted by distance) (13 each = 26):
+    24-36: enemy 0 (nearest):
+      24-25: rel pos (x, y) body frame / 1000
+      26-27: rel vel (x, y) body frame / 500
+      28: distance / 1000
+      29: hull fraction
+      30: alive
+      31: bearing cos — forward component of unit LOS (1 = dead ahead)
+      32: bearing sin — lateral component of unit LOS (0 = on bore)
+      33: radial closing speed / 500 (positive = closing)
+      34: tangential speed / 500
+      35: time-to-target / 5 (dist / proj_speed; 0 for hitscan)
+      36: range margin (weapon_range - dist) / weapon_range
+
+    37-49: enemy 1 (same layout)
 
   Zone (3):
-    33-34: zone direction (x, y) unit vector in body frame
-    35: zone margin
+    50-51: zone direction (x, y) unit vector in body frame
+    52: zone margin
 """
 
 from __future__ import annotations
@@ -45,13 +64,19 @@ from numpy.typing import NDArray
 
 from spacefight.sim.core import TEAM_SIZE, SimState
 
-OBS_DIM = 36
+OBS_DIM = 53
 
 # Precomputed relationship tables for 2v2 (4 ships: 0,1 on team 0; 2,3 on team 1)
 # ally_map[s] = index of s's teammate
 _ALLY_MAP_4 = np.array([1, 0, 3, 2], dtype=np.int32)
 # enemy_map[s] = [enemy_0, enemy_1] (fixed order, sorted by distance at runtime)
 _ENEMY_MAP_4 = np.array([[2, 3], [2, 3], [0, 1], [0, 1]], dtype=np.int32)
+
+# Weapon type constants (mirror core.py)
+_WEAPON_TYPE_BULLET = 0
+_WEAPON_TYPE_HITSCAN = 1
+_WEAPON_TYPE_MISSILE = 2
+_WEAPON_TYPE_DOUBLE = 3
 
 
 def build_egocentric_obs(state: SimState) -> NDArray[np.float32]:
@@ -63,7 +88,7 @@ def build_egocentric_obs(state: SimState) -> NDArray[np.float32]:
         state: Current SimState with shapes [N, S] for ship arrays.
 
     Returns:
-        Observation array of shape [N, S, 36], float32.
+        Observation array of shape [N, S, 53], float32.
     """
     N, S = state.n_envs, state.n_ships
 
@@ -100,12 +125,23 @@ def build_egocentric_obs(state: SimState) -> NDArray[np.float32]:
     obs[:, :, 10] = state.turn_rate / math.pi
     obs[:, :, 11] = state.thrust_accel / 400.0
 
+    # --- Weapon descriptors (5) ---
+    wtype = state.weapon_type  # [N, S]
+    obs[:, :, 12] = ((wtype == _WEAPON_TYPE_BULLET) | (wtype == _WEAPON_TYPE_DOUBLE)).astype(np.float32)
+    obs[:, :, 13] = (wtype == _WEAPON_TYPE_HITSCAN).astype(np.float32)
+    obs[:, :, 14] = (wtype == _WEAPON_TYPE_MISSILE).astype(np.float32)
+    obs[:, :, 15] = state.weapon_range / 1500.0
+    obs[:, :, 16] = state.weapon_speed / 500.0  # 0 for hitscan (speed=0 in data)
+
+    # Precompute weapon ballistic info for time-to-target [N, S]
+    is_hitscan = wtype == _WEAPON_TYPE_HITSCAN
+    weapon_speed_safe = np.where(is_hitscan, 1.0, np.maximum(state.weapon_speed, 1e-8))
+    ttt_mask = (~is_hitscan).astype(np.float32)  # zero out TTT for hitscan
+
     # --- Ally features (7) ---
-    # Use precomputed ally map: ally_map[s] gives teammate index
     ally_idx = _ALLY_MAP_4[:S]  # [S]
 
     # Relative position: [N, S] for each of x, y
-    # state.x[:, ally_idx] gathers ally positions for all ships: [N, S]
     ally_dx = state.x[:, ally_idx] - state.x
     ally_dy = state.y[:, ally_idx] - state.y
     ally_dvx = state.vx[:, ally_idx] - state.vx
@@ -121,16 +157,15 @@ def build_egocentric_obs(state: SimState) -> NDArray[np.float32]:
     ally_hull_frac = state.hull[:, ally_idx] / np.maximum(state.max_hull[:, ally_idx], 1e-8)
     ally_alive = state.alive[:, ally_idx].astype(np.float32)
 
-    obs[:, :, 12] = ally_rx / 1000.0 * ally_alive
-    obs[:, :, 13] = ally_ry / 1000.0 * ally_alive
-    obs[:, :, 14] = ally_rvx / 500.0 * ally_alive
-    obs[:, :, 15] = ally_rvy / 500.0 * ally_alive
-    obs[:, :, 16] = ally_dist / 1000.0 * ally_alive
-    obs[:, :, 17] = ally_hull_frac * ally_alive
-    obs[:, :, 18] = ally_alive
+    obs[:, :, 17] = ally_rx / 1000.0 * ally_alive
+    obs[:, :, 18] = ally_ry / 1000.0 * ally_alive
+    obs[:, :, 19] = ally_rvx / 500.0 * ally_alive
+    obs[:, :, 20] = ally_rvy / 500.0 * ally_alive
+    obs[:, :, 21] = ally_dist / 1000.0 * ally_alive
+    obs[:, :, 22] = ally_hull_frac * ally_alive
+    obs[:, :, 23] = ally_alive
 
-    # --- Enemy features (14 = 7 * 2) ---
-    # enemy_map[s] = [e0, e1] for each ship s
+    # --- Enemy features (13 * 2 = 26) ---
     enemy_map = _ENEMY_MAP_4[:S]  # [S, 2]
 
     # Gather enemy positions for both enemies: [N, S, 2]
@@ -161,7 +196,6 @@ def build_egocentric_obs(state: SimState) -> NDArray[np.float32]:
     enemy_dist = enemy_dist[n_idx, s_idx, sort_idx]
 
     # Gather hull/alive for sorted enemies
-    # First get the actual ship indices after sorting
     sorted_enemy_ships = np.take_along_axis(
         np.broadcast_to(enemy_map[np.newaxis, :, :], (N, S, 2)),
         sort_idx, axis=2
@@ -185,9 +219,32 @@ def build_egocentric_obs(state: SimState) -> NDArray[np.float32]:
     ervx = edvx * cos_neg_3d - edvy * sin_neg_3d
     ervy = edvx * sin_neg_3d + edvy * cos_neg_3d
 
+    # --- Engagement geometry (computed in body frame) ---
+    safe_dist = np.maximum(enemy_dist, 1e-8)  # [N, S, 2]
+
+    # Unit line-of-sight in body frame
+    bearing_cos = erx / safe_dist  # 1 = dead ahead, -1 = behind
+    bearing_sin = ery / safe_dist  # 0 = on bore, ±1 = perpendicular
+
+    # Radial closing speed: -(v_rel · unit_LOS)
+    # In body frame: -(ervx * bearing_cos + ervy * bearing_sin)
+    # But bearing is computed from body-frame rel pos, and rel vel is also in body frame
+    radial_speed = -(ervx * bearing_cos + ervy * bearing_sin)  # positive = closing
+
+    # Tangential speed: cross(v_rel, unit_LOS) = ervx * bearing_sin - ervy * bearing_cos
+    tangential_speed = ervx * bearing_sin - ervy * bearing_cos
+
+    # Time-to-target: dist / weapon_speed (0 for hitscan)
+    # weapon_speed_safe and ttt_mask are [N, S], need to broadcast to [N, S, 2]
+    ttt = enemy_dist * ttt_mask[:, :, np.newaxis] / weapon_speed_safe[:, :, np.newaxis] / 5.0
+
+    # Range margin: (weapon_range - dist) / weapon_range
+    weapon_range_safe = np.maximum(state.weapon_range, 1e-8)  # [N, S]
+    range_margin = (state.weapon_range[:, :, np.newaxis] - enemy_dist) / weapon_range_safe[:, :, np.newaxis]
+
     # Write enemy features for rank 0 (nearest) and rank 1
     for rank in range(2):
-        col = 19 + rank * 7
+        col = 24 + rank * 13
         alive_r = enemy_alive[:, :, rank]
         obs[:, :, col + 0] = erx[:, :, rank] / 1000.0 * alive_r
         obs[:, :, col + 1] = ery[:, :, rank] / 1000.0 * alive_r
@@ -196,6 +253,13 @@ def build_egocentric_obs(state: SimState) -> NDArray[np.float32]:
         obs[:, :, col + 4] = enemy_dist[:, :, rank] / 1000.0 * alive_r
         obs[:, :, col + 5] = enemy_hull_frac[:, :, rank] * alive_r
         obs[:, :, col + 6] = alive_r
+        # Engagement geometry
+        obs[:, :, col + 7] = bearing_cos[:, :, rank] * alive_r
+        obs[:, :, col + 8] = bearing_sin[:, :, rank] * alive_r
+        obs[:, :, col + 9] = radial_speed[:, :, rank] / 500.0 * alive_r
+        obs[:, :, col + 10] = tangential_speed[:, :, rank] / 500.0 * alive_r
+        obs[:, :, col + 11] = ttt[:, :, rank] * alive_r
+        obs[:, :, col + 12] = range_margin[:, :, rank] * alive_r
 
     # --- Zone features (3) ---
     zx = state.zone_cx[:, np.newaxis] - state.x
@@ -204,8 +268,8 @@ def build_egocentric_obs(state: SimState) -> NDArray[np.float32]:
     safe_zone_dist = np.maximum(zone_dist, 1e-8)
     zx_unit = zx / safe_zone_dist
     zy_unit = zy / safe_zone_dist
-    obs[:, :, 33] = zx_unit * cos_neg - zy_unit * sin_neg
-    obs[:, :, 34] = zx_unit * sin_neg + zy_unit * cos_neg
-    obs[:, :, 35] = (state.zone_r[:, np.newaxis] - zone_dist) / state.zone_r[:, np.newaxis]
+    obs[:, :, 50] = zx_unit * cos_neg - zy_unit * sin_neg
+    obs[:, :, 51] = zx_unit * sin_neg + zy_unit * cos_neg
+    obs[:, :, 52] = (state.zone_r[:, np.newaxis] - zone_dist) / state.zone_r[:, np.newaxis]
 
     return obs

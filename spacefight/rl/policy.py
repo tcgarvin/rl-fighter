@@ -10,7 +10,8 @@ import torch
 import torch.nn as nn
 from torch.distributions import Categorical
 
-OBS_DIM = 36
+from spacefight.rl.obs import OBS_DIM  # noqa: E402 — single source of truth
+
 CRITIC_OBS_DIM = OBS_DIM * 2  # concatenated team observations for 2v2
 HIDDEN = 256
 
