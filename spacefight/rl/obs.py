@@ -79,8 +79,9 @@ def build_egocentric_obs(state: SimState) -> NDArray[np.float32]:
     speed = np.sqrt(state.vx ** 2 + state.vy ** 2)
     max_speed_safe = np.maximum(state.max_speed, 1e-8)
     max_hull_safe = np.maximum(state.max_hull, 1e-8)
-    fire_interval = max(state.fire_interval, 1e-8)
-    reload_time = max(state.reload_time, 1e-8)
+    fire_interval = np.maximum(state.fire_interval, 1e-8)  # [N, S]
+    reload_time = np.maximum(state.reload_time, 1e-8)      # [N, S]
+    mag_size_safe = np.maximum(state.magazine_size, 1)      # [N, S]
 
     fwd_speed = state.vx * cos_theta + state.vy * sin_theta
 
@@ -90,7 +91,7 @@ def build_egocentric_obs(state: SimState) -> NDArray[np.float32]:
     obs[:, :, 3] = sin_theta
     obs[:, :, 4] = cos_theta
     obs[:, :, 5] = fwd_speed / max_speed_safe
-    obs[:, :, 6] = state.ammo.astype(np.float32) / max(state.magazine_size, 1)
+    obs[:, :, 6] = state.ammo.astype(np.float32) / mag_size_safe
     obs[:, :, 7] = state.reload_timer / reload_time
 
     # --- Ship properties (4) ---

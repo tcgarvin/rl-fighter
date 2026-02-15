@@ -5,6 +5,7 @@ hulls:
     speed: 300.0
     turn_rate: 180.0    # degrees per second
     thrust: 400.0       # acceleration units/s^2
+    weapon: laser
     weapon_slots:
       small: 2
       medium: 0
@@ -15,6 +16,7 @@ hulls:
     speed: 220.0
     turn_rate: 120.0
     thrust: 300.0
+    weapon: gauss_gun
     weapon_slots:
       small: 2
       medium: 1
@@ -25,6 +27,7 @@ hulls:
     speed: 160.0
     turn_rate: 80.0
     thrust: 200.0
+    weapon: double_gauss
     weapon_slots:
       small: 1
       medium: 2
@@ -35,6 +38,7 @@ hulls:
     speed: 200.0
     turn_rate: 100.0
     thrust: 350.0
+    weapon: guided_missile
     weapon_slots:
       small: 2
       medium: 1

@@ -18,7 +18,13 @@ import sys
 import numpy as np
 import pygame
 
-from spacefight.sim.core import SimState, load_hulls, reset, step
+from spacefight.sim.core import (
+    SimState,
+    load_hulls,
+    load_weapons,
+    reset,
+    step,
+)
 
 # Display constants (WINDOW_W, WINDOW_H, SCALE are set dynamically at startup)
 WINDOW_W = 1200  # default fallback, overwritten by run_visualizer
@@ -36,6 +42,7 @@ SHIP_COLORS = [
 TEAM_NAMES = ["Blue-1", "Blue-2", "Red-1", "Red-2"]
 DEAD_COLOR = (100, 100, 100)
 BULLET_RADIUS = 3
+MISSILE_SIZE = 5
 BASE_SHIP_SIZE = 14  # reference half-length (scaled per hull radius)
 REFERENCE_RADIUS = 18.0  # "fighter" radius used as the 1x baseline
 
@@ -45,6 +52,14 @@ HULL_ABBREVS = {
     "fighter": "FTR",
     "gunboat": "GUN",
     "bomber": "BMR",
+}
+
+# Weapon abbreviations for HUD
+WEAPON_ABBREVS = {
+    "gauss_gun": "GAU",
+    "laser": "LAS",
+    "guided_missile": "MSL",
+    "double_gauss": "DG",
 }
 
 # HP bar
@@ -58,6 +73,11 @@ WORLD_CENTER_Y = 0.0
 WORLD_EXTENT = 1200.0  # half-width of visible world (fits zone + spawn + margin)
 SCALE = 0.45  # default fallback, overwritten by run_visualizer
 SCREEN_FRACTION = 0.9  # use 90% of display dimensions
+
+# Laser beam rendering
+LASER_BEAM_WIDTH = 2
+LASER_COLOR_HIT = (0, 255, 180)  # bright cyan-green on hit
+LASER_COLOR_MISS = (0, 180, 120)  # dimmer on miss
 
 
 def world_to_screen(wx: float, wy: float) -> tuple[int, int]:
@@ -185,6 +205,45 @@ def draw_bullet(
     pygame.draw.circle(surface, bullet_color, (sx, sy), BULLET_RADIUS)
 
 
+def draw_missile(
+    surface: pygame.Surface,
+    x: float,
+    y: float,
+    vx: float,
+    vy: float,
+    owner: int,
+) -> None:
+    """Draw a missile as a small triangle pointing in its direction of travel."""
+    sx, sy = world_to_screen(x, y)
+    color = SHIP_COLORS[owner % len(SHIP_COLORS)]
+    # Brighter for missiles
+    missile_color = tuple(min(255, c + 40) for c in color)
+
+    theta = math.atan2(vy, vx)
+    sz = MISSILE_SIZE
+    nose = (sx + int(sz * math.cos(theta)), sy - int(sz * math.sin(theta)))
+    left = (sx + int(sz * 0.5 * math.cos(theta + 2.5)),
+            sy - int(sz * 0.5 * math.sin(theta + 2.5)))
+    right = (sx + int(sz * 0.5 * math.cos(theta - 2.5)),
+             sy - int(sz * 0.5 * math.sin(theta - 2.5)))
+    pygame.draw.polygon(surface, missile_color, [nose, left, right])
+
+
+def draw_laser_beam(
+    surface: pygame.Surface,
+    start_x: float,
+    start_y: float,
+    end_x: float,
+    end_y: float,
+    hit: bool,
+) -> None:
+    """Draw a laser beam line from ship to hit/end point."""
+    s_start = world_to_screen(start_x, start_y)
+    s_end = world_to_screen(end_x, end_y)
+    color = LASER_COLOR_HIT if hit else LASER_COLOR_MISS
+    pygame.draw.line(surface, color, s_start, s_end, LASER_BEAM_WIDTH)
+
+
 # --- Explosion visual effects ---
 
 # Hit explosion: small, fast flash
@@ -298,21 +357,24 @@ class ExplosionManager:
 
 
 RESPAWN_DELAY_TICKS = 60  # 2 seconds at 30 Hz
-RESPAWN_ZONE_PAD = 200.0  # spawn 200–400 units outside zone edge
+RESPAWN_ZONE_PAD = 200.0  # spawn 200-400 units outside zone edge
 
 
 def _update_respawns(
     state: SimState,
     respawn_timers: NDArray[np.int32],
     hulls_data: dict,
+    weapons_data: dict,
     hull_types: list[str],
     rng: np.random.Generator,
 ) -> None:
     """Track respawn countdowns and respawn ships outside the zone when ready."""
+    from spacefight.sim.core import _WEAPON_TYPE_MAP
+
     for s in range(state.n_ships):
         if not state.alive[0, s]:
             if respawn_timers[s] <= 0:
-                # Just died — start countdown
+                # Just died - start countdown
                 respawn_timers[s] = RESPAWN_DELAY_TICKS
             else:
                 respawn_timers[s] -= 1
@@ -326,6 +388,20 @@ def _update_respawns(
                     state.max_speed[0, s] = h["speed"]
                     state.turn_rate[0, s] = math.radians(h["turn_rate"])
                     state.thrust_accel[0, s] = h["thrust"]
+
+                    # Update weapon config for new hull
+                    wname = h.get("weapon", "gauss_gun")
+                    w = weapons_data[wname]
+                    state.weapon_names[s] = wname
+                    state.weapon_type[0, s] = _WEAPON_TYPE_MAP[wname]
+                    state.weapon_damage[0, s] = w["damage"]
+                    state.weapon_speed[0, s] = w.get("speed", 0.0)
+                    state.weapon_range[0, s] = w["range"]
+                    state.fire_interval[0, s] = 1.0 / w["fire_rate"]
+                    state.magazine_size[0, s] = w.get("magazine_size", 0)
+                    state.reload_time[0, s] = w.get("reload_time", 0.0)
+                    state.shots_per_fire[0, s] = w.get("shots_per_fire", 1)
+                    state.weapon_offset[0, s] = w.get("offset", 0.0)
 
                     # Respawn outside the engagement zone, aimed inward
                     state.alive[0, s] = True
@@ -341,7 +417,7 @@ def _update_respawns(
                     state.theta[0, s] = angle + math.pi
                     # Reset weapon state
                     state.cooldown[0, s] = 0.0
-                    state.ammo[0, s] = state.magazine_size
+                    state.ammo[0, s] = w.get("magazine_size", 0)
                     state.reload_timer[0, s] = 0.0
 
 
@@ -356,7 +432,7 @@ def run_visualizer(checkpoint_path: str | None = None, seed: int = 42, demo: boo
     WINDOW_W = int(display_info.current_w * SCREEN_FRACTION)
     WINDOW_H = int(display_info.current_h * SCREEN_FRACTION)
 
-    # Compute scale so that ±WORLD_EXTENT fits in both axes
+    # Compute scale so that +/- WORLD_EXTENT fits in both axes
     SCALE = min(WINDOW_W / 2, WINDOW_H / 2) / WORLD_EXTENT
 
     screen = pygame.display.set_mode((WINDOW_W, WINDOW_H))
@@ -384,6 +460,7 @@ def run_visualizer(checkpoint_path: str | None = None, seed: int = 42, demo: boo
 
     rng = np.random.default_rng(seed)
     hulls_data = load_hulls()
+    weapons_data = load_weapons()
     hull_types = list(hulls_data.keys())
 
     def make_state() -> SimState:
@@ -456,11 +533,9 @@ def run_visualizer(checkpoint_path: str | None = None, seed: int = 42, demo: boo
             dead_indices = np.where(newly_dead_projs)[0]
 
             # For each newly dead projectile near a ship, spawn hit explosion
-            # at the projectile's position (where it intersected the hull)
             for p_idx in dead_indices:
                 px = float(state.proj_x[0, p_idx])
                 py = float(state.proj_y[0, p_idx])
-                # Check if this projectile is within any ship's radius
                 for s in range(n_ships):
                     if not state.alive[0, s] and not prev_alive[s]:
                         continue
@@ -482,10 +557,9 @@ def run_visualizer(checkpoint_path: str | None = None, seed: int = 42, demo: boo
 
             # Demo mode: tick respawn timers and respawn when ready
             if demo:
-                _update_respawns(state, respawn_timers, hulls_data, hull_types, rng)
+                _update_respawns(state, respawn_timers, hulls_data, weapons_data, hull_types, rng)
 
             if not demo and dones[0] and not outcome_text:
-                # Check which team won
                 team_0_alive = any(
                     state.alive[0, s] for s in range(n_ships) if state.team[0, s] == 0
                 )
@@ -514,16 +588,38 @@ def run_visualizer(checkpoint_path: str | None = None, seed: int = 42, demo: boo
             screen, (40, 60, 40), (zone_sx, zone_sy), zone_screen_r, 1
         )
 
-        # Draw bullets
+        # Draw projectiles (bullets and missiles)
         for p in range(state.proj_alive.shape[1]):
             if state.proj_alive[0, p]:
                 owner = int(state.proj_owner[0, p])
-                draw_bullet(
-                    screen,
-                    float(state.proj_x[0, p]),
-                    float(state.proj_y[0, p]),
-                    owner,
-                )
+                px = float(state.proj_x[0, p])
+                py = float(state.proj_y[0, p])
+                if int(state.proj_type[0, p]) == 1:
+                    # Missile: draw as small triangle
+                    draw_missile(
+                        screen, px, py,
+                        float(state.proj_vx[0, p]),
+                        float(state.proj_vy[0, p]),
+                        owner,
+                    )
+                else:
+                    # Bullet: draw as dot
+                    draw_bullet(screen, px, py, owner)
+
+        # Draw laser beams (only on the tick they fire)
+        if state.laser_hits:
+            for env_idx, ship_idx, hit_x, hit_y, end_x, end_y in state.laser_hits:
+                if env_idx != 0:
+                    continue
+                sx = float(state.x[0, ship_idx])
+                sy = float(state.y[0, ship_idx])
+                # Determine if it was a hit (hit point != max range endpoint)
+                theta = float(state.theta[0, ship_idx])
+                w_range = float(state.weapon_range[0, ship_idx])
+                max_end_x = sx + w_range * math.cos(theta)
+                max_end_y = sy + w_range * math.sin(theta)
+                is_hit = (abs(end_x - max_end_x) > 1.0 or abs(end_y - max_end_y) > 1.0)
+                draw_laser_beam(screen, sx, sy, end_x, end_y, is_hit)
 
         # Draw ships
         max_hull = np.maximum(state.max_hull[0], 1e-8)
@@ -557,16 +653,21 @@ def run_visualizer(checkpoint_path: str | None = None, seed: int = 42, demo: boo
         for s in range(state.n_ships):
             name = TEAM_NAMES[s] if s < len(TEAM_NAMES) else f"Ship {s}"
             hull_abbrev = HULL_ABBREVS.get(state.hull_names[s], "???")
-            ammo_str = f"{state.ammo[0, s]}/{state.magazine_size}"
+            weapon_abbrev = WEAPON_ABBREVS.get(state.weapon_names[s], "???")
+
+            # Ammo display: all weapons show magazine count
+            mag = int(state.magazine_size[0, s])
+            ammo_str = f"{state.ammo[0, s]}/{mag}"
+
             reload_str = (
                 f" R:{state.reload_timer[0, s]:.1f}s"
                 if state.reload_timer[0, s] > 0
                 else ""
             )
             hull_str = (
-                f"{name} [{hull_abbrev}]"
+                f"{name} [{hull_abbrev}/{weapon_abbrev}]"
                 f" HP:{state.hull[0, s]:.0f}/{state.max_hull[0, s]:.0f}"
-                f" Ammo:{ammo_str}{reload_str}"
+                f" {ammo_str}{reload_str}"
             )
             color = SHIP_COLORS[s % len(SHIP_COLORS)]
             screen.blit(font.render(hull_str, True, color), (10, y_offset))

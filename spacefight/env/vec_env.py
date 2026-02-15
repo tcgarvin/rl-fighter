@@ -138,8 +138,12 @@ class VecEnv:
             "x", "y", "vx", "vy", "theta", "hull", "alive",
             "max_hull", "radius", "max_speed", "turn_rate", "thrust_accel",
             "team", "cooldown", "ammo", "reload_timer",
+            "weapon_type", "weapon_damage", "weapon_speed", "weapon_range",
+            "fire_interval", "magazine_size", "reload_time",
+            "shots_per_fire", "weapon_offset",
             "proj_x", "proj_y", "proj_vx", "proj_vy",
             "proj_alive", "proj_owner", "proj_ttl",
+            "proj_damage", "proj_type", "proj_target",
             "zone_cx", "zone_cy", "zone_r", "t_since_damage",
         ]:
             getattr(state, attr)[indices] = getattr(fresh, attr)

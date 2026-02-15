@@ -10,3 +10,44 @@ weapons:
     reload_time: 2.0        # seconds to reload empty magazine
     energy_cost: 3.0
     slot_size: small
+    shots_per_fire: 1
+
+  laser:
+    type: hitscan
+    damage: 9.0
+    damage_type: energy
+    range: 500.0
+    fire_rate: 8.0          # shots per second within a burst
+    magazine_size: 5         # shots before recharge
+    reload_time: 3.0         # seconds to recharge after emptying
+    energy_cost: 2.0
+    slot_size: small
+    shots_per_fire: 1
+
+  guided_missile:
+    type: missile
+    damage: 40.0
+    damage_type: explosive
+    speed: 250.0
+    range: 1500.0
+    fire_rate: 1.0
+    magazine_size: 1
+    reload_time: 4.0
+    turn_rate: 120.0        # degrees per second
+    energy_cost: 8.0
+    slot_size: medium
+    shots_per_fire: 1
+
+  double_gauss:
+    type: bullet
+    damage: 12.0
+    damage_type: kinetic
+    speed: 500.0
+    range: 750.0
+    fire_rate: 4.0
+    magazine_size: 10
+    reload_time: 2.5
+    energy_cost: 5.0
+    slot_size: medium
+    shots_per_fire: 2
+    offset: 10.0            # lateral offset in world units for parallel shots
