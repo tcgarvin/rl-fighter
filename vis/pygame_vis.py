@@ -19,8 +19,8 @@ import pygame
 
 from spacefight.sim.core import SimState, load_hulls, reset, step
 
-# Display constants
-WINDOW_W = 1200
+# Display constants (WINDOW_W, WINDOW_H, SCALE are set dynamically at startup)
+WINDOW_W = 1200  # default fallback, overwritten by run_visualizer
 WINDOW_H = 800
 FPS = 30
 BG_COLOR = (0, 0, 0)
@@ -54,7 +54,9 @@ HP_BAR_OFFSET = 20  # pixels above ship
 # World-to-screen transform: center the arena
 WORLD_CENTER_X = 0.0
 WORLD_CENTER_Y = 0.0
-SCALE = 0.7  # pixels per world unit (smaller for larger arena)
+WORLD_EXTENT = 1200.0  # half-width of visible world (fits zone + spawn + margin)
+SCALE = 0.45  # default fallback, overwritten by run_visualizer
+SCREEN_FRACTION = 0.9  # use 90% of display dimensions
 
 
 def world_to_screen(wx: float, wy: float) -> tuple[int, int]:
@@ -184,7 +186,18 @@ def draw_bullet(
 
 def run_visualizer(checkpoint_path: str | None = None, seed: int = 42) -> None:
     """Main visualization loop."""
+    global WINDOW_W, WINDOW_H, SCALE
+
     pygame.init()
+
+    # Size window to 90% of the active display
+    display_info = pygame.display.Info()
+    WINDOW_W = int(display_info.current_w * SCREEN_FRACTION)
+    WINDOW_H = int(display_info.current_h * SCREEN_FRACTION)
+
+    # Compute scale so that ±WORLD_EXTENT fits in both axes
+    SCALE = min(WINDOW_W / 2, WINDOW_H / 2) / WORLD_EXTENT
+
     screen = pygame.display.set_mode((WINDOW_W, WINDOW_H))
     pygame.display.set_caption("Space Fight 2v2")
     clock = pygame.time.Clock()

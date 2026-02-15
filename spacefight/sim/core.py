@@ -37,8 +37,8 @@ REWARD_DAMAGE_TAKEN = -0.01
 # Engagement zone shaping
 ZONE_K = 0.1  # quadratic penalty scale outside zone
 T_IDLE_TICKS = 150  # 5 seconds at 30 Hz before full penalty
-ZONE_R_MIN = 500.0
-ZONE_R_MAX = 700.0
+ZONE_R_MIN = 800.0
+ZONE_R_MAX = 1000.0
 ZONE_CENTER_RANGE = 60.0  # randomize center within [-60, 60]
 
 # Team configuration
@@ -173,26 +173,30 @@ def reset(
     for s_idx in range(S):
         team[:, s_idx] = s_idx // TEAM_SIZE
 
-    # Spawn positions: teams on opposing sides
-    spawn_dist = 350.0
+    # Spawn positions: teams on opposing sides, outside optimal weapon range.
+    # Weapon range is 800; spawn at 1.3–1.8× that so agents must close distance.
+    spawn_dist_min = 520.0  # per-team distance from center (total ~1040)
+    spawn_dist_max = 720.0  # per-team distance from center (total ~1440)
     x = np.zeros((N, S), dtype=np.float32)
     y = np.zeros((N, S), dtype=np.float32)
     theta = np.zeros((N, S), dtype=np.float32)
 
-    angle_jitter = rng.uniform(-0.3, 0.3, size=(N, S)).astype(np.float32)
+    # Per-env spawn distance (same for both teams in a given match)
+    spawn_dist = rng.uniform(spawn_dist_min, spawn_dist_max, size=N).astype(
+        np.float32
+    )
+    # Fully randomized headings so agents must orient before engaging
+    heading = rng.uniform(0.0, 2.0 * math.pi, size=(N, S)).astype(np.float32)
+    # Lateral offset for teammate spread (larger than before)
+    lateral_offset = rng.uniform(-120.0, 120.0, size=(N, S)).astype(np.float32)
     pos_jitter_x = rng.uniform(-30.0, 30.0, size=(N, S)).astype(np.float32)
-    pos_jitter_y = rng.uniform(-30.0, 30.0, size=(N, S)).astype(np.float32)
 
     for s_idx in range(S):
         team_id = s_idx // TEAM_SIZE
-        teammate_idx = s_idx % TEAM_SIZE  # 0 or 1 within team
         sign = 1.0 if team_id == 0 else -1.0
-        # Offset teammates vertically so they don't stack
-        y_team_offset = (teammate_idx - 0.5) * 60.0
         x[:, s_idx] = sign * spawn_dist + pos_jitter_x[:, s_idx]
-        y[:, s_idx] = y_team_offset + pos_jitter_y[:, s_idx]
-        # Face toward center
-        theta[:, s_idx] = (math.pi if sign > 0 else 0.0) + angle_jitter[:, s_idx]
+        y[:, s_idx] = lateral_offset[:, s_idx]
+        theta[:, s_idx] = heading[:, s_idx]
 
     # Engagement zone: randomize center and radius per episode
     zone_cx = rng.uniform(
