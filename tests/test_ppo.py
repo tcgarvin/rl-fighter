@@ -20,7 +20,7 @@ class TestRolloutBuffer:
             buf.insert(
                 obs=np.random.randn(2, N_SHIPS, OBS_DIM).astype(np.float32),
                 critic_obs=np.random.randn(2, N_SHIPS, CRITIC_OBS_DIM).astype(np.float32),
-                raw_actions=np.zeros((2, N_SHIPS, 4), dtype=np.int64),
+                raw_actions=np.zeros((2, N_SHIPS, 5), dtype=np.int64),
                 log_probs=np.zeros((2, N_SHIPS), dtype=np.float32),
                 values=np.zeros((2, N_SHIPS), dtype=np.float32),
                 rewards=np.random.randn(2, N_SHIPS).astype(np.float32),
@@ -31,7 +31,7 @@ class TestRolloutBuffer:
         total = 4 * 2 * N_SHIPS  # T * N * S
         assert obs.shape == (total, OBS_DIM)
         assert critic_obs.shape == (total, CRITIC_OBS_DIM)
-        assert actions.shape == (total, 4)
+        assert actions.shape == (total, 5)
         assert lp.shape == (total,)
 
     def test_gae_shapes(self):
@@ -43,7 +43,7 @@ class TestRolloutBuffer:
             buf.insert(
                 obs=np.random.randn(4, N_SHIPS, OBS_DIM).astype(np.float32),
                 critic_obs=np.random.randn(4, N_SHIPS, CRITIC_OBS_DIM).astype(np.float32),
-                raw_actions=np.zeros((4, N_SHIPS, 4), dtype=np.int64),
+                raw_actions=np.zeros((4, N_SHIPS, 5), dtype=np.int64),
                 log_probs=np.zeros((4, N_SHIPS), dtype=np.float32),
                 values=np.ones((4, N_SHIPS), dtype=np.float32),
                 rewards=np.ones((4, N_SHIPS), dtype=np.float32),
@@ -69,7 +69,7 @@ class TestRolloutBuffer:
             buf.insert(
                 obs=np.zeros((1, N_SHIPS, OBS_DIM), dtype=np.float32),
                 critic_obs=np.zeros((1, N_SHIPS, CRITIC_OBS_DIM), dtype=np.float32),
-                raw_actions=np.zeros((1, N_SHIPS, 4), dtype=np.int64),
+                raw_actions=np.zeros((1, N_SHIPS, 5), dtype=np.int64),
                 log_probs=np.zeros((1, N_SHIPS), dtype=np.float32),
                 values=np.ones((1, N_SHIPS), dtype=np.float32),
                 rewards=np.ones((1, N_SHIPS), dtype=np.float32),
@@ -101,9 +101,9 @@ class TestPPOUpdate:
         total = 64
         obs = torch.randn(total, OBS_DIM)
         critic_obs = torch.randn(total, CRITIC_OBS_DIM)
-        raw_actions = torch.zeros(total, 4, dtype=torch.long)
+        raw_actions = torch.zeros(total, 5, dtype=torch.long)
         raw_actions[:, 0] = torch.randint(0, 3, (total,))
-        for i in range(1, 4):
+        for i in range(1, 5):
             raw_actions[:, i] = torch.randint(0, 2, (total,))
 
         old_log_probs = torch.zeros(total)
@@ -134,7 +134,7 @@ class TestPPOUpdate:
         total = 128
         obs = torch.randn(total, OBS_DIM)
         critic_obs = torch.randn(total, CRITIC_OBS_DIM)
-        raw_actions = torch.zeros(total, 4, dtype=torch.long)
+        raw_actions = torch.zeros(total, 5, dtype=torch.long)
         advantages = torch.randn(total)
         returns = torch.randn(total)
         old_log_probs = torch.zeros(total)

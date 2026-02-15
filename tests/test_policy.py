@@ -12,7 +12,7 @@ class TestActorCritic:
         critic_obs = torch.randn(8, CRITIC_OBS_DIM)
         actions, log_prob, entropy, value = model.get_action_and_value(obs, critic_obs)
 
-        assert actions.shape == (8, 4)
+        assert actions.shape == (8, 5)
         assert log_prob.shape == (8,)
         assert entropy.shape == (8,)
         assert value.shape == (8,)
@@ -27,7 +27,7 @@ class TestActorCritic:
         turn = actions[:, 0]
         assert torch.all((turn == -1) | (turn == 0) | (turn == 1))
 
-        for i in range(1, 4):
+        for i in range(1, 5):
             col = actions[:, i]
             assert torch.all((col == 0) | (col == 1))
 
@@ -55,7 +55,7 @@ class TestActorCritic:
         critic_obs = torch.randn(4, 4, CRITIC_OBS_DIM)
         actions, log_prob, entropy, value = model.get_action_and_value(obs, critic_obs)
 
-        assert actions.shape == (4, 4, 4)
+        assert actions.shape == (4, 4, 5)
         assert log_prob.shape == (4, 4)
         assert value.shape == (4, 4)
 

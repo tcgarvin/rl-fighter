@@ -13,7 +13,7 @@ def _run_episode(seed: int, n_envs: int = 4, n_steps: int = 100) -> dict:
     state = reset(n_envs=n_envs, seed=seed, n_ships=N_SHIPS)
 
     for _ in range(n_steps):
-        actions = rng.integers(0, 2, size=(n_envs, N_SHIPS, 4)).astype(np.int32)
+        actions = rng.integers(0, 2, size=(n_envs, N_SHIPS, 5)).astype(np.int32)
         actions[:, :, 0] = rng.integers(-1, 2, size=(n_envs, N_SHIPS)).astype(np.int32)
         state, _, _ = step(state, actions)
 

@@ -31,7 +31,7 @@ def ppo_update(
         optimizer: Optimizer for model parameters.
         obs: [total, obs_dim] flattened per-agent observations.
         critic_obs: [total, critic_obs_dim] flattened centralized critic observations.
-        raw_actions: [total, 4] raw categorical indices.
+        raw_actions: [total, 5] raw categorical indices.
         old_log_probs: [total] log probs from collection policy.
         advantages: [total] GAE advantages.
         returns: [total] GAE returns (targets for value function).

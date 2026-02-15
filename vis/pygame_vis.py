@@ -516,11 +516,12 @@ def run_visualizer(checkpoint_path: str | None = None, seed: int = 42, demo: boo
                 actions = actions_t.numpy()
             else:
                 # Random actions
-                actions = np.zeros((1, n_ships, 4), dtype=np.int32)
+                actions = np.zeros((1, n_ships, 5), dtype=np.int32)
                 actions[:, :, 0] = rng.integers(-1, 2, size=(1, n_ships))
                 actions[:, :, 1] = rng.integers(0, 2, size=(1, n_ships))
                 actions[:, :, 2] = rng.integers(0, 2, size=(1, n_ships))
                 actions[:, :, 3] = rng.integers(0, 2, size=(1, n_ships))
+                actions[:, :, 4] = rng.integers(0, 2, size=(1, n_ships))
 
             # Snapshot state before step for hit/death detection
             prev_alive = state.alive[0].copy()

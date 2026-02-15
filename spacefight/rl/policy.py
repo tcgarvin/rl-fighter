@@ -14,15 +14,15 @@ OBS_DIM = 36
 CRITIC_OBS_DIM = OBS_DIM * 2  # concatenated team observations for 2v2
 HIDDEN = 256
 
-# Action head sizes: turn(3), thrust(2), brake(2), fire(2)
-ACTION_HEADS = [3, 2, 2, 2]
+# Action head sizes: turn(3), thrust(2), brake(2), fire(2), reload(2)
+ACTION_HEADS = [3, 2, 2, 2, 2]
 
 # Map turn categorical index {0,1,2} -> {-1,0,1}
 TURN_MAP = torch.tensor([-1, 0, 1], dtype=torch.int32)
 
 
 class Actor(nn.Module):
-    """Multi-head actor producing 4 independent categorical distributions."""
+    """Multi-head actor producing 5 independent categorical distributions."""
 
     def __init__(self) -> None:
         super().__init__()
@@ -94,7 +94,7 @@ class ActorCritic(nn.Module):
             critic_obs: Team-concatenated observations, shape [*, CRITIC_OBS_DIM].
 
         Returns:
-            actions: [*, 4] int32 tensor (turn already mapped to -1/0/1).
+            actions: [*, 5] int32 tensor (turn already mapped to -1/0/1).
             log_prob: [*] total log probability.
             entropy: [*] total entropy.
             value: [*] value estimate.
@@ -104,7 +104,7 @@ class ActorCritic(nn.Module):
         log_probs = sum(d.log_prob(a) for d, a in zip(dists, raw_actions))
         entropies = sum(d.entropy() for d in dists)
 
-        # Stack raw categorical indices: [*, 4]
+        # Stack raw categorical indices: [*, 5]
         action_stack = torch.stack(raw_actions, dim=-1)
 
         # Map turn index {0,1,2} -> {-1,0,1}
@@ -122,7 +122,7 @@ class ActorCritic(nn.Module):
         Args:
             obs: [*, OBS_DIM]
             critic_obs: [*, CRITIC_OBS_DIM]
-            raw_actions: [*, 4] categorical indices (turn as 0/1/2, not -1/0/1).
+            raw_actions: [*, 5] categorical indices (turn as 0/1/2, not -1/0/1).
 
         Returns:
             log_prob: [*] total log probability.

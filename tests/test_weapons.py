@@ -156,8 +156,8 @@ class TestFireBullets:
         proj_alive = result[4]
         rt = result[11]
         assert not np.any(proj_alive)
-        # Should have started reload
-        assert rt[0, 0] == pytest.approx(2.0)
+        # No auto-reload: timer stays 0 (agent must manually reload)
+        assert rt[0, 0] == pytest.approx(0.0)
 
     def test_reload_timer_prevents_firing(self):
         N, S = 1, 4
@@ -503,8 +503,8 @@ class TestFireLasers:
 
         assert damage[0, 2] == 0.0
         assert len(laser_hits) == 0
-        # Should have started reload
-        assert rt_out[0, 0] == pytest.approx(3.0)
+        # No auto-reload: timer stays 0 (agent must manually reload)
+        assert rt_out[0, 0] == pytest.approx(0.0)
 
     def test_laser_burst_depletes_magazine(self):
         """Firing 5 times should empty the magazine and trigger reload."""
@@ -541,8 +541,8 @@ class TestFireLasers:
         # 5 shots × 9 damage = 45 total
         assert total_damage == pytest.approx(45.0)
         assert ammo[0, 0] == 0
-        # Reload should have started
-        assert reload_timer[0, 0] == pytest.approx(3.0)
+        # No auto-reload: timer stays 0 (agent must manually reload)
+        assert reload_timer[0, 0] == pytest.approx(0.0)
 
 
 class TestFireMissiles:

@@ -325,8 +325,8 @@ def step(
 
     Args:
         state: Current SimState.
-        actions: Action array [N, S, 4] where the 4 action heads are:
-                 [turn(-1/0/1), thrust(0/1), brake(0/1), fire(0/1)]
+        actions: Action array [N, S, 5] where the 5 action heads are:
+                 [turn(-1/0/1), thrust(0/1), brake(0/1), fire(0/1), reload(0/1)]
 
     Returns:
         (state, rewards [N, S], dones [N]).
@@ -339,6 +339,7 @@ def step(
     thrust_cmd = actions[:, :, 1].astype(np.float32)  # 0 or 1
     brake_cmd = actions[:, :, 2].astype(np.float32)   # 0 or 1
     fire_cmd = actions[:, :, 3].astype(np.bool_)
+    reload_cmd = actions[:, :, 4].astype(np.bool_)
 
     alive_f = state.alive.astype(np.float32)
 
@@ -379,6 +380,10 @@ def step(
     state.reload_timer = np.maximum(state.reload_timer - dt, 0.0)
     just_reloaded = reloading & (state.reload_timer <= 0.0)
     state.ammo = np.where(just_reloaded, state.magazine_size, state.ammo)
+
+    # Manual reload: agent must request reload explicitly
+    wants_reload = reload_cmd & state.alive & (state.reload_timer <= 0.0) & (state.ammo < state.magazine_size)
+    state.reload_timer = np.where(wants_reload, state.reload_time, state.reload_timer)
 
     # --- Weapons ---
     # Clear laser hits from previous tick
@@ -545,6 +550,10 @@ def step(
 
     # Add laser damage
     damage = damage + laser_damage
+
+    # Self-damage for firing while reloading (1 HP per tick)
+    fire_while_reload = fire_cmd & (state.reload_timer > 0.0) & state.alive
+    damage = damage + fire_while_reload.astype(np.float32)
 
     # --- Damage ---
     state.hull, state.alive = apply_damage(state.hull, damage, state.alive)

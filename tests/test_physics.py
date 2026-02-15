@@ -11,14 +11,14 @@ N_SHIPS = 4
 
 
 def _no_action(n_envs: int, n_ships: int = N_SHIPS) -> np.ndarray:
-    return np.zeros((n_envs, n_ships, 4), dtype=np.int32)
+    return np.zeros((n_envs, n_ships, 5), dtype=np.int32)
 
 
 def _make_actions(n_envs: int, n_ships: int = N_SHIPS, **overrides) -> np.ndarray:
     """Helper to build action arrays with specific values."""
     actions = _no_action(n_envs, n_ships)
     for key, val in overrides.items():
-        idx = {"turn": 0, "thrust": 1, "brake": 2, "fire": 3}[key]
+        idx = {"turn": 0, "thrust": 1, "brake": 2, "fire": 3, "reload": 4}[key]
         actions[:, :, idx] = val
     return actions
 

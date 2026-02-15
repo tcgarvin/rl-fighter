@@ -37,7 +37,7 @@ class RolloutBuffer:
 
         self.obs = np.zeros((n_steps, flat, obs_dim), dtype=np.float32)
         self.critic_obs = np.zeros((n_steps, flat, critic_obs_dim), dtype=np.float32)
-        self.raw_actions = np.zeros((n_steps, flat, 4), dtype=np.int64)
+        self.raw_actions = np.zeros((n_steps, flat, 5), dtype=np.int64)
         self.log_probs = np.zeros((n_steps, flat), dtype=np.float32)
         self.values = np.zeros((n_steps, flat), dtype=np.float32)
         self.rewards = np.zeros((n_steps, flat), dtype=np.float32)
@@ -58,7 +58,7 @@ class RolloutBuffer:
         Args:
             obs: [N, S, obs_dim]
             critic_obs: [N, S, critic_obs_dim]
-            raw_actions: [N, S, 4] categorical indices
+            raw_actions: [N, S, 5] categorical indices
             log_probs: [N, S]
             values: [N, S]
             rewards: [N, S]
@@ -76,7 +76,7 @@ class RolloutBuffer:
         t = self.ptr
         self.obs[t] = obs.reshape(-1, self.obs_dim)
         self.critic_obs[t] = critic_obs.reshape(-1, self.critic_obs_dim)
-        self.raw_actions[t] = raw_actions.reshape(-1, 4)
+        self.raw_actions[t] = raw_actions.reshape(-1, 5)
         self.log_probs[t] = log_probs.reshape(-1)
         self.values[t] = values.reshape(-1)
         self.rewards[t] = rewards.reshape(-1)
@@ -146,7 +146,7 @@ class RolloutBuffer:
         return (
             torch.from_numpy(self.obs.reshape(total, self.obs_dim)),
             torch.from_numpy(self.critic_obs.reshape(total, self.critic_obs_dim)),
-            torch.from_numpy(self.raw_actions.reshape(total, 4)),
+            torch.from_numpy(self.raw_actions.reshape(total, 5)),
             torch.from_numpy(self.log_probs.reshape(total)),
             torch.from_numpy(self.values.reshape(total)),
         )

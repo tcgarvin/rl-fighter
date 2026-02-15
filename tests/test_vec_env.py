@@ -21,7 +21,7 @@ class TestVecEnv:
         env = VecEnv(n_envs=4, seed=0)
         env.reset()
 
-        actions = np.zeros((4, N_SHIPS, 4), dtype=np.int32)
+        actions = np.zeros((4, N_SHIPS, 5), dtype=np.int32)
         obs, rewards, dones, infos = env.step(actions)
 
         assert obs.shape == (4, N_SHIPS, OBS_DIM)
@@ -31,7 +31,7 @@ class TestVecEnv:
     def test_step_without_reset_raises(self):
         env = VecEnv(n_envs=4, seed=0)
         with pytest.raises(RuntimeError, match="not reset"):
-            actions = np.zeros((4, N_SHIPS, 4), dtype=np.int32)
+            actions = np.zeros((4, N_SHIPS, 5), dtype=np.int32)
             env.step(actions)
 
     def test_n256_runs(self):
@@ -40,7 +40,7 @@ class TestVecEnv:
         obs = env.reset()
         assert obs.shape == (256, N_SHIPS, OBS_DIM)
 
-        actions = np.zeros((256, N_SHIPS, 4), dtype=np.int32)
+        actions = np.zeros((256, N_SHIPS, 5), dtype=np.int32)
         actions[:, :, 1] = 1  # thrust
         actions[:, 0, 3] = 1  # ship 0 fires
 
@@ -54,7 +54,7 @@ class TestVecEnv:
         def run_vec(seed):
             env = VecEnv(n_envs=8, seed=seed)
             obs = env.reset()
-            actions = np.ones((8, N_SHIPS, 4), dtype=np.int32)
+            actions = np.ones((8, N_SHIPS, 5), dtype=np.int32)
             actions[:, :, 0] = 0  # no turn
             for _ in range(50):
                 obs, _, _, _ = env.step(actions)
@@ -75,7 +75,7 @@ class TestVecEnv:
         env.state.hull[0, 3] = 0.0
         env.state.alive[0, 3] = False
 
-        actions = np.zeros((2, N_SHIPS, 4), dtype=np.int32)
+        actions = np.zeros((2, N_SHIPS, 5), dtype=np.int32)
         obs, rewards, dones, infos = env.step(actions)
 
         # Env 0 should be done
@@ -90,7 +90,7 @@ class TestVecEnv:
         """Episodes end after max_steps."""
         env = VecEnv(n_envs=1, seed=0, max_steps=5)
         env.reset()
-        actions = np.zeros((1, N_SHIPS, 4), dtype=np.int32)
+        actions = np.zeros((1, N_SHIPS, 5), dtype=np.int32)
 
         for i in range(5):
             obs, rewards, dones, infos = env.step(actions)

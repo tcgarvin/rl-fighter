@@ -112,10 +112,6 @@ def fire_bullets(
         cooldown[firing_indices, s] = fire_interval[fi0, s]
         ammo[firing_indices, s] -= 1
 
-    # Auto-reload when magazine is empty
-    empty_mag = (ammo <= 0) & (reload_timer <= 0.0) & ship_alive
-    reload_timer = np.where(empty_mag, reload_time, reload_timer)
-
     return (
         proj_x, proj_y, proj_vx, proj_vy, proj_alive, proj_owner, proj_ttl,
         proj_damage, proj_type,
@@ -214,10 +210,6 @@ def fire_lasers(
 
             cooldown[n, s] = float(fire_interval[n, s])
             ammo[n, s] -= 1
-
-    # Auto-reload when magazine is empty
-    empty_mag = (ammo <= 0) & (reload_timer <= 0.0) & ship_alive & fire_cmd
-    reload_timer = np.where(empty_mag, reload_time, reload_timer)
 
     return damage, cooldown, ammo, reload_timer, laser_hits
 
@@ -321,10 +313,6 @@ def fire_missiles(
 
         cooldown[firing_indices, s] = float(fire_interval[fi0, s])
         ammo[firing_indices, s] -= 1
-
-    # Auto-reload when magazine is empty
-    empty_mag = (ammo <= 0) & (reload_timer <= 0.0) & ship_alive
-    reload_timer = np.where(empty_mag, reload_time, reload_timer)
 
     return (
         proj_x, proj_y, proj_vx, proj_vy, proj_alive, proj_owner, proj_ttl,

@@ -90,7 +90,7 @@ class VecEnv:
         """Step all environments.
 
         Args:
-            actions: [N, S, 4] int32 array (turn, thrust, brake, fire).
+            actions: [N, S, 5] int32 array (turn, thrust, brake, fire, reload).
 
         Returns:
             (obs, rewards, dones, infos) tuple.
