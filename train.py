@@ -36,10 +36,24 @@ CHECKPOINT_INTERVAL = 100
 CHECKPOINT_DIR = Path("checkpoints")
 
 
+def _fmt_duration(seconds: float) -> str:
+    """Format seconds as H:MM:SS or M:SS."""
+    s = int(seconds)
+    h, s = divmod(s, 3600)
+    m, s = divmod(s, 60)
+    if h > 0:
+        return f"{h}:{m:02d}:{s:02d}"
+    return f"{m}:{s:02d}"
+
+
 def train(args: argparse.Namespace) -> None:
     """Run MAPPO self-play training loop."""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
+    train_start = time.time()
+    print(f"Training started: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"Config: {args.n_envs} envs × {N_SHIPS} ships × {T_STEPS} steps = "
+          f"{args.n_envs * N_SHIPS * T_STEPS:,} transitions/update")
 
     CHECKPOINT_DIR.mkdir(exist_ok=True)
 
@@ -64,6 +78,8 @@ def train(args: argparse.Namespace) -> None:
 
     total_episodes = 0
     episode_rewards = []
+
+    steps_per_update = args.n_envs * N_SHIPS * T_STEPS
 
     for update in range(1, args.n_updates + 1):
         t_start = time.time()
@@ -134,6 +150,8 @@ def train(args: argparse.Namespace) -> None:
             if n_done > 0:
                 total_episodes += int(n_done)
 
+        t_rollout_end = time.time()
+
         # --- Compute GAE ---
         with torch.no_grad():
             last_obs_tensor = torch.from_numpy(obs).to(device)
@@ -175,8 +193,15 @@ def train(args: argparse.Namespace) -> None:
             batch_size=BATCH_SIZE,
         )
 
-        elapsed = time.time() - t_start
-        mean_reward = rollout_reward / (args.n_envs * N_SHIPS * T_STEPS)
+        t_end = time.time()
+        elapsed = t_end - t_start
+        rollout_time = t_rollout_end - t_start
+        ppo_time = t_end - t_rollout_end
+        sim_steps_sec = (args.n_envs * T_STEPS) / rollout_time
+        total_elapsed = t_end - train_start
+        remaining = (args.n_updates - update) * (total_elapsed / update)
+
+        mean_reward = rollout_reward / steps_per_update
         zone_viol_frac = (
             zone_violation_count / zone_total_count if zone_total_count > 0 else 0.0
         )
@@ -186,15 +211,12 @@ def train(args: argparse.Namespace) -> None:
 
         if update % 10 == 0 or update == 1:
             print(
-                f"Update {update:5d} | "
-                f"reward {mean_reward:+.4f} | "
-                f"pg_loss {stats['pg_loss']:.4f} | "
-                f"vf_loss {stats['vf_loss']:.4f} | "
-                f"entropy {stats['entropy']:.3f} | "
-                f"episodes {total_episodes} | "
-                f"zone_viol {zone_viol_frac:.3f} | "
-                f"first_dmg {mean_first_dmg:.0f} | "
-                f"{elapsed:.2f}s"
+                f"U {update:4d} | "
+                f"r {mean_reward:+.4f} pg {stats['pg_loss']:.4f} "
+                f"vf {stats['vf_loss']:.4f} ent {stats['entropy']:.3f} | "
+                f"ep {total_episodes} zv {zone_viol_frac:.3f} fd {mean_first_dmg:.0f} | "
+                f"{elapsed:.1f}s {sim_steps_sec/1000:.0f}k sps | "
+                f"{_fmt_duration(total_elapsed)} eta {_fmt_duration(remaining)}"
             )
 
         # Checkpoint
@@ -206,7 +228,14 @@ def train(args: argparse.Namespace) -> None:
     # Final save
     final_path = CHECKPOINT_DIR / "policy_final.pt"
     torch.save(model.state_dict(), final_path)
-    print(f"Training complete. Final checkpoint: {final_path}")
+    total_time = time.time() - train_start
+    total_steps = args.n_updates * args.n_envs * T_STEPS
+    print(
+        f"Training complete in {_fmt_duration(total_time)} "
+        f"({total_steps:,} env steps, "
+        f"{total_steps / total_time:.0f} avg env·steps/s). "
+        f"Final checkpoint: {final_path}"
+    )
 
 
 def main() -> None:
