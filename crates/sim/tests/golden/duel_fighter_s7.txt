@@ -1,0 +1,5 @@
+# sim golden trace duel_fighter_s7 (SIM_VERSION 1); regenerate with UPDATE_GOLDEN=1
+# tick state_hash aux_digest; end tick state_hash aux_digest phase winner
+1 3221321be6d25372 019b698095a150b5
+30 8bec9032939551c5 87bc83514066c105
+end 153 f08ac3b6e5f99825 047b987d5313d6e1 over 1
