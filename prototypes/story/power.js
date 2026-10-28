@@ -195,7 +195,10 @@ export function createPowerView({ THREE, scene, palette, hud, camera }) {
           callouts.splice(i, 1);
           continue;
         }
-        const [x, y] = toScreen(c.view.model.object);
+        const [sx, y] = toScreen(c.view.model.object);
+        // Centred over the hull, but never clipped by the screen edge.
+        const half = c.el.offsetWidth / 2 + 6;
+        const x = Math.min(window.innerWidth - half, Math.max(half, sx));
         const t = c.age / CALLOUT_SECONDS;
         c.el.style.transform = `translate(-50%, ${y - 26 - t * 18}px) translateX(${x}px)`;
         c.el.style.opacity = String(t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3);
