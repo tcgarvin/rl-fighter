@@ -8,7 +8,7 @@
 
 mod common;
 
-use common::{FIGHTER, GUNSHIP, STRAFER, new_match, test_catalogue};
+use common::{FIGHTER, GUNSHIP, STRAFER, new_present_match, test_catalogue};
 use sim::DT;
 use sim::actions::ShipAction;
 use sim::data::Catalogue;
@@ -139,7 +139,7 @@ fn allocator_zero_request_is_all_off() {
 /// A 1v1 with ship 0 at `pos`/`heading` and ship 1 at `target`, both at rest.
 fn duel(hull0: u16, hull1: u16, pos: Vec2, heading: f32, target: Vec2) -> (Catalogue, Match) {
     let cat = test_catalogue();
-    let mut m = new_match(&cat, 3, &[hull0], &[hull1]);
+    let mut m = new_present_match(&cat, 3, &[hull0], &[hull1]);
     m.ships[0].pos = pos;
     m.ships[0].heading = heading;
     m.ships[1].pos = target;
@@ -315,7 +315,7 @@ fn strafer_orbits_target_near_120m() {
 #[test]
 fn strafer_orbit_sign_follows_slot_parity() {
     let cat = test_catalogue();
-    let m = new_match(&cat, 1, &[STRAFER, STRAFER], &[FIGHTER]);
+    let m = new_present_match(&cat, 1, &[STRAFER, STRAFER], &[FIGHTER]);
     assert_eq!(orbit_sign(&m.ships[0]), 1.0);
     assert_eq!(orbit_sign(&m.ships[1]), -1.0);
 }
@@ -380,7 +380,7 @@ fn inactive_ship_or_no_enemy_is_idle() {
 fn unknown_role_is_idle() {
     let mut cat = test_catalogue();
     cat.hulls[FIGHTER as usize].role = "tug".to_string();
-    let m = new_match(&cat, 1, &[FIGHTER], &[GUNSHIP]);
+    let m = new_present_match(&cat, 1, &[FIGHTER], &[GUNSHIP]);
     assert_eq!(act(&m, &cat, 0), ShipAction::IDLE);
 }
 
@@ -389,7 +389,7 @@ fn allies_are_not_targets() {
     // Two fighters on team 0, the only enemy far behind ship 0: ship 0 must not
     // treat its wingman dead ahead as a target.
     let cat = test_catalogue();
-    let mut m = new_match(&cat, 1, &[FIGHTER, FIGHTER], &[FIGHTER]);
+    let mut m = new_present_match(&cat, 1, &[FIGHTER, FIGHTER], &[FIGHTER]);
     m.ships[0].pos = Vec2::ZERO;
     m.ships[0].heading = 0.0;
     m.ships[1].pos = Vec2::new(100.0, 0.0);
@@ -400,7 +400,7 @@ fn allies_are_not_targets() {
 #[test]
 fn same_state_gives_same_action() {
     let cat = test_catalogue();
-    let mut m = new_match(&cat, 9, &[FIGHTER, STRAFER], &[GUNSHIP, FIGHTER]);
+    let mut m = new_present_match(&cat, 9, &[FIGHTER, STRAFER], &[GUNSHIP, FIGHTER]);
     for _ in 0..120 {
         let mut acts = [ShipAction::IDLE; 4];
         for (i, a) in acts.iter_mut().enumerate() {
