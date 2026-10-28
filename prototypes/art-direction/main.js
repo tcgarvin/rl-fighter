@@ -20,11 +20,7 @@ const JUMP_DISTANCE = 900;
 const JUMP_DURATION = 0.055;
 
 const params = new URLSearchParams(location.search);
-// The treatment comes from the hash (#tiltshift) so links work where query strings are
-// stripped; ?treatment= remains for headless screenshots.
-const requested = location.hash.slice(1) || params.get("treatment");
-const treatmentId = TREATMENTS.some((t) => t.id === requested) ? requested : TREATMENTS[0].id;
-window.addEventListener("hashchange", () => location.reload());
+const treatmentId = TREATMENTS[0].id;
 const seed = Number(params.get("seed") ?? 1);
 // Fast-forward this many simulated seconds before the first frame (used for screenshots).
 const warmup = Number(params.get("warmup") ?? 0);
@@ -83,7 +79,7 @@ const safeBand = { top: 0.8, bottom: -0.8 };
 function measureSafeBand() {
   const h = window.innerHeight;
   const topPx = document.getElementById("topbar").getBoundingClientRect().bottom + HUD_CLEARANCE;
-  const bottomEls = ["styles", "blurb"].map((id) => document.getElementById(id)).filter((el) => el.offsetParent !== null);
+  const bottomEls = ["styles"].map((id) => document.getElementById(id)).filter((el) => el.offsetParent !== null);
   const bottomPx = Math.min(h, ...bottomEls.map((el) => el.getBoundingClientRect().top)) - HUD_CLEARANCE;
   safeBand.top = 1 - (2 * topPx) / h;
   safeBand.bottom = 1 - (2 * bottomPx) / h;
@@ -305,18 +301,10 @@ function applyHud(t) {
     link.href = href;
     document.head.append(link);
   }
-  document.getElementById("blurb").textContent = `${t.name}: ${t.blurb}`;
 }
 
 function buildSwitcher() {
   const el = document.getElementById("styles");
-  for (const t of TREATMENTS) {
-    const a = document.createElement("a");
-    a.href = `#${t.id}`;
-    a.textContent = t.name;
-    if (t.id === treatmentId) a.className = "active";
-    el.append(a);
-  }
   const details = document.createElement("button");
   details.id = "details-toggle";
   details.type = "button";

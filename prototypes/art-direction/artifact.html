@@ -86,24 +86,12 @@
         border-color: var(--fg);
         background: color-mix(in srgb, var(--fg) 15%, transparent);
       }
-      #blurb {
-        position: absolute;
-        bottom: calc(52px + env(safe-area-inset-bottom, 0px));
-        left: max(16px, env(safe-area-inset-left, 0px));
-        right: max(16px, env(safe-area-inset-right, 0px));
-        color: var(--muted);
-        font-size: 12px;
-        max-width: 640px;
-      }
       #styles a,
       #styles button {
         flex: none;
         white-space: nowrap;
       }
       @media (max-width: 640px) {
-        #blurb {
-          display: none;
-        }
         #topbar {
           flex-direction: column;
           align-items: flex-start;
@@ -182,7 +170,6 @@
       </div>
       <div id="banner"></div>
       <div id="details" hidden></div>
-      <div id="blurb"></div>
       <div id="styles"></div>
     </div>
     <script type="module" src="./main.js"></script>
