@@ -5,6 +5,7 @@
 //! ship pair is resolved. Static hulls have zero inverse mass, so they never move.
 //! No torque transfer, no damage, no events.
 
+use crate::damage::same_entity;
 use crate::data::{Catalogue, HullDef};
 use crate::math::Vec2;
 use crate::state::{Match, Ship};
@@ -18,15 +19,6 @@ pub const RESTITUTION: f32 = 0.2;
 pub struct Contact {
     pub normal: Vec2,
     pub pen: f32,
-}
-
-/// One ship is the other's parent (SIM_SPEC §3.4).
-///
-/// TODO(dedup): WP3 owns the shared `same_entity` in `damage.rs`; switch to it once
-/// both packages have landed.
-#[inline]
-fn same_entity(a: &Ship, b: &Ship) -> bool {
-    a.parent == b.slot || b.parent == a.slot
 }
 
 #[inline]

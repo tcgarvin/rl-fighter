@@ -17,7 +17,9 @@ use crate::DT;
 use crate::actions::{SLEW_HOLD, ShipAction};
 use crate::data::{Catalogue, HullDef, WeaponDef, WeaponKind};
 use crate::math::{Vec2, clamp, wrap_angle};
+use crate::power;
 use crate::state::{MAX_THRUSTERS, Match, NEVER, Ship, ShipIdx};
+use crate::turrets::cooldown_after_tick;
 
 /// Throttle levels of the action head.
 const THROTTLE_OFF: u8 = 0;
@@ -31,7 +33,14 @@ const HALF_SCORE: f32 = 0.25;
 const TORQUE_WEIGHT: f32 = 1.2;
 
 /// PD heading controller gains; the torque request is clamped to `[-1, 1]`.
-const TURN_GAIN: f32 = 2.5;
+///
+/// sim.js uses a gain of 2.5. The allocator ignores torque requests below
+/// `HALF_SCORE / TORQUE_WEIGHT` (≈ 0.21), so at 2.5 the pilot cannot correct heading
+/// errors under ≈ 0.083 rad, while a fighter's compound circles (≈ 2.6 m wide head-on;
+/// sim.js used one 4.5 m circle) subtend that only inside ≈ 30 m: scripted fighter
+/// duels missed every pass and settled into an endless turning circle. At 10 the
+/// dead zone is ≈ 0.02 rad, fine enough to hit at gun range.
+const TURN_GAIN: f32 = 10.0;
 const TURN_DAMPING: f32 = 1.6;
 
 /// Beyond this fraction of the arena radius a pilot turns for the centre at full thrust.
@@ -146,9 +155,18 @@ pub fn act(m: &Match, cat: &Catalogue, ship: ShipIdx) -> ShipAction {
 
     let mut action = ShipAction::IDLE;
     action.throttle = allocate_thrusters(hull, plan.force_body, turn_torque(me, plan.heading));
-    aim_turrets(m, cat, me, hull, &mut action);
     action.power = choose_power(m, cat, me, hull, eng.dist);
+    let p_w = weapons_multiplier_after_slew(me, hull, action.power);
+    aim_turrets(m, cat, me, hull, p_w, &mut action);
     action
+}
+
+/// The weapons multiplier stage 6 will use this tick if the ship picks power target
+/// `power_idx`: stage 4 slews the split toward it before turrets cool down.
+fn weapons_multiplier_after_slew(me: &Ship, hull: &HullDef, power_idx: u8) -> f32 {
+    let mut split = me.power;
+    power::slew(&mut split, power::target_for(hull, usize::from(power_idx)));
+    power::multipliers(hull.n_power_systems, split)[power::WEAPONS]
 }
 
 /// Greedy thruster allocation (sim.js `allocateThrusters`): each thruster's score is
@@ -272,7 +290,18 @@ fn lead_point(weapon: &WeaponDef, me: &Ship, target: &Ship, rel: Vec2) -> Vec2 {
 
 /// Slew and fire heads for every turret (sim.js `aimTurrets`, adapted to the
 /// left/hold/right slew head and the linear arc clamp of stage 6).
-fn aim_turrets(m: &Match, cat: &Catalogue, me: &Ship, hull: &HullDef, action: &mut ShipAction) {
+///
+/// A turret is ready when its cooldown reaches 0 in this tick's stage 6 (at weapons
+/// multiplier `p_w`), since stage 7 fires right after: gating on the cooldown as
+/// read now would fire every shot a tick late.
+fn aim_turrets(
+    m: &Match,
+    cat: &Catalogue,
+    me: &Ship,
+    hull: &HullDef,
+    p_w: f32,
+    action: &mut ShipAction,
+) {
     for (j, turret) in hull.turrets.iter().enumerate() {
         let weapon = cat.weapon(turret.weapon);
         let muzzle = me.to_world(turret.pos);
@@ -318,7 +347,7 @@ fn aim_turrets(m: &Match, cat: &Catalogue, me: &Ship, hull: &HullDef, action: &m
             (_, false) => FIXED_GUN_TOLERANCE,
         };
         let aim_err = wrap_angle(aim - angle).abs();
-        let ready = me.turret_cooldown[j] <= 0.0;
+        let ready = cooldown_after_tick(me.turret_cooldown[j], p_w) == 0.0;
         if aim_err < tolerance && rel.length() < weapon.range && ready {
             action.fire[j] = 1;
         }
@@ -361,7 +390,7 @@ fn choose_power(m: &Match, cat: &Catalogue, me: &Ship, hull: &HullDef, dist: f32
 /// The table index whose target split is `target` (first match on two-way hulls,
 /// where entries repeat).
 fn current_power_index(hull: &HullDef, target: [f32; 3]) -> Option<u8> {
-    (0..crate::power::N_POWER_TARGETS)
-        .find(|&i| crate::power::target_for(hull, i) == target)
+    (0..power::N_POWER_TARGETS)
+        .find(|&i| power::target_for(hull, i) == target)
         .map(|i| i as u8)
 }

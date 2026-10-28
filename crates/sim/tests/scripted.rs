@@ -3,8 +3,8 @@
 //! weapons and the full step land in other packages; turret slew (stage 6) is
 //! emulated here where a test needs it.
 //!
-//! The "scripted 1v1 ends in a kill for 20/20 seeds" acceptance test needs the full
-//! `Match::step` and belongs to WP5.
+//! The "scripted 1v1 ends in a kill for 20/20 seeds" acceptance test runs the full
+//! `Match::step` and lives in `tests/step.rs`.
 
 mod common;
 

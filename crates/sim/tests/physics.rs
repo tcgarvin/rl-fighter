@@ -1,5 +1,5 @@
 //! WP2 acceptance (SIM_SPEC §14): thrusters, drag, soft cap, power, actions, setup,
-//! and same-seed hash equality. Uses the temporary `Match::step_physics_only`.
+//! and same-seed hash equality. Drives the full `Match::step`.
 
 mod common;
 
@@ -21,10 +21,14 @@ fn close(a: f32, b: f32, tol: f32) -> bool {
     (a - b).abs() <= tol
 }
 
-/// Fighter 1v1 with ship 0 driven by `throttle` (other heads idle).
+/// Fighter 1v1 with ship 0 driven by `throttle` (other heads idle). The arena is
+/// widened and the opponent parked off the flight line, so long runs under the full
+/// `step` see free-flight physics only (no boundary push, no collision).
 fn fighter_with_throttle(throttle: &[u8]) -> (Catalogue, Match) {
     let cat = test_catalogue();
     let mut m = new_present_match(&cat, 1, &[FIGHTER], &[FIGHTER]);
+    m.cfg.arena_radius = 1.0e5;
+    m.ships[1].pos = sim::Vec2::new(0.0, 5000.0);
     let mut a = ShipAction::IDLE;
     a.throttle[..throttle.len()].copy_from_slice(throttle);
     m.set_action(0, a);
@@ -35,7 +39,7 @@ fn fighter_with_throttle(throttle: &[u8]) -> (Catalogue, Match) {
 fn main_thruster_accelerates_forward() {
     let (cat, mut m) = fighter_with_throttle(&[2]);
     let start = m.ships[0].pos;
-    m.step_physics_only(&cat);
+    m.step(&cat);
     let s = &m.ships[0];
     // 900 N / 10 kg at even power (P_e = 1), one tick, then drag.
     let want = 900.0 / 10.0 * DT * LINEAR_DRAG;
@@ -50,8 +54,8 @@ fn main_thruster_accelerates_forward() {
 fn half_throttle_gives_half_force() {
     let (cat, mut full) = fighter_with_throttle(&[2]);
     let (_, mut half) = fighter_with_throttle(&[1]);
-    full.step_physics_only(&cat);
-    half.step_physics_only(&cat);
+    full.step(&cat);
+    half.step(&cat);
     assert!(close(half.ships[0].vel.x * 2.0, full.ships[0].vel.x, EPS));
 }
 
@@ -59,7 +63,7 @@ fn half_throttle_gives_half_force() {
 fn thrust_follows_heading() {
     let (cat, mut m) = fighter_with_throttle(&[2]);
     m.ships[0].heading = 0.5 * PI;
-    m.step_physics_only(&cat);
+    m.step(&cat);
     let s = &m.ships[0];
     assert!(s.vel.y > 2.9, "vel {:?}", s.vel);
     assert!(s.vel.x.abs() < 1e-4, "vel {:?}", s.vel);
@@ -74,7 +78,7 @@ fn engine_power_scales_thrust() {
     let mut a = m.pending[0];
     a.power = 2;
     m.set_action(0, a);
-    m.step_physics_only(&cat);
+    m.step(&cat);
     let want = 900.0 * 1.4 / 10.0 * DT * LINEAR_DRAG;
     assert!(close(m.ships[0].vel.x, want, 1e-4));
 }
@@ -88,8 +92,8 @@ fn rcs_pair_pivots_without_translating() {
     let start = cw.ships[0].pos;
     // Few enough ticks that the heading has not wrapped past ±π.
     for _ in 0..10 {
-        cw.step_physics_only(&cat);
-        ccw.step_physics_only(&cat);
+        cw.step(&cat);
+        ccw.step(&cat);
     }
     let (a, b) = (&cw.ships[0], &ccw.ships[0]);
     assert!(
@@ -111,7 +115,7 @@ fn rcs_pair_pivots_without_translating() {
     }
     // First-tick torque: |cross(fl.pos, fl.F)| + |cross(rr.pos, rr.F)| = 352 + 448.
     let (cat, mut one) = fighter_with_throttle(&[0, 2, 0, 0, 2]);
-    one.step_physics_only(&cat);
+    one.step(&cat);
     let want = -800.0 / 55.0 * DT * ANGULAR_DRAG;
     assert!(close(one.ships[0].omega, want, EPS));
 }
@@ -122,11 +126,11 @@ fn drag_settles_motion() {
     m.ships[0].vel = sim::Vec2::new(20.0, -10.0);
     m.ships[0].omega = 2.0;
     let v0 = m.ships[0].vel.length();
-    m.step_physics_only(&cat);
+    m.step(&cat);
     assert!(close(m.ships[0].vel.length(), v0 * LINEAR_DRAG, 1e-4));
     assert!(close(m.ships[0].omega, 2.0 * ANGULAR_DRAG, EPS));
     for _ in 0..1500 {
-        m.step_physics_only(&cat);
+        m.step(&cat);
     }
     let s = &m.ships[0];
     assert!(s.vel.length() < 0.01 * v0, "speed {}", s.vel.length());
@@ -137,7 +141,7 @@ fn drag_settles_motion() {
 fn soft_cap_limits_speed_under_full_thrust() {
     let (cat, mut m) = fighter_with_throttle(&[2]);
     for _ in 0..300 {
-        m.step_physics_only(&cat);
+        m.step(&cat);
     }
     // Even split: P_e = 1 → cap = speed_cap. Uncapped terminal speed would be ~600.
     let speed = m.ships[0].vel.length();
@@ -150,7 +154,7 @@ fn soft_cap_bleeds_at_most_eight_percent_per_tick() {
     m.ships[0].vel = sim::Vec2::new(200.0, 0.0);
     let mut prev = 200.0f32;
     for _ in 0..200 {
-        m.step_physics_only(&cat);
+        m.step(&cat);
         let speed = m.ships[0].vel.length();
         let floor = prev * LINEAR_DRAG * 0.92;
         assert!(speed >= floor - 1e-3 && speed < prev, "{prev} → {speed}");
@@ -167,7 +171,7 @@ fn soft_cap_rises_with_engine_power() {
     a.power = 2;
     m.set_action(0, a);
     for _ in 0..400 {
-        m.step_physics_only(&cat);
+        m.step(&cat);
     }
     let speed = m.ships[0].vel.length();
     assert!(close(speed, 69.6, 0.1), "speed {speed}");
@@ -184,7 +188,7 @@ fn static_hull_is_not_integrated() {
     m.set_action(0, a);
     let before = m.ships[0].clone();
     for _ in 0..30 {
-        m.step_physics_only(&cat);
+        m.step(&cat);
     }
     let s = &m.ships[0];
     assert_eq!(s.pos, before.pos);
@@ -205,7 +209,7 @@ fn control_lock_forces_throttle_off() {
     a.fire[0] = 1;
     m.set_action(0, a);
     assert!(!act_mask(&m.ships[0], 1));
-    m.step_physics_only(&cat);
+    m.step(&cat);
     assert_eq!(m.ships[0].throttle, [0; 8]);
     assert_eq!(m.ships[0].vel.x, 0.0);
     assert_eq!(m.pending[0].fire[0], 0);
@@ -223,7 +227,7 @@ fn power_slew_reaches_target_in_gap_over_rate() {
     let gap = target[1] - 1.0 / 3.0;
     let ticks = (gap / power::POWER_SLEW_RATE / DT).ceil() as u32; // 0.593 s → 18
     for t in 1..=ticks {
-        m.step_physics_only(&cat);
+        m.step(&cat);
         let p = m.ships[0].power;
         assert!(
             close(p.iter().sum::<f32>(), 1.0, 1e-5),
@@ -245,12 +249,12 @@ fn shieldless_hull_keeps_zero_shield_power() {
     let mut a = m.pending[0];
     a.power = 1; // shields-heavy on a three-way hull; even split on two-way
     m.set_action(0, a);
-    m.step_physics_only(&cat);
+    m.step(&cat);
     assert_eq!(m.ships[0].power, [0.0, 0.5, 0.5]);
     a.power = 4;
     m.set_action(0, a);
     for _ in 0..60 {
-        m.step_physics_only(&cat);
+        m.step(&cat);
         assert_eq!(m.ships[0].power[0], 0.0);
     }
     assert!(close(m.ships[0].power[1], 2.0 / 3.0, 1e-5));
@@ -379,7 +383,7 @@ fn slew_sign_and_masks() {
 fn unused_slots_are_ignored() {
     // Throttles beyond the fighter's 5 thrusters must not move it.
     let (cat, mut m) = fighter_with_throttle(&[0, 0, 0, 0, 0, 2, 2, 2]);
-    m.step_physics_only(&cat);
+    m.step(&cat);
     assert_eq!(m.ships[0].throttle, [0; 8]);
     assert_eq!(m.ships[0].vel, sim::Vec2::ZERO);
 }
@@ -465,7 +469,7 @@ fn drive(m: &mut Match, cat: &Catalogue) {
     for slot in 0..m.ships.len() {
         m.set_action(slot as u8, scripted_row(t, slot));
     }
-    m.step_physics_only(cat);
+    m.step(cat);
 }
 
 #[test]

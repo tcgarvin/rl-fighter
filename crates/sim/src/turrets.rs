@@ -10,6 +10,14 @@ use crate::state::{Match, Ship};
 /// cooldown drops by `DT * COOLDOWN_RATE * P_w` per tick.
 pub const COOLDOWN_RATE: f32 = 0.65;
 
+/// A turret cooldown after one stage-6 tick at weapons multiplier `p_w`:
+/// `max(0, cooldown - DT * COOLDOWN_RATE * p_w)`. The single formula for both the
+/// sim and the scripted controller's "ready to fire this tick" gate.
+#[inline]
+pub fn cooldown_after_tick(cooldown: f32, p_w: f32) -> f32 {
+    (cooldown - DT * COOLDOWN_RATE * p_w).max(0.0)
+}
+
 /// Turret-angle limits `[rest - arc/2, rest + arc/2]` (body frame, not wrapped).
 #[inline]
 pub fn arc_limits(t: &TurretDef) -> (f32, f32) {
@@ -32,14 +40,13 @@ impl Match {
             let hull = cat.hull(ship.hull);
             let action = self.pending[ship.slot as usize];
             let p_w = power::ship_multipliers(ship, hull)[WEAPONS];
-            let tick_down = DT * COOLDOWN_RATE * p_w;
             for (j, t) in hull.turrets.iter().enumerate() {
                 if t.arc > 0.0 {
                     let (lo, hi) = arc_limits(t);
                     let angle = ship.turret_angle[j] + action.slew_sign(j) * t.slew_rate * DT;
                     ship.turret_angle[j] = clamp(angle, lo, hi);
                 }
-                ship.turret_cooldown[j] = (ship.turret_cooldown[j] - tick_down).max(0.0);
+                ship.turret_cooldown[j] = cooldown_after_tick(ship.turret_cooldown[j], p_w);
             }
         }
     }

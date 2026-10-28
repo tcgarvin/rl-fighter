@@ -1,6 +1,7 @@
 //! WP3 acceptance (SIM_SPEC §14): turrets, fire, projectiles, beams, flak, torpedoes,
-//! shields, events and HitRecords. There is no `Match::step` yet, so `tick` below
-//! sequences stage 1's clears, `step_motion` (stages 3–5) and stages 6–9.
+//! shields, events and HitRecords. `tick` below deliberately runs only stage 1's
+//! clears, `step_motion` (stages 3–5) and stages 6–9, so deaths, collisions and the
+//! arena never interfere with what a test measures.
 
 mod common;
 

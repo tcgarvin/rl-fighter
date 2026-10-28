@@ -7,7 +7,7 @@ use crate::DT;
 use crate::data::{Catalogue, HullDef};
 use crate::math::{Vec2, rot, wrap_angle};
 use crate::power::{self, ENGINES};
-use crate::state::{MatchPhase, Ship};
+use crate::state::Ship;
 
 /// Per-tick linear velocity retention at 30 Hz.
 pub const LINEAR_DRAG: f32 = 0.995;
@@ -72,16 +72,5 @@ impl crate::state::Match {
             power::slew(&mut ship.power, ship.power_target);
             integrate(ship, cat.hull(ship.hull));
         }
-    }
-
-    /// TEMPORARY (WP2): stage 1's `tick += 1` (returning if `Over`) then stages 3–5
-    /// only, so physics is testable before the full pipeline exists. Replaced by
-    /// WP5's `Match::step`; delete it then.
-    pub fn step_physics_only(&mut self, cat: &Catalogue) {
-        self.tick += 1;
-        if self.phase == MatchPhase::Over {
-            return;
-        }
-        self.step_motion(cat);
     }
 }

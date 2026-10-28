@@ -495,8 +495,11 @@ Per ship per step (`rewards[N, S] f32`), accumulated in stages 7–13:
 | arena | `-0.002` per tick while `|pos| > R` |
 | terminal | `+1` every ship on the winning team, `-1` losing team (dead ships too); draw 0 |
 
-Dead or not-yet-present ships get 0 except the terminal term. Rewards are not
-normalised in the sim.
+Dead or not-yet-present ships get 0 except the terminal term. Precisely: a ship earns
+the per-step terms iff it was active after stage 2 of that step, so the killing hit
+still penalises its target, while hits from projectiles of an already-dead shooter
+credit nobody in `rewards` (the HitRecord keeps the credit). Rewards are not
+normalised in the sim. Weights are the named consts in `reward.rs`.
 
 **Retroactive projectile credit**: the sim attributes every hit to `owner` and records
 `fire_tick` (projectiles carry both). The VecEnv exposes per step
@@ -602,8 +605,12 @@ Fighter (`role == "fighter"`), per tick:
 2. Lead: `t = dist / 240`; `aim = atan2(rel_pos + rel_vel * t)`; `err = wrap(aim - heading)`.
 3. `go = 1 if dist > 60 || |err| > 1.2 else 0.3`; `force_body = (go * (1 if |err| < 0.9 else 0.2), 0)`.
 4. Arena: if `|pos| > 0.85 R` → `aim = atan2(-pos)`, `force_body = (1, 0)`.
-5. `torque = clamp(2.5 * err - 1.6 * omega, -1, 1)`; throttles = allocator.
-6. Turrets: fixed gun fires if `|err| < 0.1 && dist < range && cooldown == 0`; turreted
+5. `torque = clamp(10 * err - 1.6 * omega, -1, 1)`; throttles = allocator. (sim.js uses
+   gain 2.5; with the allocator's ≈ 0.21 torque dead zone that cannot null aim errors
+   under ≈ 0.08 rad, too coarse for the compound-circle fighter, and scripted duels
+   never landed a kill. Changed in WP5.)
+6. Turrets: fixed gun fires if `|err| < 0.1 && dist < range` and the cooldown reaches 0
+   in this tick's stage 6 (`turrets::cooldown_after_tick` at the post-slew `P_w`); turreted
    guns slew toward `wrap(bearing - angle)` (left/right by sign, hold within 0.03 rad)
    and fire when `|aim_err| < 0.06`.
 7. Power: `3` (weapons) if `dist < range`, `2` (engines) if `dist > 1.5 range`, else 0;
