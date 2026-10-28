@@ -45,10 +45,10 @@ else
     echo "SKIPPED: node not on PATH"
 fi
 
-step "maturin develop crates/sim-py (release) + pytest tests/test_rust_env.py"
+step "maturin develop crates/sim-py (release) + pytest tests/test_rust_env{,_wrapper}.py"
 # Builds the rlf_sim extension into the project venv, then runs its Python tests.
 uv run maturin develop --quiet -m crates/sim-py/Cargo.toml --release
-uv run python -m pytest tests/test_rust_env.py -q
+uv run python -m pytest tests/test_rust_env.py tests/test_rust_env_wrapper.py -q
 
 # The throughput floors (SIM_SPEC §13) depend on an otherwise idle machine, so the
 # benchmark is opt-in: RLF_BENCH=1 scripts/check.sh
