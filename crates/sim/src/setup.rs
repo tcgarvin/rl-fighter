@@ -4,9 +4,12 @@ use core::fmt;
 
 use crate::actions::ShipAction;
 use crate::data::{Catalogue, HullId};
+use crate::events::EventBuf;
 use crate::math::{PI, Vec2};
 use crate::rng::Pcg32;
-use crate::state::{MAX_PROJECTILES, MAX_SHIPS, Match, MatchPhase, Projectile, Ship, WINNER_NONE};
+use crate::state::{
+    MAX_HITS, MAX_PROJECTILES, MAX_SHIPS, Match, MatchPhase, Projectile, Ship, WINNER_NONE,
+};
 
 pub const DEFAULT_ARENA_RADIUS: f32 = 450.0;
 /// 90 s at 30 Hz.
@@ -113,6 +116,9 @@ impl Match {
             projectiles: [Projectile::DEAD; MAX_PROJECTILES],
             proj_next: 0,
             pending: [ShipAction::IDLE; MAX_SHIPS],
+            events: EventBuf::new(),
+            hits: Vec::with_capacity(MAX_HITS),
+            shots_fired: [0; MAX_SHIPS],
             dropped_hits: 0,
             rewards: [0.0; MAX_SHIPS],
             reserves: [Vec::new(), Vec::new()],

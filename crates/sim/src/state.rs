@@ -7,6 +7,7 @@
 
 use crate::actions::ShipAction;
 use crate::data::{HullDef, HullId, WeaponId, WeaponKind};
+use crate::events::{EventBuf, HitRecord};
 use crate::hash::{StateHash, StateHasher};
 use crate::math::Vec2;
 use crate::power;
@@ -238,9 +239,6 @@ impl StateHash for Projectile {
 }
 
 /// One match: ships, projectile pool, pending actions and per-step outputs.
-///
-/// `events: EventBuf` and `hits: Vec<HitRecord>` (SIM_SPEC §3) are added by the
-/// package that defines those types (WP3), next to `dropped_hits`.
 #[derive(Clone, Debug)]
 pub struct Match {
     pub cfg: MatchConfig,
@@ -256,6 +254,12 @@ pub struct Match {
     pub proj_next: usize,
     /// Actions applied on the next step, per slot.
     pub pending: [ShipAction; MAX_SHIPS],
+    /// Events of the last step (not hashed: output only).
+    pub events: EventBuf,
+    /// Damage applications of the last step, at most `MAX_HITS` (not hashed).
+    pub hits: Vec<HitRecord>,
+    /// Shots actually fired per slot in the last step (fire-cost reward, §8).
+    pub shots_fired: [u16; MAX_SHIPS],
     /// HitRecords that did not fit in the last step's `MAX_HITS`.
     pub dropped_hits: u32,
     /// Per-slot rewards of the last step.
