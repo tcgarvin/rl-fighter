@@ -19,7 +19,7 @@ fi
 
 cd "$REPO_ROOT"
 MESSAGE="$(git log -1 --format='%h %s')"
-if [[ -n "$(git status --porcelain -- prototypes/art-direction netlify.toml)" ]]; then
+if [[ -n "$(git status --porcelain -- prototypes/story netlify.toml)" ]]; then
     MESSAGE="$MESSAGE (+ uncommitted changes)"
 fi
-netlify deploy --prod --no-build --site "$SITE_ID" --dir prototypes/art-direction --message "$MESSAGE"
+netlify deploy --prod --no-build --site "$SITE_ID" --dir prototypes/story --message "$MESSAGE"

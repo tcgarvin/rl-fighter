@@ -35,7 +35,8 @@ scripts/deploy.sh
 
 The project is moving to a Rust sim + three.js web client; `docs/DESIGN.md` is the
 source of truth for that direction. The website currently serves the scripted
-art-direction demo in `prototypes/art-direction/`. The sections below describe the
+story demo in `prototypes/story/` (draft, then missions; it builds on the art-direction
+demo in `prototypes/art-direction/`). The sections below describe the
 original Python/NumPy prototype.
 
 ## Architecture
