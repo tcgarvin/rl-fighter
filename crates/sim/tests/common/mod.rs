@@ -252,6 +252,21 @@ pub fn new_match(cat: &Catalogue, seed: u64, team0: &[HullId], team1: &[HullId])
     Match::new(cat, &config(seed, team0, team1)).expect("match setup")
 }
 
+/// Mark every ship present at its scheduled position, at rest and with no control
+/// lock, skipping the jump-in: for tests of later stages that want ships in at t=0.
+pub fn make_all_present(m: &mut Match) {
+    for s in &mut m.ships {
+        s.present = true;
+    }
+}
+
+/// `new_match` with every ship already present (see `make_all_present`).
+pub fn new_present_match(cat: &Catalogue, seed: u64, team0: &[HullId], team1: &[HullId]) -> Match {
+    let mut m = new_match(cat, seed, team0, team1);
+    make_all_present(&mut m);
+    m
+}
+
 /// The catalogue loaded from the shipped `assets/` YAML (embedded, so wasip1 can run it).
 pub fn asset_catalogue() -> Catalogue {
     let hulls = [

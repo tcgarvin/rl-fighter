@@ -3,7 +3,9 @@
 
 mod common;
 
-use common::{FIGHTER, GUNSHIP, STRAFER, catalogue_with_static, new_match, test_catalogue};
+use common::{
+    FIGHTER, GUNSHIP, STRAFER, catalogue_with_static, new_match, new_present_match, test_catalogue,
+};
 use sim::DT;
 use sim::actions::{ACTION_WIDTH, ShipAction, act_mask, fixed_turret, thruster_mask, turret_mask};
 use sim::data::Catalogue;
@@ -22,7 +24,7 @@ fn close(a: f32, b: f32, tol: f32) -> bool {
 /// Fighter 1v1 with ship 0 driven by `throttle` (other heads idle).
 fn fighter_with_throttle(throttle: &[u8]) -> (Catalogue, Match) {
     let cat = test_catalogue();
-    let mut m = new_match(&cat, 1, &[FIGHTER], &[FIGHTER]);
+    let mut m = new_present_match(&cat, 1, &[FIGHTER], &[FIGHTER]);
     let mut a = ShipAction::IDLE;
     a.throttle[..throttle.len()].copy_from_slice(throttle);
     m.set_action(0, a);
@@ -174,7 +176,7 @@ fn soft_cap_rises_with_engine_power() {
 #[test]
 fn static_hull_is_not_integrated() {
     let (cat, station) = catalogue_with_static();
-    let mut m = new_match(&cat, 3, &[station], &[FIGHTER]);
+    let mut m = new_present_match(&cat, 3, &[station], &[FIGHTER]);
     m.ships[0].vel = sim::Vec2::new(5.0, 0.0);
     let mut a = ShipAction::IDLE;
     a.fire[0] = 1;
@@ -213,7 +215,7 @@ fn control_lock_forces_throttle_off() {
 #[test]
 fn power_slew_reaches_target_in_gap_over_rate() {
     let cat = test_catalogue();
-    let mut m = new_match(&cat, 1, &[STRAFER], &[FIGHTER]);
+    let mut m = new_present_match(&cat, 1, &[STRAFER], &[FIGHTER]);
     let mut a = ShipAction::IDLE;
     a.power = 2; // (0.2, 0.6, 0.2)
     m.set_action(0, a);
@@ -392,7 +394,7 @@ fn setup_places_teams_on_opposite_sides() {
     assert_eq!(m.winner(), -2);
     for (i, s) in m.ships().iter().enumerate() {
         assert_eq!(s.slot as usize, i);
-        assert!(s.alive && s.present);
+        assert!(s.alive && !s.present, "ships jump in later (§5.6)");
         assert_eq!(s.hp, cat.hull(s.hull).hp);
         assert_eq!(s.parent, NONE);
         assert_eq!(s.attach, Attach::None);
@@ -470,9 +472,9 @@ fn drive(m: &mut Match, cat: &Catalogue) {
 fn same_seed_matches_hash_equal_every_tick() {
     let cat = test_catalogue();
     let fleets: (&[u16], &[u16]) = (&[FIGHTER, STRAFER], &[GUNSHIP, FIGHTER]);
-    let mut a = new_match(&cat, 11, fleets.0, fleets.1);
-    let mut b = new_match(&cat, 11, fleets.0, fleets.1);
-    let mut other = new_match(&cat, 12, fleets.0, fleets.1);
+    let mut a = new_present_match(&cat, 11, fleets.0, fleets.1);
+    let mut b = new_present_match(&cat, 11, fleets.0, fleets.1);
+    let mut other = new_present_match(&cat, 12, fleets.0, fleets.1);
     assert_eq!(a.state_hash(), b.state_hash());
     assert_ne!(
         a.state_hash(),
