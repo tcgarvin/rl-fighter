@@ -1,7 +1,7 @@
 // Throwaway scripted 2D battle for the story demo. Not the real sim (that is Rust); it
 // only needs to look plausible and exercise each mission: per-thruster throttle,
 // independent turrets, bullets, beams, flak, torpedoes, carrier launches, a capture
-// beacon and an immobile station.
+// beacon, an immobile station, and a three-way power split (shields, engines, weapons).
 
 import { HULLS, WEAPONS } from "./hulls.js";
 
@@ -23,6 +23,46 @@ const LAUNCH_CONTROL_LOCK = 0.5;
 const TORPEDO_TURN_RATE = 0.7;
 const CAPITAL_ROLES = new Set(["carrier", "station", "anchor"]);
 const SINGLE_SQUAD_HULLS = new Set(["gunship", "carrier", "bomber"]);
+
+// Power: each ship's reactor output is split between three systems. Shares sum to 1 and
+// none may exceed POWER_MAX_SHARE, so no ship can run everything flat out. A system at a
+// balanced third runs at 1x; starved it falls to POWER_FLOOR, at the cap it reaches ~1.6x.
+// The split slews at POWER_SLEW per second, so a commitment takes time to undo.
+export const POWER_SYSTEMS = ["shields", "engines", "weapons"];
+export const POWER_MAX_SHARE = 0.6;
+const POWER_FLOOR = 0.2;
+// Pilots spend most of a fight weapons-heavy; this keeps that near the pre-power fire rate.
+const WEAPON_RATE_SCALE = 0.65;
+const POWER_SLEW = 0.45;
+// Scripted pilots hold a mode at least this long, unless they need shields in a hurry.
+const POWER_DWELL = 1.4;
+const POWER_PANIC_DWELL = 0.4;
+// The scripted pilots' presets. A learned policy would set the split directly.
+export const POWER_MODES = {
+  balanced: { shields: 1 / 3, engines: 1 / 3, weapons: 1 / 3, label: "BALANCED" },
+  attack: { shields: 0.2, engines: 0.2, weapons: 0.6, label: "POWER TO WEAPONS" },
+  pursuit: { shields: 0.15, engines: 0.6, weapons: 0.25, label: "POWER TO ENGINES" },
+  defend: { shields: 0.6, engines: 0.25, weapons: 0.15, label: "POWER TO SHIELDS" },
+  evade: { shields: 0.4, engines: 0.6, weapons: 0, label: "BREAK OFF" },
+};
+
+/** Effect multiplier for a system given its share of reactor output. */
+export function powerMultiplier(share) {
+  return POWER_FLOOR + (1 - POWER_FLOOR) * 3 * share;
+}
+
+// Static hulls burn a fixed share holding station; they split the rest between shields
+// and weapons (otherwise the engines' third would be a free bonus).
+const STATION_KEEPING_SHARE = 0.2;
+
+/** A mode's split for this hull. */
+function modeSplit(mode, hull) {
+  const m = POWER_MODES[mode];
+  if (!hull.static) return { shields: m.shields, engines: m.engines, weapons: m.weapons };
+  const spare = 1 - STATION_KEEPING_SHARE;
+  const shields = clamp((spare * m.shields) / (m.shields + m.weapons), spare - POWER_MAX_SHARE, POWER_MAX_SHARE);
+  return { shields, engines: STATION_KEEPING_SHARE, weapons: spare - shields };
+}
 
 export function mulberry32(seed) {
   let a = seed >>> 0;
@@ -94,6 +134,12 @@ function makeShip(id, hullName, team, x, y, heading) {
     maxShield: hull.shield?.hp ?? 0,
     lastHitTime: -Infinity,
     throttles: hull.thrusters.map(() => 0),
+    power: modeSplit("balanced", hull),
+    powerTarget: modeSplit("balanced", hull),
+    powerMode: "balanced",
+    powerModeSince: -Infinity,
+    // Per-pilot nerve: how low the shield gets before it diverts power to it.
+    shieldNerve: 0.3,
     turretAngles: hull.turrets.map((t) => deg(t.rest)),
     turretCooldowns: hull.turrets.map(() => 0),
     firing: hull.turrets.map(() => false),
@@ -184,6 +230,7 @@ export class ScriptedBattle {
   addShip(hullName, team, x, y, heading) {
     const ship = makeShip(this.ships.length, hullName, team, x, y, heading);
     ship.orbitSign = this.rng() < 0.5 ? -1 : 1;
+    ship.shieldNerve = 0.2 + this.rng() * 0.3;
     this.ships.push(ship);
     return ship;
   }
@@ -320,8 +367,36 @@ export class ScriptedBattle {
 
   regenerateShield(ship) {
     const spec = ship.hull.shield;
-    if (!spec || this.time - ship.lastHitTime < spec.regenDelay) return;
-    ship.shield = Math.min(ship.maxShield, ship.shield + spec.regenRate * DT);
+    if (!spec) return;
+    const boost = powerMultiplier(ship.power.shields);
+    if (this.time - ship.lastHitTime < spec.regenDelay / boost) return;
+    ship.shield = Math.min(ship.maxShield, ship.shield + spec.regenRate * boost * DT);
+  }
+
+  /** Scripted power management: pick a mode from the situation, then slew toward it. */
+  managePower(ship, target, goal) {
+    const hull = ship.hull;
+    const range = Math.max(...hull.turrets.map((t) => WEAPONS[t.weapon].range));
+    const dist = target ? Math.hypot(target.x - ship.x, target.y - ship.y) : Infinity;
+    const underFire = this.time - ship.lastHitTime < 1.2;
+    const shieldFrac = ship.maxShield > 0 ? ship.shield / ship.maxShield : 1;
+    let want = "balanced";
+    if (underFire && shieldFrac < ship.shieldNerve) want = ship.hp / ship.maxHp < 0.45 && !hull.static && hull.role !== "carrier" ? "evade" : "defend";
+    else if (hull.role === "bomber" && this.time < ship.breakingUntil) want = "pursuit";
+    else if (dist < range) want = "attack";
+    else if (!hull.static && (goal || dist > range * 1.5)) want = "pursuit";
+    const held = this.time - ship.powerModeSince;
+    const panic = want === "defend" || want === "evade";
+    if (want !== ship.powerMode && held > (panic ? POWER_PANIC_DWELL : POWER_DWELL)) {
+      ship.powerMode = want;
+      ship.powerModeSince = this.time;
+      ship.powerTarget = modeSplit(want, hull);
+      this.events.powerShifts.push({ id: ship.id, mode: want });
+    }
+    // Move every share toward its target at the same rate, which keeps the sum at 1.
+    const gap = Math.max(...POWER_SYSTEMS.map((k) => Math.abs(ship.powerTarget[k] - ship.power[k])));
+    const k = gap > 0 ? Math.min(1, (POWER_SLEW * DT) / gap) : 0;
+    for (const sys of POWER_SYSTEMS) ship.power[sys] += (ship.powerTarget[sys] - ship.power[sys]) * k;
   }
 
   /** Who this ship wants to fight, by hull role and mission. */
@@ -345,6 +420,7 @@ export class ScriptedBattle {
       return;
     }
     if (hull.static) {
+      this.managePower(ship, this.nearestEnemy(ship), false);
       this.aimTurrets(ship);
       return;
     }
@@ -355,10 +431,13 @@ export class ScriptedBattle {
       // Beacon: go and sit in the ring unless an enemy is close enough to brawl with.
       const near = target && Math.hypot(target.x - ship.x, target.y - ship.y) < 170;
       if (!near) {
+        const inRing = Math.hypot(beacon.x - ship.x, beacon.y - ship.y) < beacon.radius * 0.6;
+        this.managePower(ship, target, !inRing);
         target = { x: beacon.x, y: beacon.y, vx: 0, vy: 0 };
         goal = true;
       }
     }
+    if (!goal) this.managePower(ship, target, false);
     let force = [0, 0];
     let desiredHeading = ship.heading;
     if (hull.role === "carrier") {
@@ -452,7 +531,7 @@ export class ScriptedBattle {
         weapon.kind === "torpedo"
           ? (this.nearestEnemy(probe, weapon.range, (o) => CAPITAL_ROLES.has(o.hull.role)) ?? this.nearestEnemy(probe, weapon.range * 0.5))
           : this.nearestEnemy(probe, weapon.range * 1.4);
-      ship.turretCooldowns[i] = Math.max(0, ship.turretCooldowns[i] - DT);
+      ship.turretCooldowns[i] = Math.max(0, ship.turretCooldowns[i] - DT * WEAPON_RATE_SCALE * powerMultiplier(ship.power.weapons));
       ship.firing[i] = false;
       if (!target) return;
       const worldAngle = Math.atan2(target.y - my, target.x - mx);
@@ -526,8 +605,9 @@ export class ScriptedBattle {
     let fx = 0;
     let fy = 0;
     let torque = 0;
+    const engines = powerMultiplier(ship.power.engines);
     hull.thrusters.forEach((t, i) => {
-      const f = t.force * ship.throttles[i];
+      const f = t.force * ship.throttles[i] * engines;
       if (f === 0) return;
       const bx = t.dir[0] * f;
       const by = t.dir[1] * f;
@@ -549,8 +629,9 @@ export class ScriptedBattle {
     ship.vy *= 0.995;
     ship.omega *= 0.94;
     const speed = Math.hypot(ship.vx, ship.vy);
-    if (speed > hull.speedCap) {
-      const k = 1 - Math.min(0.08, (speed - hull.speedCap) / speed);
+    const speedCap = hull.speedCap * (0.6 + 0.4 * engines);
+    if (speed > speedCap) {
+      const k = 1 - Math.min(0.08, (speed - speedCap) / speed);
       ship.vx *= k;
       ship.vy *= k;
     }
@@ -612,7 +693,8 @@ export class ScriptedBattle {
     ship.lastHitTime = this.time;
     if (ship.shield > 0) {
       // The shield takes the hit on a bubble around the hull; report where and facing which way.
-      ship.shield = Math.max(0, ship.shield - amount);
+      // A well-fed shield also shrugs off part of each hit.
+      ship.shield = Math.max(0, ship.shield - amount / (0.7 + 0.3 * powerMultiplier(ship.power.shields)));
       let nx = x - ship.x;
       let ny = y - ship.y;
       const len = Math.hypot(nx, ny) || 1;
@@ -639,7 +721,7 @@ export class ScriptedBattle {
 }
 
 function emptyEvents() {
-  return { hits: [], shieldHits: [], explosions: [], muzzles: [], arrivals: [], launches: [] };
+  return { hits: [], shieldHits: [], explosions: [], muzzles: [], arrivals: [], launches: [], powerShifts: [] };
 }
 
 export function isActive(ship) {

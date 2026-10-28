@@ -347,7 +347,7 @@ export function buildHull(hull,team,mats) {
     setThrottles(throttles,dt) {
       const k=1-Math.exp(-Math.max(0,dt)*24);
       for (let i=0;i<thrusters.length;i++) {
-        const t=thrusters[i],target=Math.max(0,Math.min(1,throttles[i]||0));
+        const t=thrusters[i],target=Math.max(0,Math.min(1.4,throttles[i]||0)); // >1: boosted engine power
         t.level+=(target-t.level)*k;
         if (target===0 && t.level<.015) t.level=0;
         t.node.visible=t.level>.01;

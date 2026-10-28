@@ -1,10 +1,11 @@
 import * as THREE from "three";
-import { ScriptedBattle, SIM_DT, mulberry32 } from "./sim.js";
+import { ScriptedBattle, SIM_DT, mulberry32, powerMultiplier } from "./sim.js";
 import { HULLS } from "./hulls.js";
 import { MISSIONS, MISSION_ORDER, missionForMatch } from "./missions.js";
 import { DRAFT_HULLS, PERSONAS, runDraft } from "./draft.js";
 import { createDraftView } from "./draftview.js";
 import { createBeaconView } from "./beacon.js";
+import { createPowerView } from "./power.js";
 import { renderHullThumbnails } from "./thumbs.js";
 import { TREATMENTS } from "./treatments/index.js";
 
@@ -76,6 +77,7 @@ treatment.init({ THREE, scene, renderer, camera });
 const environment = environmentModule.createEnvironment({ THREE, scene, camera, renderer });
 const effects = effectsModule.createEffects({ THREE, scene, camera, renderer, palette: treatment.palette });
 const beaconView = createBeaconView({ THREE, scene, palette: treatment.palette });
+const powerView = createPowerView({ THREE, scene, palette: treatment.palette, hud: document.getElementById("hud"), camera });
 
 const thumbHulls = [...Object.keys(DRAFT_HULLS), "carrier", "station"];
 const thumbnails = renderHullThumbnails({ THREE, hullgeo, treatment, hulls: Object.fromEntries(thumbHulls.map((h) => [h, HULLS[h]])) });
@@ -99,7 +101,7 @@ const safeBand = { top: 0.8, bottom: -0.8 };
 function measureSafeBand() {
   const h = window.innerHeight;
   const topPx = document.getElementById("topbar").getBoundingClientRect().bottom + HUD_CLEARANCE;
-  const bottomEls = ["controls"].map((id) => document.getElementById(id)).filter((el) => el.offsetParent !== null);
+  const bottomEls = ["controls", "power"].map((id) => document.getElementById(id)).filter((el) => el.offsetParent !== null);
   const bottomPx = Math.min(h, ...bottomEls.map((el) => el.getBoundingClientRect().top)) - HUD_CLEARANCE;
   safeBand.top = 1 - (2 * topPx) / h;
   safeBand.bottom = 1 - (2 * bottomPx) / h;
@@ -216,6 +218,7 @@ function syncShips() {
     shipViews.set(ship.id, { model, damage: effects.attachDamage(model), jumpStart: -Infinity });
   }
   viewMatch = battle.matchIndex;
+  powerView.newMatch(battle);
   followId = null;
   previous = snapshot(battle);
 }
@@ -238,6 +241,7 @@ function dispatchEvents() {
   for (const e of ev.hits) effects.hit(e);
   for (const e of ev.shieldHits) effects.shieldHit({ ...e, radius: battle.ships[e.targetId].hull.shield.radius });
   for (const e of ev.explosions) effects.explosion(e);
+  powerView.onShifts(battle, shipViews, ev.powerShifts);
 }
 
 function stepSim() {
@@ -286,7 +290,9 @@ function frame(now) {
     obj.position.set(x, 0, -y);
     obj.rotation.y = heading;
     obj.updateMatrixWorld();
-    v.model.setThrottles(ship.throttles, dt);
+    // Plumes show delivered thrust: starved engines sputter, boosted ones run long.
+    const engines = 0.45 + 0.55 * powerMultiplier(ship.power.engines);
+    v.model.setThrottles(ship.throttles.map((t) => t * engines), dt);
     v.model.turrets.forEach((pivot, i) => (pivot.rotation.y = ship.turretAngles[i]));
     v.damage.update(ship.hp / ship.maxHp, visible, dt);
     if (ship.alive) {
@@ -317,6 +323,7 @@ function frame(now) {
     measureSafeBand();
   }
   updateCamera(bounds, dt);
+  powerView.update(battle, shipViews, dt, focusId ?? followId, story.phase !== "draft");
   environment.update(dt, { centerX: camState.x, centerY: camState.y, extent: camState.extent });
   effects.update(dt, elapsed);
   treatment.render(renderer, scene, camera, dt);
@@ -466,7 +473,7 @@ function updateHud() {
   metaEl.textContent = `MISSION ${story.number} · ${story.mission.name} · ${left.toFixed(0)}s · SCRIPTED (NO RL)${following}`;
 }
 
-/** Per-ship readouts for the "Technical details" toggle: HP, shield and throttles. */
+/** Per-ship readouts for the "Technical details" toggle: HP, shield, throttles and power split. */
 function updateDetails() {
   battle.ships.forEach((ship, i) => {
     let el = detailLabels[i];
@@ -491,7 +498,8 @@ function updateDetails() {
     const throttles = ship.throttles.map((t) => (t === 1 ? "█" : t > 0 ? "▄" : "·")).join("");
     const shield = ship.maxShield > 0 ? ` · SH ${Math.ceil(ship.shield)}/${ship.maxShield}` : "";
     el.className = `ship-label ${ship.team === 0 ? "team-a" : "team-b"}`;
-    el.textContent = `${ship.hullName.toUpperCase()} #${ship.id}\nHP ${Math.ceil(ship.hp)}/${ship.maxHp}${shield}\nTHR ${throttles}`;
+    const power = ["shields", "engines", "weapons"].map((k) => `${k[0].toUpperCase()}${Math.round(ship.power[k] * 100)}`).join(" ");
+    el.textContent = `${ship.hullName.toUpperCase()} #${ship.id}\nHP ${Math.ceil(ship.hp)}/${ship.maxHp}${shield}\nTHR ${throttles}\nPWR ${power}`;
   });
   for (let i = battle.ships.length; i < detailLabels.length; i++) detailLabels[i].hidden = true;
 }
