@@ -366,11 +366,13 @@ Feedback from round 1 (2026-10-27):
 
 ## 12. Roadmap
 
-1. **M0, Art direction.** Scripted demo options, then choose a direction.
+1. **M0, Art direction. Done (2026-10-28).** Cinematic chosen (§11); the scripted
+   demo is live on the subdomain as a placeholder.
 2. **M1, Sim core.** The Rust crate, three hulls, thruster physics, weapons, hits,
    Python bindings, and a determinism test comparing native and WASM builds.
-3. **M2, Live web.** The WASM client with a scripted match, the fit-all camera,
-   deployment to the subdomain, and journal page scaffolding.
+3. **M2, Live web.** The WASM client with a scripted match, the fit-all camera, and
+   journal page scaffolding. Hosting and `scripts/deploy.sh` already exist (§9); M2
+   moves the site from `prototypes/art-direction/` to `web/`.
 4. **M3, Pilots learn.** The attention policy, actuator-level PPO, scripted-controller
    initialisation, eval harness v1, and the first champion deployed.
 5. **M4, Nightly lab on.** Starting with conservative experiments (fine-tuning, hull
@@ -381,6 +383,8 @@ Feedback from round 1 (2026-10-27):
 
 ## 13. Open questions
 
+- Jump-in shockwave ring: normal, 2× speed, or none? The demo has a toggle; bake
+  in the owner's pick and drop the toggle.
 - Throttle levels: discrete `{0, ½, 1}`, or continuous with a Beta distribution?
   Start discrete.
 - Observing projectiles: the nearest K as tokens, or a coarse threat field?
