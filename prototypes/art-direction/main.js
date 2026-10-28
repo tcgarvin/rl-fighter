@@ -325,36 +325,12 @@ function buildSwitcher() {
   details.addEventListener("click", toggleDetails);
   el.append(details);
 
-  // Comparison aids for the jump-in shockwave: speed toggle plus an instant re-jump.
-  const ringModes = [["normal", 1], ["2×", 2], ["off", 0]];
-  let ringIndex = 0;
-  try {
-    ringIndex = Math.max(0, ringModes.findIndex(([name]) => name === localStorage.getItem("jumpRing")));
-  } catch {
-    ringIndex = 0;
-  }
-  const ring = document.createElement("button");
-  ring.type = "button";
-  const applyRing = () => {
-    const [name, speed] = ringModes[ringIndex];
-    effects.jumpRing = speed;
-    ring.textContent = `Jump ring: ${name}`;
-  };
-  applyRing();
-  ring.addEventListener("click", () => {
-    ringIndex = (ringIndex + 1) % ringModes.length;
-    applyRing();
-    try {
-      localStorage.setItem("jumpRing", ringModes[ringIndex][0]);
-    } catch {
-      // Remembering the choice is a convenience only.
-    }
-  });
+  // Replays the jump-in without waiting for the match to end.
   const restart = document.createElement("button");
   restart.type = "button";
   restart.textContent = "Restart match";
   restart.addEventListener("click", () => battle.startMatch());
-  el.prepend(ring, restart);
+  el.prepend(restart);
 }
 
 function toggleDetails() {

@@ -104,7 +104,9 @@ retire from the active league, though they stay in history.
   point and heading. Its ships appear with staggered delays of tens to hundreds of
   milliseconds, already moving at a residual forward velocity. They coast briefly with
   their controls locked, then their policy takes over. The sim decides arrival times
-  and velocities; the renderer draws the jump.
+  and velocities; the renderer draws the jump: a very fast (~55 ms) streak in from
+  off-screen and a brief soft flash on landing, with no shockwave ring or afterglow.
+  Squads arrive about 300 ms apart.
 - **Arena:** a bounded disc. Outside it a soft force pushes ships back and HP
   drains slowly. Match setup chooses the arena size.
 - **Projectile pool:** fixed size per match, recycling the oldest entry first, as in
@@ -383,8 +385,6 @@ Feedback from round 1 (2026-10-27):
 
 ## 13. Open questions
 
-- Jump-in shockwave ring: normal, 2× speed, or none? The demo has a toggle; bake
-  in the owner's pick and drop the toggle.
 - Throttle levels: discrete `{0, ½, 1}`, or continuous with a Beta distribution?
   Start discrete.
 - Observing projectiles: the nearest K as tokens, or a coarse threat field?

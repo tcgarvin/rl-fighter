@@ -135,9 +135,7 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
     }
     sparks(e.x,-e.y,death?16:5,r*.9,death?c:white);
   }
-  const api = {
-    // Jump-in shockwave speed multiplier; 0 hides it.
-    jumpRing: 1,
+  return {
     updateProjectiles(projectiles, beams, alpha) {
       tracers.n=cores.n=0;
       // CSS pixels keep the minimum width stable at phone DPR 1–2 and desktop.
@@ -301,15 +299,9 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
         const x=p.x-dx*back,z=p.z-dz*back, fade=travel<1?1:Math.max(0,1-(age-p.max)/.38);
         segment(bolts,x-dx*tail,1.4,z-dz*tail,x,1.4,z,p.size*.65,p.color,.42*fade);
         segment(bolts,x-dx*tail*.85,1.5,z-dz*tail*.85,x,1.5,z,Math.max(1.8,p.size*.1),white,fade);
-        if(travel===1) {
-          const after=Math.max(0,1-(age-p.max)/.7);
-          segment(bolts,p.x-dx*p.size*.65,2,p.z-dz*p.size*.65,
-            p.x+dx*p.size*.65,2,p.z+dz*p.size*.65,p.size*.35,p.color,after*.6);
-        }
         if(travel===1 && !p.landed) {
           p.landed=true;particle(p.x,2,p.z,p.size*5,.38,p.color);
           particle(p.x,2,p.z,p.size*2,.18,white);
-          if(api.jumpRing>0) wave(p.x,p.z,p.size*2.4,.65/api.jumpRing,p.color);
         }
       }
       finish(glow);finish(flames);finish(smoke);finish(chips);finish(rings);finish(ripples);finish(bolts);
@@ -319,5 +311,4 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
       for(const b of resources) { scene.remove(b.mesh);b.mesh.geometry.dispose();b.mesh.material.dispose(); }
     },
   };
-  return api;
 }
