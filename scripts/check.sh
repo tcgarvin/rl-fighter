@@ -36,4 +36,12 @@ step "wasm-pack build crates/sim-wasm --target web"
 # Output goes under target/ so it stays out of git.
 wasm-pack --quiet build crates/sim-wasm --target web --out-dir "$REPO_ROOT/target/wasm-pack/sim-wasm"
 
+step "node smoke: WasmMatch bundle vs native golden hashes"
+# Runs the bundle just built (same bytes the browser loads); takes well under a second.
+if command -v node >/dev/null; then
+    node crates/sim-wasm/tests/node_smoke.mjs "$REPO_ROOT/target/wasm-pack/sim-wasm"
+else
+    echo "SKIPPED: node not on PATH"
+fi
+
 step "all checks passed"
