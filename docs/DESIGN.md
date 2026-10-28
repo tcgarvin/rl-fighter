@@ -62,6 +62,7 @@ lab/
   champions/    # promoted bundles (weights + manifest), the league history
 tools/          # hull validator, bundle builder, deploy script
 docs/DESIGN.md  # this file
+docs/SIM_SPEC.md # M1 implementation spec for the sim and bindings
 ```
 
 **Bundle.** The unit of deployment: sim WASM, the hull catalogue (YAML + GLB),
@@ -91,7 +92,15 @@ retire from the active league, though they stay in history.
   turrets with an arc of zero.
 - **Weapons** (data-driven, as in v1): bullets, hitscan beams and guided missiles,
   each with magazine, reload, energy and damage-type properties.
-- **Bays:** launch a hull from the fleet's queue at the bay's mount point.
+- **Power split:** every ship divides its reactor output between shields, engines and
+  weapons (engines and weapons only, on shieldless hulls). Shares sum to 1, none may
+  exceed a cap (0.6 three-way, 0.8 two-way), and the split slews toward its target at
+  0.45 per second, so a commitment takes time to undo. An even split runs each system
+  at 1×; starved, 0.2×; at the cap, about 1.5–1.6×. The policy sets the target split
+  directly; it is an actuator, not a mode. Prototyped in `prototypes/story/power.js`.
+- **Bays:** launch a hull from the fleet's queue at the bay's mount point. Strike craft
+  below a hull threshold may fly back, dock, repair and relaunch (prototyped in the
+  story demo's flagship mission); docking is flown by the pilot, not automated.
 - **Collision:** each hull is a compound of circles derived from the model's
   footprint. Projectiles are tested against those circles, using swept segments for
   fast bullets. Ships can collide with each other; the impulse depends on mass.
@@ -194,6 +203,12 @@ The match has three phases, designed for a spectator to follow without explanati
 
 Between matches, the page shows the result and starts the next match. It loops
 forever.
+
+The scripted story demo (`prototypes/story/`, live on the site until M2) explored
+this further, and its choices are the working plan: drafting deals 5-card hands and
+fighter/bomber cards are whole flights (×3 and ×2); a carrier brings an air wing; and
+there are four mission types: team deathmatch, flagship duel, hold the beacon, and
+station assault (attackers against a pre-placed, turreted, immobile station).
 
 **Staging:** the first build is a plain skirmish (fixed fleets, no economy). Then
 flagships and supply, with a scripted commander. Then a learned commander. Then
@@ -370,18 +385,24 @@ Feedback from round 1 (2026-10-27):
 
 1. **M0, Art direction. Done (2026-10-28).** Cinematic chosen (§11); the scripted
    demo is live on the subdomain as a placeholder.
-2. **M1, Sim core.** The Rust crate, three hulls, thruster physics, weapons, hits,
-   Python bindings, and a determinism test comparing native and WASM builds.
-3. **M2, Live web.** The WASM client with a scripted match, the fit-all camera, and
+2. **M1, Sim core** (specified in `docs/SIM_SPEC.md`). **M1a:** the Rust crate, three
+   hulls, thruster physics, power split, weapons, shields, hits, a scripted fighter,
+   and a determinism test comparing native and WASM builds. **M1b:** the PyO3 batched
+   VecEnv and a throughput benchmark.
+3. **Learnability spike** (moved ahead of the web client, 2026-10-28). Fighter vs.
+   fighter with a small MLP: behaviour cloning from the scripted controller, then PPO,
+   on the CPU. The question: can actuator-level control learn in a night? It is the
+   project's biggest risk; the web client is not, and the story demo holds the site.
+4. **M2, Live web.** The WASM client with a scripted match, the fit-all camera, and
    journal page scaffolding. Hosting and `scripts/deploy.sh` already exist (§9); M2
    moves the site from the scripted story demo (`prototypes/story/`) to `web/`.
-4. **M3, Pilots learn.** The attention policy, actuator-level PPO, scripted-controller
-   initialisation, eval harness v1, and the first champion deployed.
-5. **M4, Nightly lab on.** Starting with conservative experiments (fine-tuning, hull
+5. **M3, Pilots learn.** The attention policy, eval harness v1, the self-play league,
+   and the first champion deployed.
+6. **M4, Nightly lab on.** Starting with conservative experiments (fine-tuning, hull
    tuning).
-6. **M5, Fleet battles.** Flagships, supply, bays, a scripted commander and
+7. **M5, Fleet battles.** Flagships, supply, bays, a scripted commander and
    goal-conditioned orders.
-7. **M6+.** A learned commander, drafting, strange hulls, and handwired experiments.
+8. **M6+.** A learned commander, drafting, strange hulls, and handwired experiments.
 
 ## 13. Open questions
 
