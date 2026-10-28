@@ -34,6 +34,14 @@ uv run python -m vis.pygame_vis --checkpoint checkpoints/policy_500.pt
 # Plain cargo on crates/sim-py needs PYO3_PYTHON=$(uv python find '>=3.13') (check.sh sets it)
 scripts/check.sh
 
+# Build the Rust sim's Python extension (rlf_sim) into the venv, test, benchmark
+uv run maturin develop -m crates/sim-py/Cargo.toml --release
+uv run python -m pytest tests/test_rust_env.py -v
+uv run python tools/bench_env.py --assert-floors
+
+# Rust gate (fmt, clippy, native + wasip1 tests, wasm-pack, rlf_sim build + tests)
+scripts/check.sh
+
 # Deploy the website (rl-fighter.tcgarvin.com); needs NETLIFY_AUTH_TOKEN in .env
 scripts/deploy.sh
 ```

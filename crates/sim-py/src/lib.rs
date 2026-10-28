@@ -1,9 +1,40 @@
-//! `rlf_sim`: Python bindings for the sim. The batched VecEnv lands in WP9.
+//! `rlf_sim`: Python bindings for the sim (SIM_SPEC §10.1): the batched `VecEnv`
+//! plus the layout constants Python slices obs and action rows with.
+
+mod batch;
+mod vec_env;
 
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
+use sim::actions::{ACTION_WIDTH, FIRE_OFFSET, POWER_OFFSET, SLEW_OFFSET, THROTTLE_OFFSET};
+use sim::obs::{OBS_DIM, OBS_LAYOUT};
+use sim::state::{MAX_HITS, MAX_SHIPS, MAX_THRUSTERS, MAX_TURRETS};
 
 #[pymodule]
 fn rlf_sim(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    let py = m.py();
     m.add("SIM_VERSION", sim::SIM_VERSION)?;
+    m.add("OBS_DIM", OBS_DIM)?;
+    m.add("ACTION_WIDTH", ACTION_WIDTH)?;
+    m.add("MAX_SHIPS", MAX_SHIPS)?;
+    m.add("MAX_HITS", MAX_HITS)?;
+    m.add("HIT_FIELDS", batch::HIT_FIELDS)?;
+    m.add("HIT_DAMAGE_SCALE", batch::HIT_DAMAGE_SCALE)?;
+
+    // name -> (offset, width), in layout order (dicts keep insertion order).
+    let obs_layout = PyDict::new(py);
+    for &(name, off, width) in OBS_LAYOUT {
+        obs_layout.set_item(name, (off, width))?;
+    }
+    m.add("OBS_LAYOUT", obs_layout)?;
+
+    let action_layout = PyDict::new(py);
+    action_layout.set_item("throttle", (THROTTLE_OFFSET, MAX_THRUSTERS))?;
+    action_layout.set_item("slew", (SLEW_OFFSET, MAX_TURRETS))?;
+    action_layout.set_item("fire", (FIRE_OFFSET, MAX_TURRETS))?;
+    action_layout.set_item("power", (POWER_OFFSET, 1))?;
+    m.add("ACTION_LAYOUT", action_layout)?;
+
+    m.add_class::<vec_env::VecEnv>()?;
     Ok(())
 }

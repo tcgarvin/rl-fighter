@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Rust workspace gate: formatting, lints, native tests, the sim under wasmtime on
-# wasm32-wasip1 (same code the browser runs), and a sim-wasm browser build.
+# wasm32-wasip1 (same code the browser runs), a sim-wasm browser build, and the
+# rlf_sim Python extension build + its pytest suite.
 # Every work package must leave this green (docs/SIM_SPEC.md §14).
 set -euo pipefail
 
@@ -35,5 +36,17 @@ cargo test -p sim --target wasm32-wasip1
 step "wasm-pack build crates/sim-wasm --target web"
 # Output goes under target/ so it stays out of git.
 wasm-pack --quiet build crates/sim-wasm --target web --out-dir "$REPO_ROOT/target/wasm-pack/sim-wasm"
+
+step "maturin develop crates/sim-py (release) + pytest tests/test_rust_env.py"
+# Builds the rlf_sim extension into the project venv, then runs its Python tests.
+uv run maturin develop --quiet -m crates/sim-py/Cargo.toml --release
+uv run python -m pytest tests/test_rust_env.py -q
+
+# The throughput floors (SIM_SPEC §13) depend on an otherwise idle machine, so the
+# benchmark is opt-in: RLF_BENCH=1 scripts/check.sh
+if [[ "${RLF_BENCH:-0}" == "1" ]]; then
+    step "tools/bench_env.py --assert-floors"
+    uv run python tools/bench_env.py --assert-floors
+fi
 
 step "all checks passed"
