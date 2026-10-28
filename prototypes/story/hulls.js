@@ -14,7 +14,6 @@ export const HULLS = {
     mass: 10,
     inertia: 55,
     speedCap: 60,
-    shield: { hp: 20, regenRate: 6, regenDelay: 2.5, radius: 6.5 },
     thrusters: [
       // dir is the direction the *force* pushes the ship; exhaust points opposite.
       { id: "thruster.main.0", pos: [-4.6, 0], dir: [1, 0], force: 900, size: 1.0 },
@@ -78,7 +77,6 @@ export const HULLS = {
     mass: 22,
     inertia: 260,
     speedCap: 34,
-    shield: { hp: 30, regenRate: 6, regenDelay: 3, radius: 8.5 },
     thrusters: [
       { id: "thruster.main.l", pos: [-6, 1.6], dir: [1, 0], force: 900, size: 0.9 },
       { id: "thruster.main.r", pos: [-6, -1.6], dir: [1, 0], force: 900, size: 0.9 },

@@ -14,14 +14,15 @@ assault (attackers versus a pre-placed turreted station).
 - `draftview.js`: replays it in about five seconds: hands dealt from the picking side,
   the choice lights up with its reason and flies onto the roster, beats speeding up.
 - `thumbs.js`: renders the real hull models for the cards.
-- `power.js`: shows the power split. Every ship divides its reactor output between
-  shields, engines and weapons (shares sum to 1, none above 0.6, so nothing runs
-  everything at full; a balanced third is 1×, the cap about 1.6×, starved 0.2×). The split
-  slews at 0.45 per second, so a commitment takes time to undo. Shown as a shield bubble
-  that glows when fed, engine plume length, a panel for one featured ship (tap a ship
-  to pick it), and callouts when the featured ship, a carrier or the station shifts power.
-  The scripted pilots switch between preset modes; a learned policy would set the split
-  directly.
+- `power.js`: shows the power split. Every ship divides its reactor output between its
+  systems: shields, engines and weapons, or only engines and weapons on hulls without a
+  shield (fighters, bombers). Shares sum to 1 and none may exceed a cap (0.6 three-way,
+  0.8 two-way), so nothing runs everything at full; an even split is 1×, the cap about
+  1.5-1.6×, starved 0.2×. The split slews at 0.45 per second, so a commitment takes time
+  to undo. Shown as a shield bubble that glows when fed, engine plume length, a panel for
+  one featured ship (tap a ship to pick it), and callouts when the featured ship, a
+  carrier or the station shifts power. The scripted pilots switch between preset modes;
+  a learned policy would set the split directly.
 - `sim.js`: the scripted battle (a fork of the art-direction one, plus missions, bays,
   torpedoes, the static station and power management).
 - `shared/`, `treatments/`: copied from `../art-direction/`. `hullgeo.js` adds the

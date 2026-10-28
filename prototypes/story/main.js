@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { ScriptedBattle, SIM_DT, mulberry32, powerMultiplier } from "./sim.js";
+import { ScriptedBattle, SIM_DT, mulberry32, systemPower } from "./sim.js";
 import { HULLS } from "./hulls.js";
 import { MISSIONS, MISSION_ORDER, missionForMatch } from "./missions.js";
 import { DRAFT_HULLS, PERSONAS, runDraft } from "./draft.js";
@@ -291,7 +291,7 @@ function frame(now) {
     obj.rotation.y = heading;
     obj.updateMatrixWorld();
     // Plumes show delivered thrust: starved engines sputter, boosted ones run long.
-    const engines = 0.45 + 0.55 * powerMultiplier(ship.power.engines);
+    const engines = 0.45 + 0.55 * systemPower(ship, "engines");
     v.model.setThrottles(ship.throttles.map((t) => t * engines), dt);
     v.model.turrets.forEach((pivot, i) => (pivot.rotation.y = ship.turretAngles[i]));
     v.damage.update(ship.hp / ship.maxHp, visible, dt);
@@ -498,7 +498,7 @@ function updateDetails() {
     const throttles = ship.throttles.map((t) => (t === 1 ? "█" : t > 0 ? "▄" : "·")).join("");
     const shield = ship.maxShield > 0 ? ` · SH ${Math.ceil(ship.shield)}/${ship.maxShield}` : "";
     el.className = `ship-label ${ship.team === 0 ? "team-a" : "team-b"}`;
-    const power = ["shields", "engines", "weapons"].map((k) => `${k[0].toUpperCase()}${Math.round(ship.power[k] * 100)}`).join(" ");
+    const power = ship.powerProfile.systems.map((k) => `${k[0].toUpperCase()}${Math.round(ship.power[k] * 100)}`).join(" ");
     el.textContent = `${ship.hullName.toUpperCase()} #${ship.id}\nHP ${Math.ceil(ship.hp)}/${ship.maxHp}${shield}\nTHR ${throttles}\nPWR ${power}`;
   });
   for (let i = battle.ships.length; i < detailLabels.length; i++) detailLabels[i].hidden = true;

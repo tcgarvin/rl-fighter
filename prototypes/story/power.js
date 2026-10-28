@@ -4,7 +4,7 @@
 // where it is slewing to, and what each system is worth; power shifts by the featured ship,
 // carriers and stations pop up as short callouts next to the hull.
 
-import { POWER_MAX_SHARE, POWER_SYSTEMS, powerMultiplier } from "./sim.js";
+import { POWER_SYSTEMS, systemPower } from "./sim.js";
 
 const SYSTEM_LABELS = { shields: "SHD", engines: "ENG", weapons: "WPN" };
 const CALLOUTS = {
@@ -70,8 +70,6 @@ export function createPowerView({ THREE, scene, palette, hud, camera }) {
   marker.className = "pw-marker";
   marker.hidden = true;
   hud.append(marker);
-  // A balanced third, as a tick on each bar.
-  panel.querySelectorAll(".pw-even").forEach((tick) => (tick.style.left = `${(100 / 3 / POWER_MAX_SHARE).toFixed(1)}%`));
 
   function toScreen(object) {
     screen.setFromMatrixPosition(object.matrixWorld).project(camera);
@@ -140,13 +138,20 @@ export function createPowerView({ THREE, scene, palette, hud, camera }) {
     panel.className = ship.team === 0 ? "team-a" : "team-b";
     panel.querySelector(".pw-ship").textContent = `${ship.hullName.toUpperCase()} #${ship.id}`;
     panel.querySelector(".pw-mode").textContent = MODE_NAMES[ship.powerMode];
+    // Bars run from 0 to this hull's cap; the tick marks an even split.
+    const { systems, maxShare } = ship.powerProfile;
     for (const sys of POWER_SYSTEMS) {
       const row = rows[sys];
-      const unused = sys === "engines" && Boolean(ship.hull.static);
+      // Shieldless hulls split two ways; static hulls' engine share only holds station.
+      const absent = !systems.includes(sys);
+      const unused = absent || (sys === "engines" && Boolean(ship.hull.static));
       row.classList.toggle("unused", unused);
-      row.querySelector(".pw-fill").style.width = `${(100 * ship.power[sys]) / POWER_MAX_SHARE}%`;
-      row.querySelector(".pw-target").style.left = `${(100 * ship.powerTarget[sys]) / POWER_MAX_SHARE}%`;
-      row.querySelector(".pw-mult").textContent = unused ? "—" : `${powerMultiplier(ship.power[sys]).toFixed(1)}×`;
+      row.querySelector(".pw-fill").style.width = `${(100 * ship.power[sys]) / maxShare}%`;
+      row.querySelector(".pw-target").style.left = `${(100 * ship.powerTarget[sys]) / maxShare}%`;
+      row.querySelector(".pw-target").hidden = absent;
+      row.querySelector(".pw-even").style.left = `${(100 / systems.length / maxShare).toFixed(1)}%`;
+      row.querySelector(".pw-even").hidden = absent;
+      row.querySelector(".pw-mult").textContent = absent ? "NONE" : unused ? "—" : `${systemPower(ship, sys).toFixed(1)}×`;
     }
     const [x, y] = toScreen(view.model.object);
     marker.hidden = !ship.alive;
@@ -178,7 +183,7 @@ export function createPowerView({ THREE, scene, palette, hud, camera }) {
         const view = shipViews.get(ship.id);
         if (!bubble || !view) continue;
         bubble.flash = Math.max(0, bubble.flash - dt * 2.5);
-        const fed = Math.min(1, Math.max(0, (ship.power.shields - BUBBLE_SHARE_FLOOR) / (POWER_MAX_SHARE - BUBBLE_SHARE_FLOOR)));
+        const fed = Math.min(1, Math.max(0, (ship.power.shields - BUBBLE_SHARE_FLOOR) / (ship.powerProfile.maxShare - BUBBLE_SHARE_FLOOR)));
         const charge = ship.maxShield > 0 ? ship.shield / ship.maxShield : 0;
         const strength = fed * (0.25 + 0.75 * charge) * 0.8 + bubble.flash;
         bubble.mesh.visible = view.model.object.visible && ship.shield > 0 && strength > 0.01;
