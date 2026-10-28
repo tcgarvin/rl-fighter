@@ -1,0 +1,16 @@
+# Valid: a static hull may have speed_cap 0 and no thrusters.
+name: bad
+role: fighter
+hp: 60
+mass: 10.0
+inertia: 55.0
+speed_cap: 0
+static: true
+shield: null
+cost: 10
+collision:
+  - {pos: [0.0, 0.0], r: 3.0}
+thrusters: []
+turrets:
+  - {id: turret.nose, pos: [3.0, 0.0], rest_deg: 0, arc_deg: 0, slew_deg_s: 0, weapon: gauss}
+bays: []

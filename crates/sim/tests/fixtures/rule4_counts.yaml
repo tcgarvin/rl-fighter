@@ -1,0 +1,33 @@
+# Rule 4: 9 thrusters (> MAX_THRUSTERS) and 7 turrets (> MAX_TURRETS).
+name: bad
+role: fighter
+hp: 60
+mass: 10.0
+inertia: 55.0
+speed_cap: 60.0
+static: false
+shield: null
+cost: 10
+collision:
+  - {pos: [0.0, 0.0], r: 3.0}
+thrusters:
+  - {id: thruster.t0, pos: [-4.0, -4.0], dir: [1, 0], max_force: 100}
+  - {id: thruster.t1, pos: [-4.0, -3.0], dir: [1, 0], max_force: 100}
+  - {id: thruster.t2, pos: [-4.0, -2.0], dir: [1, 0], max_force: 100}
+  - {id: thruster.t3, pos: [-4.0, -1.0], dir: [1, 0], max_force: 100}
+  - {id: thruster.t4, pos: [-4.0, 0.0], dir: [1, 0], max_force: 100}
+  - {id: thruster.t5, pos: [-4.0, 1.0], dir: [1, 0], max_force: 100}
+  - {id: thruster.t6, pos: [-4.0, 2.0], dir: [1, 0], max_force: 100}
+  - {id: thruster.t7, pos: [-4.0, 3.0], dir: [1, 0], max_force: 100}
+  - {id: thruster.t8, pos: [-4.0, 4.0], dir: [1, 0], max_force: 100}
+  - {id: thruster.rcs.fl, pos: [2.0, 2.0], dir: [0, -1], max_force: 160}
+  - {id: thruster.rcs.fr, pos: [2.0, -2.0], dir: [0, 1], max_force: 160}
+turrets:
+  - {id: turret.t0, pos: [0.0, 0.0], rest_deg: 0, arc_deg: 0, slew_deg_s: 0, weapon: gauss}
+  - {id: turret.t1, pos: [0.0, 0.0], rest_deg: 0, arc_deg: 0, slew_deg_s: 0, weapon: gauss}
+  - {id: turret.t2, pos: [0.0, 0.0], rest_deg: 0, arc_deg: 0, slew_deg_s: 0, weapon: gauss}
+  - {id: turret.t3, pos: [0.0, 0.0], rest_deg: 0, arc_deg: 0, slew_deg_s: 0, weapon: gauss}
+  - {id: turret.t4, pos: [0.0, 0.0], rest_deg: 0, arc_deg: 0, slew_deg_s: 0, weapon: gauss}
+  - {id: turret.t5, pos: [0.0, 0.0], rest_deg: 0, arc_deg: 0, slew_deg_s: 0, weapon: gauss}
+  - {id: turret.t6, pos: [0.0, 0.0], rest_deg: 0, arc_deg: 0, slew_deg_s: 0, weapon: gauss}
+bays: []

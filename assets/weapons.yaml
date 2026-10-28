@@ -1,0 +1,8 @@
+# Weapon definitions (SIM_SPEC §4.2). Weapon ids are assigned in file order.
+# Angles in degrees, durations in seconds; converted to radians/ticks on load.
+gauss:   {kind: bullet,  speed: 240, range: 300, damage: 6,  interval: 0.16, spread_deg: 0.6}
+laser:   {kind: beam,    speed: 0,   range: 180, damage: 3,  interval: 0.10, spread_deg: 0.6}
+flak:    {kind: flak,    speed: 180, range: 230, damage: 4,  interval: 0.09, spread_deg: 3.5,
+          burst_radius: 14, fuse_jitter: 0.4}
+torpedo: {kind: torpedo, speed: 95,  range: 340, damage: 55, interval: 3.2,  spread_deg: 0,
+          turn_rate_deg_s: 40, lock_cone_deg: 30, life_factor: 1.3}

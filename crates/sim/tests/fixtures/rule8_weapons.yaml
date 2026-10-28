@@ -1,0 +1,5 @@
+# Rule 8: zero damage, negative interval, zero range, a bullet with zero speed.
+# The beam with speed 0 is valid.
+gauss: {kind: bullet, speed: 0, range: 300, damage: 0, interval: 0.16, spread_deg: 0.6}
+flak: {kind: flak, speed: 180, range: 0, damage: 4, interval: -1, spread_deg: 3.5}
+laser: {kind: beam, speed: 0, range: 180, damage: 3, interval: 0.1, spread_deg: 0.6}

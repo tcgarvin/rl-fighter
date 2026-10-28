@@ -1,0 +1,27 @@
+# Shielded anchor: two mains, four RCS, a fore flak turret and two broadside gauss.
+# Thrusters and turrets from prototypes/story/hulls.js; body frame +x forward, +y port.
+name: gunship
+role: anchor
+hp: 320
+mass: 60.0
+inertia: 2200.0
+speed_cap: 24.0
+static: false
+shield: {hp: 140, regen_rate: 12, regen_delay: 4, radius: 11}
+cost: 30
+collision:
+  - {pos: [4.5, 0.0], r: 3.6}
+  - {pos: [0.0, 0.0], r: 4.6}
+  - {pos: [-4.5, 0.0], r: 3.8}
+thrusters:
+  - {id: thruster.main.l, pos: [-7, 2], dir: [1, 0], max_force: 1700}
+  - {id: thruster.main.r, pos: [-7, -2], dir: [1, 0], max_force: 1700}
+  - {id: thruster.rcs.fl, pos: [4, 4.4], dir: [0, -1], max_force: 500}
+  - {id: thruster.rcs.fr, pos: [4, -4.4], dir: [0, 1], max_force: 500}
+  - {id: thruster.rcs.rl, pos: [-4.5, 4.6], dir: [0, -1], max_force: 500}
+  - {id: thruster.rcs.rr, pos: [-4.5, -4.6], dir: [0, 1], max_force: 500}
+turrets:
+  - {id: turret.fore, pos: [3.8, 0], rest_deg: 0, arc_deg: 240, slew_deg_s: 120, weapon: flak}
+  - {id: turret.port, pos: [-2.7, 2.8], rest_deg: 90, arc_deg: 220, slew_deg_s: 90, weapon: gauss}
+  - {id: turret.starboard, pos: [-2.7, -2.8], rest_deg: -90, arc_deg: 220, slew_deg_s: 90, weapon: gauss}
+bays: []

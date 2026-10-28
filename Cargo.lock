@@ -434,6 +434,7 @@ dependencies = [
  "rand_pcg",
  "serde",
  "serde-saphyr",
+ "sim",
 ]
 
 [[package]]

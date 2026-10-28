@@ -18,3 +18,7 @@ serde = { version = "1.0.229", features = ["derive"] }
 serde-saphyr = "2.0.0"
 rand_core = "0.10.1"
 rand_pcg = "0.10.2"
+
+[dev-dependencies]
+# Enables `fs` for this crate's own tests, so plain `cargo test` covers `load_dir`.
+sim = { path = ".", features = ["fs"] }
