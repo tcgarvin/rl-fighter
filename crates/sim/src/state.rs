@@ -260,6 +260,8 @@ pub struct Match {
     pub dropped_hits: u32,
     /// Per-slot rewards of the last step.
     pub rewards: [f32; MAX_SHIPS],
+    /// Per slot: pushed by the arena boundary in the last step (stage 11).
+    pub outside_arena: [bool; MAX_SHIPS],
     /// Reserved for bays: ships waiting to launch, per team (empty in M1).
     pub reserves: [Vec<ShipIdx>; 2],
 }

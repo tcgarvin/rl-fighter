@@ -3,8 +3,8 @@
 use core::fmt;
 
 use crate::actions::ShipAction;
+use crate::arrival;
 use crate::data::{Catalogue, HullId};
-use crate::math::{PI, Vec2};
 use crate::rng::Pcg32;
 use crate::state::{MAX_PROJECTILES, MAX_SHIPS, Match, MatchPhase, Projectile, Ship, WINNER_NONE};
 
@@ -115,29 +115,10 @@ impl Match {
             pending: [ShipAction::IDLE; MAX_SHIPS],
             dropped_hits: 0,
             rewards: [0.0; MAX_SHIPS],
+            outside_arena: [false; MAX_SHIPS],
             reserves: [Vec::new(), Vec::new()],
         };
-        m.place_ships_stub();
+        arrival::schedule_arrivals(&mut m.ships, &mut m.rng, m.cfg.arena_radius);
         Ok(m)
-    }
-
-    /// TEMPORARY (WP2): every ship present at t = 0, at rest, team 0 on the left
-    /// facing +x and team 1 on the right facing -x, in a vertical line 16 m apart.
-    /// WP4 replaces this with `arrival::schedule_arrivals` (SIM_SPEC §5.6).
-    fn place_ships_stub(&mut self) {
-        let half_r = 0.5 * self.cfg.arena_radius;
-        for team in 0..2u8 {
-            let side = if team == 0 { -1.0 } else { 1.0 };
-            let heading = if team == 0 { 0.0 } else { PI };
-            let n = self.ships.iter().filter(|s| s.team == team).count();
-            let rows = self.ships.iter_mut().filter(|s| s.team == team);
-            for (i, ship) in rows.enumerate() {
-                let row = i as f32 - (n as f32 - 1.0) * 0.5;
-                ship.pos = Vec2::new(side * half_r, row * 16.0);
-                ship.heading = heading;
-                ship.present = true;
-                ship.arrive_tick = 0;
-            }
-        }
     }
 }
