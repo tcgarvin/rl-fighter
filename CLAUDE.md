@@ -29,6 +29,11 @@ uv run python train.py --n-envs 64 --n-updates 1000 --seed 0
 uv run python -m vis.pygame_vis
 uv run python -m vis.pygame_vis --checkpoint checkpoints/policy_500.pt
 
+# Rust sim workspace (crates/): fmt, clippy, native + wasm32-wasip1 tests, wasm-pack build
+# Needs: rustup target wasm32-wasip1, wasmtime (~/.wasmtime/bin), wasm-pack (~/.cargo/bin)
+# Plain cargo on crates/sim-py needs PYO3_PYTHON=$(uv python find '>=3.13') (check.sh sets it)
+scripts/check.sh
+
 # Deploy the website (rl-fighter.tcgarvin.com); needs NETLIFY_AUTH_TOKEN in .env
 scripts/deploy.sh
 ```

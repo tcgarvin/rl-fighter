@@ -1,0 +1,20 @@
+[package]
+name = "sim"
+version = "0.1.0"
+description = "RL Fighter deterministic match simulation (native, wasm32)"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[features]
+default = []
+# Directory loading (`Catalogue::load_dir`); off by default so the core never does I/O.
+fs = []
+
+[dependencies]
+libm = "0.2.16"
+serde = { version = "1.0.229", features = ["derive"] }
+serde-saphyr = "2.0.0"
+rand_core = "0.10.1"
+rand_pcg = "0.10.2"

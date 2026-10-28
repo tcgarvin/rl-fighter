@@ -36,7 +36,7 @@ docking/repair, attached/tethered ships, friendly fire, armour/damage types.
 ```
 Cargo.toml                 # [workspace] members = crates/*; resolver = "2"
 crates/sim/                # no I/O by default; `fs` feature adds directory loading
-  Cargo.toml               # deps: libm, serde, serde_yaml, rand_core, rand_pcg
+  Cargo.toml               # deps: libm, serde, serde-saphyr, rand_core, rand_pcg
   src/lib.rs               # re-exports; pub const SIM_VERSION: u32 = 1
   src/math.rs              # Vec2, wrap_angle, rot, clamp, cross
   src/rng.rs               # Pcg32 wrapper: uniform(), range(lo,hi), split(seed,i,k)
@@ -65,7 +65,7 @@ crates/sim/                # no I/O by default; `fs` feature adds directory load
   src/scripted/fighter.rs  # fighter controller (§11)
   tests/                   # integration tests per work package (§12)
   tests/golden/            # determinism hash traces (§9)
-crates/sim-py/             # pyo3 0.22 + numpy 0.22 + rayon; maturin; module `rlf_sim`
+crates/sim-py/             # pyo3 0.30 + numpy 0.30 + rayon; maturin; module `rlf_sim`
   src/lib.rs               # #[pymodule]; VecEnv class; Catalogue loading; bench
 crates/sim-wasm/           # wasm-bindgen; WasmMatch wrapper (one match)
 assets/hulls/<name>/hull.yaml   # fighter, strafer, gunship
@@ -231,7 +231,7 @@ Weapon ids are assigned in file order.
 WASM bundle can hand over the same strings. Under the `fs` feature,
 `Catalogue::load_dir(assets)` reads `assets/weapons.yaml` and every
 `assets/hulls/*/hull.yaml`, sorted by directory name (hull ids are stable across
-machines). Parsing uses `serde_yaml` with `#[serde(deny_unknown_fields)]`.
+machines). Parsing uses `serde-saphyr` (`serde_saphyr::from_str`; pure Rust, maintained; `serde_yaml` is deprecated) with `#[serde(deny_unknown_fields)]`.
 
 ### 4.4 Validation (all errors, never warnings; `DataError::{Parse, Invalid{hull, msg}}`)
 
