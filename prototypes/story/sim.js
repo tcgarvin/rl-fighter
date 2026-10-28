@@ -1,7 +1,8 @@
 // Throwaway scripted 2D battle for the story demo. Not the real sim (that is Rust); it
 // only needs to look plausible and exercise each mission: per-thruster throttle,
 // independent turrets, bullets, beams, flak, torpedoes, carrier launches, a capture
-// beacon, an immobile station, and a three-way power split (shields, engines, weapons).
+// beacon, an immobile station, a power split (shields, engines, weapons), and strike
+// craft that return to their carrier for repairs.
 
 import { HULLS, WEAPONS } from "./hulls.js";
 
@@ -16,13 +17,22 @@ const ARRIVAL_CONTROL_LOCK = 0.7;
 const SQUAD_SIZE = 3;
 // Carriers launch one ship at a time, alternating bays.
 const FIRST_LAUNCH_DELAY = 2.2;
-const LAUNCH_INTERVAL = 1.6;
+const LAUNCH_INTERVAL = 0.4;
 const LAUNCH_SPEED = 30;
 const LAUNCH_CONTROL_LOCK = 0.5;
 // Torpedoes steer gently toward their target, so only sluggish hulls fail to dodge.
 const TORPEDO_TURN_RATE = 0.7;
 const CAPITAL_ROLES = new Set(["carrier", "station", "anchor"]);
 const SINGLE_SQUAD_HULLS = new Set(["gunship", "carrier", "bomber"]);
+// Strike craft fly from carriers and go back to them for repairs.
+const STRIKE_CRAFT = new Set(["fighter", "bomber"]);
+// Below this hull fraction a strike craft with a living carrier heads home.
+const RTB_HULL_FRACTION = 0.6;
+// Docking: reach this close to the bay mouth, which sits this far outside the bay.
+const DOCK_DISTANCE = 9;
+const BAY_APPROACH_OFFSET = 6;
+// Hull repaired per second aboard, as a fraction of max hull.
+const REPAIR_RATE = 0.15;
 
 // Power: each ship's reactor output is split between its systems: shields, engines and
 // weapons, or just engines and weapons on hulls without a shield. Shares sum to 1 and none
@@ -161,6 +171,8 @@ function makeShip(id, hullName, team, x, y, heading) {
     orbitSign: 1,
     // Bombers alternate between attack runs and breaking away to set up the next one.
     breakingUntil: 0,
+    // Returning to base (heading for its carrier's bay to dock and repair).
+    rtb: false,
   };
 }
 
@@ -192,7 +204,9 @@ export class ScriptedBattle {
     this.capture = [0, 0];
     this.flagships = [null, null];
     this.station = null;
+    // Aboard each carrier: ready to launch (reserves) and under repair (hangar).
     this.reserves = [[], []];
+    this.hangar = [[], []];
     this.nextLaunch = [Infinity, Infinity];
     this.nextBay = [0, 0];
     rosters.forEach((roster, team) => this.deployTeam(roster, team));
@@ -215,11 +229,21 @@ export class ScriptedBattle {
       const carrier = this.addShip("carrier", team, side * 300, (this.rng() - 0.5) * 120, heading);
       carrier.arriveAt = FIRST_SQUAD_DELAY + teamOffset;
       this.flagships[team] = carrier;
-      // Everything else waits aboard; created now so ids stay stable for the renderer.
-      for (const h of craft.filter((c) => c !== "carrier")) this.reserves[team].push(this.addShip(h, team, carrier.x, carrier.y, heading));
+      const wing = Object.entries(this.mission.airWing ?? {}).flatMap(([h, n]) => Array(n).fill(h));
+      // Interleave so fighters and bombers come out of the bays mixed, not in blocks.
+      const strike = [...craft.filter((c) => STRIKE_CRAFT.has(c)), ...wing].sort(() => this.rng() - 0.5);
+      // Strike craft wait aboard; created now so ids stay stable for the renderer.
+      for (const h of strike) this.reserves[team].push(this.addShip(h, team, carrier.x, carrier.y, heading));
       this.nextLaunch[team] = carrier.arriveAt + FIRST_LAUNCH_DELAY;
-      return;
+      // Escorts jump in alongside, a beat after the carrier.
+      craft = craft.filter((c) => c !== "carrier" && !STRIKE_CRAFT.has(c));
+      if (!craft.length) return;
     }
+    this.deploySquads(craft, team, side, heading, teamOffset);
+  }
+
+  /** Jump a roster in as squads: heavy hulls alone, small craft in groups. */
+  deploySquads(craft, team, side, heading, teamOffset) {
     // Squads: heavy hulls jump alone, small craft in groups of up to SQUAD_SIZE.
     const heavy = craft.filter((h) => SINGLE_SQUAD_HULLS.has(h) && h !== "bomber").map((h) => [h]);
     const bombers = craft.filter((h) => h === "bomber");
@@ -280,6 +304,7 @@ export class ScriptedBattle {
     // After the result the fight plays on for the outro, but nothing is scored.
     if (this.phase === "battle") this.time += DT;
     this.processArrivals();
+    this.processHangars();
     this.processLaunches();
     for (const ship of this.ships) {
       if (isActive(ship)) this.control(ship);
@@ -318,12 +343,58 @@ export class ScriptedBattle {
       const bay = bays[this.nextBay[team]++ % bays.length];
       const [x, y] = toWorld(carrier, bay.pos[0], bay.pos[1]);
       const heading = carrier.heading + Math.atan2(bay.dir[1], bay.dir[0]);
-      Object.assign(ship, { x, y, heading, present: true, arriveAt: this.time });
+      const repaired = ship.docked === true;
+      Object.assign(ship, { x, y, heading, present: true, arriveAt: this.time, docked: false, rtb: false, breakingUntil: 0 });
       ship.vx = carrier.vx + Math.cos(heading) * LAUNCH_SPEED;
       ship.vy = carrier.vy + Math.sin(heading) * LAUNCH_SPEED;
       ship.controlLockedUntil = this.time + LAUNCH_CONTROL_LOCK;
-      this.events.launches.push({ id: ship.id, x, y, heading, team });
+      this.events.launches.push({ id: ship.id, x, y, heading, team, repaired });
       this.nextLaunch[team] = this.time + LAUNCH_INTERVAL;
+    }
+  }
+
+  /** The bay mouth a returning ship should aim for: the nearer of its carrier's bays. */
+  bayApproach(ship, carrier) {
+    let best = null;
+    for (const bay of carrier.hull.bays) {
+      const [bx, by] = toWorld(carrier, bay.pos[0] + bay.dir[0] * BAY_APPROACH_OFFSET, bay.pos[1] + bay.dir[1] * BAY_APPROACH_OFFSET);
+      const d = Math.hypot(bx - ship.x, by - ship.y);
+      if (!best || d < best.dist) best = { x: bx, y: by, dist: d };
+    }
+    return best;
+  }
+
+  /** Take a returning ship aboard: out of the fight until repaired, then back in the launch queue. */
+  dock(ship, carrier) {
+    ship.present = false;
+    ship.docked = true;
+    ship.rtb = false;
+    ship.throttles = ship.throttles.map(() => 0);
+    this.hangar[ship.team].push(ship);
+    this.events.docks.push({ id: ship.id, x: ship.x, y: ship.y, heading: Math.atan2(ship.vy, ship.vx), team: ship.team, carrierId: carrier.id });
+  }
+
+  /** Repair docked ships; fully repaired ones join the launch queue. */
+  processHangars() {
+    for (const team of [0, 1]) {
+      const carrier = this.flagships[team];
+      if (!carrier) continue;
+      const stillRepairing = [];
+      for (const ship of this.hangar[team]) {
+        ship.hp = Math.min(ship.maxHp, ship.hp + ship.maxHp * REPAIR_RATE * DT);
+        // Ride along with the carrier, so a camera following a docked ship stays put.
+        ship.x = carrier.x;
+        ship.y = carrier.y;
+        if (ship.hp < ship.maxHp) stillRepairing.push(ship);
+        else {
+          ship.power = modeSplit("balanced", ship.hull);
+          ship.powerTarget = modeSplit("balanced", ship.hull);
+          ship.powerMode = "balanced";
+          this.reserves[team].push(ship);
+          if (this.time >= this.nextLaunch[team]) this.nextLaunch[team] = this.time;
+        }
+      }
+      this.hangar[team] = stillRepairing;
     }
   }
 
@@ -399,6 +470,7 @@ export class ScriptedBattle {
     if (ship.maxShield > 0 && underFire && ship.shield / ship.maxShield < ship.shieldNerve) want = hurt ? "evade" : "defend";
     // Without a shield the only defence is speed, so a badly hurt ship runs.
     else if (ship.maxShield === 0 && underFire && hurt) want = "evade";
+    else if (ship.rtb) want = "evade";
     else if (hull.role === "bomber" && this.time < ship.breakingUntil) want = "pursuit";
     else if (dist < range) want = "attack";
     else if (!hull.static && (goal || dist > range * 1.5)) want = "pursuit";
@@ -439,6 +511,17 @@ export class ScriptedBattle {
     if (hull.static) {
       this.managePower(ship, this.nearestEnemy(ship), false);
       this.aimTurrets(ship);
+      return;
+    }
+    const carrier = this.flagships?.[ship.team];
+    const carrierUp = carrier && isActive(carrier);
+    if (!ship.rtb && carrierUp && STRIKE_CRAFT.has(hull.role) && ship.hp / ship.maxHp < RTB_HULL_FRACTION) {
+      ship.rtb = true;
+      this.events.rtb.push({ id: ship.id });
+    }
+    if (ship.rtb && !carrierUp) ship.rtb = false;
+    if (ship.rtb) {
+      this.returnToBase(ship, carrier);
       return;
     }
     let target = this.pickTarget(ship);
@@ -509,6 +592,25 @@ export class ScriptedBattle {
     const err = wrap(desiredHeading - ship.heading);
     const torque = clamp(2.5 * err - 1.6 * ship.omega, -1, 1);
     ship.throttles = allocateThrusters(hull, force, torque);
+    this.aimTurrets(ship);
+  }
+
+  /** Fly to the carrier's nearest bay mouth, slowing near it, and dock on arrival. Guns stay live. */
+  returnToBase(ship, carrier) {
+    const bay = this.bayApproach(ship, carrier);
+    if (bay.dist < DOCK_DISTANCE) {
+      this.dock(ship, carrier);
+      return;
+    }
+    this.managePower(ship, bay, true);
+    // Aim where the bay will be: the carrier is slow but not still.
+    const lead = bay.dist / Math.max(20, ship.hull.speedCap);
+    const desired = Math.atan2(bay.y + carrier.vy * lead - ship.y, bay.x + carrier.vx * lead - ship.x);
+    const err = wrap(desired - ship.heading);
+    const go = bay.dist > 50 ? 1 : 0.5;
+    const force = [Math.abs(err) < 0.8 ? go : 0.15, 0];
+    const torque = clamp(2.5 * err - 1.6 * ship.omega, -1, 1);
+    ship.throttles = allocateThrusters(ship.hull, force, torque);
     this.aimTurrets(ship);
   }
 
@@ -730,15 +832,16 @@ export class ScriptedBattle {
       this.events.explosions.push({ x: ship.x, y: ship.y, radius: ship.hull.radius * 2.5, team: ship.team, kind: "death" });
       // A carrier that dies takes its unlaunched wing with it.
       if (ship === this.flagships[ship.team]) {
-        for (const s of this.reserves[ship.team]) s.alive = false;
+        for (const s of [...this.reserves[ship.team], ...this.hangar[ship.team]]) s.alive = false;
         this.reserves[ship.team] = [];
+        this.hangar[ship.team] = [];
       }
     }
   }
 }
 
 function emptyEvents() {
-  return { hits: [], shieldHits: [], explosions: [], muzzles: [], arrivals: [], launches: [], powerShifts: [] };
+  return { hits: [], shieldHits: [], explosions: [], muzzles: [], arrivals: [], launches: [], powerShifts: [], docks: [], rtb: [] };
 }
 
 export function isActive(ship) {

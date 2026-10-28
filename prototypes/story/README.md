@@ -4,11 +4,12 @@ A looping exhibit of the whole match story, used to explore scope before the Rus
 a mission title card, a fleet draft between two scripted "commanders", jump-in, the
 mission itself, a result, then the next mission.
 
-Missions (`missions.js`): team deathmatch, flagship duel (carriers launch the drafted
-wing from their bays), hold the beacon (an uncontested ring charges to 100%), and station
+Missions (`missions.js`): team deathmatch, flagship duel (each carrier brings an air wing
+of 9 fighters and 4 bombers; it and any drafted strike craft launch from the bays, and
+craft below 60% hull fly back, dock, repair and relaunch), hold the beacon (an uncontested ring charges to 100%), and station
 assault (attackers versus a pre-placed turreted station).
 
-- `draft.js`: each pick deals a 5-card hand; the commander takes the affordable card
+- `draft.js`: fighter and bomber cards are flights (×3 and ×2). Each pick deals a 5-card hand; the commander takes the affordable card
   with the best mission fit, counters to the enemy's picks so far, variety and persona
   taste. The whole draft is computed up front.
 - `draftview.js`: replays it in about five seconds: hands dealt from the picking side,

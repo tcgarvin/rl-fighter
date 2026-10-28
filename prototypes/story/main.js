@@ -236,7 +236,13 @@ function dispatchEvents() {
     effects.arrival({ ...e, size: ship.hull.length, duration: JUMP_DURATION });
   }
   // Launch from a bay: a muzzle-style flash at the bay mouth, no jump streak.
-  for (const e of ev.launches) effects.muzzle({ x: e.x, y: e.y, angle: e.heading, team: e.team, weapon: "flak" });
+  for (const e of ev.launches) {
+    effects.muzzle({ x: e.x, y: e.y, angle: e.heading, team: e.team, weapon: "flak" });
+    if (e.repaired) powerView.notice(battle.ships[e.id], shipViews.get(e.id), "REPAIRED");
+  }
+  // Docking: a small flash at the bay mouth as the craft goes aboard.
+  for (const e of ev.docks) effects.muzzle({ x: e.x, y: e.y, angle: e.heading + Math.PI, team: e.team, weapon: "flak" });
+  for (const e of ev.rtb) powerView.notice(battle.ships[e.id], shipViews.get(e.id), "RTB");
   for (const e of ev.muzzles) effects.muzzle(e);
   for (const e of ev.hits) effects.hit(e);
   for (const e of ev.shieldHits) effects.shieldHit({ ...e, radius: battle.ships[e.targetId].hull.shield.radius });

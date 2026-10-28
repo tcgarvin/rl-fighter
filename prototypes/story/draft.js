@@ -3,12 +3,19 @@
 // counters to what the enemy already has, and a taste for variety. The whole draft is
 // computed up front so the UI can replay it; nothing here is learned (yet).
 
+// Strike craft come by the flight: one fighter card is `count` fighters.
 export const DRAFT_HULLS = {
-  fighter: { cost: 8, label: "FIGHTER", blurb: "Fast gun platform. Hunts bombers." },
-  strafer: { cost: 11, label: "STRAFER", blurb: "Shielded side-slipper with a beam." },
-  bomber: { cost: 14, label: "BOMBER", blurb: "Torpedo runs on capital ships." },
-  gunship: { cost: 22, label: "GUNSHIP", blurb: "Flak anchor. Shreds small craft." },
+  fighter: { cost: 12, count: 3, label: "FIGHTER", blurb: "Fast gun platform. Hunts bombers." },
+  strafer: { cost: 11, count: 1, label: "STRAFER", blurb: "Shielded side-slipper with a beam." },
+  bomber: { cost: 18, count: 2, label: "BOMBER", blurb: "Torpedo runs on capital ships." },
+  gunship: { cost: 22, count: 1, label: "GUNSHIP", blurb: "Flak anchor. Shreds small craft." },
 };
+
+/** Card and chip label, with the flight size when a card brings more than one ship. */
+export function draftLabel(hull) {
+  const info = DRAFT_HULLS[hull];
+  return info.count > 1 ? `${info.label} ×${info.count}` : info.label;
+}
 
 // counters[a][b] > 0: a is good against b.
 const COUNTERS = {
@@ -42,12 +49,14 @@ function score(hull, mission, persona, own, enemy, rng) {
   let countered = 0;
   const victims = {};
   for (const e of enemy) {
+    // Weigh threats per card, not per ship, so a flight of three isn't triple the threat.
+    const weight = 1 / (DRAFT_HULLS[e]?.count ?? 1);
     const c = COUNTERS[hull]?.[e] ?? 0;
-    counter += c;
+    counter += c * weight;
     if (c > 0) victims[e] = (victims[e] ?? 0) + 1;
-    countered += COUNTERS[e]?.[hull] ?? 0;
+    countered += (COUNTERS[e]?.[hull] ?? 0) * weight;
   }
-  const copies = own.filter((h) => h === hull).length;
+  const copies = own.filter((h) => h === hull).length / DRAFT_HULLS[hull].count;
   const parts = {
     fit: persona.fit * fit,
     counter: persona.counter * (counter - 0.6 * countered) * 0.35,
@@ -116,7 +125,7 @@ export function runDraft(mission, personas, rng) {
       .sort((a, b) => b.total - a.total);
     const chosen = scored[0];
     budgets[team] -= DRAFT_HULLS[chosen.hull].cost;
-    rosters[team].push(chosen.hull);
+    for (let i = 0; i < DRAFT_HULLS[chosen.hull].count; i++) rosters[team].push(chosen.hull);
     pickCounts[team] += 1;
     picks.push({
       team,

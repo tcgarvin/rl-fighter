@@ -14,10 +14,12 @@ export const MISSIONS = {
   flagship: {
     id: "flagship",
     name: "FLAGSHIP DUEL",
-    brief: "Each fleet launches from its carrier. Destroy the enemy flagship.",
+    brief: "Carriers launch their air wings; damaged craft return to the bays for repair. Destroy the enemy flagship.",
     budgets: [80, 80],
     fixed: [["carrier"], ["carrier"]],
-    // Drafted ships start aboard the carrier and launch from its bays over time.
+    // Each carrier embarks this wing on top of the draft. Strike craft (the wing plus
+    // drafted fighters and bombers) launch from the bays; everything else jumps in.
+    airWing: { fighter: 9, bomber: 4 },
     launchFromBays: true,
     timeLimit: 150,
   },

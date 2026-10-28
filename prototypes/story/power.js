@@ -108,12 +108,12 @@ export function createPowerView({ THREE, scene, palette, hud, camera }) {
     }
   }
 
-  function callout(ship, view, mode) {
+  function callout(ship, view, text) {
     const existing = callouts.findIndex((c) => c.id === ship.id);
     if (existing >= 0) callouts.splice(existing, 1)[0].el.remove();
     const el = document.createElement("div");
-    el.className = `pw-callout ${ship.team === 0 ? "team-a" : "team-b"} mode-${mode}`;
-    el.textContent = CALLOUTS[mode];
+    el.className = `pw-callout ${ship.team === 0 ? "team-a" : "team-b"}`;
+    el.textContent = text;
     hud.append(el);
     callouts.push({ id: ship.id, el, view, age: 0 });
   }
@@ -137,7 +137,7 @@ export function createPowerView({ THREE, scene, palette, hud, camera }) {
     panel.hidden = false;
     panel.className = ship.team === 0 ? "team-a" : "team-b";
     panel.querySelector(".pw-ship").textContent = `${ship.hullName.toUpperCase()} #${ship.id}`;
-    panel.querySelector(".pw-mode").textContent = MODE_NAMES[ship.powerMode];
+    panel.querySelector(".pw-mode").textContent = ship.rtb ? "RTB" : MODE_NAMES[ship.powerMode];
     // Bars run from 0 to this hull's cap; the tick marks an even split.
     const { systems, maxShare } = ship.powerProfile;
     for (const sys of POWER_SYSTEMS) {
@@ -172,9 +172,14 @@ export function createPowerView({ THREE, scene, palette, hud, camera }) {
           const bubble = bubbles.get(e.id);
           if (bubble) bubble.flash = 1;
         }
-        if (e.id === featuredId) callout(ship, view, e.mode);
-        else if (ANNOUNCING_ROLES.has(ship.hull.role) && e.mode !== "balanced") callout(ship, view, e.mode);
+        if (e.id === featuredId) callout(ship, view, CALLOUTS[e.mode]);
+        else if (ANNOUNCING_ROLES.has(ship.hull.role) && e.mode !== "balanced") callout(ship, view, CALLOUTS[e.mode]);
       }
+    },
+
+    /** A one-off callout next to a ship (returning to base, back from repairs). */
+    notice(ship, view, text) {
+      if (view) callout(ship, view, text);
     },
 
     update(battle, shipViews, dt, followId, active) {

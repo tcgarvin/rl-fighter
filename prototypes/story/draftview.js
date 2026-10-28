@@ -3,7 +3,7 @@
 // roster while the rest drop away). Beats speed up as the draft goes, so the whole
 // thing reads as a riffle of decisions rather than a deliberation.
 
-import { DRAFT_HULLS } from "./draft.js";
+import { DRAFT_HULLS, draftLabel } from "./draft.js";
 
 const TEAM_NAMES = ["AZURE", "EMBER"];
 const TEAM_CLASSES = ["team-a", "team-b"];
@@ -39,12 +39,12 @@ function el(tag, className, html) {
 export function createDraftView({ root, thumbnails }) {
   let token = null;
 
-  function chip(hull, team, fixed) {
+  function chip(hull, team, fixed, fixedLabel = FIXED_LABELS[hull]) {
     const node = el("div", `chip ${fixed ? "fixed" : ""}`);
     const img = el("img");
     img.src = thumbnails[hull][team];
     img.alt = "";
-    node.append(img, el("span", "chip-label", fixed ? FIXED_LABELS[hull] : DRAFT_HULLS[hull].label));
+    node.append(img, el("span", "chip-label", fixed ? fixedLabel : draftLabel(hull)));
     return node;
   }
 
@@ -55,7 +55,7 @@ export function createDraftView({ root, thumbnails }) {
     img.src = thumbnails[hull][team];
     img.alt = "";
     const info = DRAFT_HULLS[hull];
-    node.append(img, el("div", "card-name", info.label), el("div", "card-cost", `${info.cost} CR`));
+    node.append(img, el("div", "card-name", draftLabel(hull)), el("div", "card-cost", `${info.cost} CR`));
     return node;
   }
 
@@ -124,7 +124,10 @@ export function createDraftView({ root, thumbnails }) {
     root.classList.add("intro");
     ui.sideEls.forEach((side, team) => {
       setBudget(side, mission.budgets[team], mission.budgets[team]);
-      for (const hull of mission.fixed[team]) side.querySelector(".roster").append(chip(hull, team, true));
+      for (const hull of mission.fixed[team]) {
+        const wing = hull === "carrier" && mission.airWing ? Object.values(mission.airWing).reduce((a, b) => a + b, 0) : 0;
+        side.querySelector(".roster").append(chip(hull, team, true, wing ? `${FIXED_LABELS[hull]} +${wing} WING` : FIXED_LABELS[hull]));
+      }
     });
     await wait(INTRO, t);
     root.classList.remove("intro");
