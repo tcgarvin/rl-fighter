@@ -1,5 +1,6 @@
 //! Shared test fixtures: the M1 catalogue built by hand (SIM_SPEC §4.1, §4.2), so
-//! integration tests do not depend on the YAML loader or the asset files.
+//! integration tests do not depend on the YAML loader. `tests/fixtures_match_assets.rs`
+//! checks it against the shipped asset files, so the two cannot drift apart.
 //!
 //! Numbers are ported from `prototypes/story/hulls.js` and the spec tables. Hulls
 //! are sorted by name like the loader (fighter = 0, gunship = 1, strafer = 2);
@@ -125,6 +126,7 @@ pub fn strafer_hull() -> HullDef {
 
 pub fn gunship_hull() -> HullDef {
     let mut h = hull("gunship", "anchor", 320.0, 60.0, 2200.0, 24.0);
+    h.cost = 30;
     h.shield = Some(ShieldDef {
         hp: 140.0,
         regen_rate: 12.0,
@@ -248,4 +250,24 @@ pub fn config(seed: u64, team0: &[HullId], team1: &[HullId]) -> MatchConfig {
 /// A match from `config(seed, team0, team1)`; panics on setup errors.
 pub fn new_match(cat: &Catalogue, seed: u64, team0: &[HullId], team1: &[HullId]) -> Match {
     Match::new(cat, &config(seed, team0, team1)).expect("match setup")
+}
+
+/// The catalogue loaded from the shipped `assets/` YAML (embedded, so wasip1 can run it).
+pub fn asset_catalogue() -> Catalogue {
+    let hulls = [
+        (
+            "fighter",
+            include_str!("../../../../assets/hulls/fighter/hull.yaml"),
+        ),
+        (
+            "gunship",
+            include_str!("../../../../assets/hulls/gunship/hull.yaml"),
+        ),
+        (
+            "strafer",
+            include_str!("../../../../assets/hulls/strafer/hull.yaml"),
+        ),
+    ];
+    let weapons = include_str!("../../../../assets/weapons.yaml");
+    Catalogue::from_yaml(&hulls, weapons).expect("shipped assets load")
 }

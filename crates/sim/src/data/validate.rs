@@ -11,11 +11,7 @@ use crate::data::raw::{RawHull, RawKind, RawWeapon};
 use crate::data::{DataError, life_ticks};
 use crate::math::Vec2;
 
-/// Mirrors `state::MAX_THRUSTERS` (SIM_SPEC §3); state.rs is owned by another work
-/// package, so the validator keeps its own copy until both land.
-pub const MAX_THRUSTERS: usize = 8;
-/// Mirrors `state::MAX_TURRETS` (SIM_SPEC §3).
-pub const MAX_TURRETS: usize = 6;
+pub use crate::state::{MAX_THRUSTERS, MAX_TURRETS};
 /// Rule 3: largest allowed `bound_radius`, metres.
 pub const MAX_BOUND_RADIUS: f32 = 60.0;
 /// Rule 4: accepted range for authored direction lengths before renormalising.
