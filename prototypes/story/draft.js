@@ -1,7 +1,7 @@
-// Scripted fleet draft. Two "commanders" alternate picks against a budget, scoring
-// each affordable hull by mission fit, counters to what the enemy already has, and a
-// taste for variety. The whole draft is computed up front so the UI can replay it
-// with candidate scores; nothing here is learned (yet).
+// Scripted fleet draft. Two "commanders" alternate picks against a budget. Each pick
+// deals a hand of cards; the commander scores the affordable ones by mission fit,
+// counters to what the enemy already has, and a taste for variety. The whole draft is
+// computed up front so the UI can replay it; nothing here is learned (yet).
 
 export const DRAFT_HULLS = {
   fighter: { cost: 8, label: "FIGHTER", blurb: "Fast gun platform. Hunts bombers." },
@@ -34,7 +34,7 @@ export const PERSONAS = [
 ];
 
 const MAX_PICKS = 8;
-const CANDIDATES_SHOWN = 3;
+const HAND_SIZE = 5;
 
 function score(hull, mission, persona, own, enemy, rng) {
   const fit = MISSION_FIT[mission.id][hull] ?? 0.5;
@@ -76,9 +76,19 @@ function reasonFor(choice, mission) {
   return "FILLS THE LINE";
 }
 
+/** Deal a hand from all hulls (repeats allowed), guaranteeing one affordable card. */
+function dealHand(affordable, rng) {
+  const all = Object.keys(DRAFT_HULLS);
+  const hand = Array.from({ length: HAND_SIZE }, () => all[Math.floor(rng() * all.length)]);
+  if (!hand.some((h) => affordable.includes(h))) {
+    hand[Math.floor(rng() * HAND_SIZE)] = affordable[Math.floor(rng() * affordable.length)];
+  }
+  return hand;
+}
+
 /**
- * Run the whole draft. Returns the ordered pick list (with the candidates each
- * commander considered) and the final rosters, fixed capital ships included.
+ * Run the whole draft. Returns the ordered pick list (each with the hand dealt and the
+ * index chosen from it) and the final rosters, fixed capital ships included.
  */
 export function runDraft(mission, personas, rng) {
   const rosters = [[...mission.fixed[0]], [...mission.fixed[1]]];
@@ -99,7 +109,9 @@ export function runDraft(mission, personas, rng) {
       team = 1 - team;
       continue;
     }
-    const scored = affordable
+    const hand = dealHand(affordable, rng);
+    const scored = [...new Set(hand)]
+      .filter((h) => affordable.includes(h))
       .map((h) => score(h, mission, personas[team], rosters[team], rosters[1 - team], rng))
       .sort((a, b) => b.total - a.total);
     const chosen = scored[0];
@@ -110,7 +122,9 @@ export function runDraft(mission, personas, rng) {
       team,
       chosen: chosen.hull,
       reason: reasonFor(chosen, mission),
-      candidates: scored.slice(0, CANDIDATES_SHOWN).map((c) => ({ hull: c.hull, score: c.total })),
+      hand,
+      chosenIndex: hand.indexOf(chosen.hull),
+      affordable: hand.map((h) => affordable.includes(h)),
       budgetLeft: budgets[team],
     });
     team = 1 - team;

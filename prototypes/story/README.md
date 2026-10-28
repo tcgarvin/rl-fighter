@@ -8,9 +8,11 @@ Missions (`missions.js`): team deathmatch, flagship duel (carriers launch the dr
 wing from their bays), hold the beacon (an uncontested ring charges to 100%), and station
 assault (attackers versus a pre-placed turreted station).
 
-- `draft.js`: picks scored by mission fit, counters to the enemy's picks so far, variety
-  and persona taste; the whole draft is computed up front.
-- `draftview.js`: replays it as cards with preference bars, lock-in reasons and roster chips.
+- `draft.js`: each pick deals a 5-card hand; the commander takes the affordable card
+  with the best mission fit, counters to the enemy's picks so far, variety and persona
+  taste. The whole draft is computed up front.
+- `draftview.js`: replays it in about five seconds: hands dealt from the picking side,
+  the choice lights up with its reason and flies onto the roster, beats speeding up.
 - `thumbs.js`: renders the real hull models for the cards.
 - `sim.js`: the scripted battle (a fork of the art-direction one, plus missions, bays,
   torpedoes and the static station).

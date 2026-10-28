@@ -1,19 +1,22 @@
-// Animated replay of a precomputed draft: a mission title card, then each pick as a
-// short beat (the commander's top candidates with flickering preference bars, a lock-in,
-// its stated reason, and the card slamming onto that side's roster).
+// Fast replay of a precomputed draft: a quick mission title, then each pick as a short
+// beat (a hand of cards dealt in from that side, one lights up and flies onto the
+// roster while the rest drop away). Beats speed up as the draft goes, so the whole
+// thing reads as a riffle of decisions rather than a deliberation.
 
 import { DRAFT_HULLS } from "./draft.js";
 
 const TEAM_NAMES = ["AZURE", "EMBER"];
 const TEAM_CLASSES = ["team-a", "team-b"];
 const FIXED_LABELS = { carrier: "FLAGSHIP", station: "STATION" };
-const INTRO = 2.4;
-const PICK_THINK = 0.8;
-const PICK_LOCK = 0.3;
-const PICK_SETTLE = 0.25;
-const OUTRO = 1.2;
-// Softmax temperature turning raw scores into the "preference" bars.
-const BAR_TEMPERATURE = 0.25;
+const INTRO = 0.9;
+// Beat length for pick i: FIRST_BEAT * BEAT_DECAY^i, never below MIN_BEAT.
+const FIRST_BEAT = 0.55;
+const BEAT_DECAY = 0.8;
+const MIN_BEAT = 0.2;
+// Fraction of a beat spent with the hand on show before the choice lights up.
+const LOCK_AT = 0.4;
+const OUTRO = 0.7;
+const CLOSE = 0.35;
 
 const wait = (seconds, token) =>
   new Promise((resolve, reject) => {
@@ -33,13 +36,6 @@ function el(tag, className, html) {
   return node;
 }
 
-function softmax(scores) {
-  const max = Math.max(...scores);
-  const exps = scores.map((s) => Math.exp((s - max) / BAR_TEMPERATURE));
-  const sum = exps.reduce((a, b) => a + b, 0);
-  return exps.map((e) => e / sum);
-}
-
 export function createDraftView({ root, thumbnails }) {
   let token = null;
 
@@ -52,19 +48,14 @@ export function createDraftView({ root, thumbnails }) {
     return node;
   }
 
-  function card(hull, team) {
-    const node = el("div", `card ${TEAM_CLASSES[team]}`);
+  function card(hull, team, affordable, index) {
+    const node = el("div", `card ${affordable ? "" : "broke"}`);
+    node.style.animationDelay = `${index * 0.02}s`;
     const img = el("img");
     img.src = thumbnails[hull][team];
     img.alt = "";
     const info = DRAFT_HULLS[hull];
-    node.append(
-      img,
-      el("div", "card-name", info.label),
-      el("div", "card-cost", `${info.cost} CR`),
-      el("div", "card-blurb", info.blurb),
-      el("div", "card-bar", `<i></i>`),
-    );
+    node.append(img, el("div", "card-name", info.label), el("div", "card-cost", `${info.cost} CR`));
     return node;
   }
 
@@ -88,11 +79,11 @@ export function createDraftView({ root, thumbnails }) {
     });
     const stage = el("div", "stage");
     const who = el("div", "who");
-    const cards = el("div", "cards");
     const reason = el("div", "reason");
-    stage.append(who, cards, reason);
+    const cards = el("div", "cards");
+    stage.append(who, reason, cards);
     root.append(title, sides, stage);
-    return { title, sideEls, stage, who, cards, reason };
+    return { sideEls, stage, who, reason, cards };
   }
 
   function setBudget(side, left, total) {
@@ -100,23 +91,30 @@ export function createDraftView({ root, thumbnails }) {
     side.querySelector(".budget-num").textContent = `${left} CR`;
   }
 
-  /** Flicker the bars around their final values, settling as `progress` reaches 1. */
-  function animateBars(bars, finals, seconds, cancelToken) {
-    const start = performance.now();
-    return new Promise((resolve) => {
-      function tick(now) {
-        if (cancelToken.cancelled) return resolve();
-        const p = Math.min(1, (now - start) / (seconds * 1000));
-        const jitter = (1 - p) ** 1.5;
-        bars.forEach((bar, i) => {
-          const v = Math.max(0.02, Math.min(1, finals[i] + jitter * (Math.random() - 0.5) * 0.9));
-          bar.style.width = `${v * 100}%`;
-        });
-        if (p < 1) requestAnimationFrame(tick);
-        else resolve();
-      }
-      requestAnimationFrame(tick);
-    });
+  /** Fly a copy of the chosen card's image onto its (still hidden) roster chip. */
+  function fly(cardEl, chipEl, team, seconds, onLand) {
+    const from = cardEl.querySelector("img").getBoundingClientRect();
+    const to = chipEl.querySelector("img").getBoundingClientRect();
+    const ghost = el("img", `ghost ${TEAM_CLASSES[team]}`);
+    ghost.src = cardEl.querySelector("img").src;
+    Object.assign(ghost.style, { left: `${from.left}px`, top: `${from.top}px`, width: `${from.width}px`, height: `${from.height}px` });
+    root.append(ghost);
+    const scale = to.width / from.width;
+    const flight = ghost.animate(
+      [
+        { transform: "translate(0, 0) scale(1)", opacity: 1 },
+        { transform: `translate(${to.left - from.left}px, ${to.top - from.top}px) scale(${scale})`, opacity: 0.9 },
+      ],
+      { duration: seconds * 1000, easing: "cubic-bezier(0.55, 0, 0.25, 1)", fill: "forwards" },
+    );
+    flight.finished.then(
+      () => {
+        ghost.remove();
+        onLand();
+      },
+      // Cancelled along with the draft; the overlay is being torn down anyway.
+      () => ghost.remove(),
+    );
   }
 
   async function run({ number, mission, personas, draft }, t) {
@@ -130,42 +128,42 @@ export function createDraftView({ root, thumbnails }) {
     });
     await wait(INTRO, t);
     root.classList.remove("intro");
-    for (const pick of draft.picks) {
+    for (const [i, pick] of draft.picks.entries()) {
+      const beat = Math.max(MIN_BEAT, FIRST_BEAT * BEAT_DECAY ** i);
       const team = pick.team;
       const side = ui.sideEls[team];
-      ui.sideEls.forEach((s, i) => s.classList.toggle("active", i === team));
+      ui.sideEls.forEach((s, k) => s.classList.toggle("active", k === team));
       ui.stage.className = `stage ${TEAM_CLASSES[team]}`;
-      ui.who.innerHTML = `${TEAM_NAMES[team]} · ${personas[team].name} <span class="thinking">IS DECIDING</span>`;
-      ui.reason.textContent = "";
-      ui.reason.classList.remove("show");
-      // Show the candidates in a shuffled order so the winner isn't always on the left.
-      const order = pick.candidates.map((c, i) => [c, i]).sort(() => Math.random() - 0.5);
-      const probs = softmax(pick.candidates.map((c) => c.score));
+      ui.who.textContent = `${TEAM_NAMES[team]} · ${personas[team].name}`;
+      ui.cards.className = `cards from-${team === 0 ? "left" : "right"}`;
       ui.cards.innerHTML = "";
-      const cardEls = order.map(([c]) => card(c.hull, team));
-      cardEls.forEach((c) => ui.cards.append(c));
-      const bars = cardEls.map((c) => c.querySelector(".card-bar i"));
-      await Promise.all([animateBars(bars, order.map(([, i]) => probs[i]), PICK_THINK, t), wait(PICK_THINK, t)]);
-      order.forEach(([c], i) => cardEls[i].classList.add(c.hull === pick.chosen ? "locked" : "rejected"));
-      ui.who.innerHTML = `${TEAM_NAMES[team]} · ${personas[team].name} <span class="locked-in">LOCKS IN</span>`;
-      ui.reason.textContent = pick.reason;
-      ui.reason.classList.add("show");
-      await wait(PICK_LOCK, t);
+      ui.reason.textContent = "";
+      const cardEls = pick.hand.map((hull, k) => card(hull, team, pick.affordable[k], k));
+      ui.cards.append(...cardEls);
+      await wait(beat * LOCK_AT, t);
+      cardEls.forEach((c, k) => c.classList.add(k === pick.chosenIndex ? "locked" : "rejected"));
+      const chosenEl = cardEls[pick.chosenIndex];
+      ui.reason.replaceChildren(el("span", "stamp", pick.reason));
       const added = chip(pick.chosen, team, false);
-      added.classList.add("slam");
+      added.classList.add("pending");
       side.querySelector(".roster").append(added);
-      setBudget(side, pick.budgetLeft, mission.budgets[team]);
-      await wait(PICK_SETTLE, t);
+      fly(chosenEl, added, team, Math.min(0.32, beat * 0.9), () => {
+        added.classList.remove("pending");
+        added.classList.add("slam");
+        setBudget(side, pick.budgetLeft, mission.budgets[team]);
+      });
+      await wait(beat * (1 - LOCK_AT), t);
     }
     ui.sideEls.forEach((s) => s.classList.remove("active"));
-    ui.stage.className = "stage done";
-    ui.who.textContent = "FLEETS LOCKED";
     ui.cards.innerHTML = "";
-    ui.reason.textContent = "JUMP IN";
-    ui.reason.classList.add("show");
+    ui.reason.textContent = "";
+    // Let the last flight land before the sign-off.
+    await wait(0.3, t);
+    ui.stage.className = "stage done";
+    ui.who.innerHTML = `FLEETS LOCKED <span class="jump">JUMP IN</span>`;
     await wait(OUTRO, t);
     root.classList.add("closing");
-    await wait(0.45, t);
+    await wait(CLOSE, t);
     root.hidden = true;
   }
 
@@ -185,6 +183,7 @@ export function createDraftView({ root, thumbnails }) {
       token.cancelled = true;
       token.onCancel?.();
       token = null;
+      root.getAnimations({ subtree: true }).forEach((a) => a.cancel());
       root.hidden = true;
     },
   };
