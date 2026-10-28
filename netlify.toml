@@ -1,0 +1,15 @@
+# rl-fighter.tcgarvin.com. Deployed from this machine with scripts/deploy.sh, not by
+# Netlify's git builds, so there is no build command: the published directory is
+# plain static files (ES modules, three.js from jsDelivr).
+#
+# The live site is currently the scripted art-direction demo; it moves to web/ once
+# the real client exists (docs/DESIGN.md §9).
+[build]
+  publish = "prototypes/art-direction"
+  command = ""
+
+# Module files are unhashed, so browsers must revalidate after every deploy.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"

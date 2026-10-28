@@ -28,7 +28,15 @@ uv run python train.py --n-envs 64 --n-updates 1000 --seed 0
 # Visualize
 uv run python -m vis.pygame_vis
 uv run python -m vis.pygame_vis --checkpoint checkpoints/policy_500.pt
+
+# Deploy the website (rl-fighter.tcgarvin.com); needs NETLIFY_AUTH_TOKEN in .env
+scripts/deploy.sh
 ```
+
+The project is moving to a Rust sim + three.js web client; `docs/DESIGN.md` is the
+source of truth for that direction. The website currently serves the scripted
+art-direction demo in `prototypes/art-direction/`. The sections below describe the
+original Python/NumPy prototype.
 
 ## Architecture
 
