@@ -346,6 +346,31 @@ class SpikeActor(nn.Module):
         safe = _checked_actions(actions, valid)
         return _masked_head_terms(heads, valid, safe)
 
+    def evaluate_heads_and_labels(
+        self,
+        obs: torch.Tensor,
+        masks: HeadMasks,
+        actions: torch.Tensor,
+        labels: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """``evaluate_heads`` plus the per-head log-prob of ``labels``, one forward.
+
+        PPO with an auxiliary pull toward the script needs both the taken actions'
+        and the script labels' log-probs on the same rows; one trunk pass serves
+        both (and both backpropagate through it).
+
+        Returns:
+            ``(log_prob [B, 21], entropy [B, 21], label_log_prob [B, 21])``, all
+            exactly 0 where masked.
+        """
+        heads = self._heads(obs, masks)
+        valid = masks.head_valid()
+        safe = _checked_actions(actions, valid)
+        safe_labels = _checked_actions(labels, valid)
+        log_prob, entropy = _masked_head_terms(heads, valid, safe)
+        label_log_prob = torch.where(valid, heads.gather(safe_labels), 0.0)
+        return log_prob, entropy, label_log_prob
+
     def evaluate(
         self, obs: torch.Tensor, masks: HeadMasks, actions: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
