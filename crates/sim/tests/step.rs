@@ -5,13 +5,15 @@ mod common;
 
 use common::{FIGHTER, GUNSHIP, STRAFER, config, new_match, new_present_match, test_catalogue};
 use sim::DT;
-use sim::actions::ShipAction;
+use sim::actions::{ShipAction, THROTTLE_INCREASE};
 use sim::data::Catalogue;
 use sim::events::Event;
 use sim::math::{PI, Vec2, wrap_angle};
 use sim::reward::{ARENA_PENALTY, FIRE_COST, HULL_DAMAGE_WEIGHT, SHIELD_DAMAGE_WEIGHT, WIN_REWARD};
 use sim::scripted::act;
-use sim::state::{Match, MatchPhase, Projectile, ShipIdx, WINNER_DRAW, WINNER_NONE};
+use sim::state::{
+    MAX_REACTION_TICKS, Match, MatchPhase, Projectile, ShipIdx, WINNER_DRAW, WINNER_NONE,
+};
 
 const EPS: f32 = 1e-6;
 
@@ -318,55 +320,127 @@ fn pending_ships_count_as_alive() {
 }
 
 #[test]
-fn deaths_zero_throttles_and_emit_death() {
+fn deaths_clear_levels_and_queue_and_emit_death() {
     let cat = test_catalogue();
-    let mut m = new_present_match(&cat, 13, &[FIGHTER, FIGHTER], &[FIGHTER]);
-    m.ships[0].hp = -1.0;
+    let mut cfg = config(13, &[FIGHTER, FIGHTER], &[FIGHTER]);
+    cfg.reaction_ticks = 3;
+    let mut m = Match::new(&cat, &cfg).unwrap();
+    common::make_all_present(&mut m);
     let mut a = ShipAction::IDLE;
-    a.throttle[0] = 2;
+    a.throttle[0] = THROTTLE_INCREASE;
+    a.fire[0] = 1;
+    for _ in 0..8 {
+        m.set_action(0, a);
+        m.step(&cat);
+    }
+    assert!(m.ships[0].thrust_level[0] > 0.0);
+    assert!(m.ships[0].queue[..3].iter().all(|q| *q == a));
+    m.ships[0].hp = -1.0;
     m.set_action(0, a);
     m.step(&cat);
     let s = &m.ships[0];
     assert!(!s.alive && !s.present);
     assert_eq!(s.hp, 0.0);
-    assert_eq!(s.throttle, [0; 8]);
+    assert_eq!(s.thrust_level, [0.0; 8]);
+    assert_eq!(s.queue, [ShipAction::IDLE; MAX_REACTION_TICKS]);
     assert!(
         m.events()
             .iter()
             .any(|e| matches!(e, Event::Death { ship: 0, pos } if *pos == s.pos))
     );
+    // Dead ships skip stage 3: nothing is enqueued any more.
+    let dead = s.clone();
+    m.set_action(0, a);
+    m.step(&cat);
+    assert_eq!(m.ships[0], dead);
 }
 
-/// Ticks to the end of a scripted fighter 1v1 from the real jump-in, per seed.
 #[test]
-fn scripted_fighter_duel_ends_in_a_kill() {
+fn hit_record_decision_tick_is_fire_tick_minus_one_minus_d() {
     let cat = test_catalogue();
-    let mut wins = [0u32; 2];
+    for d in 0..=MAX_REACTION_TICKS as u8 {
+        // Fighter (gauss bullets) and strafer (laser beam) on team 0, a fighter
+        // target dead ahead of both on team 1.
+        let mut cfg = config(14, &[FIGHTER, STRAFER], &[FIGHTER]);
+        cfg.reaction_ticks = d;
+        let mut m = Match::new(&cat, &cfg).unwrap();
+        common::make_all_present(&mut m);
+        place(&mut m, 0, Vec2::new(-60.0, 0.0), 0.0);
+        place(&mut m, 1, Vec2::new(-40.0, 30.0), 0.0);
+        place(&mut m, 2, Vec2::new(0.0, 0.0), 0.0);
+        m.ships[2].hp = 1.0e6;
+        // Aim the strafer's nose exactly at the target.
+        let rel = m.ships[2].pos - m.ships[1].pos;
+        m.ships[1].heading = rel.angle();
+        let mut seen = [false; 2];
+        for _ in 0..40 {
+            m.set_action(0, fire_nose());
+            m.set_action(1, fire_nose());
+            m.step(&cat);
+            for p in m.projectiles().iter().filter(|p| p.alive) {
+                assert_eq!(p.decision_tick, p.fire_tick - 1 - u32::from(d), "d {d}");
+            }
+            for h in m.hits() {
+                assert_eq!(h.decision_tick, h.fire_tick - 1 - u32::from(d), "d {d}");
+                seen[h.shooter as usize] = true;
+            }
+        }
+        assert_eq!(seen, [true, true], "d {d}: bullet and beam both landed");
+    }
+}
+
+/// Scripted fighter 1v1 from the real jump-in for seeds 0..20 at reaction delay `d`:
+/// every duel must end in a kill before the time limit. Returns the
+/// (team 0 wins, team 1 wins, draws) split and the sorted lengths in ticks.
+fn scripted_duels(d: u8) -> ([u32; 3], Vec<u32>) {
+    let cat = test_catalogue();
+    let mut split = [0u32; 3];
     let mut lengths = Vec::new();
     for seed in 0..20 {
-        let mut m = new_match(&cat, seed, &[FIGHTER], &[FIGHTER]);
+        let mut cfg = config(seed, &[FIGHTER], &[FIGHTER]);
+        cfg.reaction_ticks = d;
+        let mut m = Match::new(&cat, &cfg).unwrap();
         let limit = m.cfg.time_limit_ticks;
         run_scripted(&mut m, &cat, limit);
-        assert_eq!(m.phase(), MatchPhase::Over, "seed {seed}");
+        assert_eq!(m.phase(), MatchPhase::Over, "d {d} seed {seed}");
         let dead = m.ships.iter().filter(|s| !s.alive).count();
         assert!(
             m.tick() < limit && dead >= 1,
-            "seed {seed}: no kill before the time limit (tick {}, hp {:?})",
+            "d {d} seed {seed}: no kill before the time limit (tick {}, hp {:?})",
             m.tick(),
             m.ships.iter().map(|s| s.hp).collect::<Vec<_>>()
         );
-        if m.winner() >= 0 {
-            wins[m.winner() as usize] += 1;
-        }
+        split[if m.winner() >= 0 {
+            m.winner() as usize
+        } else {
+            2
+        }] += 1;
         lengths.push(m.tick());
     }
     lengths.sort_unstable();
     println!(
-        "scripted fighter 1v1: wins {wins:?}, median length {} ticks, range {}..{}",
+        "scripted fighter 1v1, d = {d}: wins/wins/draws {split:?}, median length {} ticks, \
+         range {}..{}",
         lengths[lengths.len() / 2],
         lengths[0],
         lengths[lengths.len() - 1]
     );
+    (split, lengths)
+}
+
+#[test]
+fn scripted_fighter_duel_ends_in_a_kill_without_delay() {
+    scripted_duels(0);
+}
+
+#[test]
+fn scripted_fighter_duel_ends_in_a_kill_at_default_delay() {
+    scripted_duels(2);
+}
+
+#[test]
+fn scripted_fighter_duel_ends_in_a_kill_at_max_delay() {
+    scripted_duels(MAX_REACTION_TICKS as u8);
 }
 
 #[test]

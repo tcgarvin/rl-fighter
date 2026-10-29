@@ -28,8 +28,8 @@ pub fn can_hit(shooter_team: u8, shooter: &Ship, target: &Ship) -> bool {
 }
 
 /// Apply `amount` damage to `target` at world point `point` from `shooter`, fired
-/// on `fire_tick` (SIM_SPEC §5.4). A raised shield takes the whole hit (absorbed
-/// amount scaled by `1 / (0.7 + 0.3 * P_s)`, no overflow to hull) and emits
+/// on `fire_tick` from an action chosen at `decision_tick` (SIM_SPEC §5.4). A raised
+/// shield takes the whole hit (absorbed amount scaled by `1 / (0.7 + 0.3 * P_s)`, no overflow to hull) and emits
 /// `ShieldHit`; otherwise hull `hp` drops and `Hit` is emitted. Either way one
 /// `HitRecord` with the raw `amount` is recorded.
 #[allow(clippy::too_many_arguments)]
@@ -41,6 +41,7 @@ pub fn apply_damage(
     point: Vec2,
     shooter: ShipIdx,
     fire_tick: u32,
+    decision_tick: u32,
 ) {
     let tick = m.tick;
     let ship = &mut m.ships[target as usize];
@@ -75,6 +76,7 @@ pub fn apply_damage(
         target,
         damage: amount,
         fire_tick,
+        decision_tick,
         shield: shield_hit,
     });
 }

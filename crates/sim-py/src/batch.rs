@@ -113,6 +113,9 @@ fn match_config(cfg: &BatchConfig, index: usize, episode: u32) -> MatchConfig {
         seed: rng::split(cfg.base_seed, index as u64, u64::from(episode)),
         arena_radius: cfg.arena_radius,
         time_limit_ticks: cfg.time_limit_ticks,
+        // No delay until WP13 adds the `reaction_ticks` kwarg (default 2) and moves the
+        // credit adapter onto `decision_tick`; with d = 0 v1 credit placement holds.
+        reaction_ticks: 0,
         fleets: cfg.fleets.clone(),
     }
 }

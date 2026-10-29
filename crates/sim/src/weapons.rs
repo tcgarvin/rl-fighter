@@ -23,7 +23,7 @@ pub fn flak_fuse_ticks(life_ticks: u32, fuse_jitter: f32, u: f32) -> u32 {
 
 impl Match {
     /// Stage 7 of SIM_SPEC §5 (fire). For each active, not control-locked ship (slot
-    /// order) and each turret (hull order) whose pending fire head is 1 and whose
+    /// order) and each turret (hull order) whose applied fire head is 1 and whose
     /// cooldown is 0: reset the cooldown to `interval`, draw the spread, emit `Fire`,
     /// count the shot in `shots_fired`, then spawn the projectile or resolve the beam.
     /// See the module docs for the rng draw order.
@@ -35,7 +35,9 @@ impl Match {
                 continue;
             }
             let hull = cat.hull(ship.hull);
-            let action = self.pending[s];
+            let action = self.applied[s];
+            // v2: the firing action was chosen d + 1 ticks before it applies (§8).
+            let decision_tick = tick.saturating_sub(1 + u32::from(ship.reaction_ticks));
             for (j, t) in hull.turrets.iter().enumerate() {
                 if action.fire[j] != 1 || self.ships[s].turret_cooldown[j] != 0.0 {
                     continue;
@@ -54,9 +56,16 @@ impl Match {
                 });
                 self.shots_fired[s] = self.shots_fired[s].saturating_add(1);
                 if w.kind == WeaponKind::Beam {
-                    self.fire_beam(cat, s as ShipIdx, w, muzzle, angle);
+                    self.fire_beam(cat, s as ShipIdx, w, muzzle, angle, decision_tick);
                 } else {
-                    self.spawn_projectile(cat, s as ShipIdx, t.weapon, muzzle, angle);
+                    self.spawn_projectile(
+                        cat,
+                        s as ShipIdx,
+                        t.weapon,
+                        muzzle,
+                        angle,
+                        decision_tick,
+                    );
                 }
             }
         }
@@ -71,6 +80,7 @@ impl Match {
         weapon: WeaponId,
         muzzle: Vec2,
         angle: f32,
+        decision_tick: u32,
     ) {
         let w = cat.weapon(weapon);
         let ship = &self.ships[owner as usize];
@@ -101,6 +111,7 @@ impl Match {
             damage: w.damage,
             life_ticks,
             fire_tick: self.tick,
+            decision_tick,
             target,
         };
         self.proj_next = (self.proj_next + 1) % MAX_PROJECTILES;
@@ -145,6 +156,7 @@ impl Match {
         w: &WeaponDef,
         muzzle: Vec2,
         angle: f32,
+        decision_tick: u32,
     ) {
         let end = muzzle + Vec2::from_angle(angle) * w.range;
         let shooter = &self.ships[owner as usize];
@@ -174,7 +186,8 @@ impl Match {
             hit: best.is_some(),
         });
         if let Some((_, target)) = best {
-            apply_damage(self, cat, target, w.damage, to, owner, self.tick);
+            let tick = self.tick;
+            apply_damage(self, cat, target, w.damage, to, owner, tick, decision_tick);
         }
     }
 }

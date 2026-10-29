@@ -4,9 +4,12 @@
 //! This file only sequences the stages; each stage's logic lives in its own module
 //! (named per stage below).
 
+use crate::actions::ShipAction;
 use crate::data::Catalogue;
 use crate::events::Event;
-use crate::state::{MAX_SHIPS, MAX_THRUSTERS, Match, MatchPhase, ShipIdx, WINNER_DRAW};
+use crate::state::{
+    MAX_REACTION_TICKS, MAX_SHIPS, MAX_THRUSTERS, Match, MatchPhase, ShipIdx, WINNER_DRAW,
+};
 
 /// Team values closer than this at the time limit are a draw (§5.8).
 pub const VALUE_TIE_EPS: f32 = 1e-3;
@@ -71,7 +74,7 @@ impl Match {
     }
 
     /// Stage 12: every alive ship with `hp <= 0` dies (`alive = present = false`,
-    /// `hp = 0`, throttles off) and emits `Death`, in slot order. Damage never
+    /// `hp = 0`, thrust levels 0, reaction queue all `IDLE`) and emits `Death`, in slot order. Damage never
     /// flips `alive` itself, so kills within one tick are symmetric.
     pub fn resolve_deaths(&mut self) {
         for ship in self.ships.iter_mut() {
@@ -81,7 +84,8 @@ impl Match {
             ship.alive = false;
             ship.present = false;
             ship.hp = 0.0;
-            ship.throttle = [0; MAX_THRUSTERS];
+            ship.thrust_level = [0.0; MAX_THRUSTERS];
+            ship.queue = [ShipAction::IDLE; MAX_REACTION_TICKS];
             self.events.push(Event::Death {
                 ship: ship.slot,
                 pos: ship.pos,

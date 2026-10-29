@@ -344,7 +344,7 @@ fn shield_absorbs_without_overflow_then_regens_after_delay() {
     m.tick = 100;
     let hp0 = m.ships[1].hp;
     let pos = m.ships[1].pos;
-    apply_damage(&mut m, &cat, 1, 10.0, pos + Vec2::new(-5.0, 0.0), 0, 95);
+    apply_damage(&mut m, &cat, 1, 10.0, pos + Vec2::new(-5.0, 0.0), 0, 95, 94);
     // Even split: P_s = 1 → absorbed = 10 / 1.
     assert!(close(m.ships[1].shield, 30.0, 1e-5));
     assert_eq!(m.ships[1].hp, hp0, "shield takes the whole hit");
@@ -368,7 +368,7 @@ fn shield_absorbs_without_overflow_then_regens_after_delay() {
     // A big hit on a small shield depletes it; nothing overflows to the hull.
     m.ships[1].shield = 2.0;
     m.events.clear();
-    apply_damage(&mut m, &cat, 1, 50.0, pos, 0, 190);
+    apply_damage(&mut m, &cat, 1, 50.0, pos, 0, 190, 189);
     assert_eq!(m.ships[1].shield, 0.0);
     assert_eq!(m.ships[1].hp, hp0);
     assert!(matches!(
@@ -376,7 +376,7 @@ fn shield_absorbs_without_overflow_then_regens_after_delay() {
         Event::ShieldHit { depleted: true, .. }
     ));
     // With the shield down the next hit goes to the hull.
-    apply_damage(&mut m, &cat, 1, 5.0, pos, 0, 190);
+    apply_damage(&mut m, &cat, 1, 5.0, pos, 0, 190, 189);
     assert_eq!(m.ships[1].hp, hp0 - 5.0);
     assert!(!m.hits()[2].shield);
 }
@@ -391,7 +391,7 @@ fn shield_power_scales_absorption_delay_and_regen() {
     let p_s = 0.2 + 0.8 * 3.0 * 0.6; // 1.64
     m.tick = 10;
     let pos = m.ships[1].pos;
-    apply_damage(&mut m, &cat, 1, 10.0, pos + Vec2::X, 0, 10);
+    apply_damage(&mut m, &cat, 1, 10.0, pos + Vec2::X, 0, 10, 9);
     let after_hit = 40.0 - 10.0 / (0.7 + 0.3 * p_s);
     assert!(close(m.ships[1].shield, after_hit, 1e-4));
 
@@ -419,7 +419,7 @@ fn shield_hit_normal_is_unit_and_outward() {
     ] {
         m.events.clear();
         m.ships[1].shield = 40.0;
-        apply_damage(&mut m, &cat, 1, 1.0, point, 0, 1);
+        apply_damage(&mut m, &cat, 1, 1.0, point, 0, 1, 0);
         let Event::ShieldHit {
             target,
             shooter,
@@ -456,7 +456,7 @@ fn pool_recycles_oldest_slot() {
     };
     m.projectiles = [marker; MAX_PROJECTILES];
     m.proj_next = MAX_PROJECTILES - 1;
-    m.set_action(0, fire_turret(0));
+    m.applied[0] = fire_turret(0);
     m.tick = 1;
     m.step_fire(&cat);
     assert_eq!(m.projectiles[MAX_PROJECTILES - 1].fire_tick, 1);
@@ -517,7 +517,7 @@ fn cooldown_scales_with_weapons_power_and_gates_fire() {
     assert!(close(m.ships[0].turret_cooldown[0], want, 1e-6));
 
     // Trigger held while cooling down: no shot, no event.
-    m.set_action(0, fire_turret(0));
+    m.applied[0] = fire_turret(0);
     m.step_fire(&cat);
     assert_eq!(m.shots_fired[0], 0);
     assert!(m.events().is_empty());
@@ -547,7 +547,7 @@ fn turrets_slew_at_rate_and_clamp_to_arc() {
     let mut a = ShipAction::IDLE;
     a.slew[0] = 0; // fore flak: left (CCW)
     a.slew[1] = 2; // port gauss: right (CW)
-    m.set_action(0, a);
+    m.applied[0] = a;
     m.step_turrets(&cat);
     let fore = &cat.hull(GUNSHIP).turrets[0];
     let port = &cat.hull(GUNSHIP).turrets[1];
@@ -575,7 +575,7 @@ fn control_locked_ship_does_not_fire() {
     park(&mut m, 1);
     m.ships[0].control_lock_until = 10;
     m.tick = 5;
-    m.set_action(0, fire_turret(0));
+    m.applied[0] = fire_turret(0);
     m.step_fire(&cat);
     assert_eq!(m.shots_fired[0], 0);
     assert!(alive_projectiles(&m).is_empty());

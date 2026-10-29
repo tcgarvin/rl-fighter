@@ -253,6 +253,9 @@ fn convert_hull(raw: RawHull, weapon_names: &[String]) -> HullDef {
             regen_delay: s.regen_delay,
             radius: s.radius,
         }),
+        reaction_ticks: raw.reaction_ticks.map(|d| {
+            u8::try_from(d).expect("reaction_ticks is validated (rule 10) before conversion")
+        }),
         cost: raw.cost,
         collision: raw
             .collision

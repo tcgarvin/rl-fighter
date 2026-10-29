@@ -118,7 +118,16 @@ impl Match {
             p.life_ticks = p.life_ticks.saturating_sub(1);
 
             if let Some((target, point)) = self.first_swept_hit(cat, &p, next) {
-                apply_damage(self, cat, target, p.damage, point, p.owner, p.fire_tick);
+                apply_damage(
+                    self,
+                    cat,
+                    target,
+                    p.damage,
+                    point,
+                    p.owner,
+                    p.fire_tick,
+                    p.decision_tick,
+                );
                 if p.kind == WeaponKind::Torpedo {
                     self.events.push(Event::Burst {
                         team: p.team,
@@ -169,7 +178,16 @@ impl Match {
             }
             let reach = burst_radius + cat.hull(s.hull).bound_radius;
             if (s.pos - at).length() < reach {
-                apply_damage(self, cat, j as ShipIdx, p.damage, at, p.owner, p.fire_tick);
+                apply_damage(
+                    self,
+                    cat,
+                    j as ShipIdx,
+                    p.damage,
+                    at,
+                    p.owner,
+                    p.fire_tick,
+                    p.decision_tick,
+                );
             }
         }
     }

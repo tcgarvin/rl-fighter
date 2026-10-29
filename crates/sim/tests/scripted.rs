@@ -10,18 +10,20 @@ mod common;
 
 use common::{FIGHTER, GUNSHIP, STRAFER, new_present_match, test_catalogue};
 use sim::DT;
-use sim::actions::ShipAction;
+use sim::actions::{ShipAction, THROTTLE_DECREASE, THROTTLE_HOLD, THROTTLE_INCREASE};
 use sim::data::Catalogue;
 use sim::math::{PI, Vec2, clamp, wrap_angle};
+use sim::physics::RAMP_STEP;
 use sim::scripted::strafer::{ORBIT_RADIUS, orbit_sign};
-use sim::scripted::{act, allocate_thrusters};
+use sim::scripted::{act, allocate_thrusters, levels_to_throttle_heads, projected_levels};
 use sim::state::{MAX_THRUSTERS, Match};
+use sim::turrets::{cooldown_after_tick, cooldown_after_ticks};
 
 // ---------------------------------------------------------------------------
 // Allocator: expected outputs worked by hand from sim.js `allocateThrusters`:
 //   f̂ = f/|f| (0 if |f| <= 1e-6), along = dot(dir, f̂) * min(|f|, 1),
 //   arm = pos.x*dir.y - pos.y*dir.x, score = along + 1.2*sign(arm)*torque,
-//   score > 0.6 → 2 (JS 1), > 0.25 → 1 (JS 0.5), else 0.
+//   score > 0.6 → target level 1 (JS 1), > 0.25 → 0.5 (JS 0.5), else 0.
 //
 // Fighter thrusters (pos; dir → arm, sign):
 //   0 main (-4.6, 0);  (1, 0)  → -4.6*0 - 0*1      =  0    → 0
@@ -36,8 +38,9 @@ use sim::state::{MAX_THRUSTERS, Match};
 //   rr (-4.5,-4.6)(0,1) → -4.5.
 // ---------------------------------------------------------------------------
 
+/// Allocator target levels as 0/1/2 halves, so the cases read like sim.js.
 fn alloc(cat: &Catalogue, hull: u16, f: (f32, f32), torque: f32) -> [u8; MAX_THRUSTERS] {
-    allocate_thrusters(cat.hull(hull), Vec2::new(f.0, f.1), torque)
+    allocate_thrusters(cat.hull(hull), Vec2::new(f.0, f.1), torque).map(|l| (l * 2.0) as u8)
 }
 
 #[test]
@@ -220,9 +223,15 @@ fn fighter_leads_a_crossing_target() {
     m.ships[1].vel = Vec2::new(0.0, 50.0);
     let a = act(&m, &cat, 0);
     assert_eq!(a.fire[0], 0);
-    // CCW torque: fr and rl (positive arm) on, fl and rr off.
-    assert!(a.throttle[2] > 0 && a.throttle[3] > 0, "{:?}", a.throttle);
-    assert_eq!((a.throttle[1], a.throttle[4]), (0, 0));
+    // CCW torque: fr and rl (positive arm) ramp up, fl and rr stay off (hold at 0).
+    assert_eq!(
+        (a.throttle[2], a.throttle[3]),
+        (THROTTLE_INCREASE, THROTTLE_INCREASE)
+    );
+    assert_eq!(
+        (a.throttle[1], a.throttle[4]),
+        (THROTTLE_HOLD, THROTTLE_HOLD)
+    );
 }
 
 #[test]
@@ -269,7 +278,7 @@ fn ship_near_arena_edge_turns_for_centre() {
         Vec2::new(430.0, 0.0),
     );
     let a = act(&m, &cat, 0);
-    assert_eq!(a.throttle[0], 2);
+    assert_eq!(a.throttle[0], THROTTLE_INCREASE);
     for _ in 0..90 {
         let a = act(&m, &cat, 0);
         m.set_action(0, a);
@@ -414,4 +423,94 @@ fn same_state_gives_same_action() {
         }
         m.step_motion(&cat);
     }
+}
+
+// ---------------------------------------------------------------------------
+// v2 (WP11): rate heads, projected levels, acting through the delay
+// ---------------------------------------------------------------------------
+
+#[test]
+fn levels_to_throttle_heads_holds_within_half_a_step() {
+    let cat = test_catalogue();
+    let hull = cat.hull(FIGHTER);
+    let band = 0.5 * RAMP_STEP;
+    let target = [0.5; MAX_THRUSTERS];
+    let heads = |level: f32| levels_to_throttle_heads(hull, &[level; MAX_THRUSTERS], &target);
+    assert_eq!(heads(0.5)[0], THROTTLE_HOLD);
+    assert_eq!(heads(0.5 + 0.99 * band)[0], THROTTLE_HOLD);
+    assert_eq!(heads(0.5 - 0.99 * band)[0], THROTTLE_HOLD);
+    assert_eq!(heads(0.5 + 1.01 * band)[0], THROTTLE_DECREASE);
+    assert_eq!(heads(0.5 - 1.01 * band)[0], THROTTLE_INCREASE);
+    assert_eq!(heads(0.0)[0], THROTTLE_INCREASE);
+    assert_eq!(heads(1.0)[0], THROTTLE_DECREASE);
+    // Slots beyond the fighter's five thrusters always hold.
+    assert_eq!(&heads(0.0)[5..], &[THROTTLE_HOLD; 3]);
+    // A ramp driven by these heads settles on the target and stays there.
+    let mut level = 0.0;
+    for _ in 0..12 {
+        let h = levels_to_throttle_heads(hull, &[level; MAX_THRUSTERS], &target)[0];
+        level = sim::physics::ramp_level(level, h);
+    }
+    assert!((level - 0.5).abs() <= band, "settled at {level}");
+}
+
+#[test]
+fn projected_levels_apply_the_queue_and_the_lock() {
+    let cat = test_catalogue();
+    let hull = cat.hull(FIGHTER);
+    let mut m = new_present_match(&cat, 1, &[FIGHTER], &[FIGHTER]);
+    let s = &mut m.ships[0];
+    s.reaction_ticks = 3;
+    s.thrust_level[0] = 0.5;
+    s.thrust_level[1] = 0.5;
+    let mut up = ShipAction::IDLE;
+    up.throttle[0] = THROTTLE_INCREASE;
+    s.queue[0] = up;
+    s.queue[1] = up;
+    s.queue[2] = ShipAction::IDLE;
+    let p = projected_levels(s, hull, 10);
+    assert!((p[0] - (0.5 + 2.0 * RAMP_STEP)).abs() < 1e-6, "{p:?}");
+    assert_eq!(p[1], 0.5);
+    // Queued entries that apply inside the control lock ramp down instead.
+    s.control_lock_until = 12; // ticks 11 locked; 12 and 13 not
+    let p = projected_levels(s, hull, 10);
+    assert!((p[0] - (0.5 - RAMP_STEP + RAMP_STEP)).abs() < 1e-6, "{p:?}");
+    assert!((p[1] - (0.5 - RAMP_STEP)).abs() < 1e-6, "{p:?}");
+    // No delay: the current levels.
+    s.reaction_ticks = 0;
+    assert_eq!(projected_levels(s, hull, 10), s.thrust_level);
+}
+
+#[test]
+fn cooldown_after_ticks_matches_repeated_ticks() {
+    for (c, p_w) in [(0.2, 1.0), (0.05, 1.48), (0.16, 0.2), (0.0, 1.0)] {
+        let mut want = c;
+        for n in 0..8 {
+            assert_eq!(
+                cooldown_after_ticks(c, p_w, n),
+                want,
+                "c {c} p_w {p_w} n {n}"
+            );
+            want = cooldown_after_tick(want, p_w);
+        }
+    }
+}
+
+#[test]
+fn fighter_with_delay_fires_for_the_application_tick() {
+    // Cooling down now, but ready by the tick the action applies (d + 1 = 3 ticks).
+    let cat = test_catalogue();
+    let (_, mut m) = duel(FIGHTER, FIGHTER, Vec2::ZERO, 0.0, Vec2::new(200.0, 0.0));
+    m.ships[0].reaction_ticks = 2;
+    let per_tick = 0.65 * DT;
+    m.ships[0].turret_cooldown[0] = 2.5 * per_tick;
+    assert_eq!(act(&m, &cat, 0).fire[0], 1);
+    m.ships[0].turret_cooldown[0] = 3.5 * per_tick;
+    assert_eq!(act(&m, &cat, 0).fire[0], 0);
+    // Spinning so that the nose will be off target by the application tick: hold fire.
+    m.ships[0].turret_cooldown[0] = 0.0;
+    m.ships[0].omega = 1.5; // 3 ticks * 1.5 rad/s = 0.15 rad > 0.1 tolerance
+    assert_eq!(act(&m, &cat, 0).fire[0], 0);
+    m.ships[0].reaction_ticks = 0; // 1 tick: 0.05 rad, inside tolerance
+    assert_eq!(act(&m, &cat, 0).fire[0], 1);
 }

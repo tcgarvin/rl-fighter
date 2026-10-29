@@ -11,7 +11,7 @@ use crate::data::raw::{RawHull, RawKind, RawWeapon};
 use crate::data::{DataError, life_ticks};
 use crate::math::Vec2;
 
-pub use crate::state::{MAX_THRUSTERS, MAX_TURRETS};
+pub use crate::state::{MAX_REACTION_TICKS, MAX_THRUSTERS, MAX_TURRETS};
 /// Rule 3: largest allowed `bound_radius`, metres.
 pub const MAX_BOUND_RADIUS: f32 = 60.0;
 /// Rule 4: accepted range for authored direction lengths before renormalising.
@@ -55,7 +55,7 @@ impl HullErrors<'_> {
     }
 }
 
-/// Rules 1–7 for one hull. `dir_name` is the directory (or `from_yaml` key) the hull
+/// Rules 1–7 and 10 for one hull. `dir_name` is the directory (or `from_yaml` key) the hull
 /// came from; `weapons` is `None` when the weapon file failed to parse, in which case
 /// turret weapon references are not checked (that would only add noise).
 pub(crate) fn validate_hull(
@@ -75,6 +75,7 @@ pub(crate) fn validate_hull(
     check_turrets(&mut e, raw, weapons);
     check_shield(&mut e, raw, bound);
     check_authority(&mut e, raw);
+    check_reaction(&mut e, raw);
 }
 
 fn check_name(e: &mut HullErrors, dir_name: &str, raw: &RawHull) {
@@ -261,6 +262,17 @@ fn check_authority(e: &mut HullErrors, raw: &RawHull) {
     }
     if !(cw > 0.0) {
         e.push("rule 7: thrusters cannot produce clockwise torque".to_string());
+    }
+}
+
+/// Rule 10 (v2): a `reaction_ticks` override is an integer in `[0, MAX_REACTION_TICKS]`.
+fn check_reaction(e: &mut HullErrors, raw: &RawHull) {
+    if let Some(d) = raw.reaction_ticks {
+        if !(0..=MAX_REACTION_TICKS as i64).contains(&d) {
+            e.push(format!(
+                "rule 10: reaction_ticks {d} must be in [0, {MAX_REACTION_TICKS}]"
+            ));
+        }
     }
 }
 

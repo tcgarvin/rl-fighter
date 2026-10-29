@@ -7,26 +7,34 @@
 //!
 //! Every role shares one tick: pick a target, let the role's pilot choose a
 //! body-frame force and a desired heading, override both near the arena edge, turn
-//! with a PD torque, allocate thrusters, aim and fire each turret, pick a power split.
+//! with a PD torque, allocate target thrust levels and turn them into rate heads, aim
+//! and fire each turret, pick a power split.
+//!
+//! Acting through the reaction delay (v2): the action chosen now applies `d + 1`
+//! ticks later, so geometry is evaluated at the state predicted `(d + 1) * DT` ahead
+//! by coasting (`pos + vel * τ`, `heading + omega * τ`; no thrust prediction), thrust
+//! levels are projected through the queued actions, and fire readiness is checked
+//! for the application tick.
 
 pub mod fighter;
 pub mod gunship;
 pub mod strafer;
 
 use crate::DT;
-use crate::actions::{SLEW_HOLD, ShipAction};
+use crate::actions::{SLEW_HOLD, ShipAction, THROTTLE_DECREASE, THROTTLE_HOLD, THROTTLE_INCREASE};
 use crate::data::{Catalogue, HullDef, WeaponDef, WeaponKind};
 use crate::math::{Vec2, clamp, wrap_angle};
+use crate::physics::{RAMP_STEP, ramp_level};
 use crate::power;
 use crate::state::{MAX_THRUSTERS, Match, NEVER, Ship, ShipIdx};
-use crate::turrets::cooldown_after_tick;
+use crate::turrets::cooldown_after_ticks;
 
-/// Throttle levels of the action head.
-const THROTTLE_OFF: u8 = 0;
-const THROTTLE_HALF: u8 = 1;
-const THROTTLE_FULL: u8 = 2;
+/// Target thrust levels the allocator picks from.
+const LEVEL_OFF: f32 = 0.0;
+const LEVEL_HALF: f32 = 0.5;
+const LEVEL_FULL: f32 = 1.0;
 
-/// Allocator score thresholds for full and half throttle (sim.js).
+/// Allocator score thresholds for full and half level (sim.js).
 const FULL_SCORE: f32 = 0.6;
 const HALF_SCORE: f32 = 0.25;
 /// Weight of the torque request against the force request in a thruster's score.
@@ -139,7 +147,11 @@ pub fn act(m: &Match, cat: &Catalogue, ship: ShipIdx) -> ShipAction {
     let Some(target) = pick_target(m, cat, me, role) else {
         return ShipAction::IDLE;
     };
-    let eng = engage(cat, me, hull, target);
+    // Everything below sees the state on the tick this action applies.
+    let ahead = lookahead_ticks(me);
+    let me_now = me;
+    let me = &predict(me, ahead, true);
+    let eng = engage(cat, me, hull, &predict(target, ahead, false));
 
     let mut plan = match role {
         Role::Fighter => fighter::manoeuvre(me, &eng),
@@ -154,11 +166,75 @@ pub fn act(m: &Match, cat: &Catalogue, ship: ShipIdx) -> ShipAction {
     }
 
     let mut action = ShipAction::IDLE;
-    action.throttle = allocate_thrusters(hull, plan.force_body, turn_torque(me, plan.heading));
+    let target_levels = allocate_thrusters(hull, plan.force_body, turn_torque(me, plan.heading));
+    let projected = projected_levels(me_now, hull, m.tick);
+    action.throttle = levels_to_throttle_heads(hull, &projected, &target_levels);
     action.power = choose_power(m, cat, me, hull, eng.dist);
     let p_w = weapons_multiplier_after_slew(me, hull, action.power);
-    aim_turrets(m, cat, me, hull, p_w, &mut action);
+    aim_turrets(m, cat, me, hull, p_w, ahead, &mut action);
     action
+}
+
+/// Ticks from now until an action chosen now applies: `reaction_ticks + 1`.
+fn lookahead_ticks(ship: &Ship) -> u32 {
+    u32::from(ship.reaction_ticks) + 1
+}
+
+/// `ship` coasted `ticks` ahead: `pos + vel * τ` and, if `turn`, `heading + omega * τ`,
+/// with `τ = ticks * DT`. Everything else is copied.
+fn predict(ship: &Ship, ticks: u32, turn: bool) -> Ship {
+    let tau = ticks as f32 * DT;
+    let mut p = ship.clone();
+    p.pos = ship.pos + ship.vel * tau;
+    if turn {
+        p.heading = wrap_angle(ship.heading + ship.omega * tau);
+    }
+    p
+}
+
+/// Thrust levels `ship` will have when an action chosen now (at post-step tick `tick`)
+/// is applied: the current levels with the queued throttle heads applied in order,
+/// each as stage 3 will (`DECREASE` on ticks still inside the control lock).
+/// With no reaction delay these are the current levels.
+pub fn projected_levels(ship: &Ship, hull: &HullDef, tick: u32) -> [f32; MAX_THRUSTERS] {
+    let mut levels = ship.thrust_level;
+    let n = hull.thrusters.len();
+    let d = usize::from(ship.reaction_ticks);
+    for (k, queued) in ship.queue[..d].iter().enumerate() {
+        let applies_on = tick + 1 + k as u32;
+        let locked = applies_on < ship.control_lock_until || hull.is_static;
+        for (i, level) in levels[..n].iter_mut().enumerate() {
+            let head = if locked {
+                THROTTLE_DECREASE
+            } else {
+                queued.throttle[i]
+            };
+            *level = ramp_level(*level, head);
+        }
+    }
+    levels
+}
+
+/// Rate heads that move each thruster from `projected` toward `target`:
+/// `INCREASE` below `target - RAMP_STEP / 2`, `DECREASE` above `target + RAMP_STEP / 2`,
+/// else `HOLD`. Slots beyond the hull's thrusters are `HOLD`.
+pub fn levels_to_throttle_heads(
+    hull: &HullDef,
+    projected: &[f32; MAX_THRUSTERS],
+    target: &[f32; MAX_THRUSTERS],
+) -> [u8; MAX_THRUSTERS] {
+    let band = 0.5 * RAMP_STEP;
+    let mut heads = [THROTTLE_HOLD; MAX_THRUSTERS];
+    for (i, head) in heads.iter_mut().enumerate().take(hull.thrusters.len()) {
+        *head = if projected[i] < target[i] - band {
+            THROTTLE_INCREASE
+        } else if projected[i] > target[i] + band {
+            THROTTLE_DECREASE
+        } else {
+            THROTTLE_HOLD
+        };
+    }
+    heads
 }
 
 /// The weapons multiplier stage 6 will use this tick if the ship picks power target
@@ -171,10 +247,12 @@ fn weapons_multiplier_after_slew(me: &Ship, hull: &HullDef, power_idx: u8) -> f3
 
 /// Greedy thruster allocation (sim.js `allocateThrusters`): each thruster's score is
 /// how far its push lies along the requested force (scaled by `min(|f|, 1)`) plus
-/// `1.2 * sign(arm) * torque`, where `arm = cross(pos, dir)`; score `> 0.6` is full
-/// throttle, `> 0.25` half, else off. `force_body` is body frame; `torque` is a
-/// request in `[-1, 1]`, positive CCW. Slots beyond the hull's thrusters are 0.
-pub fn allocate_thrusters(hull: &HullDef, force_body: Vec2, torque: f32) -> [u8; MAX_THRUSTERS] {
+/// `1.2 * sign(arm) * torque`, where `arm = cross(pos, dir)`; score `> 0.6` is target
+/// level 1, `> 0.25` level 0.5, else 0 (v2: target levels, which
+/// [`levels_to_throttle_heads`] turns into rate heads). `force_body` is body frame;
+/// `torque` is a request in `[-1, 1]`, positive CCW. Slots beyond the hull's
+/// thrusters are 0.
+pub fn allocate_thrusters(hull: &HullDef, force_body: Vec2, torque: f32) -> [f32; MAX_THRUSTERS] {
     let f_mag = force_body.length();
     let f_hat = if f_mag > 1e-6 {
         force_body / f_mag
@@ -182,17 +260,17 @@ pub fn allocate_thrusters(hull: &HullDef, force_body: Vec2, torque: f32) -> [u8;
         Vec2::ZERO
     };
     let f_scale = f_mag.min(1.0);
-    let mut out = [THROTTLE_OFF; MAX_THRUSTERS];
+    let mut out = [LEVEL_OFF; MAX_THRUSTERS];
     for (level, t) in out.iter_mut().zip(&hull.thrusters) {
         let along = t.dir.dot(f_hat) * f_scale;
         let spin = sign(t.pos.cross(t.dir)) * torque;
         let score = along + TORQUE_WEIGHT * spin;
         *level = if score > FULL_SCORE {
-            THROTTLE_FULL
+            LEVEL_FULL
         } else if score > HALF_SCORE {
-            THROTTLE_HALF
+            LEVEL_HALF
         } else {
-            THROTTLE_OFF
+            LEVEL_OFF
         };
     }
     out
@@ -291,15 +369,17 @@ fn lead_point(weapon: &WeaponDef, me: &Ship, target: &Ship, rel: Vec2) -> Vec2 {
 /// Slew and fire heads for every turret (sim.js `aimTurrets`, adapted to the
 /// left/hold/right slew head and the linear arc clamp of stage 6).
 ///
-/// A turret is ready when its cooldown reaches 0 in this tick's stage 6 (at weapons
-/// multiplier `p_w`), since stage 7 fires right after: gating on the cooldown as
-/// read now would fire every shot a tick late.
+/// `me` is the predicted ship (see [`act`]); targets are predicted `ahead` ticks too.
+/// A turret is ready when its cooldown reaches 0 by the stage 6 of the tick the action
+/// applies (`ahead` ticks of cooldown at weapons multiplier `p_w`), since stage 7
+/// fires right after: gating on the cooldown as read now would fire late.
 fn aim_turrets(
     m: &Match,
     cat: &Catalogue,
     me: &Ship,
     hull: &HullDef,
     p_w: f32,
+    ahead: u32,
     action: &mut ShipAction,
 ) {
     for (j, turret) in hull.turrets.iter().enumerate() {
@@ -322,6 +402,7 @@ fn aim_turrets(
         let Some(target) = target else {
             continue;
         };
+        let target = &predict(target, ahead, false);
         let rel = target.pos - muzzle;
         let aim = wrap_angle(lead_point(weapon, me, target, rel).angle() - me.heading);
         let angle = me.turret_angle[j];
@@ -347,7 +428,7 @@ fn aim_turrets(
             (_, false) => FIXED_GUN_TOLERANCE,
         };
         let aim_err = wrap_angle(aim - angle).abs();
-        let ready = cooldown_after_tick(me.turret_cooldown[j], p_w) == 0.0;
+        let ready = cooldown_after_ticks(me.turret_cooldown[j], p_w, ahead) == 0.0;
         if aim_err < tolerance && rel.length() < weapon.range && ready {
             action.fire[j] = 1;
         }

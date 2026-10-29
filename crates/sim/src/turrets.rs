@@ -18,6 +18,21 @@ pub fn cooldown_after_tick(cooldown: f32, p_w: f32) -> f32 {
     (cooldown - DT * COOLDOWN_RATE * p_w).max(0.0)
 }
 
+/// `cooldown_after_tick` applied `ticks` times at a constant `p_w`: bit-exact with
+/// the sim's per-tick update, so the scripted controller can ask whether a gun will be
+/// ready on the tick its action applies (`d + 1` ticks ahead, v2).
+#[inline]
+pub fn cooldown_after_ticks(cooldown: f32, p_w: f32, ticks: u32) -> f32 {
+    let mut c = cooldown;
+    for _ in 0..ticks {
+        if c == 0.0 {
+            break;
+        }
+        c = cooldown_after_tick(c, p_w);
+    }
+    c
+}
+
 /// Turret-angle limits `[rest - arc/2, rest + arc/2]` (body frame, not wrapped).
 #[inline]
 pub fn arc_limits(t: &TurretDef) -> (f32, f32) {
@@ -32,13 +47,13 @@ pub fn muzzle_pose(ship: &Ship, t: &TurretDef, j: usize) -> (Vec2, f32) {
 
 impl Match {
     /// Stage 6 of SIM_SPEC §5 (turrets), for every active ship: slewing turrets
-    /// (`arc > 0`) move by `slew_sign * slew_rate * DT` from the pending action and
-    /// clamp to their arc; every turret's cooldown drops by `DT * 0.65 * P_w`,
-    /// floored at 0. Fixed guns ignore slew.
+    /// (`arc > 0`) move by `slew_sign * slew_rate * DT` from the applied action (v2:
+    /// `LOCKED` while locked, so they hold) and clamp to their arc; every turret's
+    /// cooldown drops by `DT * 0.65 * P_w`, floored at 0. Fixed guns ignore slew.
     pub fn step_turrets(&mut self, cat: &Catalogue) {
         for ship in self.ships.iter_mut().filter(|s| s.active()) {
             let hull = cat.hull(ship.hull);
-            let action = self.pending[ship.slot as usize];
+            let action = self.applied[ship.slot as usize];
             let p_w = power::ship_multipliers(ship, hull)[WEAPONS];
             for (j, t) in hull.turrets.iter().enumerate() {
                 if t.arc > 0.0 {

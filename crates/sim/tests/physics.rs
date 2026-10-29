@@ -1,19 +1,24 @@
 //! WP2 acceptance (SIM_SPEC §14): thrusters, drag, soft cap, power, actions, setup,
-//! and same-seed hash equality. Drives the full `Match::step`.
+//! and same-seed hash equality; WP11 (§14.1): throttle ramp, v2 damping, reaction
+//! delay, control lock and the `act_mask` contract. Drives the full `Match::step`.
 
 mod common;
 
 use common::{
-    FIGHTER, GUNSHIP, STRAFER, catalogue_with_static, new_match, new_present_match, test_catalogue,
+    FIGHTER, GUNSHIP, STRAFER, catalogue_with_static, config, new_match, new_present_match,
+    test_catalogue,
 };
 use sim::DT;
-use sim::actions::{ACTION_WIDTH, ShipAction, act_mask, fixed_turret, thruster_mask, turret_mask};
+use sim::actions::{
+    ACTION_WIDTH, ShipAction, THROTTLE_DECREASE, THROTTLE_HOLD, THROTTLE_INCREASE, act_mask,
+    fixed_turret, thruster_mask, turret_mask,
+};
 use sim::data::Catalogue;
 use sim::math::PI;
-use sim::physics::{ANGULAR_DRAG, LINEAR_DRAG};
+use sim::physics::{ANGULAR_DRAG, LINEAR_DRAG, RAMP_RATE, RAMP_STEP, ramp_level};
 use sim::power::{self, POWER_TARGETS, multiplier, two_way_target};
 use sim::setup::{MatchConfig, SetupError};
-use sim::state::{Attach, Match, MatchPhase, NONE};
+use sim::state::{Attach, MAX_REACTION_TICKS, Match, MatchPhase, NONE};
 
 const EPS: f32 = 1e-5;
 
@@ -21,9 +26,10 @@ fn close(a: f32, b: f32, tol: f32) -> bool {
     (a - b).abs() <= tol
 }
 
-/// Fighter 1v1 with ship 0 driven by `throttle` (other heads idle). The arena is
-/// widened and the opponent parked off the flight line, so long runs under the full
-/// `step` see free-flight physics only (no boundary push, no collision).
+/// Fighter 1v1 with ship 0 driven by the throttle heads `throttle` (other heads idle;
+/// no reaction delay). The arena is widened and the opponent parked off the flight
+/// line, so long runs under the full `step` see free-flight physics only (no
+/// boundary push, no collision).
 fn fighter_with_throttle(throttle: &[u8]) -> (Catalogue, Match) {
     let cat = test_catalogue();
     let mut m = new_present_match(&cat, 1, &[FIGHTER], &[FIGHTER]);
@@ -41,8 +47,10 @@ fn main_thruster_accelerates_forward() {
     let start = m.ships[0].pos;
     m.step(&cat);
     let s = &m.ships[0];
-    // 900 N / 10 kg at even power (P_e = 1), one tick, then drag.
-    let want = 900.0 / 10.0 * DT * LINEAR_DRAG;
+    // The first INCREASE already pushes at level 1/6 (stage 3 ramps before stage 5):
+    // 900 N * 1/6 / 10 kg at even power (P_e = 1), one tick, then drag.
+    assert_eq!(s.thrust_level[0], RAMP_STEP);
+    let want = 900.0 * RAMP_STEP / 10.0 * DT * LINEAR_DRAG;
     assert!(close(s.vel.x, want, EPS), "vel.x {} want {want}", s.vel.x);
     assert_eq!(s.vel.y, 0.0);
     assert_eq!(s.omega, 0.0, "main thruster is on the axis: no torque");
@@ -51,17 +59,32 @@ fn main_thruster_accelerates_forward() {
 }
 
 #[test]
-fn half_throttle_gives_half_force() {
-    let (cat, mut full) = fighter_with_throttle(&[2]);
-    let (_, mut half) = fighter_with_throttle(&[1]);
-    full.step(&cat);
-    half.step(&cat);
-    assert!(close(half.ships[0].vel.x * 2.0, full.ships[0].vel.x, EPS));
+fn force_is_max_force_times_level_times_engine_power() {
+    // Held levels 0.25 / 0.5 / 1.0 at even power, and 0.5 at engines 0.75 (P_e = 1.4).
+    let cases = [(0.25, 0, 1.0), (0.5, 0, 1.0), (1.0, 0, 1.0), (0.5, 2, 1.4)];
+    for (level, power_idx, p_e) in cases {
+        let (cat, mut m) = fighter_with_throttle(&[THROTTLE_HOLD]);
+        m.ships[0].thrust_level[0] = level;
+        m.ships[0].power = two_way_target(power_idx);
+        m.ships[0].power_target = two_way_target(power_idx);
+        let mut a = m.pending[0];
+        a.power = power_idx as u8;
+        m.set_action(0, a);
+        m.step(&cat);
+        assert_eq!(m.ships[0].thrust_level[0], level, "HOLD keeps the level");
+        let want = 900.0 * level * p_e / 10.0 * DT * LINEAR_DRAG;
+        let got = m.ships[0].vel.x;
+        assert!(
+            close(got, want, 1e-4),
+            "level {level} P_e {p_e}: {got} want {want}"
+        );
+    }
 }
 
 #[test]
 fn thrust_follows_heading() {
     let (cat, mut m) = fighter_with_throttle(&[2]);
+    m.ships[0].thrust_level[0] = 1.0;
     m.ships[0].heading = 0.5 * PI;
     m.step(&cat);
     let s = &m.ships[0];
@@ -73,6 +96,7 @@ fn thrust_follows_heading() {
 fn engine_power_scales_thrust() {
     // Fighter is two-way: target 2 = engines 0.75 → P_e = 0.2 + 0.8*2*0.75 = 1.4.
     let (cat, mut m) = fighter_with_throttle(&[2]);
+    m.ships[0].thrust_level[0] = 1.0;
     m.ships[0].power = two_way_target(2);
     m.ships[0].power_target = two_way_target(2);
     let mut a = m.pending[0];
@@ -113,10 +137,11 @@ fn rcs_pair_pivots_without_translating() {
         assert!(s.vel.length() < 1e-4, "net force cancels: vel {:?}", s.vel);
         assert!((s.pos - start).length() < 1e-4);
     }
-    // First-tick torque: |cross(fl.pos, fl.F)| + |cross(rr.pos, rr.F)| = 352 + 448.
+    // First-tick torque at level 1/6: |cross(fl.pos, fl.F)| + |cross(rr.pos, rr.F)| =
+    // (352 + 448) / 6.
     let (cat, mut one) = fighter_with_throttle(&[0, 2, 0, 0, 2]);
     one.step(&cat);
-    let want = -800.0 / 55.0 * DT * ANGULAR_DRAG;
+    let want = -800.0 * RAMP_STEP / 55.0 * DT * ANGULAR_DRAG;
     assert!(close(one.ships[0].omega, want, EPS));
 }
 
@@ -194,26 +219,99 @@ fn static_hull_is_not_integrated() {
     assert_eq!(s.pos, before.pos);
     assert_eq!(s.vel, before.vel);
     assert_eq!(s.heading, before.heading);
-    assert_eq!(m.pending[0].fire[0], 0, "static hulls never fire");
+    // v2: a static hull is always locked (§5 stage 3): no fire, power target kept.
     assert_eq!(
-        s.power_target, POWER_TARGETS[3],
-        "power target still applies"
+        m.applied[0],
+        ShipAction::LOCKED,
+        "static hulls apply LOCKED"
     );
+    assert_eq!(m.shots_fired[0], 0, "static hulls never fire");
+    assert_eq!(s.power_target, before.power_target);
+}
+
+/// Fighter + gunship vs fighter, all present and spread out, delay `d`; ships 0 and 1
+/// control-locked until tick `lock` with every level at 1. Returns the action that
+/// asks for everything: thrust up, slew left, fire, power 3.
+fn locked_match(d: u8, lock: u32) -> (Catalogue, Match, ShipAction) {
+    let cat = test_catalogue();
+    let mut cfg = config(21, &[FIGHTER, GUNSHIP], &[FIGHTER]);
+    cfg.reaction_ticks = d;
+    cfg.arena_radius = 1.0e5;
+    let mut m = Match::new(&cat, &cfg).unwrap();
+    common::make_all_present(&mut m);
+    for (i, s) in m.ships.iter_mut().enumerate() {
+        s.pos = sim::Vec2::new(0.0, 1000.0 * i as f32);
+    }
+    let mut a = ShipAction::IDLE;
+    a.throttle = [THROTTLE_INCREASE; 8];
+    a.slew = [0; 6];
+    a.fire = [1; 6];
+    a.power = 3;
+    for s in 0..2 {
+        m.ships[s].control_lock_until = lock;
+        m.ships[s].thrust_level[..5].fill(1.0);
+    }
+    (cat, m, a)
 }
 
 #[test]
-fn control_lock_forces_throttle_off() {
-    let (cat, mut m) = fighter_with_throttle(&[2, 2]);
-    m.ships[0].control_lock_until = 5;
-    let mut a = m.pending[0];
-    a.fire[0] = 1;
-    m.set_action(0, a);
-    assert!(!act_mask(&m.ships[0], 1));
-    m.step(&cat);
-    assert_eq!(m.ships[0].throttle, [0; 8]);
-    assert_eq!(m.ships[0].vel.x, 0.0);
-    assert_eq!(m.pending[0].fire[0], 0);
-    assert!(act_mask(&m.ships[0], 5));
+fn locked_ship_decays_levels_holds_turrets_and_keeps_power() {
+    for d in 0..=MAX_REACTION_TICKS as u8 {
+        let lock = 12;
+        let (cat, mut m, a) = locked_match(d, lock);
+        let before = m.ships.clone();
+        let mut prev_level = 1.0;
+        // The steps that end at ticks 1..lock-1 are all inside the lock.
+        while m.tick() + 1 < lock {
+            for s in 0..3 {
+                m.set_action(s, a);
+            }
+            m.step(&cat);
+            for (s, was) in before.iter().enumerate().take(2) {
+                let ship = &m.ships[s];
+                assert_eq!(m.applied[s], ShipAction::LOCKED, "d {d} tick {}", m.tick());
+                assert_eq!(ship.turret_angle, was.turret_angle, "turrets hold");
+                assert_eq!(ship.power_target, was.power_target, "power kept");
+                assert_eq!(m.shots_fired[s], 0, "no fire while locked");
+            }
+            let level = m.ships[0].thrust_level[0];
+            assert_eq!(level, ramp_level(prev_level, THROTTLE_DECREASE));
+            prev_level = level;
+        }
+        assert_eq!(m.ships[0].thrust_level, [0.0; 8], "d {d}: decayed to 0");
+        assert_eq!(m.ships[1].thrust_level, [0.0; 8], "d {d}: decayed to 0");
+        // The unlocked ship 2 has been acting since tick 1 + d.
+        assert_eq!(m.ships[2].power_target, two_way_target(3), "d {d}");
+        // The lock ends: the actions chosen in the last d locked ticks now apply.
+        for s in 0..3 {
+            m.set_action(s, a);
+        }
+        m.step(&cat);
+        assert_eq!(m.tick(), lock);
+        assert_eq!(m.applied[0], a.sanitized(cat.hull(FIGHTER)), "d {d}");
+        assert_eq!(m.ships[0].thrust_level[0], RAMP_STEP);
+        assert_eq!(m.shots_fired[0], 1, "d {d}");
+    }
+}
+
+#[test]
+fn act_mask_follows_the_application_tick() {
+    let cat = test_catalogue();
+    for d in 0..=MAX_REACTION_TICKS as u8 {
+        let mut m = new_present_match(&cat, 1, &[FIGHTER], &[FIGHTER]);
+        m.ships[0].reaction_ticks = d;
+        m.ships[0].control_lock_until = 10;
+        // Chosen at obs tick t, applied at t + 1 + d: unmasked iff that is >= 10.
+        for t in 0..12u32 {
+            m.tick = t;
+            assert_eq!(m.act_mask(0), t + 1 + u32::from(d) >= 10, "d {d} t {t}");
+        }
+        m.ships[0].present = false;
+        assert!(!act_mask(&m.ships[0], 20));
+        m.ships[0].present = true;
+        m.ships[0].alive = false;
+        assert!(!act_mask(&m.ships[0], 20));
+    }
 }
 
 #[test]
@@ -384,7 +482,7 @@ fn unused_slots_are_ignored() {
     // Throttles beyond the fighter's 5 thrusters must not move it.
     let (cat, mut m) = fighter_with_throttle(&[0, 0, 0, 0, 0, 2, 2, 2]);
     m.step(&cat);
-    assert_eq!(m.ships[0].throttle, [0; 8]);
+    assert_eq!(m.ships[0].thrust_level, [0.0; 8]);
     assert_eq!(m.ships[0].vel, sim::Vec2::ZERO);
 }
 
@@ -451,6 +549,14 @@ fn setup_rejects_bad_configs() {
         Match::new(&cat, &bad).unwrap_err(),
         SetupError::ZeroTimeLimit
     );
+    bad.time_limit_ticks = 100;
+    bad.reaction_ticks = 5;
+    assert_eq!(
+        Match::new(&cat, &bad).unwrap_err(),
+        SetupError::ReactionTooLong { ticks: 5 }
+    );
+    bad.reaction_ticks = MAX_REACTION_TICKS as u8;
+    assert!(Match::new(&cat, &bad).is_ok());
     assert!(Match::new(&cat, &cfg(vec![0; 4], vec![1; 4])).is_ok());
 }
 
@@ -496,4 +602,246 @@ fn same_seed_matches_hash_equal_every_tick() {
     let h = a.state_hash();
     a.ships[3].omega = f32::from_bits(a.ships[3].omega.to_bits() ^ 1);
     assert_ne!(a.state_hash(), h);
+}
+
+// ---------------------------------------------------------------------------
+// v2 (WP11): throttle ramp, damping, reaction delay, act_mask contract
+// ---------------------------------------------------------------------------
+
+#[test]
+fn level_ramps_zero_to_full_in_exactly_six_ticks_and_clamps() {
+    assert_eq!(RAMP_STEP, RAMP_RATE * DT);
+    let (cat, mut m) = fighter_with_throttle(&[THROTTLE_INCREASE]);
+    for t in 1..=8 {
+        m.step(&cat);
+        let level = m.ships[0].thrust_level[0];
+        if t < 6 {
+            assert!(level < 1.0, "tick {t}: {level}");
+            assert!(
+                close(level, t as f32 * RAMP_STEP, 1e-6),
+                "tick {t}: {level}"
+            );
+        } else {
+            assert_eq!(level, 1.0, "tick {t}: full from tick 6 on, clamped");
+        }
+    }
+    let mut a = ShipAction::IDLE;
+    a.throttle[0] = THROTTLE_DECREASE;
+    m.set_action(0, a);
+    for t in 1..=8 {
+        m.step(&cat);
+        let level = m.ships[0].thrust_level[0];
+        assert_eq!(level == 0.0, t >= 6, "tick {t}: {level}");
+        assert!(level >= 0.0);
+    }
+}
+
+#[test]
+fn hold_keeps_a_level_bit_exact() {
+    let (cat, mut m) = fighter_with_throttle(&[THROTTLE_INCREASE, THROTTLE_INCREASE]);
+    for _ in 0..3 {
+        m.step(&cat);
+    }
+    let levels = m.ships[0].thrust_level;
+    assert!(levels[0] > 0.0 && levels[0] < 1.0);
+    m.set_action(0, ShipAction::IDLE);
+    for _ in 0..100 {
+        m.step(&cat);
+        assert_eq!(
+            m.ships[0].thrust_level.map(f32::to_bits),
+            levels.map(f32::to_bits)
+        );
+    }
+}
+
+#[test]
+fn damping_constants_are_the_v2_literals() {
+    assert!(close(LINEAR_DRAG, 1.0 - 0.005 * 2.0 / 3.0, 1e-7));
+    assert_eq!(LINEAR_DRAG, 0.996_666_7);
+    assert_eq!(ANGULAR_DRAG, 0.96);
+    // A coasting ship keeps LINEAR_DRAG^30 (about 0.9048) of its speed after 1 s.
+    let (cat, mut m) = fighter_with_throttle(&[]);
+    m.ships[0].vel = sim::Vec2::new(30.0, 0.0);
+    for _ in 0..30 {
+        m.step(&cat);
+    }
+    let kept = m.ships[0].vel.x / 30.0;
+    assert!(close(kept, 0.996_666_7f32.powi(30), 1e-5), "kept {kept}");
+    assert!(close(kept, 0.9048, 1e-3), "kept {kept}");
+}
+
+/// A present fighter 1v1 (opponent parked) with reaction delay `d` on both ships.
+fn delayed_fighter(d: u8) -> (Catalogue, Match) {
+    let cat = test_catalogue();
+    let mut cfg = config(5, &[FIGHTER], &[FIGHTER]);
+    cfg.reaction_ticks = d;
+    cfg.arena_radius = 1.0e5;
+    let mut m = Match::new(&cat, &cfg).unwrap();
+    common::make_all_present(&mut m);
+    m.ships[1].pos = sim::Vec2::new(0.0, 5000.0);
+    (cat, m)
+}
+
+#[test]
+fn delay_two_applies_on_the_third_step_and_shows_in_the_queue() {
+    let (cat, mut m) = delayed_fighter(2);
+    assert_eq!(m.ships[0].reaction_ticks, 2);
+    for _ in 0..5 {
+        m.step(&cat);
+    }
+    let t = m.tick();
+    let mut a = ShipAction::IDLE;
+    a.throttle[0] = THROTTLE_INCREASE;
+    m.set_action(0, a);
+    m.step(&cat); // ends at t + 1: enqueued at the back
+    m.set_action(0, ShipAction::IDLE);
+    assert_eq!(m.ships[0].thrust_level[0], 0.0);
+    assert_eq!(m.ships[0].queue[1], a);
+    assert_eq!(m.ships[0].queue[0], ShipAction::IDLE);
+    m.step(&cat); // ends at t + 2: next in line
+    assert_eq!(m.ships[0].thrust_level[0], 0.0);
+    assert_eq!(m.ships[0].queue[0], a);
+    assert_eq!(m.ships[0].queue[1], ShipAction::IDLE);
+    m.step(&cat); // ends at t + 3: applied
+    assert_eq!(m.tick(), t + 3);
+    assert_eq!(m.applied[0], a);
+    assert_eq!(m.ships[0].thrust_level[0], RAMP_STEP);
+    assert_eq!(m.ships[0].queue, [ShipAction::IDLE; MAX_REACTION_TICKS]);
+    m.step(&cat);
+    assert_eq!(m.ships[0].thrust_level[0], RAMP_STEP, "a single INCREASE");
+}
+
+#[test]
+fn every_delay_applies_after_d_plus_one_steps() {
+    for d in 0..=MAX_REACTION_TICKS as u8 {
+        let (cat, mut m) = delayed_fighter(d);
+        let mut a = ShipAction::IDLE;
+        a.throttle[0] = THROTTLE_INCREASE;
+        m.set_action(0, a);
+        m.step(&cat);
+        m.set_action(0, ShipAction::IDLE);
+        for k in 0..d {
+            assert_eq!(m.ships[0].thrust_level[0], 0.0, "d {d} step {k}");
+            assert_eq!(
+                m.ships[0].queue[usize::from(d - 1 - k)],
+                a,
+                "d {d} step {k}"
+            );
+            m.step(&cat);
+        }
+        assert_eq!(m.ships[0].thrust_level[0], RAMP_STEP, "d {d}");
+        // Queue slots at and beyond d stay IDLE throughout.
+        assert!(m.ships[0].queue.iter().all(|q| *q == ShipAction::IDLE));
+    }
+}
+
+#[test]
+fn hull_reaction_ticks_overrides_the_match_config() {
+    let mut cat = test_catalogue();
+    cat.hulls[STRAFER as usize].reaction_ticks = Some(4);
+    let mut cfg = config(5, &[FIGHTER, STRAFER], &[FIGHTER]);
+    cfg.reaction_ticks = 1;
+    let m = Match::new(&cat, &cfg).unwrap();
+    let d: Vec<u8> = m.ships.iter().map(|s| s.reaction_ticks).collect();
+    assert_eq!(d, vec![1, 4, 1]);
+    assert_eq!(MatchConfig::default().reaction_ticks, 2);
+}
+
+/// Sticky random action rows from a private LCG (the test's own stream).
+struct RowGen(u64);
+
+impl RowGen {
+    fn next(&mut self) -> u32 {
+        self.0 = self
+            .0
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        (self.0 >> 33) as u32
+    }
+
+    fn row(&mut self) -> ShipAction {
+        let mut row = [0i8; ACTION_WIDTH];
+        for (i, r) in row.iter_mut().enumerate() {
+            let n = if i == ACTION_WIDTH - 1 { 7 } else { 3 };
+            *r = (self.next() % n) as i8;
+        }
+        ShipAction::from_row(&row)
+    }
+}
+
+/// A 2v2 from the real jump-in with delay `d`, up to 3000 ticks of sticky random
+/// rows; with `patch`, every row whose `act_mask` is false is replaced by noise.
+/// Returns the state hash after every step.
+fn masked_rows_run(d: u8, patch: bool) -> Vec<u64> {
+    let cat = test_catalogue();
+    let mut cfg = config(31, &[FIGHTER, STRAFER], &[GUNSHIP, FIGHTER]);
+    cfg.reaction_ticks = d;
+    cfg.time_limit_ticks = 3000;
+    let mut m = Match::new(&cat, &cfg).unwrap();
+    let mut base = RowGen(7);
+    let mut noise = RowGen(99);
+    let mut rows = [ShipAction::IDLE; 4];
+    let mut hashes = Vec::new();
+    let mut patched = 0;
+    while m.phase() == MatchPhase::Running {
+        for (s, row) in rows.iter_mut().enumerate() {
+            if base.next() % 8 == 0 {
+                *row = base.row();
+            }
+            let noisy = noise.row();
+            let a = if patch && !m.act_mask(s as u8) {
+                patched += 1;
+                noisy
+            } else {
+                *row
+            };
+            m.set_action(s as u8, a);
+        }
+        m.step(&cat);
+        hashes.push(m.state_hash());
+    }
+    assert!(
+        !patch || patched > 100,
+        "d {d}: only {patched} rows patched"
+    );
+    hashes
+}
+
+#[test]
+fn masked_rows_have_no_effect_on_state() {
+    for d in [0, 2, 4] {
+        let clean = masked_rows_run(d, false);
+        let patched = masked_rows_run(d, true);
+        assert!(clean.len() > 200, "d {d}: match ran {} ticks", clean.len());
+        assert_eq!(clean, patched, "d {d}");
+    }
+}
+
+#[test]
+fn unmasked_rows_on_the_last_locked_ticks_take_effect() {
+    let cat = test_catalogue();
+    for d in 1..=MAX_REACTION_TICKS as u8 {
+        let mut cfg = config(31, &[FIGHTER], &[FIGHTER]);
+        cfg.reaction_ticks = d;
+        let mut m = Match::new(&cat, &cfg).unwrap();
+        // Run until ship 0 is inside its arrival lock with act_mask already true.
+        while !(m.ships[0].present && m.act_mask(0)) {
+            m.step(&cat);
+        }
+        assert!(
+            m.ships[0].control_locked(m.tick() + 1),
+            "d {d}: still locked"
+        );
+        let mut twin = m.clone();
+        let mut a = ShipAction::IDLE;
+        a.throttle[0] = THROTTLE_INCREASE;
+        twin.set_action(0, a);
+        assert_eq!(m.state_hash(), twin.state_hash());
+        for _ in 0..=d {
+            m.step(&cat);
+            twin.step(&cat);
+        }
+        assert_ne!(m.state_hash(), twin.state_hash(), "d {d}");
+        assert_eq!(twin.ships[0].thrust_level[0], RAMP_STEP);
+    }
 }

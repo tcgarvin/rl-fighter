@@ -68,6 +68,8 @@ pub struct HullDef {
     /// Immobile hull: never integrated, infinite mass in collisions.
     pub is_static: bool,
     pub shield: Option<ShieldDef>,
+    /// v2: reaction delay override in ticks; `None` uses `MatchConfig.reaction_ticks`.
+    pub reaction_ticks: Option<u8>,
     pub cost: u32,
     pub collision: Vec<Circle>,
     pub thrusters: Vec<ThrusterDef>,

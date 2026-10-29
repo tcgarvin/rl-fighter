@@ -7,20 +7,22 @@ use sim::actions::{ACTION_WIDTH, ShipAction};
 use sim::data::{Catalogue, HullId};
 use sim::obs::OBS_DIM;
 use sim::scripted;
-use sim::setup::{DEFAULT_ARENA_RADIUS, DEFAULT_TIME_LIMIT_TICKS, MatchConfig};
+use sim::setup::{
+    DEFAULT_ARENA_RADIUS, DEFAULT_REACTION_TICKS, DEFAULT_TIME_LIMIT_TICKS, MatchConfig,
+};
 use sim::state::{MAX_THRUSTERS, MAX_TURRETS, Match, ShipIdx};
 
 /// Floats per ship in the ships view:
 /// `[pos.x, pos.y, vel.x, vel.y, heading, omega, hp, shield, alive, present, team,
-/// hull, throttle[8], turret_angle[6], power[3]]` (bools as 0/1, throttles 0/1/2,
-/// power shares shields, engines, weapons).
+/// hull, thrust_level[8], turret_angle[6], power[3]]` (bools as 0/1, thrust levels
+/// in `[0, 1]` (v2; v1 wrote throttles 0/1/2), power shares shields, engines, weapons).
 pub const SHIP_STRIDE: usize = 12 + MAX_THRUSTERS + MAX_TURRETS + 3;
 /// Floats per live projectile in the projectiles view:
 /// `[pool_slot, kind, team, owner, pos.x, pos.y, vel.x, vel.y]`. Only live pool
 /// slots are listed, in pool order; `pool_slot` identifies a projectile across
 /// ticks (a slot is reused only after its projectile dies or is overwritten).
 pub const PROJECTILE_STRIDE: usize = 8;
-/// Offset of the throttle block within a ship record.
+/// Offset of the thrust-level block within a ship record.
 pub const SHIP_THROTTLE_OFFSET: usize = 12;
 /// Offset of the turret-angle block within a ship record.
 pub const SHIP_TURRET_OFFSET: usize = SHIP_THROTTLE_OFFSET + MAX_THRUSTERS;
@@ -39,6 +41,9 @@ struct ConfigJson {
     arena_radius: f32,
     #[serde(default = "default_time_limit")]
     time_limit_ticks: u32,
+    /// v2; range-checked by `Match::new` (`SetupError::ReactionTooLong`).
+    #[serde(default = "default_reaction_ticks")]
+    reaction_ticks: u8,
     fleets: [Vec<String>; 2],
 }
 
@@ -48,6 +53,10 @@ fn default_arena_radius() -> f32 {
 
 fn default_time_limit() -> u32 {
     DEFAULT_TIME_LIMIT_TICKS
+}
+
+fn default_reaction_ticks() -> u8 {
+    DEFAULT_REACTION_TICKS
 }
 
 /// Parse `config_json` and resolve hull names against `cat`.
@@ -67,6 +76,7 @@ pub fn parse_config(cat: &Catalogue, config_json: &str) -> Result<MatchConfig, S
         seed: raw.seed,
         arena_radius: raw.arena_radius,
         time_limit_ticks: raw.time_limit_ticks,
+        reaction_ticks: raw.reaction_ticks,
         fleets: [resolve(0)?, resolve(1)?],
     })
 }
@@ -195,7 +205,7 @@ impl MatchCore {
                 f32::from(s.team),
                 f32::from(s.hull),
             ]);
-            self.ships.extend(s.throttle.iter().map(|&t| f32::from(t)));
+            self.ships.extend_from_slice(&s.thrust_level);
             self.ships.extend_from_slice(&s.turret_angle);
             self.ships.extend_from_slice(&s.power);
         }

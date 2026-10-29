@@ -72,6 +72,7 @@ fn hull(name: &str, role: &str, hp: f32, mass: f32, inertia: f32, speed_cap: f32
         speed_cap,
         is_static: false,
         shield: None,
+        reaction_ticks: None,
         cost: 10,
         collision: Vec::new(),
         thrusters: Vec::new(),
@@ -239,9 +240,12 @@ pub fn catalogue_with_static() -> (Catalogue, HullId) {
     (cat, id)
 }
 
+/// No reaction delay, so stage tests see an action on the very next step; tests of
+/// the delay set `reaction_ticks` themselves.
 pub fn config(seed: u64, team0: &[HullId], team1: &[HullId]) -> MatchConfig {
     MatchConfig {
         seed,
+        reaction_ticks: 0,
         fleets: [team0.to_vec(), team1.to_vec()],
         ..MatchConfig::default()
     }

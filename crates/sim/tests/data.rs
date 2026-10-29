@@ -249,6 +249,20 @@ fn rule9_weapons() {
 }
 
 #[test]
+fn rule10_reaction_ticks() {
+    let with = |v: &str| FIGHTER.replace("\ncost: 10", &format!("\nreaction_ticks: {v}\ncost: 10"));
+    for bad in ["5", "-1"] {
+        let err = Catalogue::from_yaml(&[("fighter", &with(bad))], WEAPONS).unwrap_err();
+        assert_rule(&messages(&err), 10, 1);
+    }
+    for (ok, want) in [("0", Some(0)), ("4", Some(4)), ("null", None)] {
+        let cat = Catalogue::from_yaml(&[("fighter", &with(ok))], WEAPONS).unwrap();
+        assert_eq!(cat.hulls[0].reaction_ticks, want, "reaction_ticks: {ok}");
+    }
+    assert_eq!(shipped().hulls[0].reaction_ticks, None);
+}
+
+#[test]
 fn unknown_field_is_a_parse_error() {
     let err = Catalogue::from_yaml(
         &[("bad", include_str!("fixtures/parse_unknown_field.yaml"))],

@@ -64,6 +64,9 @@ pub(crate) struct RawHull {
     pub is_static: bool,
     #[serde(default)]
     pub shield: Option<RawShield>,
+    /// v2: overrides `MatchConfig.reaction_ticks`; signed so rule 10 reports negatives.
+    #[serde(default)]
+    pub reaction_ticks: Option<i64>,
     pub cost: u32,
     pub collision: Vec<RawCircle>,
     pub thrusters: Vec<RawThruster>,

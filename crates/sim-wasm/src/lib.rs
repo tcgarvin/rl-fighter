@@ -26,13 +26,14 @@ pub fn wasm_memory() -> JsValue {
 }
 
 /// Floats per ship in `ships_*`: `[pos.x, pos.y, vel.x, vel.y, heading, omega, hp,
-/// shield, alive, present, team, hull, throttle[8], turret_angle[6], power[3]]`.
+/// shield, alive, present, team, hull, thrust_level[8], turret_angle[6], power[3]]`.
 #[wasm_bindgen(js_name = SHIP_STRIDE)]
 pub fn ship_stride() -> usize {
     bridge::SHIP_STRIDE
 }
 
-/// Offset of `throttle[8]` within a ship record (values 0, 1, 2).
+/// Offset of `thrust_level[8]` within a ship record (v2: levels in `[0, 1]`; the
+/// export keeps its v1 name).
 #[wasm_bindgen(js_name = SHIP_THROTTLE_OFFSET)]
 pub fn ship_throttle_offset() -> usize {
     bridge::SHIP_THROTTLE_OFFSET
@@ -112,8 +113,8 @@ fn hull_pairs(hull_yamls: &js_sys::Array) -> Result<Vec<(String, String)>, JsErr
 impl WasmMatch {
     /// `hull_yamls`: `[[dir_name, hull_yaml_text], ...]`; `weapons_yaml`: the text of
     /// `weapons.yaml`; `config_json`: `{"seed": 7, "arena_radius": 450,
-    /// "time_limit_ticks": 2700, "fleets": [["fighter"], ["fighter"]]}` (radius and
-    /// time limit optional). Throws on bad YAML, JSON, hull names or fleets.
+    /// "time_limit_ticks": 2700, "reaction_ticks": 2, "fleets": [["fighter"], ["fighter"]]}`
+    /// (radius, time limit and reaction ticks optional). Throws on bad YAML, JSON, hull names or fleets.
     #[wasm_bindgen(constructor)]
     pub fn new(
         #[wasm_bindgen(unchecked_param_type = "Array<[string, string]>")] hull_yamls: js_sys::Array,

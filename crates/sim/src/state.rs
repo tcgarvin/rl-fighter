@@ -26,6 +26,8 @@ pub const MAX_PROJECTILES: usize = 256;
 pub const MAX_EVENTS: usize = 512;
 /// HitRecords recorded per step; excess is dropped and counted.
 pub const MAX_HITS: usize = 64;
+/// Reaction-queue capacity: the largest allowed `reaction_ticks` (v2).
+pub const MAX_REACTION_TICKS: usize = 4;
 
 /// Ship slot within a match.
 pub type ShipIdx = u8;
@@ -81,10 +83,11 @@ pub struct Ship {
     pub alive: bool,
     pub present: bool,
     pub arrive_tick: u32,
-    /// Throttle and fire are forced to zero while `tick < control_lock_until`.
+    /// Stage 3 applies `ShipAction::LOCKED` while `tick < control_lock_until`.
     pub control_lock_until: u32,
-    /// Per thruster: 0, 1, 2 → off, half, full.
-    pub throttle: [u8; MAX_THRUSTERS],
+    /// Per thruster: continuous level in `[0, 1]`, ramped by the throttle heads (v2).
+    /// Slots beyond the hull's thrusters stay 0.
+    pub thrust_level: [f32; MAX_THRUSTERS],
     /// Body-frame turret angles, radians.
     pub turret_angle: [f32; MAX_TURRETS],
     /// Seconds until each turret may fire again.
@@ -97,13 +100,25 @@ pub struct Ship {
     pub parent: ShipIdx,
     /// Reserved for M5+: always `Attach::None` in M1.
     pub attach: Attach,
+    /// Effective reaction delay `d` in ticks (hull override or match config), at most
+    /// `MAX_REACTION_TICKS` (v2).
+    pub reaction_ticks: u8,
+    /// Reaction FIFO (v2): `queue[0]` applies on the next step; slots `>= d` stay IDLE.
+    pub queue: [ShipAction; MAX_REACTION_TICKS],
 }
 
 impl Ship {
     /// A full-health, not-yet-present ship at the origin with the initial power split
-    /// (table index 0) and turrets at rest. Placement fills `pos`, `heading`,
+    /// (table index 0), turrets at rest, every thrust level 0 and an all-`IDLE`
+    /// reaction queue of delay `reaction_ticks`. Placement fills `pos`, `heading`,
     /// `arrive_tick` and `present`.
-    pub fn new(hull_def: &HullDef, hull: HullId, team: u8, slot: ShipIdx) -> Ship {
+    pub fn new(
+        hull_def: &HullDef,
+        hull: HullId,
+        team: u8,
+        slot: ShipIdx,
+        reaction_ticks: u8,
+    ) -> Ship {
         let mut turret_angle = [0.0; MAX_TURRETS];
         for (angle, t) in turret_angle.iter_mut().zip(&hull_def.turrets) {
             *angle = t.rest;
@@ -124,13 +139,15 @@ impl Ship {
             present: false,
             arrive_tick: 0,
             control_lock_until: 0,
-            throttle: [0; MAX_THRUSTERS],
+            thrust_level: [0.0; MAX_THRUSTERS],
             turret_angle,
             turret_cooldown: [0.0; MAX_TURRETS],
             power: split,
             power_target: split,
             parent: NONE,
             attach: Attach::None,
+            reaction_ticks,
+            queue: [ShipAction::IDLE; MAX_REACTION_TICKS],
         }
     }
 
@@ -168,13 +185,15 @@ impl StateHash for Ship {
         h.write_bool(self.present);
         h.write_u32(self.arrive_tick);
         h.write_u32(self.control_lock_until);
-        self.throttle.hash_into(h);
+        self.thrust_level.hash_into(h);
         self.turret_angle.hash_into(h);
         self.turret_cooldown.hash_into(h);
         self.power.hash_into(h);
         self.power_target.hash_into(h);
         h.write_u8(self.parent);
         h.write_u8(self.attach.index());
+        h.write_u8(self.reaction_ticks);
+        self.queue.hash_into(h);
     }
 }
 
@@ -191,8 +210,11 @@ pub struct Projectile {
     pub speed: f32,
     pub damage: f32,
     pub life_ticks: u32,
-    /// Tick the shot was fired; hit credit goes back to this step (§8).
+    /// Tick the shot was fired.
     pub fire_tick: u32,
+    /// Post-step tick of the obs the firing action was chosen from,
+    /// `fire_tick - 1 - d_shooter` (v2); hit credit goes back to this step (§8).
+    pub decision_tick: u32,
     /// Torpedo lock; `NONE` for other kinds or no lock.
     pub target: ShipIdx,
 }
@@ -211,6 +233,7 @@ impl Projectile {
         damage: 0.0,
         life_ticks: 0,
         fire_tick: 0,
+        decision_tick: 0,
         target: NONE,
     };
 }
@@ -234,6 +257,7 @@ impl StateHash for Projectile {
         h.write_f32(self.damage);
         h.write_u32(self.life_ticks);
         h.write_u32(self.fire_tick);
+        h.write_u32(self.decision_tick);
         h.write_u8(self.target);
     }
 }
@@ -252,8 +276,12 @@ pub struct Match {
     pub projectiles: [Projectile; MAX_PROJECTILES],
     /// Next pool slot to (over)write.
     pub proj_next: usize,
-    /// Actions applied on the next step, per slot.
+    /// `set_action` input per slot: the action chosen now, enqueued (or, with no
+    /// reaction delay, applied) by the next step's stage 3. Not hashed.
     pub pending: [ShipAction; MAX_SHIPS],
+    /// Per slot, the action stages 5–7 used in the last step: dequeued, sanitised,
+    /// `LOCKED` while locked (v2). Not hashed: output only.
+    pub applied: [ShipAction; MAX_SHIPS],
     /// Events of the last step (not hashed: output only).
     pub events: EventBuf,
     /// Damage applications of the last step, at most `MAX_HITS` (not hashed).

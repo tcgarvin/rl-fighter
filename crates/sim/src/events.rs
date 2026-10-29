@@ -214,6 +214,8 @@ pub struct HitRecord {
     pub damage: f32,
     /// Tick the shot was fired (the current tick for beams).
     pub fire_tick: u32,
+    /// Post-step tick of the obs the firing action was chosen from (v2, §8).
+    pub decision_tick: u32,
     /// The shield took it (no hull damage).
     pub shield: bool,
 }

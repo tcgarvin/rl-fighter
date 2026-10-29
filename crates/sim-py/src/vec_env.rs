@@ -355,7 +355,7 @@ impl VecEnv {
             d.set_item("alive", s.alive)?;
             d.set_item("present", s.present)?;
             d.set_item("arrive_tick", s.arrive_tick)?;
-            d.set_item("throttle", &s.throttle[..hull.thrusters.len()])?;
+            d.set_item("thrust_level", &s.thrust_level[..hull.thrusters.len()])?;
             d.set_item("turret_angle", &s.turret_angle[..hull.turrets.len()])?;
             d.set_item("power", s.power.to_vec())?;
             ships.append(d)?;
