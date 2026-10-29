@@ -17,8 +17,10 @@ def test_headings_tables_lists_and_inline_markup_render() -> None:
     assert "<h1>A <strong>bold</strong> title</h1>" in body
     assert "<code>code</code>" in body
     assert '<a href="https://x.y">link</a>' in body
-    assert "<ul><li>one</li><li>two</li><ul><li>nested</li></ul></ul>" in body
-    assert "<th>a</th><th>b</th>" in body and "<td>1</td><td>2</td>" in body
+    flat = "".join(body.split())
+    assert "<ul><li>one</li><li>two<ul><li>nested</li></ul></li></ul>" in flat
+    assert "<th>a</th><th>b</th>" in flat and "<td>1</td><td>2</td>" in flat
+    assert '<div class="table-scroll"><table>' in body
 
 
 def test_hand_markers_drop_and_coordinator_todos_read_pending() -> None:

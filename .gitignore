@@ -27,4 +27,5 @@ lab/runs/**/*.npz
 node_modules/
 web/public/bundle/
 web/public/notebook/data/
+web/public/hulls/data/
 web/shots/
