@@ -6,7 +6,7 @@
 | Branch | `m1-sim` → `spike/learnability` |
 | Question | DESIGN §12 item 3: with a small MLP on a CPU-only laptop, does a fighter learn to fly, aim and fire by driving thrusters and a trigger directly, within ~4 h? |
 | Scenario | 1v1 fighter vs fighter, arena 450 m, 90 s limit, `reaction_ticks` 2 (SIM_SPEC §0 item 3), on `SIM_VERSION` 2 |
-| Status | planned (update to running / done / aborted); **blocked on SIM_SPEC §14.1 WP11–14 (sim v2)** |
+| Status | planned (update to running / done / aborted); sim v2 block **lifted** 2026-10-28: WP11–15 merged on `m1-sim`, `SIM_VERSION` 2, duel gate passed (`lab/runs/2026-10-28-sim-v2/results.md`) |
 | Hands | balance sweep: agent A (= SIM_SPEC WP15); policy + BC: agent B; PPO loop: agent C; eval: agent D (see §8) |
 
 **Sim v2 first.** The sim refinements in SIM_SPEC §0 (lighter damping, throttle ramp,
@@ -68,6 +68,13 @@ head only matters for ~2 s of a 5 s episode.
 The starting tuple is written into the assets by SIM_SPEC WP14 (it is the v2
 baseline the golden traces are generated on); this run's sweep (WP15) moves it if a
 gate fails.
+
+**Final (WP15, 2026-10-28):** gauss **5 dmg** / 0.20 s / 220 m / 200 m/s / 1.0°,
+fighter **80 hp**, armour as designed. That is the start tuple below with `damage` 3 → 5,
+plus a scripted-pilot change (extend after a merge; SIM_SPEC §11). With the sim.js
+pilot no tuple could pass: the fighters never left gun range after the first merge.
+At `reaction_ticks` 2: median 1296 ticks, 1 % mutual kills, 0 % time limit, 3 passes,
+32 % hp per pass. Every tried tuple is in `lab/runs/2026-10-28-sim-v2/results.md`.
 
 | Field | v1 | v2 start | why |
 |---|---|---|---|
