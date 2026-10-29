@@ -122,3 +122,18 @@ fn bad_ship_index_or_row_length_is_an_error() {
     assert!(m.scripted_action(9).is_err());
     assert!(m.obs(2).is_err());
 }
+
+#[test]
+fn head_valid_masks_absent_slots_and_fixed_guns() {
+    let m = duel();
+    // Fighter: 5 thrusters, one fixed nose gun.
+    let mut want = vec![1u8; 5];
+    want.extend([0; 3]); // absent thrusters
+    want.extend([0; 6]); // slew: the only turret is fixed
+    want.push(1); // fire: nose gun
+    want.extend([0; 5]);
+    want.push(1); // power
+    assert_eq!(m.head_valid(0).unwrap(), want);
+    assert_eq!(m.head_valid(1).unwrap(), want);
+    assert!(m.head_valid(2).is_err());
+}

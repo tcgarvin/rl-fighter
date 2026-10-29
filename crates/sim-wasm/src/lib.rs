@@ -169,6 +169,12 @@ impl WasmMatch {
         self.core.events_view().len()
     }
 
+    /// Ship `ship`'s `ACTION_WIDTH` head-validity flags (1 meaningful, 0 masked: the
+    /// policy writes HOLD / no-fire there), derived from its hull.
+    pub fn head_valid(&self, ship: u32) -> Result<Vec<u8>, JsError> {
+        self.core.head_valid(ship).map_err(js_err)
+    }
+
     /// Ship `ship`'s observation (`OBS_DIM` floats, a copy).
     pub fn obs(&self, ship: u32) -> Result<Vec<f32>, JsError> {
         self.core.obs(ship).map_err(js_err)

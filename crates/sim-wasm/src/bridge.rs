@@ -3,7 +3,7 @@
 //! module builds and tests natively; `lib.rs` turns them into `JsError`.
 
 use serde::Deserialize;
-use sim::actions::{ACTION_WIDTH, ShipAction};
+use sim::actions::{self, ACTION_WIDTH, ShipAction};
 use sim::data::{Catalogue, HullId};
 use sim::obs::OBS_DIM;
 use sim::scripted;
@@ -149,6 +149,25 @@ impl MatchCore {
         let mut row = vec![0i8; ACTION_WIDTH];
         scripted::act(&self.m, &self.cat, slot).to_row(&mut row);
         Ok(row)
+    }
+
+    /// Which of ship `ship`'s `ACTION_WIDTH` action heads are meaningful (1) or masked
+    /// (0), from its hull: throttle heads of present thrusters, slew heads of present
+    /// non-fixed turrets, fire heads of present turrets, and the power head (always 1).
+    /// Same rule as the trained policy's `HeadMasks.head_valid()`.
+    pub fn head_valid(&self, ship: u32) -> Result<Vec<u8>, String> {
+        let slot = self.check_ship(ship)?;
+        let hull = self.cat.hull(self.m.ships()[slot as usize].hull);
+        let thruster = actions::thruster_mask(hull);
+        let turret = actions::turret_mask(hull);
+        let fixed = actions::fixed_turret(hull);
+        let mut out = Vec::with_capacity(ACTION_WIDTH);
+        out.extend(thruster.iter().map(|&t| u8::from(t)));
+        out.extend((0..MAX_TURRETS).map(|j| u8::from(turret[j] && !fixed[j])));
+        out.extend(turret.iter().map(|&t| u8::from(t)));
+        out.push(1);
+        debug_assert_eq!(out.len(), ACTION_WIDTH);
+        Ok(out)
     }
 
     /// Ship `ship`'s observation, `OBS_DIM` floats (SIM_SPEC §7.2).
