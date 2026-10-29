@@ -79,7 +79,6 @@ window.addEventListener("resize", layout);
 // ---- Bundle: load, re-check, swap only between matches. ----
 function applyBundle(b: Bundle): void {
   bundle = b;
-  world.setArena(b.manifest.match.arena_radius);
   const missing = b.catalogue.hulls.map(([name]) => name).filter((n) => !thumbnails[n] && hullSpec(n));
   if (missing.length) Object.assign(thumbnails, world.thumbnails(missing));
   hud.setCaption(b.manifest);
@@ -124,6 +123,7 @@ function startMatch(): void {
   nextSeed = (nextSeed + 1) % 1_000_000_000;
   roster = chooseRoster(rosterMode, bundle.manifest.roster, bundle.catalogue.info, mulberry32(seed ^ ROSTER_SALT));
   const next = new LiveMatch({ ...bundle, settings: bundle.manifest.match, fleets: roster.fleets, seed });
+  world.setArena(next.arenaRadius);
   world.beginMatch(next);
   match?.free();
   match = next;

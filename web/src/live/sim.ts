@@ -28,6 +28,8 @@ export interface SimModule {
   initSync(init: { module: BufferSource }): unknown;
   WasmMatch: new (hulls: Array<[string, string]>, weaponsYaml: string, configJson: string) => WasmMatch;
   sim_version(): number;
+  /** Arena radius for a match of this many ships: the one rule training uses (sim::setup). */
+  arenaRadiusFor(nShips: number): number;
   wasm_memory(): WebAssembly.Memory;
   OBS_DIM(): number;
   ACTION_WIDTH(): number;

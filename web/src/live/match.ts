@@ -47,6 +47,8 @@ export class LiveMatch {
   readonly seed: number;
   readonly fleets: Fleets;
   readonly settings: MatchSettings;
+  /** From the sim's shared rule, not the manifest, so the page sizes arenas as training did. */
+  readonly arenaRadius: number;
   readonly nShips: number;
   readonly ships: ShipState[] = [];
   readonly maxHp: number[];
@@ -77,12 +79,13 @@ export class LiveMatch {
     this.seed = o.seed;
     this.fleets = o.fleets;
     this.settings = o.settings;
+    this.arenaRadius = o.sim.arenaRadiusFor(o.fleets[0].length + o.fleets[1].length);
     this.match = new o.sim.WasmMatch(
       o.catalogue.hulls,
       o.catalogue.weapons,
       JSON.stringify({
         seed: o.seed,
-        arena_radius: o.settings.arena_radius,
+        arena_radius: this.arenaRadius,
         time_limit_ticks: o.settings.time_limit_ticks,
         reaction_ticks: o.settings.reaction_ticks,
         fleets: o.fleets,
