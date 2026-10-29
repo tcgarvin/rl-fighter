@@ -27,6 +27,7 @@ import numpy as np
 import rlf_sim
 from numpy.typing import NDArray
 
+SIM_VERSION: int = int(rlf_sim.SIM_VERSION)
 OBS_DIM: int = rlf_sim.OBS_DIM
 ACTION_WIDTH: int = rlf_sim.ACTION_WIDTH
 MAX_HITS: int = rlf_sim.MAX_HITS

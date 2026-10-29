@@ -37,7 +37,7 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
-from spacefight.env.rust_env import RustVecEnv
+from spacefight.env.rust_env import SIM_VERSION, RustVecEnv
 from spacefight.eval.controllers import Policy, Scripted
 from spacefight.eval.duel import DuelResult, evaluate
 from spacefight.rl.spike_policy import (
@@ -577,7 +577,12 @@ def run(
         checkpoint,
         actor,
         critic,
-        {"source": "bc", "critic": "fresh", "bc_eval": json.loads(json.dumps(report))},
+        {
+            "source": "bc",
+            "sim_version": SIM_VERSION,
+            "critic": "fresh",
+            "bc_eval": json.loads(json.dumps(report)),
+        },
     )
     eval_path = out_dir / EVAL_NAME
     eval_path.write_text(json.dumps(report, indent=2) + "\n")
@@ -1105,6 +1110,7 @@ def _save_round(
         SpikeCritic(),
         {
             "source": "bc_dagger",
+            "sim_version": SIM_VERSION,
             "critic": "fresh",
             "round": k,
             "holdout_agreement": json.loads(json.dumps(row["holdout_agreement"])),

@@ -102,25 +102,23 @@ def checkpoint_sim_version(
 ) -> SimVersion:
     """The sim version a checkpoint was trained on.
 
-    Spike checkpoints do not stamp it, so this falls back to the eval JSON's config
-    and then to the ``rlf_sim`` extension the lab trains with.
+    Checkpoints written since SIM_VERSION 3 stamp it in their meta; older spike
+    checkpoints do not, so they need the eval JSON of an eval run on their sim.
+    The installed ``rlf_sim`` is never used as a fallback: it says what the lab runs
+    now, not what an old checkpoint was trained on.
 
     Raises:
-        ExportError: No source gives a version.
+        ExportError: Neither the meta nor the eval JSON gives a version.
     """
     stamped = meta.get("sim_version")
     if isinstance(stamped, int):
         return SimVersion(stamped, "checkpoint meta")
     if eval_summary is not None and isinstance(eval_summary.get("sim_version"), int):
         return SimVersion(int(eval_summary["sim_version"]), "eval json config")
-    try:
-        import rlf_sim  # type: ignore[import-not-found]
-    except ImportError as exc:
-        raise ExportError(
-            "checkpoint has no sim_version and rlf_sim is not importable; "
-            "pass --eval-json from an eval of this checkpoint"
-        ) from exc
-    return SimVersion(int(rlf_sim.SIM_VERSION), "rlf_sim (training extension)")
+    raise ExportError(
+        "checkpoint has no sim_version; pass --eval-json from an eval of this "
+        "checkpoint on the sim it was trained for"
+    )
 
 
 def summarize_eval(path: Path) -> dict[str, Any]:

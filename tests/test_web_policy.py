@@ -38,6 +38,12 @@ LAB_CHECKPOINT = Path(
         REPO / "lab/runs/2026-10-28-learnability-spike/bc_dagger/best.pt",
     )
 )
+LAB_EVAL = Path(
+    os.environ.get(
+        "RLF_PARITY_EVAL",
+        REPO / "lab/runs/2026-10-28-learnability-spike/eval/bc_dagger_vs_script.json",
+    )
+)
 NODE = shutil.which("node")
 
 pytestmark = pytest.mark.skipif(NODE is None, reason="node is not on PATH")
@@ -112,11 +118,19 @@ def _run_js(
     return result
 
 
-def _check_parity(checkpoint: Path, tmp: Path, sim_version: int) -> None:
+def _check_parity(
+    checkpoint: Path, tmp: Path, sim_version: int, eval_json: Path | None = None
+) -> None:
     from spacefight.rl.spike_policy import load_policy
 
     policy_dir = tmp / "policy"
-    export(checkpoint, policy_dir, wasm_sim_version=sim_version, wasm_obs_dim=OBS_DIM)
+    export(
+        checkpoint,
+        policy_dir,
+        wasm_sim_version=sim_version,
+        wasm_obs_dim=OBS_DIM,
+        eval_json=eval_json,
+    )
     actor = load_policy(checkpoint)[0].eval()
     rng = np.random.default_rng(0)
     n = 64
@@ -148,7 +162,19 @@ def test_js_policy_matches_torch_on_random_weights(tmp_path: Path) -> None:
 
 @pytest.mark.skipif(not LAB_CHECKPOINT.is_file(), reason="lab checkpoint not present")
 def test_js_policy_matches_torch_on_lab_checkpoint(tmp_path: Path) -> None:
-    _check_parity(LAB_CHECKPOINT, tmp_path, sim_version=2)
+    # Spike checkpoints predate the sim_version stamp; their v2 eval supplies it.
+    _check_parity(LAB_CHECKPOINT, tmp_path, sim_version=2, eval_json=LAB_EVAL)
+
+
+def test_export_refuses_an_unstamped_checkpoint_without_eval_json(
+    tmp_path: Path,
+) -> None:
+    from spacefight.rl.spike_policy import SpikeActor, SpikeCritic, save_policy
+
+    ckpt = tmp_path / "unstamped.pt"
+    save_policy(ckpt, SpikeActor(), SpikeCritic(), {"kind": "test"})
+    with pytest.raises(ExportError, match="no sim_version"):
+        export(ckpt, tmp_path / "out", wasm_sim_version=3, wasm_obs_dim=OBS_DIM)
 
 
 def test_export_refuses_a_sim_version_mismatch(tmp_path: Path) -> None:

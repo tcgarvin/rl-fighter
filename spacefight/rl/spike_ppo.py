@@ -44,7 +44,7 @@ import torch.nn as nn
 import yaml  # type: ignore[import-untyped]
 from numpy.typing import NDArray
 
-from spacefight.env.rust_env import OBS_LAYOUT, RustVecEnv, StepInfo
+from spacefight.env.rust_env import OBS_LAYOUT, SIM_VERSION, RustVecEnv, StepInfo
 from spacefight.rl.credit import (
     HIT_DAMAGE_MILLI,
     HIT_DAMAGE_SCALE,
@@ -733,6 +733,7 @@ class SpikeTrainer:
         tmp = path.with_suffix(".tmp")
         meta = {
             "kind": "spike_ppo",
+            "sim_version": SIM_VERSION,
             "update": self.next_update,
             "config": self.config.to_dict(),
         }
