@@ -393,14 +393,17 @@ def test_events_have_a_match_index_column():
 
 
 def test_collision_damage_matches_collision_events():
-    """Scripted fighters ram nose to nose (sim v3): every step with collision damage
-    in a match has a ``Collision`` event there and vice versa, closing faster than
-    the 10 m/s free speed."""
+    """Fighters flown straight at each other from the jump-in ram nose to nose in
+    some matches (sim v3): every step with collision damage in a match has a
+    ``Collision`` event there and vice versa, closing faster than the 10 m/s free
+    speed. (The scripted pilot deconflicts, so it cannot drive this test.)"""
     n = 16
     env = make_env(n_envs=n, seed=5, record_events=True)
     crashes = 0
-    for _ in range(1500):
-        env.scripted_actions()
+    for _ in range(600):
+        env.actions.fill(1)  # hold every thruster, slew and power head...
+        env.actions[:, :, 0] = 2  # ...but ramp the main engine up (thruster 0)
+        env.actions[:, :, 14:] = 0  # no fire, power head 0
         env.step()
         damage = env.collision_damage
         assert (damage >= 0).all()
@@ -416,7 +419,7 @@ def test_collision_damage_matches_collision_events():
                 np.hypot(crash[:, 6], crash[:, 7]), 1.0, atol=1e-5
             )
         crashes += len(crash)
-    assert crashes > 0, "scripted duels should crash at least once"
+    assert crashes > 0, "straight-line duels should crash at least once"
 
 
 def test_render_state_lists_ships_and_projectiles():
