@@ -71,13 +71,28 @@ APPROACH_PROMINENCE = 20.0
 class Balance:
     """The duel balance knobs: gauss weapon numbers and fighter hull hp."""
 
-    damage: float = 3.0
-    interval: float = 0.20
-    range: float = 220.0
-    speed: float = 200.0
-    spread_deg: float = 1.0
-    hp: float = 80.0
+    damage: float
+    interval: float
+    range: float
+    speed: float
+    spread_deg: float
+    hp: float
     armour: bool = True
+
+    @classmethod
+    def shipped(cls, src: Path = ASSETS) -> Balance:
+        """The tuple currently in the asset files under ``src``."""
+        gauss = yaml.safe_load((src / "weapons.yaml").read_text())["gauss"]
+        hull = yaml.safe_load((src / "hulls" / "fighter" / "hull.yaml").read_text())
+        return cls(
+            damage=float(gauss["damage"]),
+            interval=float(gauss["interval"]),
+            range=float(gauss["range"]),
+            speed=float(gauss["speed"]),
+            spread_deg=float(gauss["spread_deg"]),
+            hp=float(hull["hp"]),
+            armour=bool(hull.get("armour")),
+        )
 
     def label(self) -> str:
         armour = "" if self.armour else " no-armour"
@@ -396,7 +411,7 @@ def table_row(s: CellSummary) -> str:
 
 
 def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
-    d = Balance()
+    d = Balance.shipped()
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--n", type=int, default=200, help="duels (seeds) per cell")
     p.add_argument("--seed", type=int, default=0, help="VecEnv base seed")

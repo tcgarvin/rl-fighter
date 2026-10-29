@@ -42,14 +42,25 @@ def test_patched_assets_writes_the_tuple_into_a_copy_only() -> None:
     assert (ASSETS / "hulls" / "fighter" / "hull.yaml").read_text() == real_hull
 
 
+def test_shipped_balance_reads_the_asset_files() -> None:
+    shipped = Balance.shipped()
+    gauss = yaml.safe_load((ASSETS / "weapons.yaml").read_text())["gauss"]
+    assert (shipped.damage, shipped.range, shipped.interval) == (
+        gauss["damage"],
+        gauss["range"],
+        gauss["interval"],
+    )
+    assert shipped.armour
+
+
 def test_patched_assets_can_strip_the_armour() -> None:
-    with patched_assets(Balance(armour=False)) as assets:
+    with patched_assets(replace(Balance.shipped(), armour=False)) as assets:
         hull = yaml.safe_load((assets / "hulls" / "fighter" / "hull.yaml").read_text())
     assert "armour" not in hull
 
 
 def test_tiny_sweep_ends_duels_in_kills_with_plausible_metrics() -> None:
-    summary = run_cell(Balance(), TINY, Gates())
+    summary = run_cell(Balance.shipped(), TINY, Gates())
     assert summary.n == 16
     assert summary.draw_rate <= 0.5
     assert summary.time_limit_rate <= 0.5
@@ -63,12 +74,14 @@ def test_tiny_sweep_ends_duels_in_kills_with_plausible_metrics() -> None:
 
 
 def test_sweep_is_deterministic() -> None:
-    assert run_cell(Balance(), TINY, Gates()) == run_cell(Balance(), TINY, Gates())
+    assert run_cell(Balance.shipped(), TINY, Gates()) == run_cell(
+        Balance.shipped(), TINY, Gates()
+    )
 
 
 def _passing_summary() -> CellSummary:
     return CellSummary(
-        balance=Balance(),
+        balance=Balance.shipped(),
         reaction_ticks=2,
         n=200,
         median_length=1000,
