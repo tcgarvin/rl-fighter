@@ -7,7 +7,27 @@
     <title>RL Fighter · Live</title>
     <meta name="description" content="A live space battle: every ship flown by a neural-network pilot, trained overnight on a laptop." />
   </head>
-  <body>
+  <body class="live-page">
+    <div id="hud">
+      <div id="topbar">
+        <div id="status">
+          <div class="kicker"><span class="live-dot">●</span> Live</div>
+          <div id="tally"></div>
+          <div id="meta">loading the pilot…</div>
+          <div id="meta-details"></div>
+        </div>
+        <div id="perf" aria-label="Simulation performance"></div>
+      </div>
+      <div id="tags"></div>
+      <div id="banner" role="status" aria-live="polite"></div>
+      <div id="bottom">
+        <p id="caption"></p>
+        <div id="controls">
+          <button type="button" id="details-toggle" aria-pressed="false">Technical details</button>
+        </div>
+      </div>
+    </div>
+    <div id="muster" hidden></div>
     <script type="module" src="/src/live/main.ts"></script>
   </body>
 </html>
