@@ -8,6 +8,8 @@ inertia: 2200.0
 speed_cap: 24.0
 static: false
 shield: {hp: 140, regen_rate: 12, regen_delay: 4, radius: 11}
+impact:                # v3 collision damage: sturdier all round
+  - {from_deg: -180, to_deg: 180, mult: 0.75}
 cost: 30
 collision:
   - {pos: [4.5, 0.0], r: 3.6}

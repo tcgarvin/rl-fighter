@@ -90,6 +90,9 @@ pub struct HullDef {
     pub bays: Vec<BayDef>,
     /// Directional armour arcs in list order; empty means uniform 1x (SIM_SPEC §4.1).
     pub armour: Vec<ArmourArc>,
+    /// v3: directional collision-damage arcs (same layout as `armour`); empty means
+    /// uniform 1x (SIM_SPEC §4.1, §5.5).
+    pub impact: Vec<ArmourArc>,
 
     // Derived on load.
     /// `max(|c.pos| + c.r)` over collision circles.
@@ -130,8 +133,20 @@ impl HullDef {
 /// bearing; anything past the last `to` (only `+PI`, or a hair below `-PI`'s
 /// rounding on the other end) takes the last arc. 1.0 without armour.
 pub fn armour_mult(hull: &HullDef, bearing: f32) -> f32 {
-    match hull.armour.iter().find(|a| bearing < a.to) {
+    arc_mult(&hull.armour, bearing)
+}
+
+/// Collision damage multiplier at body-frame `bearing` (v3, SIM_SPEC §4.1, §5.5):
+/// the same lookup as [`armour_mult`] over the hull's `impact` arcs. 1.0 without
+/// impact arcs.
+pub fn impact_mult(hull: &HullDef, bearing: f32) -> f32 {
+    arc_mult(&hull.impact, bearing)
+}
+
+/// First arc whose `to` lies above `bearing`, else the last arc, else 1.0.
+fn arc_mult(arcs: &[ArmourArc], bearing: f32) -> f32 {
+    match arcs.iter().find(|a| bearing < a.to) {
         Some(a) => a.mult,
-        None => hull.armour.last().map_or(1.0, |a| a.mult),
+        None => arcs.last().map_or(1.0, |a| a.mult),
     }
 }

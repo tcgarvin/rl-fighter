@@ -38,6 +38,9 @@ THRUSTER_PRESENT, THRUSTER_ACCEL, THRUSTER_LEVEL = 0, 5, 6
 # (SIM_SPEC §9 with the leading match index).
 EV_MATCH, EV_KIND, EV_A, EV_B, EV_SLOT5, EV_EXTRA = 0, 1, 2, 3, 6, 8
 KIND_FIRE, KIND_BEAM, KIND_HIT, KIND_SHIELD_HIT, KIND_DEATH = 0, 1, 2, 3, 5
+KIND_BURST, KIND_ARRIVAL = 4, 6
+# SIM_VERSION 3: a damaging ship-ship collision, ``[k, a, b, x, y, nx, ny, closing]``.
+KIND_COLLISION = 7
 
 # Columns of the per-step ``hits`` rows (SIM_SPEC §8).
 HIT_SHOOTER, HIT_TARGET, HIT_FIRE_TICK, HIT_DAMAGE, HIT_SHIELD, HIT_DECISION = range(6)

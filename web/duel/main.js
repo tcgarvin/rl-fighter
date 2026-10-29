@@ -25,6 +25,8 @@ const JUMP_DURATION = 0.055;
 // The wreck burns this long under the result banner before the next match.
 const RESULT_HOLD = 3.5;
 const DEATH_RADIUS_SCALE = 2.5;
+// Largest crash flash radius, metres (a 100 m/s head-on reaches it).
+const COLLISION_FLASH_MAX = 4;
 const PERF_INTERVAL = 0.25;
 
 const CAPTIONS = {
@@ -222,6 +224,12 @@ function dispatchEvents() {
       case "arrival":
         views[e.a].jumpStart = elapsed;
         effects.arrival({ x: e.x, y: e.y, heading: e.extra, team: duel.ships[e.a].team, size: views[e.a].hull.length, duration: JUMP_DURATION });
+        break;
+      case "collision":
+        // Sim v3 crash: a teamless (white) flash with the hit's amber sparks, a bit
+        // bigger the harder the ships met (extra = closing speed, m/s).
+        effects.hit({ x: e.x, y: e.y, team: -1, targetId: e.a });
+        effects.explosion({ x: e.x, y: e.y, radius: Math.min(COLLISION_FLASH_MAX, 1.5 + e.extra / 40), team: -1, kind: "collision" });
         break;
     }
   }

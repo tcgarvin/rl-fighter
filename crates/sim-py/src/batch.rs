@@ -54,7 +54,8 @@ impl std::fmt::Display for BatchError {
 impl std::error::Error for BatchError {}
 
 /// Per-step buffers, flat and C-ordered: `obs [N,S,OBS_DIM]`, `actions [N,S,21]`,
-/// `rewards/act_mask/alive [N,S]`, `dones/winner/tick/episode_count/hit_count [N]`,
+/// `rewards/act_mask/alive/collision_damage [N,S]`,
+/// `dones/winner/tick/episode_count/hit_count [N]`,
 /// `hits [N,MAX_HITS,HIT_FIELDS]`.
 pub struct StepBuffers<'a> {
     pub obs: &'a mut [f32],
@@ -68,6 +69,8 @@ pub struct StepBuffers<'a> {
     pub episode_count: &'a mut [u32],
     pub hits: &'a mut [i32],
     pub hit_count: &'a mut [i32],
+    /// v3: hull damage each ship took from collisions in the step (SIM_SPEC §5.5).
+    pub collision_damage: &'a mut [f32],
 }
 
 /// Buffers that only change when the fleets do (i.e. never after construction):
@@ -93,6 +96,7 @@ struct MatchRows<'a> {
     episode_count: &'a mut u32,
     hits: &'a mut [i32],
     hit_count: &'a mut i32,
+    collision_damage: &'a mut [f32],
 }
 
 /// One match plus the env-side state that travels with it.
@@ -208,6 +212,7 @@ impl Batch {
                     *r.winner = WINNER_NONE;
                     r.hits.fill(0);
                     *r.hit_count = 0;
+                    r.collision_damage.fill(0.0);
                     slot.events.clear();
                     write_post_step(cat, n_ships, slot, &mut r);
                 });
@@ -288,6 +293,7 @@ impl Batch {
         let mut episode_count = b.episode_count.iter_mut();
         let mut hits = b.hits.chunks_mut(MAX_HITS * HIT_FIELDS);
         let mut hit_count = b.hit_count.iter_mut();
+        let mut collision_damage = b.collision_damage.chunks_mut(s);
         const SHORT: &str = "buffer shorter than n_envs rows";
         let out: Vec<MatchRows<'a>> = (0..n)
             .map(|_| MatchRows {
@@ -302,6 +308,7 @@ impl Batch {
                 episode_count: episode_count.next().expect(SHORT),
                 hits: hits.next().expect(SHORT),
                 hit_count: hit_count.next().expect(SHORT),
+                collision_damage: collision_damage.next().expect(SHORT),
             })
             .collect();
         assert_eq!(out.len(), n, "buffer row count does not match n_envs");
@@ -326,6 +333,8 @@ fn step_one(
     m.step(cat);
 
     r.rewards.copy_from_slice(m.rewards());
+    r.collision_damage
+        .copy_from_slice(&m.collision_damage[..n_ships]);
     write_hits(m, r);
     if cfg.record_events {
         m.events.encode_into(&mut slot.events);
@@ -391,6 +400,7 @@ mod tests {
         episode_count: Vec<u32>,
         hits: Vec<i32>,
         hit_count: Vec<i32>,
+        collision_damage: Vec<f32>,
     }
 
     impl Owned {
@@ -407,6 +417,7 @@ mod tests {
                 episode_count: vec![0; n],
                 hits: vec![0; n * MAX_HITS * HIT_FIELDS],
                 hit_count: vec![0; n],
+                collision_damage: vec![0.0; n * s],
             }
         }
 
@@ -423,6 +434,7 @@ mod tests {
                 episode_count: &mut self.episode_count,
                 hits: &mut self.hits,
                 hit_count: &mut self.hit_count,
+                collision_damage: &mut self.collision_damage,
             }
         }
     }

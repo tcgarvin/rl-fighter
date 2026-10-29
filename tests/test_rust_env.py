@@ -40,6 +40,7 @@ FIRE_COST = -0.002
 ARENA_PENALTY = -0.002
 
 EVENT_FIRE = 0
+EVENT_COLLISION = 7
 
 FIGHTER_1V1 = [["fighter"], ["fighter"]]
 MIXED_2V2 = [["fighter", "strafer"], ["fighter", "strafer"]]
@@ -58,7 +59,7 @@ def random_actions(rng, shape):
 def test_module_constants():
     assert rlf_sim.OBS_DIM == OBS_DIM
     assert rlf_sim.ACTION_WIDTH == ACTION_WIDTH
-    assert rlf_sim.SIM_VERSION == 2
+    assert rlf_sim.SIM_VERSION == 3
     layout = rlf_sim.OBS_LAYOUT
     assert list(layout) == [
         "self",
@@ -124,6 +125,7 @@ def test_buffer_shapes_and_dtypes():
         "episode_count": ((n,), np.uint32),
         "hits": ((n, MAX_HITS, HIT_FIELDS), np.int32),
         "hit_count": ((n,), np.int32),
+        "collision_damage": ((n, s), np.float32),
     }
     for name, (shape, dtype) in expected.items():
         arr = getattr(env, name)
@@ -322,8 +324,9 @@ def test_scripted_actions_are_in_range():
 
 
 def test_rewards_sum_to_the_terms_over_an_episode():
-    """Per ship, an episode's rewards equal hit terms + fire costs + arena penalties
-    + the terminal ±1 (1v1, so every hit lands while both ships are active)."""
+    """Per ship, an episode's rewards equal hit terms + collision damage taken +
+    fire costs + arena penalties + the terminal ±1 (1v1, so every hit lands while
+    both ships are active; fighters have no shields)."""
     n = 8
     env = make_env(n_envs=n, seed=11, record_events=True)
     team = env.team
@@ -344,6 +347,7 @@ def test_rewards_sum_to_the_terms_over_an_episode():
                 delta = (SHIELD_W if shield else HULL_W) * damage / 1000.0
                 step_expected[i, shooter] += delta
                 step_expected[i, target] -= delta
+        step_expected -= HULL_W * env.collision_damage.astype(np.float64)
         events = env.events()
         for row in events[events[:, 1] == EVENT_FIRE]:
             step_expected[int(row[0]), int(row[2])] += FIRE_COST
@@ -384,8 +388,35 @@ def test_events_have_a_match_index_column():
         ev = env.events()
         assert ev.dtype == np.float32 and ev.ndim == 2 and ev.shape[1] == 9
         seen.update(ev[:, 0].astype(int).tolist())
-        assert ((ev[:, 1] >= 0) & (ev[:, 1] <= 6)).all()
+        assert ((ev[:, 1] >= 0) & (ev[:, 1] <= EVENT_COLLISION)).all()
     assert seen == {0, 1, 2, 3}
+
+
+def test_collision_damage_matches_collision_events():
+    """Scripted fighters ram nose to nose (sim v3): every step with collision damage
+    in a match has a ``Collision`` event there and vice versa, closing faster than
+    the 10 m/s free speed."""
+    n = 16
+    env = make_env(n_envs=n, seed=5, record_events=True)
+    crashes = 0
+    for _ in range(1500):
+        env.scripted_actions()
+        env.step()
+        damage = env.collision_damage
+        assert (damage >= 0).all()
+        ev = env.events()
+        crash = ev[ev[:, 1] == EVENT_COLLISION]
+        crashed = np.zeros(n, dtype=bool)
+        crashed[crash[:, 0].astype(int)] = True
+        np.testing.assert_array_equal(damage.sum(axis=1) > 0, crashed)
+        if len(crash):
+            assert (crash[:, 2] < crash[:, 3]).all(), "slots a < b"
+            assert (crash[:, 8] > 10.0).all(), "closing above the free speed"
+            np.testing.assert_allclose(
+                np.hypot(crash[:, 6], crash[:, 7]), 1.0, atol=1e-5
+            )
+        crashes += len(crash)
+    assert crashes > 0, "scripted duels should crash at least once"
 
 
 def test_render_state_lists_ships_and_projectiles():

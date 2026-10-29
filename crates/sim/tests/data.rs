@@ -4,7 +4,7 @@
 //! wasm32-wasip1, which cannot see the host filesystem; only the `load_dir` tests
 //! touch the disk.
 
-use sim::data::{Catalogue, DataError, WeaponKind, armour_mult};
+use sim::data::{Catalogue, DataError, WeaponKind, armour_mult, impact_mult};
 use sim::math::PI;
 
 const WEAPONS: &str = include_str!("../../../assets/weapons.yaml");
@@ -336,6 +336,57 @@ fn shipped_armour_arcs() {
         assert!(hull.armour.is_empty(), "{}", hull.name);
         assert_eq!(armour_mult(hull, PI), 1.0);
     }
+}
+
+#[test]
+fn rule12_impact_arcs_follow_the_armour_rules() {
+    let errors = hull_errors(include_str!("fixtures/rule12_impact.yaml"));
+    assert_rule(&errors, 12, 2);
+    assert!(errors[0].contains("impact arc 1") && errors[0].contains("gap or overlap"));
+    assert!(
+        errors[1].contains("mult must be finite and > 0"),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn shipped_impact_arcs() {
+    let cat = shipped();
+    let (fighter, gunship, strafer) = (&cat.hulls[0], &cat.hulls[1], &cat.hulls[2]);
+    // Fighter and strafer: nose 1.5x within +-45 deg, 1x elsewhere (engine included).
+    for hull in [fighter, strafer] {
+        assert_eq!(hull.impact.len(), 3, "{}", hull.name);
+        for (deg, want) in [
+            (0.0f32, 1.5),
+            (44.9, 1.5),
+            (-45.0, 1.5),
+            (45.0, 1.0),
+            (-45.1, 1.0),
+            (90.0, 1.0),
+            (-90.0, 1.0),
+            (180.0, 1.0),
+            (-180.0, 1.0),
+        ] {
+            assert_eq!(impact_mult(hull, deg * DEG), want, "{} at {deg}", hull.name);
+        }
+    }
+    // Gunship: uniformly sturdier.
+    for deg in [-180.0f32, -90.0, 0.0, 90.0, 180.0] {
+        assert_eq!(impact_mult(gunship, deg * DEG), 0.75, "gunship at {deg}");
+    }
+}
+
+#[test]
+fn absent_impact_is_uniform() {
+    let cat = Catalogue::from_yaml(
+        &[("uniform", include_str!("fixtures/armour_uniform.yaml"))],
+        WEAPONS,
+    )
+    .expect("loads");
+    let hull = &cat.hulls[0];
+    assert!(hull.impact.is_empty());
+    assert_eq!(impact_mult(hull, 0.0), 1.0);
+    assert_eq!(impact_mult(hull, PI), 1.0);
 }
 
 #[test]

@@ -8,6 +8,10 @@ inertia: 75.0
 speed_cap: 50.0
 static: false
 shield: {hp: 40, regen_rate: 8, regen_delay: 3, radius: 7.5}
+impact:                # v3 collision damage by bearing of the contact point; as the fighter
+  - {from_deg: -180, to_deg: -45, mult: 1.0}    # engine + starboard pod
+  - {from_deg: -45, to_deg: 45, mult: 1.5}      # nose
+  - {from_deg: 45, to_deg: 180, mult: 1.0}      # port pod + engine
 cost: 10
 collision:
   - {pos: [0.0, 0.0], r: 3.2}

@@ -200,6 +200,26 @@ def test_json_with_another_schema_or_missing_keys_is_rejected(
         DuelResult.from_dict({**data, "side_a": side})
 
 
+def test_legacy_v1_json_reads_with_zero_crash_metrics(script_32: DuelResult) -> None:
+    data = script_32.to_dict()
+    match = dict(data["match"])
+    del match["crashes_per_match"], match["crash_hp_share"]
+    legacy = DuelResult.from_dict({**data, "schema": "rlf.eval.duel/1", "match": match})
+    assert legacy.schema == SCHEMA
+    assert legacy.match.crashes_per_match == 0.0
+    assert legacy.match.crash_hp_share == 0.0
+    assert legacy.side_a == script_32.side_a
+    with pytest.raises(ValueError, match="newer keys"):
+        DuelResult.from_dict({**data, "schema": "rlf.eval.duel/1"})
+
+
+def test_script_vs_script_crashes_are_counted(script_32: DuelResult) -> None:
+    """Sim v3: scripted fighters still ram nose to nose, and crashes take hull."""
+    m = script_32.match
+    assert m.crashes_per_match > 0.0
+    assert 0.0 < m.crash_hp_share < 1.0
+
+
 def test_markdown_row_has_one_cell_per_header_column(script_32: DuelResult) -> None:
     columns = MARKDOWN_HEADER.splitlines()[0].count("|")
     for side in ("a", "b"):

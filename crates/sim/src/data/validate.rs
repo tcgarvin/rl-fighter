@@ -7,7 +7,7 @@
 //! Comparisons are written `!(x > 0.0)` on purpose: NaN fails every rule.
 #![allow(clippy::neg_cmp_op_on_partial_ord)]
 
-use crate::data::raw::{RawHull, RawKind, RawWeapon};
+use crate::data::raw::{RawArmourArc, RawHull, RawKind, RawWeapon};
 use crate::data::{DataError, life_ticks};
 use crate::math::Vec2;
 
@@ -78,6 +78,7 @@ pub(crate) fn validate_hull(
     check_authority(&mut e, raw);
     check_reaction(&mut e, raw);
     check_armour(&mut e, raw);
+    check_impact(&mut e, raw);
 }
 
 fn check_name(e: &mut HullErrors, dir_name: &str, raw: &RawHull) {
@@ -282,25 +283,35 @@ fn check_reaction(e: &mut HullErrors, raw: &RawHull) {
 /// from -180 to 180 with each `from_deg` equal to the previous `to_deg` (no gap, no
 /// overlap), each with `from_deg < to_deg`, and have finite `mult > 0`.
 fn check_armour(e: &mut HullErrors, raw: &RawHull) {
-    let arcs = &raw.armour;
+    check_arcs(e, "rule 11", "armour", &raw.armour);
+}
+
+/// Rule 12 (v3): impact arcs follow rule 11's layout rules.
+fn check_impact(e: &mut HullErrors, raw: &RawHull) {
+    check_arcs(e, "rule 12", "impact", &raw.impact);
+}
+
+/// The shared arc-list checks of rules 11 and 12; `rule` and `field` only label the
+/// error messages.
+fn check_arcs(e: &mut HullErrors, rule: &str, field: &str, arcs: &[RawArmourArc]) {
     let (Some(first), Some(last)) = (arcs.first(), arcs.last()) else {
         return;
     };
     if arcs.len() > MAX_ARMOUR_ARCS {
         e.push(format!(
-            "rule 11: {} armour arcs exceeds MAX_ARMOUR_ARCS = {MAX_ARMOUR_ARCS}",
+            "{rule}: {} {field} arcs exceeds MAX_ARMOUR_ARCS = {MAX_ARMOUR_ARCS}",
             arcs.len()
         ));
     }
     if first.from_deg != -180.0 {
         e.push(format!(
-            "rule 11: first armour arc must start at -180, got {}",
+            "{rule}: first {field} arc must start at -180, got {}",
             first.from_deg
         ));
     }
     if last.to_deg != 180.0 {
         e.push(format!(
-            "rule 11: last armour arc must end at 180, got {}",
+            "{rule}: last {field} arc must end at 180, got {}",
             last.to_deg
         ));
     }
@@ -308,13 +319,13 @@ fn check_armour(e: &mut HullErrors, raw: &RawHull) {
         let in_range = |d: f32| (-180.0..=180.0).contains(&d);
         if !(a.from_deg < a.to_deg) || !in_range(a.from_deg) || !in_range(a.to_deg) {
             e.push(format!(
-                "rule 11: armour arc {i} [{}, {}) must have -180 <= from_deg < to_deg <= 180",
+                "{rule}: {field} arc {i} [{}, {}) must have -180 <= from_deg < to_deg <= 180",
                 a.from_deg, a.to_deg
             ));
         }
         if i > 0 && a.from_deg != arcs[i - 1].to_deg {
             e.push(format!(
-                "rule 11: armour arc {i} starts at {} but arc {} ends at {} (gap or overlap)",
+                "{rule}: {field} arc {i} starts at {} but arc {} ends at {} (gap or overlap)",
                 a.from_deg,
                 i - 1,
                 arcs[i - 1].to_deg
@@ -322,7 +333,7 @@ fn check_armour(e: &mut HullErrors, raw: &RawHull) {
         }
         if !(a.mult.is_finite() && a.mult > 0.0) {
             e.push(format!(
-                "rule 11: armour arc {i} mult must be finite and > 0, got {}",
+                "{rule}: {field} arc {i} mult must be finite and > 0, got {}",
                 a.mult
             ));
         }

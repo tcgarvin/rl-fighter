@@ -117,6 +117,9 @@ class StepInfo:
             ``decision_tick`` is the post-step tick of the obs the firing action was
             chosen from (``fire_tick - 1 - d``).
         hit_count: [N] i32 view: valid rows of ``hits``.
+        collision_damage: [N, S] f32 view: hull damage each ship took from ship-ship
+            collisions this step, after impact arcs (SIM_VERSION 3, SIM_SPEC §5.5).
+            Collisions make no ``hits`` rows and credit nobody.
         thruster_mask: [N, S, 8] bool, static per env.
         turret_mask: [N, S, 6] bool, static per env.
         fixed_turret: [N, S, 6] bool, static per env (slew head meaningless).
@@ -133,6 +136,7 @@ class StepInfo:
     alive: NDArray[np.bool_]
     hits: NDArray[np.int32]
     hit_count: NDArray[np.int32]
+    collision_damage: NDArray[np.float32]
     thruster_mask: NDArray[np.bool_]
     turret_mask: NDArray[np.bool_]
     fixed_turret: NDArray[np.bool_]
@@ -313,6 +317,7 @@ class RustVecEnv:
             alive=env.alive,
             hits=env.hits,
             hit_count=env.hit_count,
+            collision_damage=env.collision_damage,
             thruster_mask=env.thruster_mask,
             turret_mask=env.turret_mask,
             fixed_turret=env.fixed_turret,

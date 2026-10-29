@@ -67,6 +67,8 @@ def duel(
         draw_rate=draw,
         a_win_rate_team0=0.5,
         a_win_rate_team1=0.5,
+        crashes_per_match=0.0,
+        crash_hp_share=0.0,
     )
     return DuelResult(a, b, EvalConfig(), match, side(**a_side), side())
 

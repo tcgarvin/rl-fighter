@@ -8,6 +8,10 @@ contact tick after a non-contact tick; its closing speed is the relative velocit
 along the centre line on the tick before, and its bearing on each ship is the other
 ship's direction in that ship's body frame (0° = nose).
 
+From SIM_VERSION 3 it also reports the sim's own damaging collisions: ``Collision``
+events per match, the collision share of hull damage, and *crash deaths* (a ship
+that dies on a step where it took collision damage).
+
     python tools/contact_survey.py --a lab/.../ppo_bc_1200.pt --b script --n 128
 """
 
@@ -20,6 +24,7 @@ from pathlib import Path
 
 import numpy as np
 
+from spacefight.eval import features as F
 from spacefight.eval.controllers import Controller, make_controller
 from spacefight.eval.duel import ASSETS, TICK_HZ, EvalConfig, _Tracker
 from spacefight.env.rust_env import RustVecEnv
@@ -85,12 +90,26 @@ def survey(a: Controller, b: Controller, n: int, seed: int) -> dict:
     live_ticks = np.zeros(n, np.int64)
     near_ticks = {d: np.zeros(n, np.int64) for d in NEAR_M}
     events: list[dict] = []
+    crash_deaths = np.zeros(n, np.int64)
     max_steps = int(round(cfg.time_limit_s * TICK_HZ)) + 1
     for _ in range(max_steps):
         was_running = tracker.running.copy()
         actions = tracker.choose(env, a, b)
         _, _, dones, info = env.step(actions)
-        tracker.observe(env, dones.copy(), info.winner, info.hits, info.hit_count)
+        tracker.observe(
+            env,
+            dones.copy(),
+            info.winner,
+            info.hits,
+            info.hit_count,
+            info.collision_damage,
+        )
+        sim_events = env.events()
+        deaths = sim_events[sim_events[:, F.EV_KIND] == F.KIND_DEATH]
+        for row in deaths:
+            i, slot = int(row[F.EV_MATCH]), int(row[F.EV_A])
+            if was_running[i] and info.collision_damage[i, slot] > 0:
+                crash_deaths[i] += 1
         for i in np.flatnonzero(was_running & ~dones):
             ships = raw.render_state(int(i))["ships"]
             sa, sb = ships[0], ships[1]
@@ -121,7 +140,24 @@ def survey(a: Controller, b: Controller, n: int, seed: int) -> dict:
         if not tracker.running.any():
             break
     rec = tracker.records
-    return summarise(rec, n, events, contact_ticks, live_ticks, near_ticks)
+    out = summarise(rec, n, events, contact_ticks, live_ticks, near_ticks)
+    out.update(crash_summary(rec, crash_deaths))
+    return out
+
+
+def crash_summary(rec, crash_deaths: np.ndarray) -> dict:
+    """SIM_VERSION 3 crash numbers: damaging collisions, crash deaths, hp share."""
+    crash_hp = float(rec.crash_damage.sum())
+    all_hp = crash_hp + float(rec.hull_damage.sum())
+    return {
+        "median_length": float(np.median(rec.length)),
+        "draw_rate": float(np.mean(rec.winner == -1)),
+        "crashes_per_match": float(rec.crashes.mean()),
+        "crash_deaths_per_match": float(crash_deaths.mean()),
+        "matches_with_crash_death": float((crash_deaths > 0).mean()),
+        "double_crash_kill_rate": float((crash_deaths >= 2).mean()),
+        "crash_hp_share": crash_hp / all_hp if all_hp > 0 else 0.0,
+    }
 
 
 def summarise(rec, n, events, contact_ticks, live_ticks, near_ticks) -> dict:
