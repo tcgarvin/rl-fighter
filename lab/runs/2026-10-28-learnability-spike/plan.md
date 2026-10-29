@@ -39,7 +39,14 @@ Measured on the fixed eval of §6 (N = 512 matches vs the script, sides swapped)
 | Hit rate (hits / shots) | ≥ 0.5 × script | ≥ 0.6 × script | ≥ script |
 | Share of ticks outside the arena | ≤ 0.02 | ≤ 0.02 | ≤ 0.01 |
 | Matches ending by kill (not time limit) | ≥ 0.8 | ≥ 0.9 | ≥ 0.95 |
-| Mean main-engine thrust level (v2 ramped level in [0, 1], obs thruster feature 6) | report | 0.2–0.9 (neither idle nor pinned) | same |
+| Mean main-engine thrust level (v2 ramped level in [0, 1], obs thruster feature 6) | report | 0.2–0.95 (neither idle nor pinned) | same |
+
+**Baseline, measured before training** (`eval/script_vs_script.json`, n = 512): script
+hit rate 0.597, engagement rate 0.858, main-engine duty 0.850, fire rate 0.085 of
+decisions, draws 2.9 %, kill endings 99.8 %, median length 1312 ticks. The
+"× script" cells use these. The duty band's top was 0.9 when written; it moved to
+0.95 because the script itself runs at 0.85 and a faithful clone would otherwise sit
+on the "pinned" edge (changed 2026-10-28, before any learned policy was evaluated).
 
 "Flies on purpose" is the row block engagement / hit rate / outside arena / kill
 rate taken together: a policy that wins by sitting still, or by orbiting the edge,
