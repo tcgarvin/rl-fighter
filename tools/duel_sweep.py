@@ -44,24 +44,28 @@ import rlf_sim
 import yaml
 from numpy.typing import NDArray
 
+if __package__ in (None, ""):
+    # Run as ``python tools/duel_sweep.py``: make the repo root importable.
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from spacefight.eval import features  # noqa: E402
+
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
 
 FLEETS = [["fighter"], ["fighter"]]
 TICK_HZ = 30
 
-# Obs features read by the sweep (SIM_SPEC §7.2): self block feature 19 is
-# (R - |pos|)/R, ships block slot 0 is the nearest other ship (present, ..., dist/R).
-_SELF_OFFSET = rlf_sim.OBS_LAYOUT["self"][0]
-_SHIPS_OFFSET, _SHIPS_WIDTH = rlf_sim.OBS_LAYOUT["ships"]
-_SHIP_RECORD = _SHIPS_WIDTH // rlf_sim.OBS_SLOTS["ships"]
-_SELF_PRESENT = _SELF_OFFSET + 0
-_SELF_EDGE_MARGIN = _SELF_OFFSET + 19
-_NEAREST_PRESENT = _SHIPS_OFFSET + 0
-_NEAREST_DIST = _SHIPS_OFFSET + 11
-
-# Flat event columns from VecEnv.events(): [match, kind, a, b, x, y, s5, s6, extra].
-_EV_MATCH, _EV_KIND, _EV_A, _EV_SLOT5, _EV_EXTRA = 0, 1, 2, 6, 8
-_KIND_FIRE, _KIND_HIT, _KIND_DEATH = 0, 2, 5
+# Obs features and event columns read by the sweep (SIM_SPEC §7.2, §9), shared
+# with the eval harness: self feature 19 is (R - |pos|)/R, ships block slot 0 is the
+# nearest other ship.
+_SELF_PRESENT = features.SELF_PRESENT
+_SELF_EDGE_MARGIN = features.SELF_EDGE_MARGIN
+_NEAREST_PRESENT = features.NEAREST_PRESENT
+_NEAREST_DIST = features.NEAREST_DIST
+_EV_MATCH, _EV_KIND, _EV_A = features.EV_MATCH, features.EV_KIND, features.EV_A
+_EV_SLOT5, _EV_EXTRA = features.EV_SLOT5, features.EV_EXTRA
+_KIND_FIRE, _KIND_HIT = features.KIND_FIRE, features.KIND_HIT
+_KIND_DEATH = features.KIND_DEATH
 
 # A closest approach must be followed by this much opening (m) to count.
 APPROACH_PROMINENCE = 20.0
@@ -256,8 +260,8 @@ def run_duels(assets_dir: Path, cfg: SweepConfig, gun_range: float) -> DuelRecor
         measured = live & both_present
         dist = obs[:, 0, _NEAREST_DIST] * radius
         now_in = dist < gun_range
-        passes += measured & now_in & ~in_range
-        in_range = np.where(measured, now_in, in_range)
+        entered, in_range = features.range_entries(measured, now_in, in_range)
+        passes += entered
 
         run_min = np.where(measured, np.minimum(run_min, dist), run_min)
         turned = (
