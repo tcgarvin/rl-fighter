@@ -1,7 +1,8 @@
 # RL Fighter — M1 Simulation Spec (Rust core + Python bindings)
 
 Status: implementation spec for milestone M1, written 2026-10-28; revised the same
-day to **SIM_VERSION 2** (§0) after M1 landed. `docs/DESIGN.md` is the source of
+day to **SIM_VERSION 2** (§0) after M1 landed, and to **SIM_VERSION 3** (§0.1,
+collision damage) on 2026-10-29. `docs/DESIGN.md` is the source of
 truth for direction; this file pins the decisions implementers need. When the two
 disagree, fix this file and note it in the lab journal.
 
@@ -13,8 +14,8 @@ termination, events, obs, rewards, scripted fighter) and **M1b** `crates/sim-py`
 has no renderer yet (that is M2).
 
 Not in M1 (but the data model leaves room, see §3.4): bomber, carrier, station, bays,
-docking/repair, attached/tethered ships, friendly fire, damage types, collision
-damage, ammo/heat, GLB-derived geometry.
+docking/repair, attached/tethered ships, friendly fire, damage types, ammo/heat,
+GLB-derived geometry. (Collision damage was out of M1; v3 adds it, §0.1.)
 
 ---
 
@@ -45,6 +46,15 @@ carries its `weapon` id; `Match` has `shots_fired`, `outside_arena`, `dropped_hi
 the VecEnv has `dt`, `step(actions=None)` and `events()`; the determinism suite has
 four golden scenarios including a random-action one; the golden traces also digest
 every step's events, hits, rewards and obs.
+
+### 0.1 v3 changes (SIM_VERSION 2 → 3)
+
+| # | change | why | sections |
+|---|---|---|---|
+| 1 | Collision damage: a closing contact faster than `COLLISION_FREE_SPEED = 10` m/s damages both non-static ships by `COLLISION_DAMAGE_PER_J = 0.002` hp per joule of excess normal kinetic energy, through the shield-then-hull rule, scaled per ship by its impact arcs. No `HitRecord`, no credit, never flips `alive`; sets `last_hit_tick`. | The contact survey (`lab/runs/2026-10-29-collision-damage/survey/`) found ship contacts in every duel, 99 % nose to nose at a median ~95 m/s closing, with no consequence beyond a bump: ramming was free | §5 stage 10, §5.5 |
+| 2 | Optional hull `impact` arcs (same format and rules as `armour`): fighter and strafer nose (±45°) 1.5×, elsewhere 1×; gunship 0.75× all round | Fighters should be fragile in crashes and most fragile nose first, so pilots learn to turn away; done in physics, not as a reward term | §4.1, §4.4 rule 12 |
+| 3 | Reward: collision damage is damage taken (`-0.01` hull, `-0.005` shield) for the damaged ship; nobody is credited. `Match.collision_damage` / `collision_shield_damage` are per-step outputs; the VecEnv exposes `collision_damage [N,S]` | A crash is not a kill shot; crediting the other ship would reward ramming | §8, §10.1 |
+| 4 | Event `Collision { a, b, pos, normal, closing }`, kind code 7 (appended after `Arrival`, so codes 0–6 are unchanged) | Renderer spark at the impact; eval crash counts | §9 |
 
 ---
 
@@ -229,6 +239,10 @@ armour:                  # optional (v2); absent or [] → uniform 1×. Arcs by 
   - {from_deg: -45,  to_deg: 45,   mult: 0.5}   # nose
   - {from_deg: 45,   to_deg: 135,  mult: 1.0}   # port flank
   - {from_deg: 135,  to_deg: 180,  mult: 1.5}   # engine
+impact:                  # optional (v3); absent or [] → uniform 1×. Collision damage by
+  - {from_deg: -180, to_deg: -45, mult: 1.0}    # body-frame bearing of the contact point
+  - {from_deg: -45,  to_deg: 45,  mult: 1.5}    # nose crumples
+  - {from_deg: 45,   to_deg: 180, mult: 1.0}
 cost: 10                 # supply cost; unused in M1
 collision:               # body frame; ≥1 circle
   - {pos: [2.0, 0.0], r: 2.4}
@@ -247,11 +261,11 @@ bays: []                 # [{id, pos, dir}], parsed, unused in M1
 M1 hull values (from `prototypes/story/hulls.js`; collision circles are new; v2
 changes in bold):
 
-| hull | role | hp | mass | inertia | speed_cap | shield (hp/regen/delay/radius) | armour (v2) | collision circles (pos, r) |
-|---|---|---|---|---|---|---|---|---|
-| fighter | fighter | **80** | 10 | 55 | 60 | none | **nose 0.5 / flank 1.0 / engine 1.5** (arcs as above) | (2.0,0) 2.4; (-2.2,0) 2.6 |
-| strafer | skirmisher | 70 | 11 | 75 | 50 | 40 / 8 / 3 / 7.5 | uniform (absent) | (0,0) 3.2; (0,3.6) 2.4; (0,-3.6) 2.4 |
-| gunship | anchor | 320 | 60 | 2200 | 24 | 140 / 12 / 4 / 11 | uniform (absent) | (4.5,0) 3.6; (0,0) 4.6; (-4.5,0) 3.8 |
+| hull | role | hp | mass | inertia | speed_cap | shield (hp/regen/delay/radius) | armour (v2) | impact (v3) | collision circles (pos, r) |
+|---|---|---|---|---|---|---|---|---|---|
+| fighter | fighter | **80** | 10 | 55 | 60 | none | **nose 0.5 / flank 1.0 / engine 1.5** (arcs as above) | nose (±45°) 1.5 / else 1.0 | (2.0,0) 2.4; (-2.2,0) 2.6 |
+| strafer | skirmisher | 70 | 11 | 75 | 50 | 40 / 8 / 3 / 7.5 | uniform (absent) | nose (±45°) 1.5 / else 1.0 | (0,0) 3.2; (0,3.6) 2.4; (0,-3.6) 2.4 |
+| gunship | anchor | 320 | 60 | 2200 | 24 | 140 / 12 / 4 / 11 | uniform (absent) | 0.75 all round | (4.5,0) 3.6; (0,0) 4.6; (-4.5,0) 3.8 |
 
 Thrusters and turrets are copied verbatim from `hulls.js` (`force` → `max_force`,
 `rest/arc/slew` → `rest_deg/arc_deg/slew_deg_s`; drop `size`/`height`, they are
@@ -266,6 +280,14 @@ body-frame bearing `b = wrap(atan2(point − ship.pos) − heading)` of the impa
 in radians, in list order; empty means uniform 1×. Lookup: the arc with
 `from <= b < to`; `b == +π` (the only bearing no half-open arc covers) uses the last
 arc. Multipliers apply to hull damage only, never to shields.
+
+**Impact (v3).** `impact` has exactly the format, storage (`HullDef.impact:
+Vec<ArmourArc>`), lookup (`impact_mult(hull, b)`) and validation (rule 12) of
+`armour`, but scales **collision** damage (§5.5) instead of weapon damage, at the
+bearing of the contact point; armour never applies to collisions and impact never
+to hits. Like armour it applies to hull damage only. The strafer's side pods sit at
+±90°, so a pod strike counts as flank (1×) and only a strike on the nose cone
+within ±45° takes 1.5×; the gunship is uniformly sturdier (a single arc).
 
 Derived on load (stored in `HullDef`): `bound_radius = max(|c.pos| + c.r)`,
 `shield_radius = shield.radius` or `bound_radius`, `has_shield`, `n_power_systems`
@@ -319,6 +341,7 @@ machines). Parsing uses `serde-saphyr` (`serde_saphyr::from_str`; pure Rust, mai
     `to_deg == 180`, and each `from_deg` equals the previous `to_deg` (so the arcs
     cover 360° exactly with no gap or overlap, in order); every `mult` finite and
     `> 0`. A single arc `[-180, 180]` with `mult: 1` is valid and equals absent.
+12. (v3) `impact`, if given and non-empty: the same rules as 11.
 
 `Match::new` additionally rejects `cfg.reaction_ticks > MAX_REACTION_TICKS`
 (`SetupError::ReactionTooLong`).
@@ -375,7 +398,8 @@ Each stage loops over ships in slot order and over projectiles in pool order.
    immediately, in pool order.
 9. **Shield regen** (active with shield): if `tick - last_hit_tick >= round(regen_delay*30 / P_s)`:
    `shield = min(max, shield + regen_rate * P_s * DT)`.
-10. **Ship–ship collisions** (§5.5), pairs `(i<j)`, both active.
+10. **Ship–ship collisions** (§5.5), pairs `(i<j)`, both active; v3: closing
+    contacts above the free speed apply collision damage and emit `Collision`.
 11. **Arena** (§5.7): push and drain, active non-static.
 12. **Deaths**: any ship with `hp <= 0 && alive` → `alive=false, present=false, hp=0`,
     `thrust_level` all 0, `queue` all `IDLE`, emit `Death`. (Damage never flips
@@ -511,7 +535,43 @@ world space with `d = |ca - cb| < ra + rb`, take the deepest pair only. Resolve:
 positional correction `pos_i -= n * pen * wi/(wi+wj)`, `pos_j += n * pen * wj/(wi+wj)`;
 relative normal speed `vn = dot(vel_j - vel_i, n)`; if `vn < 0`:
 `jimp = -(1 + 0.2) * vn / (wi + wj)`, `vel_i -= n*jimp*wi`, `vel_j += n*jimp*wj`.
-No torque transfer, no collision damage in M1. Emit nothing.
+No torque transfer.
+
+**Collision damage (v3).** The contact point of the deepest pair is the midpoint of
+the two circles' surfaces along the normal, `p = ((ca + n*ra) + (cb - n*rb)) * 0.5`,
+from the poses the contact was found in; each ship's bearing
+`b_k = wrap(atan2(p - pos_k) - heading_k)` is taken from those same (pre-correction)
+poses, with the §5.4 convention (`p == pos` → 0). `vn` above is the pre-impulse
+relative normal speed. With `COLLISION_FREE_SPEED = 10.0` m/s and
+`COLLISION_DAMAGE_PER_J = 0.002` hp/J (consts in `collision.rs`):
+
+```
+excess = max(0, -vn - COLLISION_FREE_SPEED)        # closing speed above the free speed
+mu     = 1 / (wi + wj)                             # reduced mass (static partner: the other's mass)
+base   = COLLISION_DAMAGE_PER_J * (0.5 * mu * excess * excess)
+if base > 0:
+    for k in (i, j), in that order, skipping static hulls:
+        apply_collision_damage(k, base, b_k)
+    emit Collision { a: i, b: j, pos: p, normal: n, closing: -vn }
+
+apply_collision_damage(k, amount, b):
+  k.last_hit_tick = tick                            # delays shield regen like a hit
+  if k.shield > 0:                                  # the §5.4 shield rule, no overflow
+      k.shield = max(0, k.shield - amount / (0.7 + 0.3 * P_s(k)))
+      collision_shield_damage[k] += amount          # raw, like a shield HitRecord
+  else:
+      dealt = amount * impact_mult(hull_k, b)       # impact arcs, never armour (§4.1)
+      k.hp -= dealt
+      collision_damage[k] += dealt
+```
+
+So a fighter–fighter crash at 95 m/s closing (mu = 5 kg, 18,062 J excess) deals
+36.1 hp base, 54.2 nose first: two thirds of a fighter. Collision damage records no
+`HitRecord` (hit-rate stats and shooter credit see only weapons) and, like all
+damage, never flips `alive`: a crash that kills both ships is resolved in stage 12
+and is a draw. `collision_damage` and `collision_shield_damage` (`[f32; MAX_SHIPS]`
+on `Match`) are per-step outputs, cleared in stage 1 and not hashed. Static hulls
+take no collision damage and keep their `last_hit_tick`.
 
 ### 5.6 Arrival (jump-in)
 
@@ -688,6 +748,7 @@ Per ship per step (`rewards[N, S] f32`), accumulated in stages 7–13:
 |---|---|
 | damage dealt | `+0.01 * damage` to hull (after armour, i.e. `HitRecord.damage`), `+0.005 * damage` to shields (raw) (shooter) |
 | damage taken | `-0.01 * hull damage` (after armour), `-0.005 * shield damage` (target) |
+| collision (v3) | `-0.01 * collision_damage[s]` (hull, after impact arcs) `- 0.005 * collision_shield_damage[s]` (raw) for the damaged ship; nobody is credited |
 | fire cost | `-0.002` per shot actually fired (not per trigger pull on cooldown) |
 | arena | `-0.002` per tick while `|pos| > R` |
 | terminal | `+1` every ship on the winning team, `-1` losing team (dead ships too); draw 0 |
@@ -731,13 +792,16 @@ pub enum Event {
     Burst     { team: u8, pos: Vec2, radius: f32 },      // flak fuse, torpedo impact
     Death     { ship: u8, pos: Vec2 },
     Arrival   { ship: u8, pos: Vec2, heading: f32 },
+    Collision { a: u8, b: u8, pos: Vec2, normal: Vec2, closing: f32 }, // v3: damaging contacts only
 }
 ```
 
 `EventBuf` is a `Vec<Event>` with capacity `MAX_EVENTS`, cleared each step. Flat
 encoding for FFI: `[f32; 8]` per event = `[kind, a, b, x, y, nx_or_x2, ny_or_y2, extra]`
-(kinds 0..6 in the order above; `a,b` = ship/turret or target/shooter; `extra` =
-angle / damage / radius / heading / depleted; `Fire` puts its weapon id in slot 5,
+(kinds 0..7 in the order above; `a,b` = ship/turret or target/shooter, or the two
+slots `a < b` of a `Collision`; `extra` = angle / damage / radius / heading /
+depleted / closing speed; v3: `Collision` = `[7, a, b, x, y, nx, ny, closing]` with
+the contact point and the unit normal from `a` to `b`; `Fire` puts its weapon id in slot 5,
 `Beam` its `to` in 5–6 and `hit` in `extra`; v2: `Hit` puts `mult` in slot 5, so a
 renderer can show glancing (`< 1`) and raking (`> 1`) hits). WASM:
 `WasmMatch.events_ptr() -> *const f32`,
@@ -763,6 +827,7 @@ env.rewards  [N,S] f32         env.dones     [N] bool        env.winner [N] i8
 env.act_mask [N,S] bool        env.thruster_mask [N,S,8] bool  env.turret_mask [N,S,6] bool
 env.fixed_turret [N,S,6] bool  env.team [N,S] i8  env.hull_id [N,S] i16  env.alive [N,S] bool
 env.tick [N] u32  env.episode_count [N] u32  env.hits [N,64,6] i32  env.hit_count [N] i32
+env.collision_damage [N,S] f32  # v3: hull damage each ship took from collisions this step (after impact arcs)
 env.scripted_actions(team: int | None = None)   # writes the scripted controller's actions into env.actions for the given team (or all ships)
 env.state_hash() -> np.ndarray[N] u64           # per match
 env.render_state(i) -> dict                     # ships/projectiles of match i (debug); ships carry thrust_level, queue
@@ -891,7 +956,8 @@ at 4.
   hash plus an auxiliary digest of that step's flat events, hit records, rewards and
   every ship's obs, so outputs match across targets too. Regenerate golden only with
   `UPDATE_GOLDEN=1`; a diff in golden is a `SIM_VERSION` bump. v2 regenerates all
-  four once (§14.1 WP14), after the balance tuple is final.
+  four once (§14.1 WP14), after the balance tuple is final; v3 (collision damage)
+  regenerates all four again.
 - WASM: the same test binary runs under **wasmtime** on `wasm32-wasip1`
   (`cargo test -p sim --target wasm32-wasip1`, with
   `CARGO_TARGET_WASM32_WASIP1_RUNNER=wasmtime` in `.cargo/config.toml`). This exercises
