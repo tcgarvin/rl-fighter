@@ -22,3 +22,9 @@ target/
 # Lab run weights and datasets (results JSON/Markdown are committed)
 lab/runs/**/*.pt
 lab/runs/**/*.npz
+
+# Web client (web/): npm deps, generated bundle and notebook data
+node_modules/
+web/public/bundle/
+web/public/notebook/data/
+web/shots/
