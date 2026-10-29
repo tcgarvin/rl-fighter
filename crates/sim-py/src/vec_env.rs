@@ -12,10 +12,11 @@ use pyo3::exceptions::{PyIndexError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use sim::actions::ACTION_WIDTH;
+use sim::actions::act_mask;
 use sim::data::{Catalogue, HullId};
 use sim::events::EVENT_STRIDE;
 use sim::obs::OBS_DIM;
-use sim::state::{MAX_HITS, MAX_SHIPS, MAX_THRUSTERS, MAX_TURRETS, MatchPhase};
+use sim::state::{MAX_HITS, MAX_REACTION_TICKS, MAX_SHIPS, MAX_THRUSTERS, MAX_TURRETS, MatchPhase};
 use sim::{DT, TICK_HZ};
 
 use crate::batch::{Batch, BatchConfig, HIT_FIELDS, StaticBuffers, StepBuffers};
@@ -174,8 +175,10 @@ impl VecEnv {
     /// Build `n_envs` matches of `fleets[0]` vs `fleets[1]` from the hull and weapon
     /// YAML under `assets_dir`, and reset them (episode 0, seeds
     /// `split(seed, i, 0)`). `n_threads = 0` uses rayon's default thread count.
+    /// `reaction_ticks` is the match-wide action delay `d` in `0..=MAX_REACTION_TICKS`
+    /// (a hull's own `reaction_ticks` overrides it).
     #[new]
-    #[pyo3(signature = (assets_dir, n_envs, fleets, seed, arena_radius=450.0, time_limit_s=90.0, n_threads=0, record_events=false))]
+    #[pyo3(signature = (assets_dir, n_envs, fleets, seed, arena_radius=450.0, time_limit_s=90.0, n_threads=0, record_events=false, reaction_ticks=2))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         py: Python<'_>,
@@ -187,6 +190,7 @@ impl VecEnv {
         time_limit_s: f32,
         n_threads: i64,
         record_events: bool,
+        reaction_ticks: i64,
     ) -> PyResult<Self> {
         if n_envs < 1 {
             return Err(PyValueError::new_err(format!(
@@ -203,6 +207,14 @@ impl VecEnv {
                 "time_limit_s must be positive and finite, got {time_limit_s}"
             )));
         }
+        let reaction_ticks = u8::try_from(reaction_ticks)
+            .ok()
+            .filter(|&d| usize::from(d) <= MAX_REACTION_TICKS)
+            .ok_or_else(|| {
+                PyValueError::new_err(format!(
+                    "reaction_ticks must be in 0..={MAX_REACTION_TICKS}, got {reaction_ticks}"
+                ))
+            })?;
         let time_limit_ticks = (time_limit_s * TICK_HZ).round().max(1.0) as u32;
         let cat = Catalogue::load_dir(Path::new(assets_dir))
             .map_err(|e| PyValueError::new_err(format!("loading {assets_dir:?}: {e}")))?;
@@ -215,6 +227,7 @@ impl VecEnv {
                 base_seed: seed,
                 arena_radius,
                 time_limit_ticks,
+                reaction_ticks,
                 fleets,
                 n_threads: n_threads as usize,
                 record_events,
@@ -355,9 +368,21 @@ impl VecEnv {
             d.set_item("alive", s.alive)?;
             d.set_item("present", s.present)?;
             d.set_item("arrive_tick", s.arrive_tick)?;
+            d.set_item("control_lock_until", s.control_lock_until)?;
+            d.set_item("reaction_ticks", s.reaction_ticks)?;
+            d.set_item("act_mask", act_mask(s, m.tick()))?;
             d.set_item("thrust_level", &s.thrust_level[..hull.thrusters.len()])?;
             d.set_item("turret_angle", &s.turret_angle[..hull.turrets.len()])?;
             d.set_item("power", s.power.to_vec())?;
+            // The reaction queue as `ACTION_WIDTH` rows, `queue[0]` applying next; only
+            // the first `reaction_ticks` entries are live.
+            let queue = PyList::empty(py);
+            for a in &s.queue[..usize::from(s.reaction_ticks)] {
+                let mut row = [0i8; ACTION_WIDTH];
+                a.to_row(&mut row);
+                queue.append(row.to_vec())?;
+            }
+            d.set_item("queue", queue)?;
             ships.append(d)?;
         }
         out.set_item("ships", ships)?;
@@ -372,6 +397,7 @@ impl VecEnv {
             d.set_item("damage", p.damage)?;
             d.set_item("life_ticks", p.life_ticks)?;
             d.set_item("fire_tick", p.fire_tick)?;
+            d.set_item("decision_tick", p.decision_tick)?;
             projectiles.append(d)?;
         }
         out.set_item("projectiles", projectiles)?;
