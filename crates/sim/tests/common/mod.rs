@@ -10,8 +10,8 @@
 #![allow(dead_code)]
 
 use sim::data::{
-    Catalogue, Circle, HullDef, HullId, ShieldDef, ThrusterDef, TurretDef, WeaponDef, WeaponId,
-    WeaponKind,
+    ArmourArc, Catalogue, Circle, HullDef, HullId, ShieldDef, ThrusterDef, TurretDef, WeaponDef,
+    WeaponId, WeaponKind,
 };
 use sim::setup::MatchConfig;
 use sim::state::Match;
@@ -77,6 +77,7 @@ fn hull(name: &str, role: &str, hp: f32, mass: f32, inertia: f32, speed_cap: f32
         thrusters: Vec::new(),
         turrets: Vec::new(),
         bays: Vec::new(),
+        armour: Vec::new(),
         bound_radius: 0.0,
         shield_radius: 0.0,
         n_power_systems: 0,
@@ -95,8 +96,29 @@ pub fn fighter_hull() -> HullDef {
         thruster("thruster.rcs.rr", (-2.8, -2.3), (0.0, 1.0), 160.0),
     ];
     h.turrets = vec![turret("turret.nose", (3.8, 0.0), 0.0, 0.0, 0.0, GAUSS)];
+    h.armour = fighter_armour();
     h.derive();
     h
+}
+
+/// `[from_deg, to_deg)` → `mult`, as in the fighter YAML (SIM_SPEC §4.1, v2).
+fn armour_arc(from_deg: f32, to_deg: f32, mult: f32) -> ArmourArc {
+    ArmourArc {
+        from: from_deg.to_radians(),
+        to: to_deg.to_radians(),
+        mult,
+    }
+}
+
+/// Fighter armour: engine 1.5x beyond ±135°, flanks 1x, nose 0.5x within ±45°.
+pub fn fighter_armour() -> Vec<ArmourArc> {
+    vec![
+        armour_arc(-180.0, -135.0, 1.5),
+        armour_arc(-135.0, -45.0, 1.0),
+        armour_arc(-45.0, 45.0, 0.5),
+        armour_arc(45.0, 135.0, 1.0),
+        armour_arc(135.0, 180.0, 1.5),
+    ]
 }
 
 pub fn strafer_hull() -> HullDef {
@@ -229,6 +251,16 @@ pub fn test_catalogue() -> Catalogue {
         hulls: vec![fighter_hull(), gunship_hull(), strafer_hull()],
         weapons: test_weapons(),
     }
+}
+
+/// `test_catalogue()` with every hull's armour removed (uniform 1x), for tests of
+/// other mechanics whose expected damage numbers should not depend on hit bearings.
+pub fn uniform_catalogue() -> Catalogue {
+    let mut cat = test_catalogue();
+    for h in &mut cat.hulls {
+        h.armour.clear();
+    }
+    cat
 }
 
 /// `test_catalogue()` plus `static_hull()` as the last hull id; returns that id.

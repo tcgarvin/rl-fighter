@@ -11,7 +11,7 @@ use crate::damage::{apply_damage, can_hit};
 use crate::data::{Catalogue, WeaponDef, WeaponId, WeaponKind};
 use crate::events::Event;
 use crate::math::{Vec2, wrap_angle};
-use crate::projectiles::{BROAD_PHASE_SLACK, segment_circle_entry, segment_dist};
+use crate::projectiles::segment_shape_entry;
 use crate::state::{MAX_PROJECTILES, Match, NONE, Projectile, ShipIdx};
 use crate::turrets::muzzle_pose;
 
@@ -136,8 +136,8 @@ impl Match {
     }
 
     /// Hitscan beam from `muzzle` along `angle` for `range`: the nearest entry into
-    /// any hittable enemy's collision circle (lowest slot on ties) takes the damage
-    /// now. Emits `Beam` (to the hit point, or full range on a miss), then the hit.
+    /// any hittable enemy's target shape (shield bubble if up, else hull circles;
+    /// lowest slot on ties) takes the damage now. Emits `Beam` (to the hit point, or full range on a miss), then the hit.
     fn fire_beam(
         &mut self,
         cat: &Catalogue,
@@ -154,15 +154,9 @@ impl Match {
             .iter()
             .filter(|s| can_hit(shooter.team, shooter, s))
         {
-            let hull = cat.hull(s.hull);
-            if segment_dist(muzzle, end, s.pos) >= hull.bound_radius + BROAD_PHASE_SLACK {
-                continue;
-            }
-            for c in &hull.collision {
-                if let Some(t) = segment_circle_entry(muzzle, end, s.to_world(c.pos), c.r) {
-                    if best.is_none_or(|(bt, _)| t < bt) {
-                        best = Some((t, s.slot));
-                    }
+            if let Some(t) = segment_shape_entry(cat, s, muzzle, end) {
+                if best.is_none_or(|(bt, _)| t < bt) {
+                    best = Some((t, s.slot));
                 }
             }
         }

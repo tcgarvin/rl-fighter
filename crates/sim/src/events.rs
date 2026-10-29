@@ -36,12 +36,14 @@ pub enum Event {
         to: Vec2,
         hit: bool,
     },
-    /// Hull damage at `pos`.
+    /// Hull damage at `pos`. `damage` is after armour; `mult` is the armour
+    /// multiplier that produced it (1.0 on uniform hulls; < 1 glancing, > 1 raking).
     Hit {
         target: u8,
         shooter: u8,
         pos: Vec2,
         damage: f32,
+        mult: f32,
     },
     /// A shield absorbed a hit; `pos` is on the shield bubble, `normal` is unit and
     /// points outward from the target's centre.
@@ -85,7 +87,7 @@ impl Event {
 
     /// `[kind, a, b, x, y, nx_or_x2, ny_or_y2, extra]` (SIM_SPEC §9). Fields a kind
     /// does not use are 0. `Fire` carries its weapon id in slot 5; `Beam` carries
-    /// `to` in slots 5–6 and `hit` as 0/1 in `extra`.
+    /// `to` in slots 5–6 and `hit` as 0/1 in `extra`; `Hit` carries `mult` in slot 5.
     pub fn encode(&self) -> [f32; EVENT_STRIDE] {
         let k = f32::from(self.kind());
         let b = |v: bool| if v { 1.0 } else { 0.0 };
@@ -117,13 +119,14 @@ impl Event {
                 shooter,
                 pos,
                 damage,
+                mult,
             } => [
                 k,
                 f32::from(target),
                 f32::from(shooter),
                 pos.x,
                 pos.y,
-                0.0,
+                mult,
                 0.0,
                 damage,
             ],
@@ -210,7 +213,8 @@ impl EventBuf {
 pub struct HitRecord {
     pub shooter: ShipIdx,
     pub target: ShipIdx,
-    /// Damage before shield absorption scaling (the weapon's raw damage).
+    /// Damage actually applied: the raw weapon damage for a shield hit (before
+    /// absorption scaling), the armour-scaled amount for a hull hit (SIM_SPEC §5.3).
     pub damage: f32,
     /// Tick the shot was fired (the current tick for beams).
     pub fire_tick: u32,

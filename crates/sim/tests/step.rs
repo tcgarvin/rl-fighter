@@ -3,7 +3,10 @@
 
 mod common;
 
-use common::{FIGHTER, GUNSHIP, STRAFER, config, new_match, new_present_match, test_catalogue};
+use common::{
+    FIGHTER, GUNSHIP, STRAFER, config, new_match, new_present_match, test_catalogue,
+    uniform_catalogue,
+};
 use sim::DT;
 use sim::actions::ShipAction;
 use sim::data::Catalogue;
@@ -136,7 +139,7 @@ fn time_limit_value_counts_pending_ships() {
 
 #[test]
 fn simultaneous_death_is_a_draw() {
-    let cat = test_catalogue();
+    let cat = uniform_catalogue();
     let mut m = new_present_match(&cat, 5, &[FIGHTER], &[FIGHTER]);
     place(&mut m, 0, Vec2::new(-50.0, 0.0), 0.0);
     place(&mut m, 1, Vec2::new(50.0, 0.0), PI);
@@ -164,7 +167,7 @@ fn simultaneous_death_is_a_draw() {
 
 #[test]
 fn reward_terms_sum_as_spec() {
-    let cat = test_catalogue();
+    let cat = uniform_catalogue();
     // Slot 0 fighter, slot 1 strafer (shielded), slot 2 fighter (team 1, ally of 1).
     let mut m = new_present_match(&cat, 6, &[FIGHTER], &[STRAFER, FIGHTER]);
     place(&mut m, 0, Vec2::new(0.0, 0.0), 0.0);
@@ -263,7 +266,7 @@ fn arrival_events_once_per_ship() {
 
 #[test]
 fn dead_ships_get_only_the_terminal_term() {
-    let cat = test_catalogue();
+    let cat = uniform_catalogue();
     let mut m = new_present_match(&cat, 10, &[FIGHTER, FIGHTER], &[FIGHTER]);
     place(&mut m, 0, Vec2::new(-100.0, 0.0), 0.0);
     place(&mut m, 1, Vec2::new(-100.0, 50.0), 0.0);
@@ -338,9 +341,13 @@ fn deaths_zero_throttles_and_emit_death() {
 }
 
 /// Ticks to the end of a scripted fighter 1v1 from the real jump-in, per seed.
+///
+/// Uniform armour: the scripted pilot only fires nose-on, so against the v2 fighter
+/// arcs (nose 0.5x) at the v1 gauss balance half the seeds reach the time limit.
+/// That is WP14's balance pass to settle; this test checks the step pipeline.
 #[test]
 fn scripted_fighter_duel_ends_in_a_kill() {
-    let cat = test_catalogue();
+    let cat = uniform_catalogue();
     let mut wins = [0u32; 2];
     let mut lengths = Vec::new();
     for seed in 0..20 {

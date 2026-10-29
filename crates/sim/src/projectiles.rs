@@ -1,14 +1,15 @@
 //! Projectile advance, torpedo steering, swept hit tests and flak bursts
-//! (SIM_SPEC §5 stage 8, §5.3), plus the segment/circle geometry shared with beams.
+//! (SIM_SPEC §5 stage 8, §5.3), plus the segment/circle geometry and the
+//! shield-first target shape shared with beams.
 
 use crate::DT;
 use crate::damage::{apply_damage, can_hit};
-use crate::data::{Catalogue, WeaponKind};
+use crate::data::{Catalogue, HullDef, WeaponKind};
 use crate::events::Event;
 use crate::math::{Vec2, clamp, wrap_angle};
 use crate::state::{MAX_PROJECTILES, Match, NONE, Projectile, Ship, ShipIdx};
 
-/// Slack added to `bound_radius` in the swept broad phase.
+/// Slack added to `hit_radius` in the swept and beam broad phases.
 pub const BROAD_PHASE_SLACK: f32 = 0.5;
 
 /// Visual radius of the `Burst` a torpedo impact emits (torpedoes do no splash
@@ -68,18 +69,104 @@ pub fn segment_circle_entry(a: Vec2, b: Vec2, c: Vec2, r: f32) -> Option<f32> {
     (0.0..=1.0).contains(&t).then_some(t)
 }
 
-/// Swept test of a projectile moving `from → to` against `ship`'s compound circles:
-/// broad phase on `bound_radius + 0.5`, then each collision circle in hull order.
-/// Returns the hit point (closest point on the segment to the first circle hit).
+/// What a projectile, beam or flak burst tests against on one ship, read at the
+/// moment of the test (SIM_SPEC §5.3, v2 shield-first): while `shield > 0` the
+/// single shield bubble `(pos, shield_radius)`, otherwise the hull's compound
+/// collision circles in world space.
+#[derive(Clone, Copy, Debug)]
+pub struct TargetShape<'a> {
+    ship: &'a Ship,
+    hull: &'a HullDef,
+}
+
+impl<'a> TargetShape<'a> {
+    pub fn of(cat: &'a Catalogue, ship: &'a Ship) -> Self {
+        TargetShape {
+            ship,
+            hull: cat.hull(ship.hull),
+        }
+    }
+
+    /// The shield is up, so the bubble is the shape.
+    #[inline]
+    pub fn shielded(&self) -> bool {
+        self.ship.shield > 0.0
+    }
+
+    /// Broad-phase radius around `ship.pos`: `shield_radius` while shielded, else
+    /// `bound_radius`.
+    #[inline]
+    pub fn hit_radius(&self) -> f32 {
+        if self.shielded() {
+            self.hull.shield_radius
+        } else {
+            self.hull.bound_radius
+        }
+    }
+
+    /// The circles to test, as world `(centre, r)`: the bubble alone, or the hull
+    /// circles in hull order.
+    pub fn circles(&self) -> impl Iterator<Item = (Vec2, f32)> + 'a {
+        let ship = self.ship;
+        let (bubble, hull_circles) = if self.shielded() {
+            (Some((ship.pos, self.hull.shield_radius)), &[][..])
+        } else {
+            (None, &self.hull.collision[..])
+        };
+        bubble.into_iter().chain(
+            hull_circles
+                .iter()
+                .map(move |c| (ship.to_world(c.pos), c.r)),
+        )
+    }
+}
+
+/// `TargetShape::hit_radius` of `ship` (SIM_SPEC §5.3).
+#[inline]
+pub fn hit_radius(cat: &Catalogue, ship: &Ship) -> f32 {
+    TargetShape::of(cat, ship).hit_radius()
+}
+
+/// Swept test of a projectile moving `from → to` against `ship`'s target shape:
+/// broad phase on `hit_radius + 0.5`, then `segment_hits_circle` on each circle of
+/// the shape. Returns the hit point: where the segment first enters any circle it
+/// hits (its start if it starts inside).
+///
+/// Deviation from SIM_SPEC §5.3, which takes the closest point on the segment to
+/// the circle's centre: for a segment through a circle that point is the centre
+/// itself, so armour bearings would collapse onto circle centres (an abeam shot on
+/// the fighter reads as nose or engine) and a shot through the shield bubble's
+/// centre would have no normal. The entry point is where the shot really crossed,
+/// the same rule beams use; which ship is hit is unchanged.
 pub fn swept_hit(cat: &Catalogue, ship: &Ship, from: Vec2, to: Vec2) -> Option<Vec2> {
-    let hull = cat.hull(ship.hull);
-    if segment_dist(from, to, ship.pos) >= hull.bound_radius + BROAD_PHASE_SLACK {
+    let shape = TargetShape::of(cat, ship);
+    if segment_dist(from, to, ship.pos) >= shape.hit_radius() + BROAD_PHASE_SLACK {
         return None;
     }
-    hull.collision.iter().find_map(|c| {
-        let centre = ship.to_world(c.pos);
-        segment_hits_circle(from, to, centre, c.r).then(|| closest_point(from, to, centre))
-    })
+    shape
+        .circles()
+        .filter(|&(centre, r)| segment_hits_circle(from, to, centre, r))
+        .map(|(centre, r)| {
+            // `segment_hits_circle` passing guarantees an entry up to rounding; fall
+            // back to the closest point if the quadratic loses it.
+            segment_circle_entry(from, to, centre, r).unwrap_or(closest_t(from, to, centre))
+        })
+        .reduce(f32::min)
+        .map(|t| from + (to - from) * t)
+}
+
+/// Parameter of the first entry of segment `from → to` into `ship`'s target shape
+/// (beams, SIM_SPEC §6): broad phase on `hit_radius + 0.5`, then the earliest entry
+/// over the shape's circles; `None` on a miss.
+pub fn segment_shape_entry(cat: &Catalogue, ship: &Ship, from: Vec2, to: Vec2) -> Option<f32> {
+    let shape = TargetShape::of(cat, ship);
+    if segment_dist(from, to, ship.pos) >= shape.hit_radius() + BROAD_PHASE_SLACK {
+        return None;
+    }
+    shape
+        .circles()
+        .filter_map(|(centre, r)| segment_circle_entry(from, to, centre, r))
+        .reduce(f32::min)
 }
 
 /// Torpedo steering (before advance): turn the velocity toward the locked target
@@ -154,7 +241,7 @@ impl Match {
     }
 
     /// Flak fuse burst at `at`: emit `Burst`, then full damage to every enemy active
-    /// ship with `|ship.pos - at| < burst_radius + bound_radius`, in slot order.
+    /// ship with `|ship.pos - at| < burst_radius + hit_radius`, in slot order.
     fn flak_burst(&mut self, cat: &Catalogue, p: &Projectile, at: Vec2, burst_radius: f32) {
         self.events.push(Event::Burst {
             team: p.team,
@@ -167,7 +254,7 @@ impl Match {
             if !can_hit(p.team, owner, s) {
                 continue;
             }
-            let reach = burst_radius + cat.hull(s.hull).bound_radius;
+            let reach = burst_radius + hit_radius(cat, s);
             if (s.pos - at).length() < reach {
                 apply_damage(self, cat, j as ShipIdx, p.damage, at, p.owner, p.fire_tick);
             }

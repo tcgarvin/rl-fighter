@@ -1,4 +1,4 @@
-//! apply_damage (shield, then hull), same_entity, and shield regen (SIM_SPEC §5.4,
+//! apply_damage (shield, then armour-scaled hull), same_entity, and shield regen (SIM_SPEC §5.4,
 //! §5 stage 9, §3.4).
 //!
 //! Damage only lowers `hp` / `shield`; it never flips `alive`. Deaths are resolved
@@ -6,9 +6,9 @@
 
 use crate::DT;
 use crate::TICK_HZ;
-use crate::data::Catalogue;
+use crate::data::{Catalogue, armour_mult};
 use crate::events::{Event, HitRecord};
-use crate::math::Vec2;
+use crate::math::{Vec2, wrap_angle};
 use crate::power::{self, SHIELDS};
 use crate::state::{Match, NEVER, Ship, ShipIdx};
 
@@ -30,8 +30,10 @@ pub fn can_hit(shooter_team: u8, shooter: &Ship, target: &Ship) -> bool {
 /// Apply `amount` damage to `target` at world point `point` from `shooter`, fired
 /// on `fire_tick` (SIM_SPEC §5.4). A raised shield takes the whole hit (absorbed
 /// amount scaled by `1 / (0.7 + 0.3 * P_s)`, no overflow to hull) and emits
-/// `ShieldHit`; otherwise hull `hp` drops and `Hit` is emitted. Either way one
-/// `HitRecord` with the raw `amount` is recorded.
+/// `ShieldHit`; otherwise hull `hp` drops by `amount` times the armour multiplier at
+/// the impact bearing (`impact_bearing`, `armour_mult`) and `Hit` is emitted. Either
+/// way one `HitRecord` is recorded with the damage actually applied: raw `amount`
+/// for a shield hit, the armour-scaled amount for a hull hit.
 #[allow(clippy::too_many_arguments)]
 pub fn apply_damage(
     m: &mut Match,
@@ -47,36 +49,52 @@ pub fn apply_damage(
     let hull = cat.hull(ship.hull);
     ship.last_hit_tick = tick;
     let shield_hit = ship.shield > 0.0;
-    let event = if shield_hit {
+    let (event, recorded) = if shield_hit {
         let p_s = power::ship_multipliers(ship, hull)[SHIELDS];
         let absorbed = amount / (0.7 + 0.3 * p_s);
         ship.shield = (ship.shield - absorbed).max(0.0);
         let n = (point - ship.pos).normalized();
         let n = if n == Vec2::ZERO { Vec2::X } else { n };
-        Event::ShieldHit {
+        let event = Event::ShieldHit {
             target,
             shooter,
             pos: ship.pos + n * hull.shield_radius,
             normal: n,
             depleted: ship.shield == 0.0,
-        }
+        };
+        (event, amount)
     } else {
-        ship.hp -= amount;
-        Event::Hit {
+        let mult = armour_mult(hull, impact_bearing(ship, point));
+        let dealt = amount * mult;
+        ship.hp -= dealt;
+        let event = Event::Hit {
             target,
             shooter,
             pos: point,
-            damage: amount,
-        }
+            damage: dealt,
+            mult,
+        };
+        (event, dealt)
     };
     m.events.push(event);
     m.push_hit(HitRecord {
         shooter,
         target,
-        damage: amount,
+        damage: recorded,
         fire_tick,
         shield: shield_hit,
     });
+}
+
+/// Body-frame bearing of world `point` seen from `ship` (radians, CCW from the
+/// nose): `wrap(atan2(point - pos) - heading)`. A point at the centre has no
+/// bearing and counts as the nose (0) (SIM_SPEC §5.4).
+pub fn impact_bearing(ship: &Ship, point: Vec2) -> f32 {
+    let rel = point - ship.pos;
+    if rel == Vec2::ZERO {
+        return 0.0;
+    }
+    wrap_angle(rel.angle() - ship.heading)
 }
 
 /// Ticks without hits before a shield regenerates: `round(regen_delay * 30 / P_s)`.

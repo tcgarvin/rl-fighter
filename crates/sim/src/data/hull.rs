@@ -48,6 +48,19 @@ pub struct ShieldDef {
     pub radius: f32,
 }
 
+/// Rule 11: most armour arcs a hull may declare.
+pub const MAX_ARMOUR_ARCS: usize = 8;
+
+/// One directional armour arc (SIM_SPEC §4.1, v2): hull damage landing at a
+/// body-frame bearing in `[from, to)` (radians, CCW from the nose) is scaled by
+/// `mult`. A hull's arcs tile `[-PI, PI]` in order.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ArmourArc {
+    pub from: f32,
+    pub to: f32,
+    pub mult: f32,
+}
+
 /// Parsed and validated but unused in M1; reserved for flagships (M5).
 #[derive(Clone, Debug, PartialEq)]
 pub struct BayDef {
@@ -73,6 +86,8 @@ pub struct HullDef {
     pub thrusters: Vec<ThrusterDef>,
     pub turrets: Vec<TurretDef>,
     pub bays: Vec<BayDef>,
+    /// Directional armour arcs in list order; empty means uniform 1x (SIM_SPEC §4.1).
+    pub armour: Vec<ArmourArc>,
 
     // Derived on load.
     /// `max(|c.pos| + c.r)` over collision circles.
@@ -104,5 +119,17 @@ impl HullDef {
         };
         self.n_power_systems = if self.shield.is_some() { 3 } else { 2 };
         self.arrival_speed = 1.4 * self.speed_cap;
+    }
+}
+
+/// Hull damage multiplier at body-frame `bearing` (radians, as `wrap_angle` returns)
+/// (SIM_SPEC §4.1). Arcs are half-open `[from, to)` and validated to tile
+/// `[-PI, PI]` in order, so the lookup is the first arc whose `to` lies above the
+/// bearing; anything past the last `to` (only `+PI`, or a hair below `-PI`'s
+/// rounding on the other end) takes the last arc. 1.0 without armour.
+pub fn armour_mult(hull: &HullDef, bearing: f32) -> f32 {
+    match hull.armour.iter().find(|a| bearing < a.to) {
+        Some(a) => a.mult,
+        None => hull.armour.last().map_or(1.0, |a| a.mult),
     }
 }
