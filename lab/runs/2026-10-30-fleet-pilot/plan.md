@@ -132,7 +132,7 @@ DAgger matters more, not less.
 |---|---|---|
 | round 0 | BC on 3 M DART rows (p = 0.15), 8 epochs, fresh actor | the v3 champion's actor (no training; its DART rows still join the aggregate) |
 | rounds 1–3 | 2 M on-policy rows each (learner flies one whole team vs the script), labelled by the script, aggregated, 2 epochs fine-tune | same |
-| best round | highest fleet win vs the script (suite `fleet_v1`, 32 per roster) | same |
+| best round | highest fleet win vs the script (suite `fleet_v1`, 32 per roster) among rounds 1–3 (`--best-from-round 1`: never plain BC, never the raw champion, which has not seen a strafer or a gunship) | same |
 | PPO | 600 updates of 256 × 128, from that round | same |
 
 DART and on-policy collection use 128 envs, so each env plays about three matches

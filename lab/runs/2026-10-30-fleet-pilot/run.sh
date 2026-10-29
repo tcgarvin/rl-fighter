@@ -86,7 +86,8 @@ dagger_run() {  # dagger_run NAME EXTRA_ARGS...: one fleet DAgger, skipped if do
         mv "$dir" "$aside"
     fi
     "${PY[@]}" -m spacefight.train_spike dagger --out "$dir" --rosters fleet_v1 \
-        --seed 0 --threads "$THREADS" "${DAGGER_ARGS[@]}" "$@" >>"$RUN/$name.out" 2>&1
+        --seed 0 --threads "$THREADS" --best-from-round 1 "${DAGGER_ARGS[@]}" "$@" \
+        >>"$RUN/$name.out" 2>&1
     tail -n 1 "$RUN/$name.out"
 }
 

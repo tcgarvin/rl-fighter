@@ -270,3 +270,29 @@ def test_fleet_ppo_trains_logs_and_resumes(tmp_path: Path) -> None:
     assert [p for _, p in resumed.pool.entries][0] == str(seed_ckpt)
     resumed.train(on_update_end=None)
     assert resumed.next_update == 3
+
+
+def test_fleet_dagger_scores_rounds_on_the_fleet_eval(tmp_path: Path) -> None:
+    config = bc.DaggerConfig(
+        rounds=1,
+        rows_per_round=8000,
+        base_rows=8000,
+        n_envs=16,
+        base_train=bc.TrainConfig(epochs=1, batch_size=1024),
+        finetune_train=bc.TrainConfig(epochs=1, batch_size=1024),
+        max_rows=16000,
+        duel_n=4,
+        rosters="fleet_v1",
+        fleet_n_per_roster=2,
+        best_from_round=1,
+    )
+    result = bc.dagger(tmp_path, config, n_threads=THREADS)
+    assert result.best_round == 1
+    assert (tmp_path / "best.pt").is_file()
+    for row in result.rounds:
+        summary = row["fleet"]["summary"]
+        assert set(summary["hull_damage"]) == {"fighter", "strafer", "gunship"}
+    report = json.loads((tmp_path / "dagger_eval.json").read_text())
+    assert report["best_round"] == 1
+    with pytest.raises(ValueError, match="best_from_round"):
+        bc.DaggerConfig(rounds=1, best_from_round=2)

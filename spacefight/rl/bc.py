@@ -925,6 +925,9 @@ class DaggerConfig:
             one with the best fleet win rate; the fighter duel is still reported.
         fleet_suite: Fleet eval suite of the round scores.
         fleet_n_per_roster: Matches per roster of the round scores.
+        best_from_round: ``best.pt`` is the best of rounds ``best_from_round``
+            and later (1 keeps an ``init`` that never saw this data, or plain BC,
+            from being picked).
     """
 
     rounds: int = 3
@@ -946,12 +949,17 @@ class DaggerConfig:
     rosters: str = ""
     fleet_suite: str = "fleet_v1"
     fleet_n_per_roster: int = 32
+    best_from_round: int = 0
 
     def __post_init__(self) -> None:
         if self.mode not in DAGGER_MODES:
             raise ValueError(f"mode must be one of {DAGGER_MODES}, got {self.mode}")
         if self.rounds < 0:
             raise ValueError(f"rounds must be >= 0, got {self.rounds}")
+        if not 0 <= self.best_from_round <= self.rounds:
+            raise ValueError(
+                f"best_from_round must be in 0..{self.rounds}, got {self.best_from_round}"
+            )
         if self.total_rows > self.max_rows:
             raise ValueError(
                 f"{self.total_rows} aggregate rows exceed max_rows {self.max_rows}"
@@ -1162,7 +1170,9 @@ def dagger(
         rows.append(row | {"beta": beta})
         _save_round(out_dir, k, actor, rows, config, n_threads, start, init, on_round)
 
-    best_round = max(range(len(rows)), key=lambda i: _win_rate(rows[i]))
+    best_round = max(
+        range(config.best_from_round, len(rows)), key=lambda i: _win_rate(rows[i])
+    )
     best = out_dir / DAGGER_BEST_NAME
     shutil.copyfile(out_dir / dagger_checkpoint_name(best_round), best)
     eval_path = _write_dagger_eval(out_dir, config, init, rows, best_round)

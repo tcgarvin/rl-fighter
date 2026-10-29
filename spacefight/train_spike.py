@@ -156,6 +156,12 @@ def add_dagger_parser(subparsers: argparse._SubParsersAction) -> None:  # type: 
     )
     parser.add_argument("--fleet-suite", default="fleet_v1")
     parser.add_argument("--fleet-n-per-roster", type=int, default=32)
+    parser.add_argument(
+        "--best-from-round",
+        type=int,
+        default=0,
+        help="best.pt is the best of this round and later (1: never plain BC/init)",
+    )
     parser.set_defaults(func=run_dagger)
 
 
@@ -195,6 +201,7 @@ def run_dagger(args: argparse.Namespace) -> int:
         rosters=args.rosters,
         fleet_suite=args.fleet_suite,
         fleet_n_per_roster=args.fleet_n_per_roster,
+        best_from_round=args.best_from_round,
     )
 
     def report(row: dict[str, object]) -> None:
