@@ -43,6 +43,15 @@ pub(crate) struct RawShield {
     pub radius: f32,
 }
 
+/// One armour arc as authored (v2): degrees, half-open `[from_deg, to_deg)`.
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct RawArmourArc {
+    pub from_deg: f32,
+    pub to_deg: f32,
+    pub mult: f32,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct RawBay {
@@ -73,6 +82,9 @@ pub(crate) struct RawHull {
     pub turrets: Vec<RawTurret>,
     #[serde(default)]
     pub bays: Vec<RawBay>,
+    /// Optional (v2); absent or `[]` is uniform 1x.
+    #[serde(default)]
+    pub armour: Vec<RawArmourArc>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]

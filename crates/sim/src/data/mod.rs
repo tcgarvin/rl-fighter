@@ -7,12 +7,15 @@ pub mod weapon;
 
 use core::fmt;
 
-pub use hull::{BayDef, Circle, HullDef, ShieldDef, ThrusterDef, TurretDef};
+pub use hull::{
+    ArmourArc, BayDef, Circle, HullDef, MAX_ARMOUR_ARCS, ShieldDef, ThrusterDef, TurretDef,
+    armour_mult,
+};
 pub use weapon::{WeaponDef, WeaponKind};
 
 use crate::TICK_HZ;
 use crate::math::PI;
-use raw::{RawHull, RawKind, RawWeapon, RawWeapons};
+use raw::{RawArmourArc, RawHull, RawKind, RawWeapon, RawWeapons};
 use validate::vec2;
 
 /// Index into `Catalogue::hulls`; stable for a loaded catalogue (hulls sorted by name).
@@ -296,6 +299,7 @@ fn convert_hull(raw: RawHull, weapon_names: &[String]) -> HullDef {
                 dir: vec2(b.dir).normalized(),
             })
             .collect(),
+        armour: convert_armour(&raw.armour),
         bound_radius: 0.0,
         shield_radius: 0.0,
         n_power_systems: 0,
@@ -303,6 +307,17 @@ fn convert_hull(raw: RawHull, weapon_names: &[String]) -> HullDef {
     };
     hull.derive();
     hull
+}
+
+/// Armour arcs in radians, list order kept (validated to tile [-180, 180]).
+fn convert_armour(raw: &[RawArmourArc]) -> Vec<ArmourArc> {
+    raw.iter()
+        .map(|a| ArmourArc {
+            from: a.from_deg * DEG_TO_RAD,
+            to: a.to_deg * DEG_TO_RAD,
+            mult: a.mult,
+        })
+        .collect()
 }
 
 fn convert_weapon((name, w): (String, RawWeapon)) -> WeaponDef {

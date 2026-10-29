@@ -4,7 +4,7 @@
 //! wasm32-wasip1, which cannot see the host filesystem; only the `load_dir` tests
 //! touch the disk.
 
-use sim::data::{Catalogue, DataError, WeaponKind};
+use sim::data::{Catalogue, DataError, WeaponKind, armour_mult};
 use sim::math::PI;
 
 const WEAPONS: &str = include_str!("../../../assets/weapons.yaml");
@@ -260,6 +260,82 @@ fn rule10_reaction_ticks() {
         assert_eq!(cat.hulls[0].reaction_ticks, want, "reaction_ticks: {ok}");
     }
     assert_eq!(shipped().hulls[0].reaction_ticks, None);
+}
+
+#[test]
+fn rule11_armour_gap_and_overlap() {
+    let errors = hull_errors(include_str!("fixtures/rule11_gap.yaml"));
+    assert_rule(&errors, 11, 1);
+    assert!(errors[0].contains("gap or overlap"), "{errors:?}");
+    let errors = hull_errors(include_str!("fixtures/rule11_overlap.yaml"));
+    assert_rule(&errors, 11, 1);
+    assert!(errors[0].contains("gap or overlap"), "{errors:?}");
+}
+
+#[test]
+fn rule11_armour_wrong_ends_and_bounds() {
+    let errors = hull_errors(include_str!("fixtures/rule11_ends.yaml"));
+    assert_rule(&errors, 11, 2);
+    assert!(errors[0].contains("start at -180"), "{errors:?}");
+    assert!(errors[1].contains("end at 180"), "{errors:?}");
+    // empty arc, `to_deg` past 180, `from_deg` past 180 (and above its `to_deg`)
+    let errors = hull_errors(include_str!("fixtures/rule11_bounds.yaml"));
+    assert_rule(&errors, 11, 3);
+}
+
+#[test]
+fn rule11_armour_mult_must_be_positive_and_finite() {
+    let errors = hull_errors(include_str!("fixtures/rule11_mult.yaml"));
+    assert_rule(&errors, 11, 3);
+}
+
+#[test]
+fn rule11_armour_at_most_eight_arcs() {
+    let errors = hull_errors(include_str!("fixtures/rule11_count.yaml"));
+    assert_rule(&errors, 11, 1);
+    assert!(errors[0].contains("MAX_ARMOUR_ARCS"), "{errors:?}");
+}
+
+#[test]
+fn single_uniform_armour_arc_loads_and_equals_absent() {
+    let cat = Catalogue::from_yaml(
+        &[("uniform", include_str!("fixtures/armour_uniform.yaml"))],
+        WEAPONS,
+    )
+    .expect("a single [-180, 180] arc is valid");
+    let hull = &cat.hulls[0];
+    assert_eq!(hull.armour.len(), 1);
+    for deg in [-180.0f32, -90.0, 0.0, 45.0, 179.9, 180.0] {
+        assert_eq!(armour_mult(hull, deg * DEG), 1.0, "bearing {deg}");
+    }
+}
+
+#[test]
+fn shipped_armour_arcs() {
+    let cat = shipped();
+    let fighter = &cat.hulls[0];
+    let arcs: Vec<(f32, f32, f32)> = fighter
+        .armour
+        .iter()
+        .map(|a| (a.from / DEG, a.to / DEG, a.mult))
+        .collect();
+    let want = [
+        (-180.0, -135.0, 1.5),
+        (-135.0, -45.0, 1.0),
+        (-45.0, 45.0, 0.5),
+        (45.0, 135.0, 1.0),
+        (135.0, 180.0, 1.5),
+    ];
+    assert_eq!(arcs.len(), want.len());
+    for (got, want) in arcs.iter().zip(want) {
+        assert!(approx(got.0, want.0) && approx(got.1, want.1), "{got:?}");
+        assert_eq!(got.2, want.2);
+    }
+    // Strafer and gunship carry no armour block: uniform 1x.
+    for hull in &cat.hulls[1..] {
+        assert!(hull.armour.is_empty(), "{}", hull.name);
+        assert_eq!(armour_mult(hull, PI), 1.0);
+    }
 }
 
 #[test]

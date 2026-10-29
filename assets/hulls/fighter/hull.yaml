@@ -8,6 +8,12 @@ inertia: 55.0
 speed_cap: 60.0
 static: false
 shield: null
+armour:                # body-frame bearing of the impact point; half-open [from, to)
+  - {from_deg: -180, to_deg: -135, mult: 1.5}   # engine
+  - {from_deg: -135, to_deg: -45, mult: 1.0}    # starboard flank
+  - {from_deg: -45, to_deg: 45, mult: 0.5}      # nose
+  - {from_deg: 45, to_deg: 135, mult: 1.0}      # port flank
+  - {from_deg: 135, to_deg: 180, mult: 1.5}     # engine
 cost: 10
 collision:
   - {pos: [2.0, 0.0], r: 2.4}

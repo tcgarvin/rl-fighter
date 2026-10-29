@@ -11,6 +11,7 @@ use crate::data::raw::{RawHull, RawKind, RawWeapon};
 use crate::data::{DataError, life_ticks};
 use crate::math::Vec2;
 
+pub use crate::data::hull::MAX_ARMOUR_ARCS;
 pub use crate::state::{MAX_REACTION_TICKS, MAX_THRUSTERS, MAX_TURRETS};
 /// Rule 3: largest allowed `bound_radius`, metres.
 pub const MAX_BOUND_RADIUS: f32 = 60.0;
@@ -55,7 +56,7 @@ impl HullErrors<'_> {
     }
 }
 
-/// Rules 1–7 and 10 for one hull. `dir_name` is the directory (or `from_yaml` key) the hull
+/// Rules 1–7, 10 and 11 for one hull. `dir_name` is the directory (or `from_yaml` key) the hull
 /// came from; `weapons` is `None` when the weapon file failed to parse, in which case
 /// turret weapon references are not checked (that would only add noise).
 pub(crate) fn validate_hull(
@@ -76,6 +77,7 @@ pub(crate) fn validate_hull(
     check_shield(&mut e, raw, bound);
     check_authority(&mut e, raw);
     check_reaction(&mut e, raw);
+    check_armour(&mut e, raw);
 }
 
 fn check_name(e: &mut HullErrors, dir_name: &str, raw: &RawHull) {
@@ -271,6 +273,57 @@ fn check_reaction(e: &mut HullErrors, raw: &RawHull) {
         if !(0..=MAX_REACTION_TICKS as i64).contains(&d) {
             e.push(format!(
                 "rule 10: reaction_ticks {d} must be in [0, {MAX_REACTION_TICKS}]"
+            ));
+        }
+    }
+}
+
+/// Rule 11 (v2): armour arcs, if any, number at most `MAX_ARMOUR_ARCS`, run in order
+/// from -180 to 180 with each `from_deg` equal to the previous `to_deg` (no gap, no
+/// overlap), each with `from_deg < to_deg`, and have finite `mult > 0`.
+fn check_armour(e: &mut HullErrors, raw: &RawHull) {
+    let arcs = &raw.armour;
+    let (Some(first), Some(last)) = (arcs.first(), arcs.last()) else {
+        return;
+    };
+    if arcs.len() > MAX_ARMOUR_ARCS {
+        e.push(format!(
+            "rule 11: {} armour arcs exceeds MAX_ARMOUR_ARCS = {MAX_ARMOUR_ARCS}",
+            arcs.len()
+        ));
+    }
+    if first.from_deg != -180.0 {
+        e.push(format!(
+            "rule 11: first armour arc must start at -180, got {}",
+            first.from_deg
+        ));
+    }
+    if last.to_deg != 180.0 {
+        e.push(format!(
+            "rule 11: last armour arc must end at 180, got {}",
+            last.to_deg
+        ));
+    }
+    for (i, a) in arcs.iter().enumerate() {
+        let in_range = |d: f32| (-180.0..=180.0).contains(&d);
+        if !(a.from_deg < a.to_deg) || !in_range(a.from_deg) || !in_range(a.to_deg) {
+            e.push(format!(
+                "rule 11: armour arc {i} [{}, {}) must have -180 <= from_deg < to_deg <= 180",
+                a.from_deg, a.to_deg
+            ));
+        }
+        if i > 0 && a.from_deg != arcs[i - 1].to_deg {
+            e.push(format!(
+                "rule 11: armour arc {i} starts at {} but arc {} ends at {} (gap or overlap)",
+                a.from_deg,
+                i - 1,
+                arcs[i - 1].to_deg
+            ));
+        }
+        if !(a.mult.is_finite() && a.mult > 0.0) {
+            e.push(format!(
+                "rule 11: armour arc {i} mult must be finite and > 0, got {}",
+                a.mult
             ));
         }
     }
