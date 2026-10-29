@@ -35,7 +35,8 @@ are already written for v2; this table is the diff and the reasons.
 | 6 | Vision: all other ships (7 slots by distance) and 8 hostile projectiles sorted by a threat score, plus thruster levels and the pending-action queue in the obs. `OBS_DIM` 204 → 385. | Nearest-3/4 truncation hid teammates and incoming fire in 2v2+; the extra blocks are what items 2 and 3 need for Markov obs | §7.2, §10.1 |
 | 7 | `act_mask` semantics fixed (WP10 found the gap): a masked row is ignored entirely, including slew and power, and the mask is computed for the tick the action will apply on (after the reaction delay). | PPO log-prob masking is only correct when "masked" and "had no effect" coincide; v1 masked the last locked tick wrongly and let slew/power leak through the lock | §5 stage 3, §7.1 |
 | 8 | Credit: `HitRecord` and the hits buffer carry `decision_tick` (the obs tick on which the firing action was chosen) alongside `fire_tick`. | With a reaction delay the fire step is `reaction_ticks + 1` before the shot; the Python adapter maps credit to the decision step | §5.3, §8, §10.1 |
-| 9 | Balance starting point for the spike's duel sweep (data only): gauss 3 dmg / 0.20 s / 220 m / 200 m/s / 1.0° spread; fighter 80 hp. The sweep (plan §2.3) may move these; the tables in §4 are updated when it does. | v1 duels end on the first head-on pass (plan §2.1) | §4.1, §4.2 |
+| 9 | Duel balance (data): gauss **5 dmg** / 0.20 s / 220 m / 200 m/s / 1.0° spread; fighter 80 hp. The plan's starting point was 3 dmg; the WP15 sweep moved it to 5 (`lab/runs/2026-10-28-sim-v2/results.md`). | v1 duels end on the first head-on pass (plan §2.1) | §4.1, §4.2 |
+| 10 | Scripted fighter extends after a merge and no longer throttles down inside 60 m (WP15) | two sim.js fighters parked nose to nose inside gun range for the whole duel, so v2 nose armour took nearly every hit and there were no passes | §11 |
 
 Also folded in from what WP1–WP10 built (deviations the packages recorded in code
 comments; the spec now matches them): hull roles are `fighter` / `skirmisher`
@@ -215,7 +216,7 @@ not hashed; `queue` and `thrust_level` are state and are hashed (§12).
 ```yaml
 name: fighter            # must equal directory name
 role: fighter            # free string; the scripted controller dispatches on it (§11)
-hp: 80                   # v2 balance starting point (was 60); the spike sweep may move it
+hp: 80                   # v2 duel balance (was 60; WP15 sweep)
 mass: 10.0
 inertia: 55.0            # explicit in M1; derived from GLB footprint later
 speed_cap: 60.0
@@ -274,9 +275,10 @@ Option<u8>` (None = use the match config).
 ### 4.2 Weapon YAML (`assets/weapons.yaml`)
 
 ```yaml
-# gauss is the v2 balance starting point for the spike's duel sweep (plan §2.3);
-# v1 was speed 240, range 300, damage 6, interval 0.16, spread 0.6.
-gauss:   {kind: bullet,  speed: 200, range: 220, damage: 3,  interval: 0.20, spread_deg: 1.0}
+# gauss: v2 duel balance (SIM_SPEC §0 item 9, chosen by the WP15 sweep in
+# lab/runs/2026-10-28-sim-v2/results.md); v1 was speed 240, range 300, damage 6,
+# interval 0.16, spread 0.6.
+gauss:   {kind: bullet,  speed: 200, range: 220, damage: 5,  interval: 0.20, spread_deg: 1.0}
 laser:   {kind: beam,    speed: 0,   range: 180, damage: 3,  interval: 0.10, spread_deg: 0.6}
 flak:    {kind: flak,    speed: 180, range: 230, damage: 4,  interval: 0.09, spread_deg: 3.5,
           burst_radius: 14, fuse_jitter: 0.4}
@@ -864,8 +866,12 @@ Roles as shipped: `fighter` (fighter), `skirmisher` (strafer: orbit at 120 m,
 broadside), ported from sim.js in `fighter.rs` / `strafer.rs` / `gunship.rs`; a hull
 whose role has no controller returns `IDLE`. The controller reads `Match` state, not
 obs, so BC pairs are `(obs_t, act(state_t))`; it is deterministic and allocation-free.
-Acceptance for v2 (§14.1 WP11): scripted fighter duels end in a kill before the time
-limit for 20/20 seeds at every `reaction_ticks ∈ {0, 2, 4}`.
+Acceptance for v2 (§14.1 WP11, revised at WP14 for the real armour and balance):
+scripted fighter duels (seeds 0..20) end in a kill before the time limit for 20/20 at
+`reaction_ticks` 2, and for ≥ 12/20 at 0 and ≥ 18/20 at 4 (measured 14 and 19). At
+`d = 0` the two pilots are often exact mirror images and hover nose to nose until the
+time limit; the WP15 sweep over 200 seeds: 20 % time limit at `d = 0`, 0 % at 2, 3 %
+at 4.
 
 ## 12. Determinism contract and test
 
@@ -915,7 +921,10 @@ Budget reasoning: one 2-ship tick with ~20 projectiles and a 385-float obs is ~3
 (the v2 obs is 1.9× v1's but mostly zero-filled slots; the threat sort is over ≤ 256
 pool entries with an 8-entry insertion list); 256 of them is ~1 ms single-threaded,
 so 16 cores plus ~50 µs of PyO3 overhead leaves headroom. The targets above are
-unchanged for v2; WP14 re-measures and records the number in the lab journal. At the
+unchanged for v2. Measured at WP14 (SIM_VERSION 2, this laptop, idle, load < 1):
+1v1 14,008 steps/s (3.6 M match-ticks/s), 2v2 8,114, single-thread 1v1 3,200; the
+same run inside `RLF_BENCH=1 scripts/check.sh` right after the builds (load ~7) gave
+6,623 / 3,735 / 2,175, still above every floor. The WASM row is not benchmarked yet. At the
 target, the 4-hour nightly budget is sim-bound at >2 × 10^10 match-ticks; policy
 inference will dominate.
 

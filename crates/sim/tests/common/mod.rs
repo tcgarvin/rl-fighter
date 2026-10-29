@@ -87,7 +87,7 @@ fn hull(name: &str, role: &str, hp: f32, mass: f32, inertia: f32, speed_cap: f32
 }
 
 pub fn fighter_hull() -> HullDef {
-    let mut h = hull("fighter", "fighter", 60.0, 10.0, 55.0, 60.0);
+    let mut h = hull("fighter", "fighter", 80.0, 10.0, 55.0, 60.0);
     h.collision = vec![circle(2.0, 0.0, 2.4), circle(-2.2, 0.0, 2.6)];
     h.thrusters = vec![
         thruster("thruster.main.0", (-4.6, 0.0), (1.0, 0.0), 900.0),
@@ -233,7 +233,7 @@ fn derive_life(w: &mut WeaponDef) {
 }
 
 pub fn test_weapons() -> Vec<WeaponDef> {
-    let gauss = weapon("gauss", WeaponKind::Bullet, 240.0, 300.0, 6.0, 0.16, 0.6);
+    let gauss = weapon("gauss", WeaponKind::Bullet, 200.0, 220.0, 5.0, 0.20, 1.0);
     let laser = weapon("laser", WeaponKind::Beam, 0.0, 180.0, 3.0, 0.10, 0.6);
     let mut flak = weapon("flak", WeaponKind::Flak, 180.0, 230.0, 4.0, 0.09, 3.5);
     flak.burst_radius = 14.0;
@@ -254,8 +254,9 @@ pub fn test_catalogue() -> Catalogue {
     }
 }
 
-/// `test_catalogue()` with every hull's armour removed (uniform 1x), for tests of
-/// other mechanics whose expected damage numbers should not depend on hit bearings.
+/// `test_catalogue()` with every hull's armour removed (uniform 1x), for tests that pin
+/// concrete damage numbers which should not depend on hit bearings (WP14 moved every
+/// other test back to the real arcs; only `step.rs::reward_terms_sum_as_spec` uses it).
 pub fn uniform_catalogue() -> Catalogue {
     let mut cat = test_catalogue();
     for h in &mut cat.hulls {

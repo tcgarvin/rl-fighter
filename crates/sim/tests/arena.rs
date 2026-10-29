@@ -168,7 +168,7 @@ fn outside_arena_is_pushed_back_and_drained() {
     let s = &m.ships[0];
     assert!(close(s.vel.y, -40.0 * DT, 1e-6), "{:?}", s.vel);
     assert!(close(s.vel.x, 0.0, 1e-6));
-    assert!(close(s.hp, 60.0 - 0.02 * 60.0 * DT, 1e-5), "hp {}", s.hp);
+    assert!(close(s.hp, 80.0 - 0.02 * 80.0 * DT, 1e-5), "hp {}", s.hp);
     assert_eq!(m.ships[1].vel, Vec2::ZERO, "inside: untouched");
     assert_eq!(m.ships[1].hp, 70.0);
     let mut want = [false; MAX_SHIPS];

@@ -2,7 +2,7 @@
 # Thrusters and turrets from prototypes/story/hulls.js; body frame +x forward, +y port.
 name: fighter
 role: fighter
-hp: 60
+hp: 80                 # v2 duel balance (was 60)
 mass: 10.0
 inertia: 55.0
 speed_cap: 60.0

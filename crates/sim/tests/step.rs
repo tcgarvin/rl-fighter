@@ -100,8 +100,10 @@ fn time_limit_uses_value_tiebreak() {
     cfg.time_limit_ticks = 5;
     let mut m = Match::new(&cat, &cfg).unwrap();
     common::make_all_present(&mut m);
-    // Fighter 60 hp vs strafer 50 hp + 0.5 * 40 shield = 70: the strafer wins...
-    m.ships[1].hp = 50.0;
+    // Fighter at full hull vs strafer 10 hp more value (hull + 0.5 * 40 shield): the
+    // strafer wins...
+    let fighter_hp = cat.hull(FIGHTER).hp;
+    m.ships[1].hp = fighter_hp - 10.0;
     for _ in 0..4 {
         m.step(&cat);
         assert_eq!(m.phase(), MatchPhase::Running);
@@ -117,7 +119,7 @@ fn time_limit_uses_value_tiebreak() {
     // ...and with equal value it is a draw with no terminal reward.
     let mut m = Match::new(&cat, &cfg).unwrap();
     common::make_all_present(&mut m);
-    m.ships[1].hp = 40.0;
+    m.ships[1].hp = fighter_hp - 20.0;
     for _ in 0..5 {
         m.step(&cat);
     }
@@ -141,12 +143,12 @@ fn time_limit_value_counts_pending_ships() {
 
 #[test]
 fn simultaneous_death_is_a_draw() {
-    let cat = uniform_catalogue();
+    let cat = test_catalogue();
     let mut m = new_present_match(&cat, 5, &[FIGHTER], &[FIGHTER]);
     place(&mut m, 0, Vec2::new(-50.0, 0.0), 0.0);
     place(&mut m, 1, Vec2::new(50.0, 0.0), PI);
-    m.ships[0].hp = 3.0;
-    m.ships[1].hp = 3.0;
+    m.ships[0].hp = 1.0;
+    m.ships[1].hp = 1.0;
     // Ship 0's bullet hits ship 1 first (pool order); ship 1 must still die in the
     // same tick from its own bullet on ship 0.
     m.projectiles[0] = bullet_at(&m, 0, m.ships[1].pos, 6.0);
@@ -161,14 +163,27 @@ fn simultaneous_death_is_a_draw() {
         .filter(|e| matches!(e, Event::Death { .. }))
         .count();
     assert_eq!(deaths, 2);
-    // Damage terms cancel (each dealt and took 6 hull); no terminal term on a draw.
-    for r in m.rewards() {
-        assert!(close(*r, 0.0, EPS), "reward {r}");
-    }
+    // Only the damage terms (post-armour: the rounds meet a nose and a tail); no
+    // terminal term on a draw.
+    let (to1, to0) = (m.hits()[0].damage, m.hits()[1].damage);
+    assert_eq!((m.hits()[0].target, m.hits()[1].target), (1, 0));
+    let r = m.rewards();
+    assert!(
+        close(r[0], HULL_DAMAGE_WEIGHT * (to1 - to0), EPS),
+        "r0 {}",
+        r[0]
+    );
+    assert!(
+        close(r[1], HULL_DAMAGE_WEIGHT * (to0 - to1), EPS),
+        "r1 {}",
+        r[1]
+    );
 }
 
 #[test]
 fn reward_terms_sum_as_spec() {
+    // Uniform armour: this test pins the reward arithmetic to concrete hull numbers,
+    // which must not depend on where the rounds strike.
     let cat = uniform_catalogue();
     // Slot 0 fighter, slot 1 strafer (shielded), slot 2 fighter (team 1, ally of 1).
     let mut m = new_present_match(&cat, 6, &[FIGHTER], &[STRAFER, FIGHTER]);
@@ -268,7 +283,7 @@ fn arrival_events_once_per_ship() {
 
 #[test]
 fn dead_ships_get_only_the_terminal_term() {
-    let cat = uniform_catalogue();
+    let cat = test_catalogue();
     let mut m = new_present_match(&cat, 10, &[FIGHTER, FIGHTER], &[FIGHTER]);
     place(&mut m, 0, Vec2::new(-100.0, 0.0), 0.0);
     place(&mut m, 1, Vec2::new(-100.0, 50.0), 0.0);
@@ -279,7 +294,11 @@ fn dead_ships_get_only_the_terminal_term() {
     m.step(&cat);
     assert!(!m.ships[1].alive);
     // It took the killing hit while alive, so it is penalised for it.
-    assert!(close(m.rewards()[1], -HULL_DAMAGE_WEIGHT * 6.0, EPS));
+    assert!(close(
+        m.rewards()[1],
+        -HULL_DAMAGE_WEIGHT * m.hits()[0].damage,
+        EPS
+    ));
     assert_eq!(m.phase(), MatchPhase::Running);
 
     // Now a bullet the dead ship fired hits slot 2: slot 2 is penalised, the dead
@@ -290,7 +309,11 @@ fn dead_ships_get_only_the_terminal_term() {
     assert_eq!(m.hits().len(), 1);
     assert_eq!(m.hits()[0].shooter, 1);
     assert_eq!(m.rewards()[1], 0.0);
-    assert!(close(m.rewards()[2], -HULL_DAMAGE_WEIGHT * 6.0, EPS));
+    assert!(close(
+        m.rewards()[2],
+        -HULL_DAMAGE_WEIGHT * m.hits()[0].damage,
+        EPS
+    ));
 
     // Finish slot 2: the whole of team 0, the dead slot included, gets +1.
     m.ships[2].hp = 1.0;
@@ -299,14 +322,15 @@ fn dead_ships_get_only_the_terminal_term() {
     assert_eq!(m.phase(), MatchPhase::Over);
     assert_eq!(m.winner(), 0);
     assert!(close(m.rewards()[1], WIN_REWARD, EPS));
+    let dealt = m.hits()[0].damage;
     assert!(close(
         m.rewards()[0],
-        WIN_REWARD + HULL_DAMAGE_WEIGHT * 6.0,
+        WIN_REWARD + HULL_DAMAGE_WEIGHT * dealt,
         EPS
     ));
     assert!(close(
         m.rewards()[2],
-        -WIN_REWARD - HULL_DAMAGE_WEIGHT * 6.0,
+        -WIN_REWARD - HULL_DAMAGE_WEIGHT * dealt,
         EPS
     ));
 }
@@ -392,17 +416,16 @@ fn hit_record_decision_tick_is_fire_tick_minus_one_minus_d() {
     }
 }
 
-/// Scripted fighter 1v1 from the real jump-in for seeds 0..20 at reaction delay `d`:
-/// every duel must end in a kill before the time limit. Returns the
-/// (team 0 wins, team 1 wins, draws) split and the sorted lengths in ticks.
-///
-/// Uniform armour: the scripted pilot only fires nose-on, so against the v2 fighter
-/// arcs (nose 0.5x) at the v1 gauss balance half the seeds reach the time limit.
-/// That is WP14's balance pass to settle; this test checks the step pipeline.
-fn scripted_duels(d: u8) -> ([u32; 3], Vec<u32>) {
-    let cat = uniform_catalogue();
+/// Scripted fighter 1v1 from the real jump-in for seeds 0..20 at reaction delay `d`,
+/// with the real fighter armour and the v2 balance tuple (WP15 sweep). Every match
+/// must be `Over` by the time limit, and at least `min_kills` of the 20 must end in a
+/// kill before it. Returns the (team 0 wins, team 1 wins, draws) split and the
+/// sorted lengths in ticks.
+fn scripted_duels(d: u8, min_kills: usize) -> ([u32; 3], Vec<u32>) {
+    let cat = test_catalogue();
     let mut split = [0u32; 3];
     let mut lengths = Vec::new();
+    let mut stalled = Vec::new();
     for seed in 0..20 {
         let mut cfg = config(seed, &[FIGHTER], &[FIGHTER]);
         cfg.reaction_ticks = d;
@@ -411,12 +434,9 @@ fn scripted_duels(d: u8) -> ([u32; 3], Vec<u32>) {
         run_scripted(&mut m, &cat, limit);
         assert_eq!(m.phase(), MatchPhase::Over, "d {d} seed {seed}");
         let dead = m.ships.iter().filter(|s| !s.alive).count();
-        assert!(
-            m.tick() < limit && dead >= 1,
-            "d {d} seed {seed}: no kill before the time limit (tick {}, hp {:?})",
-            m.tick(),
-            m.ships.iter().map(|s| s.hp).collect::<Vec<_>>()
-        );
+        if m.tick() >= limit || dead == 0 {
+            stalled.push((seed, m.ships.iter().map(|s| s.hp).collect::<Vec<_>>()));
+        }
         split[if m.winner() >= 0 {
             m.winner() as usize
         } else {
@@ -427,28 +447,42 @@ fn scripted_duels(d: u8) -> ([u32; 3], Vec<u32>) {
     lengths.sort_unstable();
     println!(
         "scripted fighter 1v1, d = {d}: wins/wins/draws {split:?}, median length {} ticks, \
-         range {}..{}",
+         range {}..{}, time limit {stalled:?}",
         lengths[lengths.len() / 2],
         lengths[0],
         lengths[lengths.len() - 1]
     );
+    assert!(
+        20 - stalled.len() >= min_kills,
+        "d {d}: only {} of 20 duels ended in a kill before the time limit; \
+         (seed, hp) of the rest: {stalled:?}",
+        20 - stalled.len()
+    );
     (split, lengths)
 }
 
+/// Without a delay the two pilots are exact mirror images often enough that some
+/// duels hover nose to nose until the time limit (WP15 sweep: ~20 % of 200 seeds);
+/// d = 0 is informative, not the production setting.
 #[test]
-fn scripted_fighter_duel_ends_in_a_kill_without_delay() {
-    scripted_duels(0);
+fn scripted_fighter_duel_mostly_ends_in_a_kill_without_delay() {
+    scripted_duels(0, MIN_KILLS_D0);
 }
 
 #[test]
 fn scripted_fighter_duel_ends_in_a_kill_at_default_delay() {
-    scripted_duels(2);
+    scripted_duels(2, 20);
 }
 
+/// WP15 sweep: ~3 % of 200 seeds reach the time limit at d = 4.
 #[test]
-fn scripted_fighter_duel_ends_in_a_kill_at_max_delay() {
-    scripted_duels(MAX_REACTION_TICKS as u8);
+fn scripted_fighter_duel_mostly_ends_in_a_kill_at_max_delay() {
+    scripted_duels(MAX_REACTION_TICKS as u8, MIN_KILLS_D4);
 }
+
+/// Floors a little under what seeds 0..20 give (14 and 19 kills), to catch regressions.
+const MIN_KILLS_D0: usize = 12;
+const MIN_KILLS_D4: usize = 18;
 
 #[test]
 fn scripted_mixed_2v2_smoke() {

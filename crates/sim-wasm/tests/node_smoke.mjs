@@ -52,7 +52,7 @@ function check(cond, msg) {
 }
 
 check(sim.SHIP_STRIDE() === 29 && sim.EVENT_STRIDE() === 8 && sim.PROJECTILE_STRIDE() === 8, "strides");
-check(sim.ACTION_WIDTH() === 21 && sim.OBS_DIM() === 204, "action/obs widths");
+check(sim.ACTION_WIDTH() === 21 && sim.OBS_DIM() === 385, "action/obs widths");
 
 let threw = false;
 try {

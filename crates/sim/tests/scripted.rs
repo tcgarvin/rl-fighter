@@ -269,11 +269,11 @@ fn fighter_leads_a_crossing_target() {
 #[test]
 fn fighter_power_follows_range() {
     let cat = test_catalogue();
-    // In gauss range (300 m): weapons (3).
+    // In gauss range (220 m): weapons (3).
     let (_, m) = duel(FIGHTER, FIGHTER, Vec2::ZERO, 0.0, Vec2::new(200.0, 0.0));
     assert_eq!(act(&m, &cat, 0).power, 3);
     // Between range and 1.5 × range: balanced (0).
-    let (_, m) = duel(FIGHTER, FIGHTER, Vec2::ZERO, 0.0, Vec2::new(350.0, 0.0));
+    let (_, m) = duel(FIGHTER, FIGHTER, Vec2::ZERO, 0.0, Vec2::new(280.0, 0.0));
     assert_eq!(act(&m, &cat, 0).power, 0);
     // Beyond 1.5 × range: engines (2).
     let (_, m) = duel(

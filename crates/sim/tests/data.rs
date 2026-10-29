@@ -83,8 +83,8 @@ fn weapons_in_file_order_with_resolved_units() {
 
     let gauss = &cat.weapons[0];
     assert_eq!(gauss.kind, WeaponKind::Bullet);
-    assert!(approx(gauss.spread, 0.6 * DEG));
-    assert_eq!(gauss.life_ticks, 38); // 300 / 240 * 30 = 37.5 -> 38
+    assert!(approx(gauss.spread, 1.0 * DEG));
+    assert_eq!(gauss.life_ticks, 33); // 220 / 200 * 30 = 33
     assert_eq!(gauss.life_factor, 1.0);
     assert_eq!(gauss.burst_radius, 0.0);
 

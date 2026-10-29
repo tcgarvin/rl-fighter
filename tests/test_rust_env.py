@@ -58,7 +58,7 @@ def random_actions(rng, shape):
 def test_module_constants():
     assert rlf_sim.OBS_DIM == OBS_DIM
     assert rlf_sim.ACTION_WIDTH == ACTION_WIDTH
-    assert isinstance(rlf_sim.SIM_VERSION, int)
+    assert rlf_sim.SIM_VERSION == 2
     layout = rlf_sim.OBS_LAYOUT
     assert list(layout) == [
         "self",

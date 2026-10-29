@@ -5,9 +5,7 @@
 
 mod common;
 
-use common::{
-    FIGHTER, GAUSS, GUNSHIP, STRAFER, TORPEDO, new_present_match, test_catalogue, uniform_catalogue,
-};
+use common::{FIGHTER, GAUSS, GUNSHIP, LASER, STRAFER, TORPEDO, new_present_match, test_catalogue};
 use sim::DT;
 use sim::actions::ShipAction;
 use sim::damage::{apply_damage, impact_bearing, same_entity};
@@ -80,13 +78,15 @@ fn bullet_swept_hit_on_fast_crossing_ship_does_not_tunnel() {
     let cat = test_catalogue();
     let mut m = new_present_match(&cat, 3, &[FIGHTER], &[FIGHTER]);
     place(&mut m, 0, Vec2::ZERO, 0.0, Vec2::ZERO);
-    // Bullet ends tick k at x = 3.8 + 8k; the target sits between two samples (x = 63.8)
-    // turned broadside-on, so its x-extent (±2.6 m) is narrower than one 8 m step,
-    // and crosses the bullet line at ~60 m/s.
+    // Bullet ends tick k at x = 3.8 + s·k (s = speed·DT); the target sits halfway
+    // between two samples, turned broadside-on, so its x-extent (±2.6 m) is narrower
+    // than one step, and crosses the bullet line at ~60 m/s.
+    let step = cat.weapon(GAUSS).speed * DT;
+    assert!(step > 5.2, "the premise needs a step wider than the target");
     place(
         &mut m,
         1,
-        Vec2::new(63.8, -14.0),
+        Vec2::new(3.8 + 8.5 * step, -14.0),
         0.5 * PI,
         Vec2::new(0.0, 60.0),
     );
@@ -113,7 +113,9 @@ fn bullet_swept_hit_on_fast_crossing_ship_does_not_tunnel() {
         hit_tick.is_some(),
         "bullet tunnelled through the crossing ship"
     );
-    assert_eq!(m.ships[1].hp, 60.0 - 6.0);
+    let (damage, mult) = hit_event(&m);
+    assert_eq!(damage, cat.weapon(GAUSS).damage * mult);
+    assert_eq!(m.ships[1].hp, cat.hull(FIGHTER).hp - damage);
     let h = m.hits()[0];
     assert_eq!(
         (h.shooter, h.target, h.fire_tick, h.shield),
@@ -135,7 +137,7 @@ fn bullet_swept_hit_on_fast_crossing_ship_does_not_tunnel() {
 
 #[test]
 fn hit_record_carries_owner_and_fire_tick() {
-    let cat = uniform_catalogue();
+    let cat = test_catalogue();
     let mut m = new_present_match(&cat, 4, &[FIGHTER], &[FIGHTER]);
     place(&mut m, 0, Vec2::ZERO, 0.0, Vec2::ZERO);
     place(&mut m, 1, Vec2::new(100.0, 0.0), PI, Vec2::ZERO);
@@ -161,12 +163,13 @@ fn hit_record_carries_owner_and_fire_tick() {
     );
     let h = m.hits()[0];
     assert_eq!((h.shooter, h.target, h.fire_tick), (0, 1, fired_on));
-    assert_eq!(h.damage, 6.0);
+    // The target faces the shooter: nose armour, 0.5x.
+    assert_eq!(h.damage, 0.5 * cat.weapon(GAUSS).damage);
 }
 
 #[test]
 fn beam_hits_nearest_enemy_only() {
-    let cat = uniform_catalogue();
+    let cat = test_catalogue();
     let mut m = new_present_match(&cat, 5, &[STRAFER], &[FIGHTER, FIGHTER]);
     place(&mut m, 0, Vec2::ZERO, 0.0, Vec2::ZERO);
     // Slot 1 is farther than slot 2: nearest wins, not slot order.
@@ -174,8 +177,10 @@ fn beam_hits_nearest_enemy_only() {
     place(&mut m, 2, Vec2::new(50.0, 0.0), 0.0, Vec2::ZERO);
     m.set_action(0, fire_turret(0));
     tick(&mut m, &cat);
-    assert_eq!(m.ships[2].hp, 60.0 - 3.0);
-    assert_eq!(m.ships[1].hp, 60.0);
+    // Both targets face away from the strafer: the beam lands on the engine, 1.5x.
+    let full = cat.hull(FIGHTER).hp;
+    assert_eq!(m.ships[2].hp, full - 1.5 * cat.weapon(LASER).damage);
+    assert_eq!(m.ships[1].hp, full);
     assert!(
         alive_projectiles(&m).is_empty(),
         "beams never enter the pool"
@@ -256,15 +261,21 @@ fn flak_burst_damages_within_radius() {
     let (team, pos, radius) = burst.expect("flak burst at fuse end");
     assert_eq!((team, radius), (0, 14.0));
     assert!((pos - burst_at).length() < 1e-2);
-    assert_eq!(m.ships[1].hp, 60.0 - 4.0, "inside the burst radius");
-    assert_eq!(m.ships[2].hp, 60.0, "outside the burst radius");
+    let full = cat.hull(FIGHTER).hp;
+    let flak = cat.weapon(p.weapon).damage;
+    assert_eq!(
+        m.ships[1].hp,
+        full - flak,
+        "inside the burst radius (flank, 1x)"
+    );
+    assert_eq!(m.ships[2].hp, full, "outside the burst radius");
     assert_eq!(m.hits().len(), 1);
     assert!(alive_projectiles(&m).is_empty());
 }
 
 /// Fighters carrying a torpedo rack on the nose instead of the gauss gun.
 fn torpedo_catalogue() -> Catalogue {
-    let mut cat = uniform_catalogue();
+    let mut cat = test_catalogue();
     cat.hulls[FIGHTER as usize].turrets[0].weapon = TORPEDO;
     cat
 }
@@ -308,7 +319,10 @@ fn torpedo_locks_within_cone_and_turns_at_its_rate() {
     for _ in 0..120 {
         tick(&mut m, &cat);
         if let Some(h) = m.hits().first() {
-            assert_eq!((h.target, h.damage), (2, 55.0));
+            let (damage, mult) = hit_event(&m);
+            assert_eq!(h.target, 2);
+            assert_eq!(h.damage, damage);
+            assert_eq!(damage, cat.weapon(TORPEDO).damage * mult);
             assert!(
                 m.events()
                     .iter()
@@ -477,7 +491,9 @@ fn pool_recycles_oldest_slot() {
 
 #[test]
 fn no_friendly_fire_bullets_and_beams_pass_allies() {
-    let cat = uniform_catalogue();
+    let cat = test_catalogue();
+    // Every target faces away from the shooter: engine armour, 1.5x.
+    let full = cat.hull(FIGHTER).hp;
     // Bullet: ally fighter directly in the line of fire, enemy behind it.
     let mut m = new_present_match(&cat, 13, &[FIGHTER, FIGHTER], &[FIGHTER]);
     place(&mut m, 0, Vec2::ZERO, 0.0, Vec2::ZERO);
@@ -489,8 +505,12 @@ fn no_friendly_fire_bullets_and_beams_pass_allies() {
     for _ in 0..20 {
         tick(&mut m, &cat);
     }
-    assert_eq!(m.ships[1].hp, 60.0, "ally untouched");
-    assert_eq!(m.ships[2].hp, 54.0, "enemy behind the ally hit");
+    assert_eq!(m.ships[1].hp, full, "ally untouched");
+    assert_eq!(
+        m.ships[2].hp,
+        full - 1.5 * cat.weapon(GAUSS).damage,
+        "enemy behind the ally hit"
+    );
 
     // Beam: strafer with an ally in front.
     let mut m = new_present_match(&cat, 14, &[STRAFER, FIGHTER], &[FIGHTER]);
@@ -499,8 +519,8 @@ fn no_friendly_fire_bullets_and_beams_pass_allies() {
     place(&mut m, 2, Vec2::new(60.0, 0.0), 0.0, Vec2::ZERO);
     m.set_action(0, fire_turret(0));
     tick(&mut m, &cat);
-    assert_eq!(m.ships[1].hp, 60.0);
-    assert_eq!(m.ships[2].hp, 57.0);
+    assert_eq!(m.ships[1].hp, full);
+    assert_eq!(m.ships[2].hp, full - 1.5 * cat.weapon(LASER).damage);
     assert!(same_entity(&m.ships[0], &m.ships[0]));
     assert!(!same_entity(&m.ships[0], &m.ships[1]));
 }
@@ -647,7 +667,7 @@ fn fighter_armour_scales_bullet_damage_by_impact_bearing() {
         let (damage, event_mult) = hit_event(&m);
         assert_eq!(event_mult, mult, "heading {heading}");
         assert_eq!(damage, raw * mult);
-        assert_eq!(m.ships[1].hp, 60.0 - raw * mult);
+        assert_eq!(m.ships[1].hp, cat.hull(FIGHTER).hp - raw * mult);
         let h = m.hits()[0];
         assert!(!h.shield);
         assert_eq!(h.damage, raw * mult, "HitRecord carries post-armour damage");
@@ -666,7 +686,11 @@ fn hit_event_encodes_armour_mult_in_slot_5() {
     let flat = e.encode();
     assert_eq!(flat[0], f32::from(KIND_HIT));
     assert_eq!(flat[5], 0.5, "mult");
-    assert_eq!(flat[7], 3.0, "post-armour damage");
+    assert_eq!(
+        flat[7],
+        0.5 * cat.weapon(GAUSS).damage,
+        "post-armour damage"
+    );
 }
 
 #[test]
