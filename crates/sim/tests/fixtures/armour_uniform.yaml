@@ -1,0 +1,21 @@
+# A single [-180, 180] arc with mult 1 is valid and equals no armour.
+name: uniform
+role: fighter
+hp: 60
+mass: 10.0
+inertia: 55.0
+speed_cap: 60.0
+static: false
+shield: null
+armour:
+  - {from_deg: -180, to_deg: 180, mult: 1}
+cost: 10
+collision:
+  - {pos: [0.0, 0.0], r: 3.0}
+thrusters:
+  - {id: thruster.main.0, pos: [-4.0, 0.0], dir: [1, 0], max_force: 900}
+  - {id: thruster.rcs.fl, pos: [2.0, 2.0], dir: [0, -1], max_force: 160}
+  - {id: thruster.rcs.fr, pos: [2.0, -2.0], dir: [0, 1], max_force: 160}
+turrets:
+  - {id: turret.nose, pos: [3.0, 0.0], rest_deg: 0, arc_deg: 0, slew_deg_s: 0, weapon: gauss}
+bays: []

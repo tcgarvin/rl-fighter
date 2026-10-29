@@ -33,10 +33,13 @@ Three threads run through the project:
   There is no second implementation to keep in sync.
 - **Strictly 2D physics, rendered in 3D.** Ships live on a plane. three.js provides
   depth, light and effects. A 3D sim would be a separate project and is out of scope.
-- **No autopilot actions.** A policy controls each thruster, turret and bay directly.
-  Following, formations and strafing runs must *emerge*, from learning, reward
-  shaping, or orders passed in as goals. An action never executes a behaviour on the
-  ship's behalf.
+- **No autopilot actions.** A pilot policy controls each thruster and turret
+  directly; the commander controls the launch bays. Following, formations and
+  strafing runs must *emerge*, from learning, reward shaping, or orders passed in as
+  goals. An action never executes a behaviour on the ship's behalf.
+- **One pilot per ship.** Every ship is flown by its own pilot decision from its
+  own observation. A squad is only a grouping the commander addresses orders to; it
+  never shares controls, and three ships never act as one mechanically.
 - **Hulls are data.** A new hull is a model plus a YAML file, and needs no code. The
   physics properties are derived from those files, and validated against them.
 - **Deterministic.** The same seed, bundle and policies give the same match on the
@@ -62,6 +65,7 @@ lab/
   champions/    # promoted bundles (weights + manifest), the league history
 tools/          # hull validator, bundle builder, deploy script
 docs/DESIGN.md  # this file
+docs/SIM_SPEC.md # M1 implementation spec for the sim and bindings
 ```
 
 **Bundle.** The unit of deployment: sim WASM, the hull catalogue (YAML + GLB),
@@ -91,10 +95,25 @@ retire from the active league, though they stay in history.
   turrets with an arc of zero.
 - **Weapons** (data-driven, as in v1): bullets, hitscan beams and guided missiles,
   each with magazine, reload, energy and damage-type properties.
-- **Bays:** launch a hull from the fleet's queue at the bay's mount point.
+- **Power split:** every ship divides its reactor output between shields, engines and
+  weapons (engines and weapons only, on shieldless hulls). Shares sum to 1, none may
+  exceed a cap (0.6 three-way, 0.8 two-way), and the split slews toward its target at
+  0.45 per second, so a commitment takes time to undo. An even split runs each system
+  at 1×; starved, 0.2×; at the cap, about 1.5–1.6×. The policy sets the target split
+  directly; it is an actuator, not a mode. Prototyped in `prototypes/story/power.js`.
+- **Bays:** launch a hull from the fleet's queue at the bay's mount point. Strike craft
+  below a hull threshold may fly back, dock, repair and relaunch (prototyped in the
+  story demo's flagship mission); docking is flown by the pilot, not automated.
 - **Collision:** each hull is a compound of circles derived from the model's
   footprint. Projectiles are tested against those circles, using swept segments for
   fast bullets. Ships can collide with each other; the impulse depends on mass.
+  Since SIM_VERSION 3 a closing contact also does damage, growing with the square of
+  the closing speed above a free scrape speed and scaled per hull by `impact` arcs at
+  the contact bearing. Fighters are fragile in crashes and their noses most of all
+  (1.5×), so a head-on ram costs both pilots most of their hull and turning away pays;
+  a future ram hull (a Hammerhead corvette, the comet) gets a tough prow instead.
+  This is physics, not a reward penalty: pilots see it only as damage taken, and
+  nobody is credited for the other ship's crash damage (user decision 2026-10-29).
 - **Damage:** hull HP. Some hulls (not all) also carry a **shield**: a pool of shield
   HP that absorbs incoming damage first, then regenerates after a delay with no hits.
   The sim emits a shield-hit event with the impact point and normal. Shields are
@@ -195,6 +214,12 @@ The match has three phases, designed for a spectator to follow without explanati
 Between matches, the page shows the result and starts the next match. It loops
 forever.
 
+The scripted story demo (`prototypes/story/`, live on the site until M2) explored
+this further, and its choices are the working plan: drafting deals 5-card hands and
+fighter/bomber cards are whole flights (×3 and ×2); a carrier brings an air wing; and
+there are four mission types: team deathmatch, flagship duel, hold the beacon, and
+station assault (attackers against a pre-placed, turreted, immobile station).
+
 **Staging:** the first build is a plain skirmish (fixed fleets, no economy). Then
 flagships and supply, with a scripted commander. Then a learned commander. Then
 learned drafting.
@@ -210,7 +235,10 @@ learned drafting.
   ammunition).
 - **Policy:** an attention encoder over entity tokens. Each actuator is a query token,
   and each actuator token outputs its own categorical action. One network serves every
-  hull, including hulls added after it was trained.
+  hull, including hulls added after it was trained. This is the default bet, not a
+  law: the bundle manifest maps each hull to a pilot net, so a hull class can split
+  off if a shared net measurably underserves it (M3 runs a shared-vs-specialist
+  comparison at equal samples).
 - **Critic:** centralised per team (MAPPO), attending over all of that team's
   entities.
 - **Algorithm:** PPO with GAE, carried over from v1, plus the v1 retroactive
@@ -222,13 +250,21 @@ learned drafting.
 
 The commander runs on a slow tick (about every 2 seconds). Its observation is coarse:
 supply, roster and alive counts per hull, flagship HP, enemy composition, and
-objective state. Its actions are launch decisions and **orders** for each squad (role
-plus a target point or entity).
+objective state. Its actions are launch decisions (it owns the flagship's bays) and
+**orders** for each squad (role plus a target point or entity). A squad is a set of
+ships the commander groups for one order; each ship still has its own pilot.
 
 Orders reach pilots as observation tokens. Pilots receive a small shaped reward for
 progress on their order, alongside the team reward. This is goal-conditioned
 ("feudal") RL. The commander is first scripted, then learned with its own PPO
-learner at the slow tick.
+learner at the slow tick. Pilots train on randomly sampled orders as well as the
+commander's, so they follow any order rather than only the ones a script issues, and
+eval measures order-following.
+
+**Retreat** is an order. When defeat is certain, a commander may salvage remaining
+fleet value by pulling ships back. Reward it only enough to be worth doing in a
+lost position: a retreat must never beat fighting a winnable or even battle, and
+eval watches the retreat rate the way it watches kiting.
 
 ### Scripted controllers and handwired experiments
 
@@ -243,6 +279,10 @@ used in several ways:
 - as an experiment backlog item, compiling a script into a network in the style of
   [handwired](https://github.com/chenglou/handwired), with softened comparisons, and
   comparing the learning curves against the approaches above.
+
+Scripts are training aids, mostly for the early days. A scripted controller (or a
+residual policy built on one) never flies a ship on the live site; only learned
+champions do.
 
 ### Compute
 
@@ -286,6 +326,9 @@ the next run.
   electrical arcing as HP falls. Smoke stays thin over the hull and thickens as it
   trails, so it never hides a slow-moving ship. A "technical details" toggle shows HP, shields,
   throttles and other numbers for anyone who wants them.
+- **Perf readout:** a small debug figure in the upper right shows the tick budget's
+  headroom (sim + inference time per tick against the 33 ms of a 30 Hz tick), so
+  phone performance stays visible as the pilot net grows.
 - **Shields** are invisible until they deflect a hit; then a brief, local ripple shows
   at the impact point.
 - **Scenery** has two layers. (1) A rigid **backdrop**: the starfield, nebulae and
@@ -370,18 +413,24 @@ Feedback from round 1 (2026-10-27):
 
 1. **M0, Art direction. Done (2026-10-28).** Cinematic chosen (§11); the scripted
    demo is live on the subdomain as a placeholder.
-2. **M1, Sim core.** The Rust crate, three hulls, thruster physics, weapons, hits,
-   Python bindings, and a determinism test comparing native and WASM builds.
-3. **M2, Live web.** The WASM client with a scripted match, the fit-all camera, and
+2. **M1, Sim core** (specified in `docs/SIM_SPEC.md`). **M1a:** the Rust crate, three
+   hulls, thruster physics, power split, weapons, shields, hits, a scripted fighter,
+   and a determinism test comparing native and WASM builds. **M1b:** the PyO3 batched
+   VecEnv and a throughput benchmark.
+3. **Learnability spike. Done (2026-10-29), PASS:** BC → DAgger → PPO beat the script 512/512; PPO from scratch never learned to fire (`lab/runs/2026-10-28-learnability-spike/results.md`). A first live duel page is at `/duel/`. (Moved ahead of the web client, 2026-10-28.) Fighter vs.
+   fighter with a small MLP: behaviour cloning from the scripted controller, then PPO,
+   on the CPU. The question: can actuator-level control learn in a night? It is the
+   project's biggest risk; the web client is not, and the story demo holds the site.
+4. **M2, Live web.** The WASM client with a scripted match, the fit-all camera, and
    journal page scaffolding. Hosting and `scripts/deploy.sh` already exist (§9); M2
    moves the site from the scripted story demo (`prototypes/story/`) to `web/`.
-4. **M3, Pilots learn.** The attention policy, actuator-level PPO, scripted-controller
-   initialisation, eval harness v1, and the first champion deployed.
-5. **M4, Nightly lab on.** Starting with conservative experiments (fine-tuning, hull
+5. **M3, Pilots learn.** The attention policy, eval harness v1, the self-play league,
+   and the first champion deployed.
+6. **M4, Nightly lab on.** Starting with conservative experiments (fine-tuning, hull
    tuning).
-6. **M5, Fleet battles.** Flagships, supply, bays, a scripted commander and
+7. **M5, Fleet battles.** Flagships, supply, bays, a scripted commander and
    goal-conditioned orders.
-7. **M6+.** A learned commander, drafting, strange hulls, and handwired experiments.
+8. **M6+.** A learned commander, drafting, strange hulls, and handwired experiments.
 
 ## 13. Open questions
 

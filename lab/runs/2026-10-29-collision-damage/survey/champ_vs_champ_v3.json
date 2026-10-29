@@ -1,0 +1,40 @@
+{
+  "n": 128,
+  "a_win": 0.2734375,
+  "median_ticks": 135.0,
+  "matches_with_contact": 0.3984375,
+  "contacts_per_match": 0.4609375,
+  "contact_tick_share": 0.00324115217732239,
+  "near_tick_share": {
+    "<10m": 0.010403052956244446,
+    "<20m": 0.05828846254378169,
+    "<40m": 0.16299858853050342
+  },
+  "closing_mps": {
+    "p10": 55.935378774598654,
+    "p50": 86.6537952464664,
+    "p90": 90.22371675447091,
+    "max": 93.28998086272338
+  },
+  "closing_share": {
+    ">5": 1.0,
+    ">15": 1.0,
+    ">30": 1.0,
+    ">60": 0.8813559322033898
+  },
+  "contact_bearing_share": {
+    "nose(<45)": 1.0,
+    "flank(45-135)": 0.0,
+    "tail(>=135)": 0.0
+  },
+  "head_on_share": 1.0,
+  "median_length": 179.0,
+  "draw_rate": 0.5078125,
+  "crashes_per_match": 1.1015625,
+  "crash_deaths_per_match": 1.1484375,
+  "matches_with_crash_death": 0.6640625,
+  "double_crash_kill_rate": 0.484375,
+  "crash_hp_share": 0.5052952909707424,
+  "a": "lab/runs/2026-10-28-learnability-spike/ppo_bc/checkpoints/ppo_bc_1200.pt",
+  "b": "lab/runs/2026-10-28-learnability-spike/ppo_bc/checkpoints/ppo_bc_1200.pt"
+}

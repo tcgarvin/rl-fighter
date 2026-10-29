@@ -1,0 +1,18 @@
+{
+ "n": 512,
+ "seed": 100000,
+ "policies": {
+  "bc": "lab/runs/2026-10-28-learnability-spike/bc/bc.pt",
+  "bc_dagger": "lab/runs/2026-10-28-learnability-spike/bc_dagger/best.pt",
+  "ppo_bc_400": "lab/runs/2026-10-28-learnability-spike/ppo_bc/checkpoints/ppo_bc_400.pt",
+  "ppo_bc_800": "lab/runs/2026-10-28-learnability-spike/ppo_bc/checkpoints/ppo_bc_800.pt",
+  "ppo_bc_best": "lab/runs/2026-10-28-learnability-spike/ppo_bc/checkpoints/ppo_bc_500.pt",
+  "ppo_bc_final": "lab/runs/2026-10-28-learnability-spike/ppo_bc/checkpoints/ppo_bc_1200.pt",
+  "ppo_scratch_final": "lab/runs/2026-10-28-learnability-spike/ppo_scratch/checkpoints/ppo_scratch_1200.pt"
+ },
+ "missing": {},
+ "ppo_bc_best": {
+  "update": 500,
+  "smoothed_vs_scripted_win": 1.0
+ }
+}

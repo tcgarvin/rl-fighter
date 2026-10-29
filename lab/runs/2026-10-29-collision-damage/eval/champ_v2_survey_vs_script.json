@@ -1,0 +1,40 @@
+{
+  "n": 128,
+  "a_win": 1.0,
+  "median_ticks": 339.5,
+  "matches_with_contact": 0.8671875,
+  "contacts_per_match": 1.3125,
+  "contact_tick_share": 0.005483933038291322,
+  "near_tick_share": {
+    "<10m": 0.03131614392918992,
+    "<20m": 0.10787473542428325,
+    "<40m": 0.23763709832595728
+  },
+  "closing_mps": {
+    "p10": 28.153187560983664,
+    "p50": 62.85454740209583,
+    "p90": 80.98331420930889,
+    "max": 88.56331513962613
+  },
+  "closing_share": {
+    ">5": 0.9821428571428571,
+    ">15": 0.9761904761904762,
+    ">30": 0.8809523809523809,
+    ">60": 0.5773809523809523
+  },
+  "contact_bearing_share": {
+    "nose(<45)": 0.7857142857142857,
+    "flank(45-135)": 0.21428571428571427,
+    "tail(>=135)": 0.0
+  },
+  "head_on_share": 0.6130952380952381,
+  "median_length": 385.5,
+  "draw_rate": 0.0,
+  "crashes_per_match": 1.3203125,
+  "crash_deaths_per_match": 0.1953125,
+  "matches_with_crash_death": 0.1953125,
+  "double_crash_kill_rate": 0.0,
+  "crash_hp_share": 0.22208837233066975,
+  "a": "lab/runs/2026-10-28-learnability-spike/ppo_bc/checkpoints/ppo_bc_1200.pt",
+  "b": "script"
+}

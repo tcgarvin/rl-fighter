@@ -14,3 +14,11 @@ wheels/
 # Secrets and Netlify CLI state
 .env
 .netlify/
+
+# Rust build output
+target/
+.claude/worktrees/
+
+# Lab run weights and datasets (results JSON/Markdown are committed)
+lab/runs/**/*.pt
+lab/runs/**/*.npz

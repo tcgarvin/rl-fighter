@@ -1,0 +1,33 @@
+# Light fighter: one main engine, four RCS pods, fixed nose gauss gun.
+# Thrusters and turrets from prototypes/story/hulls.js; body frame +x forward, +y port.
+name: fighter
+role: fighter
+hp: 80                 # v2 duel balance (was 60)
+mass: 10.0
+inertia: 55.0
+speed_cap: 60.0
+static: false
+shield: null
+armour:                # body-frame bearing of the impact point; half-open [from, to)
+  - {from_deg: -180, to_deg: -135, mult: 1.5}   # engine
+  - {from_deg: -135, to_deg: -45, mult: 1.0}    # starboard flank
+  - {from_deg: -45, to_deg: 45, mult: 0.5}      # nose
+  - {from_deg: 45, to_deg: 135, mult: 1.0}      # port flank
+  - {from_deg: 135, to_deg: 180, mult: 1.5}     # engine
+impact:                # v3 collision damage by bearing of the contact point; nose crumples
+  - {from_deg: -180, to_deg: -45, mult: 1.0}    # engine + starboard flank
+  - {from_deg: -45, to_deg: 45, mult: 1.5}      # nose
+  - {from_deg: 45, to_deg: 180, mult: 1.0}      # port flank + engine
+cost: 10
+collision:
+  - {pos: [2.0, 0.0], r: 2.4}
+  - {pos: [-2.2, 0.0], r: 2.6}
+thrusters:
+  - {id: thruster.main.0, pos: [-4.6, 0.0], dir: [1, 0], max_force: 900}
+  - {id: thruster.rcs.fl, pos: [2.2, 2.3], dir: [0, -1], max_force: 160}
+  - {id: thruster.rcs.fr, pos: [2.2, -2.3], dir: [0, 1], max_force: 160}
+  - {id: thruster.rcs.rl, pos: [-2.8, 2.3], dir: [0, -1], max_force: 160}
+  - {id: thruster.rcs.rr, pos: [-2.8, -2.3], dir: [0, 1], max_force: 160}
+turrets:
+  - {id: turret.nose, pos: [3.8, 0.0], rest_deg: 0, arc_deg: 0, slew_deg_s: 0, weapon: gauss}
+bays: []

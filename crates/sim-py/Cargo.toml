@@ -1,0 +1,20 @@
+[package]
+name = "sim-py"
+version = "0.1.0"
+description = "Python bindings (rlf_sim) for the RL Fighter sim"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "rlf_sim"
+crate-type = ["cdylib"]
+
+[dependencies]
+sim = { path = "../sim", features = ["fs"] }
+# abi3: one wheel covers every CPython >= 3.13. `extension-module` is enabled by
+# maturin (pyproject.toml) only, so `cargo test` can still link libpython.
+pyo3 = { version = "0.30.1", features = ["abi3-py313"] }
+numpy = "0.30.0"
+rayon = "1.12.0"

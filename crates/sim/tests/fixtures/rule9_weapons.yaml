@@ -1,0 +1,5 @@
+# Rule 9: range/speed is far under one tick, so life_ticks rounds to 0.
+gauss: {kind: bullet, speed: 10000, range: 1, damage: 6, interval: 0.16, spread_deg: 0.6}
+flak: {kind: flak, speed: 180, range: 230, damage: 4, interval: 0.09, spread_deg: 3.5}
+torpedo: {kind: torpedo, speed: 95, range: 340, damage: 55, interval: 3.2, spread_deg: 0,
+          life_factor: 0}

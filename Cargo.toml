@@ -1,0 +1,13 @@
+[workspace]
+members = ["crates/sim", "crates/sim-py", "crates/sim-wasm"]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+
+[profile.release]
+# Fat LTO + one codegen unit: the per-tick loop crosses many small modules.
+lto = "fat"
+codegen-units = 1

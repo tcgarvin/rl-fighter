@@ -1,0 +1,7 @@
+# Determinism: no `target-cpu=native` or other rustflags here. Rust does not fuse
+# multiply-adds by default, so native and wasm32 produce bit-identical f32 results;
+# the determinism hash test (docs/SIM_SPEC.md §12) is the guard.
+
+[target.wasm32-wasip1]
+# `cargo test -p sim --target wasm32-wasip1` runs the test binaries under wasmtime.
+runner = "wasmtime"

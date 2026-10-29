@@ -1,0 +1,33 @@
+{
+  "n": 128,
+  "a_win": 0.484375,
+  "median_ticks": 252.0,
+  "matches_with_contact": 1.0,
+  "contacts_per_match": 4.4296875,
+  "contact_tick_share": 0.05737273259215916,
+  "near_tick_share": {
+    "<10m": 0.14169104739613808,
+    "<20m": 0.35447630193095375,
+    "<40m": 0.5050029256875366
+  },
+  "closing_mps": {
+    "p10": 0.4874920997260238,
+    "p50": 28.190418590061117,
+    "p90": 91.21046156509614,
+    "max": 99.08254395472873
+  },
+  "closing_share": {
+    ">5": 0.781305114638448,
+    ">15": 0.654320987654321,
+    ">30": 0.47266313932980597,
+    ">60": 0.30158730158730157
+  },
+  "contact_bearing_share": {
+    "nose(<45)": 0.9938271604938271,
+    "flank(45-135)": 0.006172839506172839,
+    "tail(>=135)": 0.0
+  },
+  "head_on_share": 0.9911816578483245,
+  "a": "lab/runs/2026-10-28-learnability-spike/ppo_bc/checkpoints/ppo_bc_1200.pt",
+  "b": "lab/runs/2026-10-28-learnability-spike/ppo_bc/checkpoints/ppo_bc_1200.pt"
+}

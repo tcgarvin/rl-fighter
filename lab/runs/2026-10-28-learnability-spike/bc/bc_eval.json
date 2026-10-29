@@ -1,0 +1,84 @@
+{
+  "holdout_rows": 101653,
+  "groups": {
+    "throttle": {
+      "heads": 5,
+      "samples": 508265,
+      "agreement": 0.9579038493699154,
+      "label_hold_share": 0.617746647910047,
+      "pred_hold_share": 0.6334825337176473,
+      "agreement_on_change_labels": 0.9174721801879703
+    },
+    "slew": {
+      "heads": 0,
+      "samples": 0,
+      "agreement": null
+    },
+    "fire": {
+      "heads": 1,
+      "samples": 101653,
+      "agreement": 0.967900603031883,
+      "base_rate": 0.07358366206604822,
+      "pred_rate": 0.058817742712954854,
+      "precision": 0.8526509449740759,
+      "recall": 0.6815508021390374
+    },
+    "power": {
+      "heads": 1,
+      "samples": 101653,
+      "agreement": 0.7221528139848308
+    }
+  },
+  "exact_row_agreement": 0.6154368292131074,
+  "collect": {
+    "env_steps": 4106,
+    "rows": 2000000,
+    "holdout_rows": 101653,
+    "noise_rate": 0.1498395,
+    "changed_rate": 0.1003025,
+    "fire_rate": 0.0732395,
+    "wall_s": 2.9418404229800217
+  },
+  "train": {
+    "config": {
+      "epochs": 8,
+      "batch_size": 4096,
+      "lr": 0.001,
+      "lr_final": 0.0001,
+      "label_smoothing": 0.02,
+      "fire_pos_weight": 1.0,
+      "throttle_change_weight": 1.0,
+      "seed": 0
+    },
+    "epoch_loss": [
+      0.439644322087176,
+      0.33673220045734736,
+      0.3060753402401062,
+      0.28945416961273934,
+      0.2806909047598011,
+      0.27549899368704656,
+      0.2723212873024738,
+      0.2703929296330573
+    ],
+    "steps": 3712,
+    "wall_s": 133.98064321797574
+  },
+  "eval_wall_s": 0.45901142898947,
+  "setup": {
+    "n_rows": 2000000,
+    "n_envs": 256,
+    "seed": 0,
+    "n_threads": 12,
+    "dart_p": 0.15,
+    "obs_dtype": "float16",
+    "fleets": [
+      [
+        "fighter"
+      ],
+      [
+        "fighter"
+      ]
+    ],
+    "reaction_ticks": 2
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "n": 128,
+  "a_win": 0.46875,
+  "median_ticks": 1467.5,
+  "matches_with_contact": 0.046875,
+  "contacts_per_match": 0.046875,
+  "contact_tick_share": 4.257697118071263e-05,
+  "near_tick_share": {
+    "<10m": 0.0031879507171558583,
+    "<20m": 0.05120412996620453,
+    "<40m": 0.15261715319726443
+  },
+  "closing_mps": {
+    "p10": 23.45922951155265,
+    "p50": 35.61137356966105,
+    "p90": 71.81842691255869,
+    "max": 78.77703220784416
+  },
+  "closing_share": {
+    ">5": 1.0,
+    ">15": 1.0,
+    ">30": 0.5,
+    ">60": 0.3333333333333333
+  },
+  "contact_bearing_share": {
+    "nose(<45)": 0.3333333333333333,
+    "flank(45-135)": 0.6666666666666666,
+    "tail(>=135)": 0.0
+  },
+  "head_on_share": 0.16666666666666666,
+  "median_length": 1511.0,
+  "draw_rate": 0.015625,
+  "crashes_per_match": 0.0625,
+  "crash_deaths_per_match": 0.03125,
+  "matches_with_crash_death": 0.0234375,
+  "double_crash_kill_rate": 0.0078125,
+  "crash_hp_share": 0.006484969160111888,
+  "a": "script",
+  "b": "script"
+}
