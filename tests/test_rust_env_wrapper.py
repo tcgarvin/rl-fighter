@@ -21,8 +21,10 @@ rlf_sim = pytest.importorskip(
 from spacefight.env.rust_env import (  # noqa: E402
     ACTION_HIGHS,
     ACTION_WIDTH,
+    HIT_FIELDS,
     MAX_HITS,
     OBS_DIM,
+    OBS_SLOTS,
     WINNER_NONE,
     RustVecEnv,
     StepInfo,
@@ -60,7 +62,8 @@ def test_reset_and_step_shapes_and_types():
     assert dones.shape == (n,) and dones.dtype == np.bool_
     assert isinstance(info, StepInfo)
     assert info.winner.shape == (n,) and (info.winner == WINNER_NONE).all()
-    assert info.hits.shape == (n, MAX_HITS, 5) and info.hits.dtype == np.int32
+    assert info.hits.shape == (n, MAX_HITS, HIT_FIELDS) and HIT_FIELDS == 6
+    assert info.hits.dtype == np.int32
     assert info.hit_count.shape == (n,)
     assert info.act_mask.shape == (n, s) and info.alive.shape == (n, s)
     assert info.thruster_mask.shape == (n, s, 8)
@@ -91,7 +94,10 @@ def test_obs_and_action_blocks_by_name():
     assert list(layout) == list(rlf_sim.OBS_LAYOUT)
     obs = env.obs
     ships = obs_block(obs, "ships", split_slots=True)
-    assert ships.shape == (4, 4, 3, 12)
+    assert ships.shape == (4, 4, 7, 12)
+    assert OBS_SLOTS == dict(rlf_sim.OBS_SLOTS)
+    pending = obs_block(obs, "pending", split_slots=True)
+    assert pending.shape == (4, 4, 4, 22)
     assert np.shares_memory(ships, obs)
     off, width = layout["projectiles"]
     np.testing.assert_array_equal(
@@ -155,7 +161,8 @@ def _rust_const(name: str) -> float:
 def test_mirrored_constants_match_rust():
     assert credit.HULL_DAMAGE_WEIGHT == _rust_const("HULL_DAMAGE_WEIGHT")
     assert credit.SHIELD_DAMAGE_WEIGHT == _rust_const("SHIELD_DAMAGE_WEIGHT")
-    assert credit.HIT_FIELDS == rlf_sim.HIT_FIELDS
+    assert credit.HIT_FIELDS == rlf_sim.HIT_FIELDS == 6
+    assert credit.HIT_DECISION_TICK == 5
     assert credit.HIT_DAMAGE_SCALE == rlf_sim.HIT_DAMAGE_SCALE
 
 
@@ -166,21 +173,24 @@ def test_mirrored_constants_match_rust():
 N, S, BUF = 2, 2, 20
 
 
-def _hits(rows_per_env):
-    hits = np.zeros((N, MAX_HITS, 5), dtype=np.int32)
+def _hits(rows_per_env, delay=0):
+    """Hits buffer from ``(shooter, target, fire_tick, damage_milli, shield)`` rows;
+    ``decision_tick`` is filled in as ``fire_tick - 1 - delay``."""
+    hits = np.zeros((N, MAX_HITS, HIT_FIELDS), dtype=np.int32)
     count = np.zeros(N, dtype=np.int32)
     for env_id, rows in rows_per_env.items():
-        hits[env_id, : len(rows)] = rows
+        full = [list(r) + [r[2] - 1 - delay] for r in rows]
+        hits[env_id, : len(rows)] = full
         count[env_id] = len(rows)
     return hits, count
 
 
-def _run_synthetic(adapter, start_tick, n_steps, hit_at, rows, alive=True):
+def _run_synthetic(adapter, start_tick, n_steps, hit_at, rows, alive=True, delay=0):
     """Stamp n_steps consecutive steps from start_tick, with hits on step hit_at."""
     no_hits = _hits({})
     alive_arr = np.full((N, S), alive)
     for b in range(n_steps):
-        hits, count = _hits(rows) if b == hit_at else no_hits
+        hits, count = _hits(rows, delay) if b == hit_at else no_hits
         tick = np.full(N, start_tick + b, dtype=np.uint32)
         episode = np.zeros(N, dtype=np.uint32)
         adapter.record_step(b, tick, episode, alive_arr, hits, count)
@@ -204,6 +214,17 @@ def test_hit_is_moved_to_its_fire_step():
     adapter.inject_into_rewards(rewards, 0, BUF)
     assert rewards[4, flat] == pytest.approx(amount)
     assert rewards[10, flat] == pytest.approx(0.0, abs=1e-7)
+
+
+def test_hit_with_reaction_delay_moves_to_its_decision_step():
+    adapter = RustCreditAdapter(N, S, BUF)
+    # Same shot as above but chosen with d = 2: decision_tick = 105 - 3 = 102, the
+    # pre-step stamp of buffer step 2 (two steps before the step that fired it).
+    _run_synthetic(adapter, 100, 12, 10, {1: [[1, 0, 105, 15000, 0]]}, delay=2)
+    flat = 1 * S + 1
+    assert adapter.credit[2, flat] == pytest.approx(0.15)
+    assert adapter.credit[10, flat] == pytest.approx(-0.15)
+    assert np.count_nonzero(adapter.credit) == 2
 
 
 def test_shield_hit_uses_shield_weight():
@@ -281,7 +302,9 @@ def test_bad_adapter_inputs_raise():
 
 
 def _rollout(env, adapter, n_steps):
+    """Scripted rollout feeding ``adapter``; returns rewards and every step's hits."""
     rewards = np.zeros((n_steps, env.n_envs * env.n_ships), dtype=np.float32)
+    steps = []
     for b in range(n_steps):
         env.scripted_actions()
         _, step_rewards, _, info = env.step()
@@ -294,18 +317,45 @@ def _rollout(env, adapter, n_steps):
             info.hits,
             info.hit_count,
         )
-    return rewards
+        steps.append(info.copy())
+    return rewards, steps
+
+
+def _expected_credit(steps, n_ships, buf_len, delay):
+    """Credit deltas computed from ``fire_tick`` alone: a hit fired on the step with
+    pre-step tick ``t`` (``fire_tick = t + 1``) was chosen ``delay`` steps earlier."""
+    n_envs = steps[0].hit_count.shape[0]
+    expected = np.zeros((buf_len, n_envs * n_ships))
+    for b, info in enumerate(steps):
+        for i in np.flatnonzero(info.hit_count):
+            for shooter, _, fire_tick, milli, shield, _ in info.hits[
+                i, : info.hit_count[i]
+            ]:
+                fired_on = b - (int(info.prev_tick[i]) + 1 - int(fire_tick))
+                chosen_on = fired_on - delay
+                if chosen_on < 0 or not info.prev_alive[i, shooter]:
+                    continue
+                if steps[chosen_on].prev_episode_count[i] != info.prev_episode_count[i]:
+                    continue
+                weight = (
+                    credit.SHIELD_DAMAGE_WEIGHT if shield else credit.HULL_DAMAGE_WEIGHT
+                )
+                amount = weight * milli / 1000.0
+                expected[chosen_on, i * n_ships + shooter] += amount
+                expected[b, i * n_ships + shooter] -= amount
+    return expected
 
 
 @pytest.mark.parametrize("warmup", [0, 200])
-def test_real_rollout_conserves_reward_and_moves_hits_earlier(warmup):
-    env = make_env(n_envs=8, fleets=MIXED_2V2, seed=7)
+@pytest.mark.parametrize("reaction_ticks", [0, 2])
+def test_real_rollout_conserves_reward_and_moves_hits_earlier(warmup, reaction_ticks):
+    env = make_env(n_envs=8, fleets=MIXED_2V2, seed=7, reaction_ticks=reaction_ticks)
     for _ in range(warmup):  # shots in flight when the rollout starts
         env.scripted_actions()
         env.step()
     n_steps = 1200
     adapter = RustCreditAdapter(env.n_envs, env.n_ships, n_steps)
-    rewards = _rollout(env, adapter, n_steps)
+    rewards, steps = _rollout(env, adapter, n_steps)
     before = rewards.astype(np.float64).copy()
     adapter.inject_into_rewards(rewards, 0, n_steps)
     after = rewards.astype(np.float64)
@@ -320,6 +370,27 @@ def test_real_rollout_conserves_reward_and_moves_hits_earlier(warmup):
         assert adapter.n_kept > 0
 
 
+@pytest.mark.parametrize("reaction_ticks", [0, 2])
+def test_real_hit_credit_lands_on_the_decision_step(reaction_ticks):
+    """d = 2: credit lands on the step stamped ``decision_tick`` (three ticks before
+    the firing tick); d = 0 reproduces v1 placement (the step that fired)."""
+    env = make_env(n_envs=8, fleets=MIXED_2V2, seed=11, reaction_ticks=reaction_ticks)
+    n_steps = 900
+    adapter = RustCreditAdapter(env.n_envs, env.n_ships, n_steps)
+    _, steps = _rollout(env, adapter, n_steps)
+    n_hits = 0
+    for info in steps:
+        for i in np.flatnonzero(info.hit_count):
+            rows = info.hits[i, : info.hit_count[i]]
+            fire_tick, decision_tick = rows[:, 2], rows[:, 5]
+            np.testing.assert_array_equal(decision_tick, fire_tick - 1 - reaction_ticks)
+            n_hits += len(rows)
+    assert n_hits > 20
+    expected = _expected_credit(steps, env.n_ships, n_steps, reaction_ticks)
+    np.testing.assert_allclose(adapter.credit, expected, atol=1e-9)
+    assert adapter.n_moved > 20
+
+
 # ---------------------------------------------------------------------------
 # Behaviour-cloning dataset check
 # ---------------------------------------------------------------------------
@@ -327,7 +398,8 @@ def test_real_rollout_conserves_reward_and_moves_hits_earlier(warmup):
 
 @pytest.mark.parametrize("fleets", [MIXED_2V2, FIGHTER_1V1], ids=["2v2", "1v1"])
 def test_scripted_bc_pairs_are_valid(fleets):
-    env = make_env(n_envs=4, fleets=fleets, seed=5)
+    reaction_ticks = 2
+    env = make_env(n_envs=4, fleets=fleets, seed=5, reaction_ticks=reaction_ticks)
     obs = env.reset()
     ever_active = np.zeros((env.n_envs, env.n_ships), dtype=bool)
     n_pairs = 0
@@ -337,15 +409,19 @@ def test_scripted_bc_pairs_are_valid(fleets):
         actions = env.scripted_actions()
         pairs_obs = obs[mask]
         pairs_act = actions[mask]
+        pending = obs_block(obs, "pending", split_slots=True)
         assert np.isfinite(obs).all()
         assert (np.abs(obs) <= 5.0).all()
         assert (actions >= 0).all() and (actions <= ACTION_HIGHS).all()
-        # Masked ships: absent (obs row zero) or present and control-locked.
+        # v2 contract (SIM_SPEC §7.1): act_mask = present && t + 1 + d >= lock_until,
+        # i.e. masked present ships are exactly those whose lock outlasts the delay.
         present = obs[..., 0] == 1
-        locked = obs[..., 1] == 1
-        assert not (mask & ~present).any()
-        assert not (mask & locked).any()
+        lock_ticks = np.rint(obs[..., 1] * 21.0)
+        assert (mask == (present & (lock_ticks <= 1 + reaction_ticks))).all()
         assert (obs[~present] == 0).all()
+        # Pending slots past the delay are empty.
+        assert (pending[..., reaction_ticks:, :] == 0).all()
+        assert (pending[present][:, :reaction_ticks, 0] == 1).all()
         ever_active |= mask
         n_pairs += len(pairs_obs)
         assert pairs_act.shape == (len(pairs_obs), ACTION_WIDTH)
@@ -399,14 +475,17 @@ def test_absent_ships_throttle_and_fire_are_ignored():
     assert patched > 1000 and not diverged
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "sim gap: act_mask is evaluated at the post-step tick, so a ship on its last "
-        "control-locked tick is masked although its next action applies, and slew and "
-        "power apply during the lock (SIM_SPEC §5 stage 3/6 vs §7.1)"
-    ),
-)
 def test_masked_ships_actions_are_fully_ignored():
-    diverged, _ = _diverges(MIXED_2V2, lambda e: ~e.act_mask, ALL_HEADS)
-    assert not diverged
+    diverged, patched = _diverges(MIXED_2V2, lambda e: ~e.act_mask, ALL_HEADS)
+    assert patched > 1000 and not diverged
+
+
+def test_unmasked_rows_of_locked_ships_take_effect():
+    """The other half of the §7.1 contract: on a locked ship's last ticks, rows with
+    act_mask = 1 are real decisions (they land after the lock)."""
+
+    def locked_but_unmasked(e):
+        return e.act_mask & (e.obs[..., 1] > 0)
+
+    diverged, patched = _diverges(MIXED_2V2, locked_but_unmasked, ALL_HEADS)
+    assert patched > 0 and diverged

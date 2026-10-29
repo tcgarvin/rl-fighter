@@ -21,12 +21,15 @@ rlf_sim = pytest.importorskip(
 )
 
 ASSETS = str(Path(__file__).resolve().parent.parent / "assets")
-OBS_DIM = 204
+OBS_DIM = 385
 ACTION_WIDTH = 21
 MAX_HITS = 64
+HIT_FIELDS = 6
+MAX_REACTION_TICKS = 4
 
 # Indices into the self block of the obs (SIM_SPEC §7.2).
 OBS_PRESENT = 0
+OBS_LOCK_LEFT = 1
 OBS_SPEED = 2
 OBS_ARENA_MARGIN = 19
 
@@ -63,6 +66,7 @@ def test_module_constants():
         "turrets",
         "ships",
         "projectiles",
+        "pending",
         "turret_arc",
         "turret_range",
     ]
@@ -71,6 +75,24 @@ def test_module_constants():
         assert off == offset
         offset += width
     assert offset == OBS_DIM
+    assert layout["ships"] == (137, 84)
+    assert layout["projectiles"] == (221, 64)
+    assert layout["pending"] == (285, 88)
+    assert rlf_sim.OBS_SLOTS == {
+        "self": 1,
+        "thrusters": 8,
+        "turrets": 6,
+        "ships": 7,
+        "projectiles": 8,
+        "pending": 4,
+        "turret_arc": 6,
+        "turret_range": 6,
+    }
+    for name, (_, width) in layout.items():
+        assert width % rlf_sim.OBS_SLOTS[name] == 0, name
+    assert rlf_sim.MAX_HITS == MAX_HITS
+    assert rlf_sim.HIT_FIELDS == HIT_FIELDS
+    assert rlf_sim.MAX_REACTION_TICKS == MAX_REACTION_TICKS
     assert rlf_sim.ACTION_LAYOUT == {
         "throttle": (0, 8),
         "slew": (8, 6),
@@ -100,7 +122,7 @@ def test_buffer_shapes_and_dtypes():
         "alive": ((n, s), np.bool_),
         "tick": ((n,), np.uint32),
         "episode_count": ((n,), np.uint32),
-        "hits": ((n, MAX_HITS, 5), np.int32),
+        "hits": ((n, MAX_HITS, HIT_FIELDS), np.int32),
         "hit_count": ((n,), np.int32),
     }
     for name, (shape, dtype) in expected.items():
@@ -254,11 +276,13 @@ def test_hits_are_plausible_under_scripted_play():
             n_hits = env.hit_count[i]
             assert 0 < n_hits <= MAX_HITS
             rows = env.hits[i, :n_hits]
-            shooter, target, fire_tick, damage, shield = rows.T
+            shooter, target, fire_tick, damage, shield, decision_tick = rows.T
             assert (shooter >= 0).all() and (shooter < env.n_ships).all()
             assert (target >= 0).all() and (target < env.n_ships).all()
             assert (team[i, shooter] != team[i, target]).all()
             assert (fire_tick >= 1).all() and (fire_tick <= step_tick[i]).all()
+            # Default reaction delay d = 2 (SIM_SPEC §8).
+            np.testing.assert_array_equal(decision_tick, fire_tick - 3)
             assert (damage > 0).all()
             assert np.isin(shield, [0, 1]).all()
             assert shielded[target[shield == 1]].all()
@@ -314,7 +338,9 @@ def test_rewards_sum_to_the_terms_over_an_episode():
         episode_reward += rewards
         step_expected = np.zeros((n, 2))
         for i in np.flatnonzero(env.hit_count):
-            for shooter, target, _, damage, shield in env.hits[i, : env.hit_count[i]]:
+            for shooter, target, _, damage, shield, _ in env.hits[
+                i, : env.hit_count[i]
+            ]:
                 delta = (SHIELD_W if shield else HULL_W) * damage / 1000.0
                 step_expected[i, shooter] += delta
                 step_expected[i, target] -= delta
@@ -323,11 +349,11 @@ def test_rewards_sum_to_the_terms_over_an_episode():
             step_expected[int(row[0]), int(row[2])] += FIRE_COST
         # Arena flags are only visible in the obs of a match that did not just reset.
         running = ~env.dones
-        outside = (env.obs[:, :, OBS_PRESENT] == 1) & (env.obs[:, :, OBS_ARENA_MARGIN] < 0)
-        step_expected[running[:, None] & outside] += ARENA_PENALTY
-        np.testing.assert_allclose(
-            rewards[running], step_expected[running], atol=1e-5
+        outside = (env.obs[:, :, OBS_PRESENT] == 1) & (
+            env.obs[:, :, OBS_ARENA_MARGIN] < 0
         )
+        step_expected[running[:, None] & outside] += ARENA_PENALTY
+        np.testing.assert_allclose(rewards[running], step_expected[running], atol=1e-5)
         expected += step_expected
         for i in np.flatnonzero(env.dones):
             winner = env.winner[i]
@@ -370,10 +396,17 @@ def test_render_state_lists_ships_and_projectiles():
     state = env.render_state(1)
     assert state["tick"] == env.tick[1]
     assert len(state["ships"]) == env.n_ships
+    keys = {"pos", "vel", "heading", "hp", "team", "hull", "alive", "thrust_level"}
+    keys |= {"queue", "reaction_ticks", "control_lock_until", "act_mask"}
     for ship in state["ships"]:
-        assert {"pos", "vel", "heading", "hp", "team", "hull", "alive"} <= set(ship)
+        assert keys <= set(ship)
+        assert ship["reaction_ticks"] == 2
+        assert len(ship["queue"]) == 2
+        assert all(len(row) == ACTION_WIDTH for row in ship["queue"])
+        assert all(0.0 <= lvl <= 1.0 for lvl in ship["thrust_level"])
     for proj in state["projectiles"]:
-        assert {"pos", "vel", "team", "owner", "kind"} <= set(proj)
+        assert {"pos", "vel", "team", "owner", "kind", "decision_tick"} <= set(proj)
+        assert proj["decision_tick"] == proj["fire_tick"] - 3
 
 
 @pytest.mark.parametrize(
@@ -387,6 +420,8 @@ def test_render_state_lists_ships_and_projectiles():
         ({"n_threads": -1}, "n_threads"),
         ({"time_limit_s": 0.0}, "time_limit_s"),
         ({"arena_radius": -1.0}, "arena_radius"),
+        ({"reaction_ticks": 5}, "reaction_ticks"),
+        ({"reaction_ticks": -1}, "reaction_ticks"),
         ({"assets_dir": "/nonexistent/assets"}, "loading"),
     ],
 )
@@ -432,3 +467,68 @@ def test_read_only_output_buffer_is_reported():
     env.obs.flags.writeable = False
     with pytest.raises(ValueError, match="obs"):
         env.step()
+
+
+def _ship_act_mask(ship: dict, tick: int) -> bool:
+    """SIM_SPEC §7.1: alive && present && tick + 1 + d >= control_lock_until."""
+    applies_on = tick + 1 + ship["reaction_ticks"]
+    return bool(
+        ship["alive"] and ship["present"] and applies_on >= ship["control_lock_until"]
+    )
+
+
+@pytest.mark.parametrize("reaction_ticks", [0, 2, 4])
+def test_act_mask_matches_the_sim_definition(reaction_ticks):
+    env = make_env(n_envs=4, fleets=MIXED_2V2, seed=6, reaction_ticks=reaction_ticks)
+    saw_masked_present = False
+    for _ in range(400):
+        env.scripted_actions()
+        env.step()
+        for i in range(env.n_envs):
+            state = env.render_state(i)
+            for s, ship in enumerate(state["ships"]):
+                assert ship["reaction_ticks"] == reaction_ticks
+                assert len(ship["queue"]) == reaction_ticks
+                expected = _ship_act_mask(ship, state["tick"])
+                assert ship["act_mask"] == expected
+                assert env.act_mask[i, s] == expected
+                saw_masked_present |= ship["present"] and not expected
+    # The 21-tick arrival lock outlasts every allowed delay, so present ships are
+    # masked for a while after arriving.
+    assert saw_masked_present
+
+
+def test_lock_left_counts_down_after_arrival():
+    env = make_env(n_envs=2, seed=3)
+    history = []
+    for _ in range(120):
+        env.step()
+        history.append(env.obs[:, :, OBS_LOCK_LEFT].copy())
+    lock = np.stack(history)  # [T, N, S]
+    for i in range(2):
+        for s in range(env.n_ships):
+            series = lock[:, i, s]
+            first = int(np.flatnonzero(series > 0)[0])
+            expected = np.clip(21 - np.arange(len(series) - first), 0, None) / 21.0
+            np.testing.assert_allclose(series[first:], expected, atol=1e-6)
+
+
+def test_pending_block_shows_chosen_action_after_one_step():
+    env = make_env(n_envs=2, seed=4)
+    off, width = rlf_sim.OBS_LAYOUT["pending"]
+    rec = width // rlf_sim.OBS_SLOTS["pending"]
+    # Wait until the action chosen now will be applied.
+    for _ in range(200):
+        if env.act_mask.all():
+            break
+        env.step()
+    assert env.act_mask.all()
+    env.actions.fill(1)  # hold everything
+    env.actions[:, :, 0] = 2  # increase the main engine
+    env.actions[:, :, 20] = 0
+    env.step()
+    pending = env.obs[..., off : off + width].reshape(2, 2, -1, rec)
+    # Slot d - 1 = 1 holds the action chosen from the previous obs, slots >= d are 0.
+    assert (pending[:, :, 1, 0] == 1).all() and (pending[:, :, 1, 1] == 1).all()
+    assert (pending[:, :, 1, 2:9] == 0).all()
+    assert (pending[:, :, 2:] == 0).all()

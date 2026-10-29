@@ -30,19 +30,16 @@ from numpy.typing import NDArray
 OBS_DIM: int = rlf_sim.OBS_DIM
 ACTION_WIDTH: int = rlf_sim.ACTION_WIDTH
 MAX_HITS: int = rlf_sim.MAX_HITS
+HIT_FIELDS: int = rlf_sim.HIT_FIELDS
+MAX_REACTION_TICKS: int = rlf_sim.MAX_REACTION_TICKS
 OBS_LAYOUT: dict[str, tuple[int, int]] = dict(rlf_sim.OBS_LAYOUT)
 ACTION_LAYOUT: dict[str, tuple[int, int]] = dict(rlf_sim.ACTION_LAYOUT)
 
-# Number of fixed-width records in each obs block (SIM_SPEC §7.2).
-OBS_SLOTS: dict[str, int] = {
-    "self": 1,
-    "thrusters": 8,
-    "turrets": 6,
-    "ships": 3,
-    "projectiles": 4,
-    "turret_arc": 6,
-    "turret_range": 6,
-}
+# Number of fixed-width records in each obs block (SIM_SPEC §7.2), from the sim.
+OBS_SLOTS: dict[str, int] = dict(rlf_sim.OBS_SLOTS)
+
+# Default reaction delay in ticks (SIM_SPEC §5 stage 3; MatchConfig default).
+DEFAULT_REACTION_TICKS = 2
 
 # Number of choices of each action head (SIM_SPEC §7.1): values are 0..n-1.
 ACTION_HEAD_CHOICES: dict[str, int] = {"throttle": 3, "slew": 3, "fire": 2, "power": 7}
@@ -110,11 +107,15 @@ class StepInfo:
         episode_count: [N] u32 view: episode generation after the step (auto-reset
             increments it on done envs).
         tick: [N] u32 view: tick after the step (0 for an env that just reset).
-        act_mask: [N, S] bool view: ship's next action counts (present, alive, not
-            control-locked). Exclude masked ships from the loss.
+        act_mask: [N, S] bool view: whether the action chosen from this obs will be
+            applied (alive, present, and ``tick + 1 + d >= control_lock_until``,
+            SIM_SPEC §7.1). A masked row has no effect at all; exclude it from the
+            loss.
         alive: [N, S] bool view, after the step (fresh match for done envs).
-        hits: [N, MAX_HITS, 5] i32 view: (shooter, target, fire_tick,
-            damage*1000, shield) rows of hits that landed this step.
+        hits: [N, MAX_HITS, HIT_FIELDS] i32 view: (shooter, target, fire_tick,
+            damage*1000, shield, decision_tick) rows of hits that landed this step;
+            ``decision_tick`` is the post-step tick of the obs the firing action was
+            chosen from (``fire_tick - 1 - d``).
         hit_count: [N] i32 view: valid rows of ``hits``.
         thruster_mask: [N, S, 8] bool, static per env.
         turret_mask: [N, S, 6] bool, static per env.
@@ -160,6 +161,8 @@ class RustVecEnv:
         time_limit_s: Match time limit in seconds.
         n_threads: Rayon worker threads (0 = rayon default).
         record_events: Record per-step events (``events()``; debug only).
+        reaction_ticks: Ticks between choosing an action and the sim applying it,
+            ``0..=MAX_REACTION_TICKS`` (a hull's own value overrides it).
         copy_outputs: Return owned copies instead of buffer views.
 
     Raises:
@@ -176,6 +179,7 @@ class RustVecEnv:
         time_limit_s: float = 90.0,
         n_threads: int = 0,
         record_events: bool = False,
+        reaction_ticks: int = DEFAULT_REACTION_TICKS,
         copy_outputs: bool = False,
     ) -> None:
         self._env = rlf_sim.VecEnv(
@@ -187,8 +191,10 @@ class RustVecEnv:
             time_limit_s=time_limit_s,
             n_threads=n_threads,
             record_events=record_events,
+            reaction_ticks=reaction_ticks,
         )
         self.fleets: tuple[tuple[str, ...], ...] = tuple(tuple(t) for t in fleets)
+        self.reaction_ticks = reaction_ticks
         self.copy_outputs = copy_outputs
 
     # -- static description -------------------------------------------------

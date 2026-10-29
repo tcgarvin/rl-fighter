@@ -15,8 +15,9 @@ use sim::scripted;
 use sim::setup::{MatchConfig, SetupError};
 use sim::state::{MAX_HITS, MAX_THRUSTERS, MAX_TURRETS, Match, MatchPhase, WINNER_NONE};
 
-/// Columns of one row of the hits buffer: shooter, target, fire_tick, damage*1000, shield.
-pub const HIT_FIELDS: usize = 5;
+/// Columns of one row of the hits buffer: shooter, target, fire_tick, damage*1000,
+/// shield, decision_tick (SIM_SPEC §8, v2).
+pub const HIT_FIELDS: usize = 6;
 /// Fixed-point scale of the damage column of the hits buffer.
 pub const HIT_DAMAGE_SCALE: f32 = 1000.0;
 
@@ -27,6 +28,8 @@ pub struct BatchConfig {
     pub base_seed: u64,
     pub arena_radius: f32,
     pub time_limit_ticks: u32,
+    /// Match-wide reaction delay `d` (hulls may override it).
+    pub reaction_ticks: u8,
     pub fleets: [Vec<HullId>; 2],
     pub n_threads: usize,
     pub record_events: bool,
@@ -52,7 +55,7 @@ impl std::error::Error for BatchError {}
 
 /// Per-step buffers, flat and C-ordered: `obs [N,S,OBS_DIM]`, `actions [N,S,21]`,
 /// `rewards/act_mask/alive [N,S]`, `dones/winner/tick/episode_count/hit_count [N]`,
-/// `hits [N,MAX_HITS,5]`.
+/// `hits [N,MAX_HITS,HIT_FIELDS]`.
 pub struct StepBuffers<'a> {
     pub obs: &'a mut [f32],
     pub actions: &'a [i8],
@@ -113,9 +116,7 @@ fn match_config(cfg: &BatchConfig, index: usize, episode: u32) -> MatchConfig {
         seed: rng::split(cfg.base_seed, index as u64, u64::from(episode)),
         arena_radius: cfg.arena_radius,
         time_limit_ticks: cfg.time_limit_ticks,
-        // No delay until WP13 adds the `reaction_ticks` kwarg (default 2) and moves the
-        // credit adapter onto `decision_tick`; with d = 0 v1 credit placement holds.
-        reaction_ticks: 0,
+        reaction_ticks: cfg.reaction_ticks,
         fleets: cfg.fleets.clone(),
     }
 }
@@ -349,6 +350,7 @@ fn write_hits(m: &Match, r: &mut MatchRows<'_>) {
         row[2] = h.fire_tick as i32;
         row[3] = (h.damage * HIT_DAMAGE_SCALE).round() as i32;
         row[4] = i32::from(h.shield);
+        row[5] = h.decision_tick as i32;
     }
     r.hits[hits.len() * HIT_FIELDS..].fill(0);
     *r.hit_count = hits.len() as i32;
@@ -435,6 +437,7 @@ mod tests {
                 base_seed: 3,
                 arena_radius: 450.0,
                 time_limit_ticks: 300,
+                reaction_ticks: 2,
                 fleets: [vec![f], vec![f]],
                 n_threads,
                 record_events: false,
