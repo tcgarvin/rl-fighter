@@ -55,6 +55,7 @@ every step's events, hits, rewards and obs.
 | 2 | Optional hull `impact` arcs (same format and rules as `armour`): fighter and strafer nose (±45°) 1.5×, elsewhere 1×; gunship 0.75× all round | Fighters should be fragile in crashes and most fragile nose first, so pilots learn to turn away; done in physics, not as a reward term | §4.1, §4.4 rule 12 |
 | 3 | Reward: collision damage is damage taken (`-0.01` hull, `-0.005` shield) for the damaged ship; nobody is credited. `Match.collision_damage` / `collision_shield_damage` are per-step outputs; the VecEnv exposes `collision_damage [N,S]` | A crash is not a kill shot; crediting the other ship would reward ramming | §8, §10.1 |
 | 4 | Event `Collision { a, b, pos, normal, closing }`, kind code 7 (appended after `Arrival`, so codes 0–6 are unchanged) | Renderer spark at the impact; eval crash counts | §9 |
+| 5 | Scripted fighter deconflicts (no sim rule change; the scripted golden traces regenerate again): predicts closest approach and sidesteps on RCS / breaks away from a pass that would come within 11 m, stops burning above 40 m/s meeting a target head-on, extends to 0.6 × gun range (was 1.2) | The v2 script rammed through every merge (10.8 contacts per duel); under v3 that made script-vs-script duels 60 % draws, mostly mutual crash kills, ~8 s long. The script is the BC teacher and baseline opponent, so it has to fly passes that miss | §11 |
 
 ---
 
@@ -905,15 +906,30 @@ predicted heading error and the current `omega`. The arena check uses `pos'`.
 Fighter (`role == "fighter"`), per tick (all quantities predicted as above):
 1. Target = nearest active enemy (`dist`), else coast (`IDLE`).
 2. Lead: `t = dist / speed`; `aim = atan2(rel_pos + rel_vel * t)`; `err = wrap(aim - heading')`.
-3. `force_body = (1 if |err| < 0.9 else 0.2, 0)`. **Extend (v2, WP15):** if the
-   target's bearing from our nose and our bearing from the target's nose both exceed
-   90° (backs to each other, i.e. just after a merge) and `dist < 1.2 × range` of the
-   primary weapon, hold the current heading (`aim = heading'`) with
-   `force_body = (1, 0)`. sim.js instead dropped to 0.3 throttle inside 60 m and
-   always turned straight back, so two scripted fighters parked nose to nose at
-   10–60 m, never left gun range after the first merge, and with the v2 nose armour
-   took 93 % of hits at 0.5× (WP15 sweep). A ship with the enemy on its tail (pointing
-   at it) still turns to fight.
+3. `force_body = (1 if |err| < 0.9 else 0.2, 0)`; v3: `(0, 0)` instead while the
+   target faces us (`target_aspect < 90°`), `dist < 1.5 × range` and our speed is
+   over 40 m/s (a slower pass is a longer firing window). **Extend (v2, WP15):** if
+   the target's bearing from our nose and our bearing from the target's nose both
+   exceed 90° (backs to each other, i.e. just after a merge) and
+   `dist < 0.6 × range` of the primary weapon (v2: 1.2), hold the current heading
+   (`aim = heading'`) with `force_body = (1, 0)`. sim.js instead dropped to 0.3
+   throttle inside 60 m and always turned straight back, so two scripted fighters
+   parked nose to nose at 10–60 m, never left gun range after the first merge, and
+   with the v2 nose armour took 93 % of hits at 0.5× (WP15 sweep). A ship with the
+   enemy on its tail (pointing at it) still turns to fight. The extend check comes
+   first, then deconfliction, then the pursuit above.
+   **Deconfliction (v3 script):** with `r = rel_pos`, `v = target.vel − vel`,
+   closing `c = −r·v / dist`, `t* = −r·v / |v|²`, `miss = r + v t*`: when `c > 5`
+   m/s, `t* < 1.0 + 4 δ` s (`δ = reaction_ticks · DT`) and `|miss| < 11` m, move
+   along `away = −miss / |miss|` (`perp(v̂)` if `|miss| ≤ 0.5`, which makes two
+   scripted pilots on an exact collision course pass starboard to starboard);
+   `side = +1` if `away` points to port (body +y), else −1. If `t* < 0.35 + 2 δ`,
+   break: `aim = lead + 1.5 · side`, `force_body = (m, side)` with `m = 1` only once
+   the target is more than 1 rad off the nose (before that the main engine would add
+   closing speed), else 0. Otherwise sidestep with the nose kept on the lead point
+   (the gun still bears): `force_body = (0, side · min(1, (11 − |miss|) / t*² / 19))`
+   (each pilot covers half the shortfall at the ≈ 19 m/s² a full two-pod RCS push
+   gives at the attack power split).
 4. Arena: if `|pos'| > 0.85 R` → `aim = atan2(-pos')`, `force_body = (1, 0)`.
 5. `torque = clamp(10 * err - 1.6 * omega, -1, 1)`; target levels = allocator; throttle
    heads = `levels_to_throttle_heads`. (sim.js uses gain 2.5; with the allocator's
@@ -937,6 +953,12 @@ scripted fighter duels (seeds 0..20) end in a kill before the time limit for 20/
 `d = 0` the two pilots are often exact mirror images and hover nose to nose until the
 time limit; the WP15 sweep over 200 seeds: 20 % time limit at `d = 0`, 0 % at 2, 3 %
 at 4.
+With the v3 deconflicting script the same test measures 19/20 at 0 (one mutual
+kill), 20/20 at 2 and 19/20 at 4. Script-vs-script under v3 (duel harness n = 512,
+contact survey n = 128, `d = 2`): contacts closing > 30 m/s 0.02 per match (v2
+script 8.4), crash deaths in 2 % of matches (unchanged script under v3: 61 %),
+draws 0.016, median 1492 ticks, hit rate 0.46, 4.9 passes per match
+(`lab/runs/2026-10-29-collision-damage/`).
 
 ## 12. Determinism contract and test
 
@@ -957,7 +979,8 @@ at 4.
   every ship's obs, so outputs match across targets too. Regenerate golden only with
   `UPDATE_GOLDEN=1`; a diff in golden is a `SIM_VERSION` bump. v2 regenerates all
   four once (§14.1 WP14), after the balance tuple is final; v3 (collision damage)
-  regenerates all four again.
+  regenerates all four again, and the v3 scripted fighter (§0.1 item 5) the three
+  scripted ones once more.
 - WASM: the same test binary runs under **wasmtime** on `wasm32-wasip1`
   (`cargo test -p sim --target wasm32-wasip1`, with
   `CARGO_TARGET_WASM32_WASIP1_RUNNER=wasmtime` in `.cargo/config.toml`). This exercises

@@ -10,17 +10,17 @@
 //! series of passes. A ship whose target is on its tail (pointing at it) still turns
 //! to fight rather than fleeing in a straight line.
 //!
-//! Deconfliction (collision-damage branch): pure pursuit of the lead point flies the
-//! two noses into each other, and once ship contacts cost hull a head-on ram at
-//! ~100 m/s closing costs both ships most of their hull. So while the target is
-//! closing and the two ships would pass within `SAFE_MISS` of each other within
-//! `DECONFLICT_HORIZON`, the pilot sidesteps on its RCS toward the side the
-//! closest-approach geometry already favours (starboard on an exact tie, which two
-//! scripted pilots resolve as a starboard-to-starboard pass), cutting the main engine
-//! so it stops pulling the pass back onto the target, and keeps the nose on the lead
-//! point so the gun still bears. Inside `BREAK_TIME` of a pass that is still too
-//! close it breaks: the nose swings `BREAK_ANGLE` off toward the safe side and the
-//! main engine burns.
+//! Deconfliction (v3, collision damage): pure pursuit of the lead point flies the two
+//! noses into each other, and a head-on ram at ~100 m/s closing now costs both ships
+//! most of their hull. So while the target is closing and the two ships would pass
+//! within `SAFE_MISS` of each other within `DECONFLICT_HORIZON` (longer for a slower
+//! pilot), the pilot sidesteps on its RCS toward the side the closest-approach
+//! geometry already favours (starboard on an exact tie, which two scripted pilots
+//! resolve as a starboard-to-starboard pass), cutting the main engine so it stops
+//! pulling the pass back onto the target, and keeps the nose on the lead point so the
+//! gun still bears. Inside `BREAK_TIME` of a pass that is still too close it breaks:
+//! the nose swings `BREAK_ANGLE` off toward the safe side, and the main engine burns
+//! once the nose is far enough off that it no longer adds closing speed.
 //!
 //! Meeting a target that faces it, the pilot also stops burning above
 //! `HEAD_ON_SPEED`: passes at ~80 m/s closing instead of ~120 give each pass a longer
@@ -30,6 +30,7 @@
 //! inside gun range rather than leaving the fight.
 
 use super::{Engagement, Manoeuvre};
+use crate::DT;
 use crate::math::{Vec2, wrap_angle};
 use crate::state::Ship;
 
@@ -49,16 +50,22 @@ const HEAD_ON_RANGE_FACTOR: f32 = 1.5;
 const HEAD_ON_SPEED: f32 = 40.0;
 
 /// Centre-to-centre miss distance (m) the pilot wants at closest approach. Two
-/// fighters touch nose to nose with centres ≈ 9 m apart.
+/// fighters touch nose to nose with centres ≈ 9 m apart, side by side ≈ 5 m.
 const SAFE_MISS: f32 = 11.0;
-/// Only passes whose closest approach is this soon (s) are deconflicted.
+/// Only passes whose closest approach is this soon (s) are deconflicted, plus
+/// `DELAY_HORIZON_FACTOR` × the pilot's reaction delay: a slower pilot starts earlier.
 const DECONFLICT_HORIZON: f32 = 1.0;
+const DELAY_HORIZON_FACTOR: f32 = 4.0;
 /// Only a target closing faster than this (m/s) is deconflicted.
 const MIN_CLOSING: f32 = 5.0;
 /// Inside this time to closest approach (s) a pass still too close becomes a break.
 const BREAK_TIME: f32 = 0.35;
+/// The break starts this many reaction delays earlier.
+const DELAY_BREAK_FACTOR: f32 = 2.0;
 /// How far the nose swings off the lead point toward the safe side in a break (rad).
-const BREAK_ANGLE: f32 = 0.8;
+const BREAK_ANGLE: f32 = 1.5;
+/// In a break the main engine burns only with the target this far off the nose (rad).
+const BREAK_BURN_OFF: f32 = 1.0;
 /// Below this miss distance (m) the side is the tie-break, not the miss direction.
 const TIE_MISS: f32 = 0.5;
 /// Lateral acceleration (m/s²) a full RCS sidestep is taken to give, for scaling
@@ -109,7 +116,8 @@ fn deconflict(me: &Ship, eng: &Engagement) -> Option<Manoeuvre> {
         return None;
     }
     let t_cpa = -r.dot(v) / v.length_sq();
-    if t_cpa > DECONFLICT_HORIZON {
+    let delay = f32::from(me.reaction_ticks) * DT;
+    if t_cpa > DECONFLICT_HORIZON + DELAY_HORIZON_FACTOR * delay {
         return None;
     }
     let miss = r + v * t_cpa;
@@ -124,9 +132,13 @@ fn deconflict(me: &Ship, eng: &Engagement) -> Option<Manoeuvre> {
     };
     let fwd = Vec2::from_angle(me.heading);
     let side = sign_or_starboard(away.dot(fwd.perp()));
-    if t_cpa < BREAK_TIME {
+    if t_cpa < BREAK_TIME + DELAY_BREAK_FACTOR * delay {
+        // The main engine only helps once the nose is well off the target; before that
+        // it would add closing speed.
+        let off = wrap_angle(r.angle() - me.heading).abs();
+        let main = if off > BREAK_BURN_OFF { 1.0 } else { 0.0 };
         return Some(Manoeuvre {
-            force_body: Vec2::new(1.0, side),
+            force_body: Vec2::new(main, side),
             heading: wrap_angle(eng.lead_heading + side * BREAK_ANGLE),
         });
     }
