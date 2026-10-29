@@ -27,11 +27,18 @@ cargo fmt --all -- --check
 step "cargo clippy (workspace, all targets, -D warnings)"
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 
+# During a sim_version change the golden traces are regenerated once, at integration;
+# work-package branches run with RLF_SKIP_GOLDEN=1 until then.
+SKIP_GOLDEN=()
+if [[ "${RLF_SKIP_GOLDEN:-0}" == "1" ]]; then
+    SKIP_GOLDEN=(-- --skip golden_)
+fi
+
 step "cargo test (native)"
-cargo test --workspace --all-features
+cargo test --workspace --all-features "${SKIP_GOLDEN[@]}"
 
 step "cargo test -p sim (wasm32-wasip1 under wasmtime)"
-cargo test -p sim --target wasm32-wasip1
+cargo test -p sim --target wasm32-wasip1 "${SKIP_GOLDEN[@]}"
 
 step "wasm-pack build crates/sim-wasm --target web"
 # Output goes under target/ so it stays out of git.
@@ -39,7 +46,9 @@ wasm-pack --quiet build crates/sim-wasm --target web --out-dir "$REPO_ROOT/targe
 
 step "node smoke: WasmMatch bundle vs native golden hashes"
 # Runs the bundle just built (same bytes the browser loads); takes well under a second.
-if command -v node >/dev/null; then
+if [[ "${RLF_SKIP_GOLDEN:-0}" == "1" ]]; then
+    echo "SKIPPED: RLF_SKIP_GOLDEN=1"
+elif command -v node >/dev/null; then
     node crates/sim-wasm/tests/node_smoke.mjs "$REPO_ROOT/target/wasm-pack/sim-wasm"
 else
     echo "SKIPPED: node not on PATH"
