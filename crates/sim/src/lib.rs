@@ -30,7 +30,7 @@ pub use math::Vec2;
 pub use rng::Pcg32;
 
 /// Bumped whenever a golden determinism trace changes (SIM_SPEC §12).
-pub const SIM_VERSION: u32 = 2;
+pub const SIM_VERSION: u32 = 3;
 
 /// Fixed simulation step, 30 Hz.
 pub const DT: f32 = 1.0 / 30.0;

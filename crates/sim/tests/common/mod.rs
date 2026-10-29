@@ -79,6 +79,7 @@ fn hull(name: &str, role: &str, hp: f32, mass: f32, inertia: f32, speed_cap: f32
         turrets: Vec::new(),
         bays: Vec::new(),
         armour: Vec::new(),
+        impact: Vec::new(),
         bound_radius: 0.0,
         shield_radius: 0.0,
         n_power_systems: 0,
@@ -98,6 +99,7 @@ pub fn fighter_hull() -> HullDef {
     ];
     h.turrets = vec![turret("turret.nose", (3.8, 0.0), 0.0, 0.0, 0.0, GAUSS)];
     h.armour = fighter_armour();
+    h.impact = nose_impact();
     h.derive();
     h
 }
@@ -122,6 +124,16 @@ pub fn fighter_armour() -> Vec<ArmourArc> {
     ]
 }
 
+/// Fighter and strafer impact arcs (v3): the nose (±45°) takes 1.5x collision
+/// damage, everything else 1x.
+pub fn nose_impact() -> Vec<ArmourArc> {
+    vec![
+        armour_arc(-180.0, -45.0, 1.0),
+        armour_arc(-45.0, 45.0, 1.5),
+        armour_arc(45.0, 180.0, 1.0),
+    ]
+}
+
 pub fn strafer_hull() -> HullDef {
     let mut h = hull("strafer", "skirmisher", 70.0, 11.0, 75.0, 50.0);
     h.shield = Some(ShieldDef {
@@ -143,6 +155,7 @@ pub fn strafer_hull() -> HullDef {
         thruster("thruster.lateral.rr", (-2.4, -4.7), (0.0, 1.0), 420.0),
     ];
     h.turrets = vec![turret("turret.nose", (3.4, 0.0), 0.0, 0.0, 0.0, LASER)];
+    h.impact = nose_impact();
     h.derive();
     h
 }
@@ -174,6 +187,7 @@ pub fn gunship_hull() -> HullDef {
         turret("turret.port", (-2.7, 2.8), 90.0, 220.0, 90.0, GAUSS),
         turret("turret.starboard", (-2.7, -2.8), -90.0, 220.0, 90.0, GAUSS),
     ];
+    h.impact = vec![armour_arc(-180.0, 180.0, 0.75)];
     h.derive();
     h
 }

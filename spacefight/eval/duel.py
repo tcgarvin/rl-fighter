@@ -30,6 +30,16 @@ Metric definitions (per side, over that side's ships, until the match's first en
   the trigger of at least one present turret. *shots per s*: shots / live seconds.
 - *nan_or_stuck*: matches where a ship of the side had a NaN in its obs, or moved
   slower than 1 m/s for more than 10 s straight while an enemy was present.
+
+Match-level crash numbers (SIM_VERSION 3 collision damage, SIM_SPEC §5.5):
+
+- *crashes per match*: ``Collision`` events (damaging contacts) per match.
+- *crash hp share*: collision hull damage over all weapon plus collision hull damage
+  (both sides; arena drain is not counted).
+
+Schema ``rlf.eval.duel/2`` adds those two to ``match``; ``from_dict`` still reads
+``/1`` files and fills them with 0, which is exact for the SIM_VERSION <= 2 sims
+those were written with (collisions did no damage).
 """
 
 from __future__ import annotations
@@ -56,7 +66,11 @@ from spacefight.eval import features as F
 from spacefight.eval.controllers import Controller, idle_actions, make_controller
 
 ASSETS = Path(__file__).resolve().parents[2] / "assets"
-SCHEMA = "rlf.eval.duel/1"
+SCHEMA = "rlf.eval.duel/2"
+# Older schemas ``from_dict`` still reads, with the defaults for the keys they lack.
+LEGACY_MATCH_DEFAULTS: dict[str, dict[str, float]] = {
+    "rlf.eval.duel/1": {"crashes_per_match": 0.0, "crash_hp_share": 0.0},
+}
 FLEETS: tuple[tuple[str, ...], ...] = (("fighter",), ("fighter",))
 TICK_HZ = 30
 ENGAGEMENT_RANGE_FACTOR = 1.2
@@ -97,6 +111,8 @@ class MatchRecords:
     hits: NDArray[np.int64]
     hull_damage: NDArray[np.float64]  # dealt, after armour
     shield_damage: NDArray[np.float64]  # dealt
+    crashes: NDArray[np.int64]  # [N] Collision events (v3)
+    crash_damage: NDArray[np.float64]  # taken from collisions, hull, after impact arcs
     live_ticks: NDArray[np.int64]
     engaged_ticks: NDArray[np.int64]
     outside_ticks: NDArray[np.int64]
@@ -120,6 +136,8 @@ class MatchMetrics:
     draw_rate: float
     a_win_rate_team0: float  # a's win rate in the matches where a is team 0
     a_win_rate_team1: float
+    crashes_per_match: float  # damaging collisions (v3)
+    crash_hp_share: float  # collision share of weapon + collision hull damage
 
 
 @dataclass(frozen=True)
@@ -178,11 +196,25 @@ class DuelResult:
     def from_dict(cls, data: dict[str, Any]) -> Self:
         """Rebuild a result from ``to_dict`` output.
 
+        Reads the current ``SCHEMA`` and the legacy schemas of
+        ``LEGACY_MATCH_DEFAULTS`` (whose missing match keys get those defaults); the
+        result always carries the current ``SCHEMA``.
+
         Raises:
-            ValueError: Wrong schema version or missing/unknown keys.
+            ValueError: Unknown schema version or missing/unknown keys.
         """
-        if data.get("schema") != SCHEMA:
-            raise ValueError(f"expected schema {SCHEMA!r}, got {data.get('schema')!r}")
+        schema = data.get("schema")
+        if schema == SCHEMA:
+            match_data = data["match"]
+        elif isinstance(schema, str) and schema in LEGACY_MATCH_DEFAULTS:
+            defaults = LEGACY_MATCH_DEFAULTS[schema]
+            clash = sorted(set(defaults) & set(data["match"]))
+            if clash:
+                raise ValueError(f"{schema} match has newer keys {clash}")
+            match_data = {**data["match"], **defaults}
+        else:
+            known = [SCHEMA, *LEGACY_MATCH_DEFAULTS]
+            raise ValueError(f"expected schema in {known!r}, got {schema!r}")
         _check_keys(cls, data)
         cfg = dict(data["config"])
         _check_keys(EvalConfig, cfg)
@@ -191,10 +223,9 @@ class DuelResult:
             a=data["a"],
             b=data["b"],
             config=EvalConfig(**cfg),
-            match=_build(MatchMetrics, data["match"]),
+            match=_build(MatchMetrics, match_data),
             side_a=_build(SideMetrics, data["side_a"]),
             side_b=_build(SideMetrics, data["side_b"]),
-            schema=data["schema"],
         )
 
     @classmethod
@@ -303,7 +334,14 @@ def run_matches(
     for _ in range(max_steps):
         actions = tracker.choose(env, a, b)
         _, _, dones, info = env.step(actions)
-        tracker.observe(env, dones.copy(), info.winner, info.hits, info.hit_count)
+        tracker.observe(
+            env,
+            dones.copy(),
+            info.winner,
+            info.hits,
+            info.hit_count,
+            info.collision_damage,
+        )
         if not tracker.running.any():
             return tracker.records
     raise RuntimeError(
@@ -335,6 +373,8 @@ class _Tracker:
             hits=np.zeros((n, s), dtype=np.int64),
             hull_damage=np.zeros((n, s), dtype=np.float64),
             shield_damage=np.zeros((n, s), dtype=np.float64),
+            crashes=np.zeros(n, dtype=np.int64),
+            crash_damage=np.zeros((n, s), dtype=np.float64),
             live_ticks=np.zeros((n, s), dtype=np.int64),
             engaged_ticks=np.zeros((n, s), dtype=np.int64),
             outside_ticks=np.zeros((n, s), dtype=np.int64),
@@ -369,8 +409,10 @@ class _Tracker:
         winner: NDArray[np.int8],
         hits: NDArray[np.int32],
         hit_count: NDArray[np.int32],
+        collision_damage: NDArray[np.float32],
     ) -> None:
-        """Fold one step's events, hits and post-step obs into the records."""
+        """Fold one step's events, hits, collision damage and post-step obs into
+        the records."""
         self.steps += 1
         r = self.records
         running = self.running
@@ -378,6 +420,7 @@ class _Tracker:
         events = events[running[events[:, F.EV_MATCH].astype(np.int64)]]
         self._count_events(events)
         self._count_hits(hits, hit_count)
+        r.crash_damage += np.where(running[:, None], collision_damage, 0.0)
 
         ending = running & dones
         died = np.zeros_like(running)
@@ -399,6 +442,8 @@ class _Tracker:
             (fire[:, F.EV_MATCH].astype(np.int64), fire[:, F.EV_A].astype(np.int64)),
             1,
         )
+        crash = events[events[:, F.EV_KIND] == F.KIND_COLLISION]
+        np.add.at(self.records.crashes, crash[:, F.EV_MATCH].astype(np.int64), 1)
 
     def _count_hits(
         self, hits: NDArray[np.int32], hit_count: NDArray[np.int32]
@@ -478,6 +523,8 @@ def summarise(
     draw = r.winner == -1
     a_score = a_won + 0.5 * draw
     q10, q50, q90 = np.percentile(r.length, [10, 50, 90])
+    crash_hp = float(r.crash_damage.sum())
+    all_hp = crash_hp + float(r.hull_damage.sum())
     match = MatchMetrics(
         length_median=float(q50),
         length_p10=float(q10),
@@ -487,6 +534,8 @@ def summarise(
         draw_rate=float(draw.mean()),
         a_win_rate_team0=float(a_score[r.a_team == 0].mean()),
         a_win_rate_team1=float(a_score[r.a_team == 1].mean()),
+        crashes_per_match=float(r.crashes.mean()),
+        crash_hp_share=crash_hp / all_hp if all_hp > 0 else 0.0,
     )
     a_rows = r.team == r.a_team[:, None]
     return DuelResult(
@@ -575,7 +624,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     m = result.match
     print(
         f"team-0 a win rate {m.a_win_rate_team0:.3f}, team-1 {m.a_win_rate_team1:.3f}; "
-        f"draws {m.draw_rate:.3f}, time limit {m.time_limit_rate:.3f}"
+        f"draws {m.draw_rate:.3f}, time limit {m.time_limit_rate:.3f}; "
+        f"crashes/match {m.crashes_per_match:.2f}, crash hp share {m.crash_hp_share:.3f}"
     )
     if args.out is not None:
         args.out.parent.mkdir(parents=True, exist_ok=True)

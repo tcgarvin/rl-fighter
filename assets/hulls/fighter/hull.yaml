@@ -14,6 +14,10 @@ armour:                # body-frame bearing of the impact point; half-open [from
   - {from_deg: -45, to_deg: 45, mult: 0.5}      # nose
   - {from_deg: 45, to_deg: 135, mult: 1.0}      # port flank
   - {from_deg: 135, to_deg: 180, mult: 1.5}     # engine
+impact:                # v3 collision damage by bearing of the contact point; nose crumples
+  - {from_deg: -180, to_deg: -45, mult: 1.0}    # engine + starboard flank
+  - {from_deg: -45, to_deg: 45, mult: 1.5}      # nose
+  - {from_deg: 45, to_deg: 180, mult: 1.0}      # port flank + engine
 cost: 10
 collision:
   - {pos: [2.0, 0.0], r: 2.4}

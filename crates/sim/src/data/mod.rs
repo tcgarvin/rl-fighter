@@ -9,7 +9,7 @@ use core::fmt;
 
 pub use hull::{
     ArmourArc, BayDef, Circle, HullDef, MAX_ARMOUR_ARCS, ShieldDef, ThrusterDef, TurretDef,
-    armour_mult,
+    armour_mult, impact_mult,
 };
 pub use weapon::{WeaponDef, WeaponKind};
 
@@ -300,6 +300,7 @@ fn convert_hull(raw: RawHull, weapon_names: &[String]) -> HullDef {
             })
             .collect(),
         armour: convert_armour(&raw.armour),
+        impact: convert_armour(&raw.impact),
         bound_radius: 0.0,
         shield_radius: 0.0,
         n_power_systems: 0,
@@ -309,7 +310,7 @@ fn convert_hull(raw: RawHull, weapon_names: &[String]) -> HullDef {
     hull
 }
 
-/// Armour arcs in radians, list order kept (validated to tile [-180, 180]).
+/// Armour or impact arcs in radians, list order kept (validated to tile [-180, 180]).
 fn convert_armour(raw: &[RawArmourArc]) -> Vec<ArmourArc> {
     raw.iter()
         .map(|a| ArmourArc {

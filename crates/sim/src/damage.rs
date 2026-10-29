@@ -1,12 +1,12 @@
-//! apply_damage (shield, then armour-scaled hull), same_entity, and shield regen (SIM_SPEC §5.4,
-//! §5 stage 9, §3.4).
+//! apply_damage (shield, then armour-scaled hull), apply_collision_damage (v3), same_entity,
+//! and shield regen (SIM_SPEC §5.4, §5.5, §5 stage 9, §3.4).
 //!
 //! Damage only lowers `hp` / `shield`; it never flips `alive`. Deaths are resolved
 //! in stage 12 so that simultaneous kills are symmetric.
 
 use crate::DT;
 use crate::TICK_HZ;
-use crate::data::{Catalogue, armour_mult};
+use crate::data::{Catalogue, HullDef, armour_mult, impact_mult};
 use crate::events::{Event, HitRecord};
 use crate::math::{Vec2, wrap_angle};
 use crate::power::{self, SHIELDS};
@@ -123,6 +123,47 @@ impl Match {
             if since >= regen_delay_ticks(def.regen_delay, p_s) {
                 ship.shield = (ship.shield + def.regen_rate * p_s * DT).min(def.hp);
             }
+        }
+    }
+}
+
+/// Collision damage taken by one ship (v3, SIM_SPEC §5.5): which pool took it.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct CollisionDamage {
+    /// Hull damage after the impact multiplier.
+    pub hull: f32,
+    /// Raw amount a raised shield took (before absorption scaling).
+    pub shield: f32,
+}
+
+/// Apply `amount` collision damage to `ship` at body-frame `bearing` on `tick`
+/// (SIM_SPEC §5.5). The same shield-then-hull rule as `apply_damage` (a raised shield
+/// takes it all, absorption scaled by `1 / (0.7 + 0.3 * P_s)`, no overflow), but the
+/// hull multiplier comes from the hull's `impact` arcs, not its armour. Sets
+/// `last_hit_tick` (shield regen delay); records no `HitRecord` and emits no event,
+/// and like every damage path it never flips `alive`.
+pub fn apply_collision_damage(
+    ship: &mut Ship,
+    hull: &HullDef,
+    amount: f32,
+    bearing: f32,
+    tick: u32,
+) -> CollisionDamage {
+    ship.last_hit_tick = tick;
+    if ship.shield > 0.0 {
+        let p_s = power::ship_multipliers(ship, hull)[SHIELDS];
+        let absorbed = amount / (0.7 + 0.3 * p_s);
+        ship.shield = (ship.shield - absorbed).max(0.0);
+        CollisionDamage {
+            hull: 0.0,
+            shield: amount,
+        }
+    } else {
+        let dealt = amount * impact_mult(hull, bearing);
+        ship.hp -= dealt;
+        CollisionDamage {
+            hull: dealt,
+            shield: 0.0,
         }
     }
 }

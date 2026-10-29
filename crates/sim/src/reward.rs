@@ -51,7 +51,7 @@ impl Match {
     /// Stage 14: overwrite `rewards` from this step's outputs. `earning[s]` says
     /// whether slot `s` earns per-step terms (active after stage 2, see the module
     /// docs). Terms are summed per ship in a fixed order: hits in record order, then
-    /// fire cost, arena, terminal.
+    /// collision hull and shield damage taken (v3), fire cost, arena, terminal.
     pub fn compute_rewards(&mut self, earning: &[bool; MAX_SHIPS]) {
         let mut r = [0.0f32; MAX_SHIPS];
         for h in &self.hits {
@@ -66,6 +66,9 @@ impl Match {
         }
         for s in 0..self.ships.len() {
             if earning[s] {
+                // v3: collision damage is taken, never dealt: nobody is credited.
+                r[s] -= HULL_DAMAGE_WEIGHT * self.collision_damage[s];
+                r[s] -= SHIELD_DAMAGE_WEIGHT * self.collision_shield_damage[s];
                 r[s] += FIRE_COST * f32::from(self.shots_fired[s]);
                 if self.outside_arena[s] {
                     r[s] += ARENA_PENALTY;

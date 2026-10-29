@@ -294,6 +294,12 @@ pub struct Match {
     pub rewards: [f32; MAX_SHIPS],
     /// Per slot: pushed by the arena boundary in the last step (stage 11).
     pub outside_arena: [bool; MAX_SHIPS],
+    /// v3, per slot: hull damage taken from ship-ship collisions in the last step
+    /// (after impact arcs; stage 10). Output only, not hashed; read by rewards.
+    pub collision_damage: [f32; MAX_SHIPS],
+    /// v3, per slot: raw collision damage a raised shield took in the last step
+    /// (before absorption scaling, like a shield `HitRecord`). Output only.
+    pub collision_shield_damage: [f32; MAX_SHIPS],
     /// Reserved for bays: ships waiting to launch, per team (empty in M1).
     pub reserves: [Vec<ShipIdx>; 2],
 }

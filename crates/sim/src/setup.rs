@@ -144,6 +144,8 @@ impl Match {
             dropped_hits: 0,
             rewards: [0.0; MAX_SHIPS],
             outside_arena: [false; MAX_SHIPS],
+            collision_damage: [0.0; MAX_SHIPS],
+            collision_shield_damage: [0.0; MAX_SHIPS],
             reserves: [Vec::new(), Vec::new()],
         };
         arrival::schedule_arrivals(&mut m.ships, &mut m.rng, m.cfg.arena_radius);

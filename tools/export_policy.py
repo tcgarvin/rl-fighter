@@ -124,7 +124,7 @@ def checkpoint_sim_version(
 
 
 def summarize_eval(path: Path) -> dict[str, Any]:
-    """Pick the headline numbers out of a ``rlf.eval.duel/1`` JSON."""
+    """Pick the headline numbers out of a ``rlf.eval.duel/1`` or ``/2`` JSON."""
     raw = json.loads(path.read_text())
     try:
         side_a = raw["side_a"]

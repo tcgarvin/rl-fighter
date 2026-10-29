@@ -7,7 +7,7 @@
 #
 # Usage: scripts/build_site.sh <checkpoint.pt> [eval.json]
 #   checkpoint  spike-policy checkpoint for the learned pilot (tools/export_policy.py)
-#   eval.json   optional rlf.eval.duel/1 JSON of that checkpoint vs the script; its
+#   eval.json   optional rlf.eval.duel/1 or /2 JSON of that checkpoint vs the script; its
 #               summary goes into the policy manifest
 # Env: PYTHON (default: the repo's .venv python), RLF_NOTES_MD (default: the spike
 #      run's results.md), RLF_SKIP_WASM=1 reuses the last wasm-pack build.

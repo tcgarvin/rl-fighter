@@ -14,7 +14,7 @@ export const MODES = {
 };
 
 const PROJECTILE_KINDS = ["bullet", "beam", "flak", "torpedo"];
-const EVENT_KINDS = ["fire", "beam", "hit", "shieldHit", "burst", "death", "arrival"];
+const EVENT_KINDS = ["fire", "beam", "hit", "shieldHit", "burst", "death", "arrival", "collision"];
 // performance.now() is a global in browsers and Node 16+.
 const now = () => performance.now();
 
