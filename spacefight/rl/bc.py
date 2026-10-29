@@ -13,6 +13,10 @@ Three steps:
   with cosine decay. Only the actor is trained; the critic is freshly initialised
   (PPO warms it up, plan §4.2).
 - ``bc_eval``: held-out agreement per head group and fire precision / recall.
+- ``dagger``: DAgger against compounding error. Round 0 is the ``collect`` dataset;
+  each later round ``collect_on_policy`` lets the current actor fly one side
+  against the script, labels the actor's own states with ``scripted_actions()``,
+  aggregates them with every earlier round (``AggregateDataset``) and retrains.
 
 Labels are only meaningful where ``HeadMasks.head_valid()`` is true; masked slots
 of ``scripted_actions()`` hold arbitrary filler, so every comparison is restricted
@@ -23,8 +27,10 @@ from __future__ import annotations
 
 import json
 import math
+import shutil
 import time
-from dataclasses import asdict, dataclass, field
+from collections.abc import Callable
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 
 import numpy as np
@@ -32,6 +38,8 @@ import torch
 from numpy.typing import NDArray
 
 from spacefight.env.rust_env import RustVecEnv
+from spacefight.eval.controllers import Policy, Scripted
+from spacefight.eval.duel import DuelResult, evaluate
 from spacefight.rl.spike_policy import (
     ACTION_HIGHS,
     ACTION_WIDTH,
@@ -43,6 +51,7 @@ from spacefight.rl.spike_policy import (
     SpikeActor,
     SpikeCritic,
     act_numpy,
+    load_policy,
     save_policy,
 )
 
@@ -573,3 +582,555 @@ def run(
     eval_path = out_dir / EVAL_NAME
     eval_path.write_text(json.dumps(report, indent=2) + "\n")
     return BCRunResult(checkpoint=checkpoint, eval_path=eval_path, eval=report)
+
+
+# ------------------------------------------------------------------------ DAgger
+
+
+def collect_on_policy(
+    actor: SpikeActor,
+    n_rows: int,
+    n_envs: int = 256,
+    n_threads: int = 0,
+    seed: int = 1,
+    beta: float = 0.0,
+    sample: bool = True,
+    holdout_frac: float = 0.05,
+    reaction_ticks: int = 2,
+    obs_dtype: str = "float16",
+    assets_dir: Path = DEFAULT_ASSETS,
+) -> BCDataset:
+    """Collect ``n_rows`` rows of ``actor`` flying against the script (DAgger).
+
+    Env ``i`` puts the learner on team ``i % 2`` (the eval's side split); the other
+    team flies the script. Each step the script's actions for every ship are
+    fetched *before* the learner's actions are written, so the learner's rows are
+    labelled with what the script would do in the learner's own states. With
+    probability ``beta`` per learner ship-tick the script's action is executed
+    instead of the actor's (beta-DAgger). Only learner rows with ``act_mask`` true
+    are kept; storage and holdout follow ``collect``.
+
+    The returned stats reuse ``CollectStats``: ``noise_rate`` is the share of rows
+    where the script's action was executed (``noised`` marks them) and
+    ``changed_rate`` the share whose executed action differs from the label on a
+    valid head (the actor's on-policy disagreement with the script).
+
+    Args:
+        actor: The learner; sampled with torch's global RNG, seeded from ``seed``.
+        n_rows: Rows to keep; the last step is truncated.
+        n_envs: Parallel matches (at least 2, so both sides are covered).
+        n_threads: Sim threads (0 = rayon default).
+        seed: Env seed; the mixing RNG and torch are seeded from it too.
+        beta: Per learner ship-tick probability of executing the script's action.
+        sample: Sample the actor's heads (``False``: argmax).
+        holdout_frac: Share of envs (by index) held out for evaluation.
+        reaction_ticks: Sim reaction delay.
+        obs_dtype: Storage dtype of the observations, one of OBS_DTYPES.
+        assets_dir: Asset directory for the sim.
+
+    Returns:
+        The dataset with its stats.
+    """
+    if n_rows <= 0:
+        raise ValueError(f"n_rows must be positive, got {n_rows}")
+    if n_envs < 2:
+        raise ValueError(f"n_envs must be >= 2 to alternate sides, got {n_envs}")
+    if not 0.0 <= beta <= 1.0:
+        raise ValueError(f"beta must be in [0, 1], got {beta}")
+    if obs_dtype not in OBS_DTYPES:
+        raise ValueError(f"obs_dtype must be one of {OBS_DTYPES}, got {obs_dtype}")
+    start = time.perf_counter()
+    env = RustVecEnv(
+        assets_dir,
+        n_envs,
+        [list(team) for team in FIGHTER_DUEL],
+        seed,
+        n_threads=n_threads,
+        reaction_ticks=reaction_ticks,
+    )
+    rng = np.random.default_rng(seed)
+    torch.manual_seed(seed)
+    learner_team = np.arange(n_envs) % 2
+    learner_slot = (env.team == learner_team[:, None]).reshape(-1)
+    held_env = holdout_envs(n_envs, holdout_frac)
+    env_of_slot = np.repeat(np.arange(n_envs, dtype=np.int32), env.n_ships)
+    ship_of_slot = np.tile(np.arange(env.n_ships, dtype=np.int8), n_envs)
+    flat_thruster = env.thruster_mask.copy().reshape(-1, 8)
+    flat_turret = env.turret_mask.copy().reshape(-1, 6)
+    flat_fixed = env.fixed_turret.copy().reshape(-1, 6)
+
+    out = _empty_buffers(n_rows, obs_dtype)
+    filled = 0
+    step = 0
+    actor.eval()
+    while filled < n_rows:
+        labels = env.scripted_actions().reshape(-1, ACTION_WIDTH).copy()
+        learn = np.flatnonzero(learner_slot & env.act_mask.reshape(-1))
+        obs = env.obs.reshape(-1, OBS_DIM)[learn]
+        policy = act_numpy(
+            actor,
+            obs,
+            HeadMasks.from_numpy(
+                flat_thruster[learn], flat_turret[learn], flat_fixed[learn]
+            ),
+            deterministic=not sample,
+        )
+        scripted = np.less(rng.random(learn.size), beta)
+        executed = labels.copy()
+        executed[learn[~scripted]] = policy[~scripted]
+        n_keep = min(learn.size, n_rows - filled)
+        keep = learn[:n_keep]
+        rows = slice(filled, filled + n_keep)
+        out["obs"][rows] = obs[:n_keep]
+        out["labels"][rows] = labels[keep]
+        out["executed"][rows] = executed[keep]
+        out["noised"][rows] = scripted[:n_keep]
+        out["thruster"][rows] = flat_thruster[keep]
+        out["turret"][rows] = flat_turret[keep]
+        out["fixed_turret"][rows] = flat_fixed[keep]
+        out["env_index"][rows] = env_of_slot[keep]
+        out["ship"][rows] = ship_of_slot[keep]
+        out["step"][rows] = step
+        filled += n_keep
+        env.step(executed.reshape(env.actions.shape))
+        step += 1
+
+    holdout = held_env[out["env_index"]]
+    return BCDataset(holdout=holdout, stats=_stats(out, holdout, step, start), **out)
+
+
+def _stats(
+    out: dict[str, np.ndarray],
+    holdout: NDArray[np.bool_],
+    env_steps: int,
+    start: float,
+) -> CollectStats:
+    changed = np.any(
+        (out["executed"] != out["labels"])
+        & valid_heads(out["thruster"], out["turret"], out["fixed_turret"]),
+        axis=-1,
+    )
+    return CollectStats(
+        env_steps=env_steps,
+        rows=int(out["labels"].shape[0]),
+        holdout_rows=int(holdout.sum()),
+        noise_rate=float(out["noised"].mean()),
+        changed_rate=float(changed.mean()),
+        fire_rate=float((out["labels"][:, HEAD_GROUPS["fire"].start] == 1).mean()),
+        wall_s=time.perf_counter() - start,
+    )
+
+
+_ROW_FIELDS = (
+    "obs",
+    "labels",
+    "executed",
+    "noised",
+    "thruster",
+    "turret",
+    "fixed_turret",
+    "env_index",
+    "ship",
+    "step",
+    "holdout",
+)
+
+
+class AggregateDataset:
+    """Preallocated row store that DAgger rounds append to (no re-concatenation).
+
+    ``view()`` and ``part()`` return ``BCDataset`` objects whose arrays are views
+    into the store; appends never move earlier rows, so the views stay valid.
+
+    Args:
+        capacity: Maximum rows over all appends.
+        obs_dtype: Storage dtype of the observations, one of OBS_DTYPES.
+    """
+
+    def __init__(self, capacity: int, obs_dtype: str = "float16") -> None:
+        if capacity <= 0:
+            raise ValueError(f"capacity must be positive, got {capacity}")
+        if obs_dtype not in OBS_DTYPES:
+            raise ValueError(f"obs_dtype must be one of {OBS_DTYPES}, got {obs_dtype}")
+        self.capacity = capacity
+        self._arrays = _empty_buffers(capacity, obs_dtype)
+        self._arrays["holdout"] = np.empty(capacity, dtype=np.bool_)
+        self._parts: list[tuple[int, int, CollectStats]] = []
+        self.size = 0
+
+    @property
+    def n_parts(self) -> int:
+        """Number of appended datasets."""
+        return len(self._parts)
+
+    def append(self, dataset: BCDataset) -> int:
+        """Copy ``dataset``'s rows in; returns the new part's index.
+
+        Raises:
+            ValueError: The rows do not fit, or the obs dtype differs.
+        """
+        if self.size + dataset.n_rows > self.capacity:
+            raise ValueError(
+                f"{dataset.n_rows} rows do not fit: {self.size} of "
+                f"{self.capacity} used"
+            )
+        if dataset.obs.dtype != self._arrays["obs"].dtype:
+            raise ValueError(
+                f"obs dtype {dataset.obs.dtype} != store {self._arrays['obs'].dtype}"
+            )
+        rows = slice(self.size, self.size + dataset.n_rows)
+        for name in _ROW_FIELDS:
+            self._arrays[name][rows] = getattr(dataset, name)
+        self._parts.append((self.size, self.size + dataset.n_rows, dataset.stats))
+        self.size += dataset.n_rows
+        return len(self._parts) - 1
+
+    def part(self, index: int) -> BCDataset:
+        """The rows of the ``index``-th append, with its own stats."""
+        begin, end, stats = self._parts[index]
+        return self._slice(begin, end, stats)
+
+    def view(self) -> BCDataset:
+        """Every row appended so far; stats are summed / row-weighted over parts."""
+        if not self._parts:
+            raise ValueError("no rows appended")
+        stats = [s for _, _, s in self._parts]
+        rows = sum(s.rows for s in stats)
+
+        def weighted(name: str) -> float:
+            return float(sum(getattr(s, name) * s.rows for s in stats) / rows)
+
+        merged = CollectStats(
+            env_steps=sum(s.env_steps for s in stats),
+            rows=rows,
+            holdout_rows=sum(s.holdout_rows for s in stats),
+            noise_rate=weighted("noise_rate"),
+            changed_rate=weighted("changed_rate"),
+            fire_rate=weighted("fire_rate"),
+            wall_s=sum(s.wall_s for s in stats),
+        )
+        return self._slice(0, self.size, merged)
+
+    def _slice(self, begin: int, end: int, stats: CollectStats) -> BCDataset:
+        arrays = {name: self._arrays[name][begin:end] for name in _ROW_FIELDS}
+        return BCDataset(stats=stats, **arrays)
+
+
+DAGGER_MODES = ("finetune", "scratch")
+
+
+@dataclass(frozen=True)
+class DaggerConfig:
+    """Settings of a ``dagger`` run.
+
+    Attributes:
+        rounds: On-policy rounds after round 0.
+        rows_per_round: On-policy rows collected per round.
+        base_rows: Round-0 rows (the scripted DART dataset of ``collect``).
+        seed: Round-0 collection seed; round ``k`` collects with ``seed + k``.
+        n_envs: Parallel matches for every collection.
+        dart_p: Round-0 DART noise.
+        beta_first: Round-1 mixing probability; later rounds use 0.
+        mode: "finetune" (continue from the previous round's actor) or "scratch"
+            (fresh actor every round, trained with ``base_train``).
+        base_train: Round-0 training (and every round in "scratch" mode).
+        finetune_train: Training of rounds >= 1 in "finetune" mode.
+        max_rows: Upper bound on the aggregate store (memory guard).
+        duel_n: Duels per evaluation (``eval.duel.evaluate``).
+        duel_argmax: Also evaluate the argmax policy each round.
+        obs_dtype: Storage dtype of the observations.
+    """
+
+    rounds: int = 3
+    rows_per_round: int = 2_000_000
+    base_rows: int = 2_000_000
+    seed: int = 0
+    n_envs: int = 256
+    dart_p: float = 0.15
+    beta_first: float = 0.0
+    mode: str = "finetune"
+    base_train: TrainConfig = field(default_factory=TrainConfig)
+    finetune_train: TrainConfig = field(
+        default_factory=lambda: TrainConfig(epochs=2, lr=3e-4, lr_final=3e-5)
+    )
+    max_rows: int = 8_000_000
+    duel_n: int = 512
+    duel_argmax: bool = False
+    obs_dtype: str = "float16"
+
+    def __post_init__(self) -> None:
+        if self.mode not in DAGGER_MODES:
+            raise ValueError(f"mode must be one of {DAGGER_MODES}, got {self.mode}")
+        if self.rounds < 0:
+            raise ValueError(f"rounds must be >= 0, got {self.rounds}")
+        if self.total_rows > self.max_rows:
+            raise ValueError(
+                f"{self.total_rows} aggregate rows exceed max_rows {self.max_rows}"
+            )
+
+    @property
+    def total_rows(self) -> int:
+        """Aggregate rows after the last round."""
+        return self.base_rows + self.rounds * self.rows_per_round
+
+
+DAGGER_EVAL_NAME = "dagger_eval.json"
+DAGGER_BEST_NAME = "best.pt"
+
+
+def dagger_checkpoint_name(round_index: int) -> str:
+    """File name of round ``round_index``'s checkpoint."""
+    return f"bc_dagger_r{round_index}.pt"
+
+
+def duel_summary(result: DuelResult) -> dict[str, float]:
+    """The learner-side (side "a") numbers of the DAgger table, plus the script's."""
+    side = result.side_a
+    n = result.config.n
+    return {
+        "win_rate": side.win_rate,
+        "draw_rate": side.draws / n,
+        "hit_rate": side.hit_rate,
+        "engagement_rate": side.engagement_rate,
+        "outside_share": side.outside_share,
+        "main_engine_duty": side.main_engine_duty,
+        "fire_rate": side.fire_rate,
+        "shots": side.shots,
+        "kill_rate": result.match.kill_rate,
+        "script_hit_rate": result.side_b.hit_rate,
+        "script_engagement_rate": result.side_b.engagement_rate,
+        "script_main_engine_duty": result.side_b.main_engine_duty,
+    }
+
+
+def agreement_summary(report: dict[str, object]) -> dict[str, object]:
+    """The headline numbers of a ``bc_eval`` report."""
+    groups = report["groups"]
+    if not isinstance(groups, dict):
+        raise TypeError("bc_eval report has no groups dict")
+    return {
+        "throttle": groups["throttle"]["agreement"],
+        "fire": groups["fire"]["agreement"],
+        "fire_recall": groups["fire"]["recall"],
+        "fire_precision": groups["fire"]["precision"],
+        "power": groups["power"]["agreement"],
+        "exact_row": report["exact_row_agreement"],
+    }
+
+
+def _duel(checkpoint: Path, config: DaggerConfig, n_threads: int) -> dict[str, object]:
+    out: dict[str, object] = {}
+    for sample in (True, False) if config.duel_argmax else (True,):
+        start = time.perf_counter()
+        result = evaluate(
+            Policy(checkpoint, sample=sample),
+            Scripted(),
+            n=config.duel_n,
+            n_threads=n_threads,
+        )
+        out["sample" if sample else "argmax"] = {
+            "summary": duel_summary(result),
+            "markdown": result.markdown_row("a"),
+            "wall_s": time.perf_counter() - start,
+            "result": result.to_dict(),
+        }
+    return out
+
+
+@dataclass(frozen=True)
+class DaggerResult:
+    """Paths and per-round rows of ``dagger``."""
+
+    eval_path: Path
+    best: Path
+    best_round: int
+    rounds: list[dict[str, object]]
+
+
+def dagger(
+    out_dir: Path,
+    config: DaggerConfig,
+    n_threads: int,
+    init: Path | None = None,
+    on_round: Callable[[dict[str, object]], None] | None = None,
+) -> DaggerResult:
+    """DAgger on the scripted fighter: round 0 is BC, then on-policy rounds.
+
+    Round 0 re-collects the scripted DART dataset (``collect`` with
+    ``config.seed``) and either trains on it or, with ``init``, takes that
+    checkpoint's actor (the original BC run on the same data). Each later round
+    collects ``rows_per_round`` on-policy rows with the current actor, appends them
+    to the aggregate, trains (fine-tune or from scratch) on every non-held-out row,
+    and scores the result on that round's on-policy holdout (with the collecting
+    actor and the trained one) and in ``config.duel_n`` sampled duels against the
+    script. Each round writes ``bc_dagger_r{k}.pt`` and rewrites
+    ``dagger_eval.json``; the round with the best sampled win rate is copied to
+    ``best.pt``.
+
+    Args:
+        out_dir: Output directory.
+        config: Run settings.
+        n_threads: Sim and torch threads (also used by the duels).
+        init: Optional round-0 checkpoint used instead of training round 0.
+        on_round: Called with each round's row as soon as it is complete.
+    """
+    if n_threads > 0:
+        torch.set_num_threads(n_threads)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    store = AggregateDataset(config.total_rows, config.obs_dtype)
+    start = time.perf_counter()
+    store.append(
+        collect(
+            config.base_rows,
+            n_envs=config.n_envs,
+            n_threads=n_threads,
+            seed=config.seed,
+            dart_p=config.dart_p,
+            obs_dtype=config.obs_dtype,
+        )
+    )
+    round0 = store.part(0)
+    if init is None:
+        actor, log = train(round0, config.base_train)
+        train_report = _train_report(config.base_train, log)
+    else:
+        actor = load_policy(init)[0]
+        train_report = {"init": str(init)}
+    rows = [
+        _finish_round(0, actor, round0, None, store.size, train_report, config)
+        | {"beta": 1.0}
+    ]
+    _save_round(out_dir, 0, actor, rows, config, n_threads, start, init, on_round)
+
+    for k in range(1, config.rounds + 1):
+        start = time.perf_counter()
+        beta = config.beta_first if k == 1 else 0.0
+        store.append(
+            collect_on_policy(
+                actor,
+                config.rows_per_round,
+                n_envs=config.n_envs,
+                n_threads=n_threads,
+                seed=config.seed + k,
+                beta=beta,
+                obs_dtype=config.obs_dtype,
+            )
+        )
+        part = store.part(k)
+        before = agreement_summary(bc_eval(actor, part))
+        if config.mode == "finetune":
+            train_config = replace(
+                config.finetune_train, seed=config.finetune_train.seed + k
+            )
+            actor, log = train(store.view(), train_config, actor=actor)
+        else:
+            train_config = replace(config.base_train, seed=config.base_train.seed + k)
+            actor, log = train(store.view(), train_config)
+        row = _finish_round(
+            k,
+            actor,
+            part,
+            before,
+            store.size,
+            _train_report(train_config, log),
+            config,
+        )
+        rows.append(row | {"beta": beta})
+        _save_round(out_dir, k, actor, rows, config, n_threads, start, init, on_round)
+
+    best_round = max(range(len(rows)), key=lambda i: _win_rate(rows[i]))
+    best = out_dir / DAGGER_BEST_NAME
+    shutil.copyfile(out_dir / dagger_checkpoint_name(best_round), best)
+    eval_path = _write_dagger_eval(out_dir, config, init, rows, best_round)
+    return DaggerResult(
+        eval_path=eval_path, best=best, best_round=best_round, rounds=rows
+    )
+
+
+def _train_report(config: TrainConfig, log: TrainLog) -> dict[str, object]:
+    return {
+        "config": asdict(config),
+        "epoch_loss": log.epoch_loss,
+        "steps": log.steps,
+        "wall_s": log.wall_s,
+    }
+
+
+def _win_rate(row: dict[str, object]) -> float:
+    duel = row["duel"]
+    if not isinstance(duel, dict):
+        raise TypeError("round row has no duel dict")
+    return float(duel["sample"]["summary"]["win_rate"])
+
+
+def _finish_round(
+    k: int,
+    actor: SpikeActor,
+    part: BCDataset,
+    before: dict[str, object] | None,
+    aggregate_rows: int,
+    train_report: dict[str, object],
+    config: DaggerConfig,
+) -> dict[str, object]:
+    """Round ``k``'s row without the duel (agreement on its own holdout)."""
+    return {
+        "round": k,
+        "source": "dart_script" if k == 0 else "on_policy",
+        "collect": asdict(part.stats),
+        "aggregate_rows": aggregate_rows,
+        "train": train_report,
+        "holdout_agreement_collector": before,
+        "holdout_agreement": agreement_summary(bc_eval(actor, part)),
+    }
+
+
+def _save_round(
+    out_dir: Path,
+    k: int,
+    actor: SpikeActor,
+    rows: list[dict[str, object]],
+    config: DaggerConfig,
+    n_threads: int,
+    start: float,
+    init: Path | None,
+    on_round: Callable[[dict[str, object]], None] | None,
+) -> None:
+    """Write round ``k``'s checkpoint, run its duels and rewrite the eval JSON."""
+    row = rows[k]
+    checkpoint = out_dir / dagger_checkpoint_name(k)
+    torch.manual_seed(config.seed + 1)
+    save_policy(
+        checkpoint,
+        actor,
+        SpikeCritic(),
+        {
+            "source": "bc_dagger",
+            "critic": "fresh",
+            "round": k,
+            "holdout_agreement": json.loads(json.dumps(row["holdout_agreement"])),
+        },
+    )
+    row["checkpoint"] = str(checkpoint)
+    row["duel"] = _duel(checkpoint, config, n_threads)
+    row["wall_s"] = time.perf_counter() - start
+    _write_dagger_eval(out_dir, config, init, rows)
+    if on_round is not None:
+        on_round(row)
+
+
+def _write_dagger_eval(
+    out_dir: Path,
+    config: DaggerConfig,
+    init: Path | None,
+    rows: list[dict[str, object]],
+    best_round: int | None = None,
+) -> Path:
+    report = {
+        "config": asdict(config),
+        "init": str(init) if init is not None else None,
+        "best_round": best_round,
+        "rounds": rows,
+    }
+    path = out_dir / DAGGER_EVAL_NAME
+    path.write_text(json.dumps(report, indent=2) + "\n")
+    return path

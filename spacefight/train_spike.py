@@ -4,6 +4,7 @@ Subcommands register themselves through ``add_<name>_parser(subparsers)`` and ru
 through ``args.func(args)``::
 
     python -m spacefight.train_spike bc --out DIR --rows 2000000
+    python -m spacefight.train_spike dagger --out DIR --init DIR/bc.pt --threads 4
     python -m spacefight.train_spike ppo --run-dir RUN --init bc.pt
     python -m spacefight.train_spike ppo --run-dir RUN --init scratch
     python -m spacefight.train_spike ppo --run-dir RUN --resume
@@ -89,6 +90,107 @@ def run_bc(args: argparse.Namespace) -> int:
     )
     print(json.dumps(result.eval["groups"], indent=2))
     print(f"wrote {result.checkpoint} and {result.eval_path}")
+    return 0
+
+
+# ------------------------------------------------------------------------ dagger
+
+
+def add_dagger_parser(subparsers: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]
+    """Register the ``dagger`` subcommand."""
+    parser = subparsers.add_parser(
+        "dagger",
+        help="DAgger on top of BC: on-policy rows labelled by the script",
+        description=(
+            "Round 0 re-collects the scripted DART dataset (and trains on it unless "
+            "--init is given); each round then collects on-policy rows with the "
+            "current actor vs the script, aggregates and retrains, and evaluates "
+            "agreement on the on-policy holdout plus duels vs the script."
+        ),
+    )
+    parser.add_argument("--out", type=Path, required=True, help="output directory")
+    parser.add_argument("--rounds", type=int, default=3)
+    parser.add_argument("--rows-per-round", type=int, default=2_000_000)
+    parser.add_argument("--base-rows", type=int, default=2_000_000)
+    parser.add_argument("--max-rows", type=int, default=8_000_000)
+    parser.add_argument("--seed", type=int, default=0, help="round-0 seed (as bc)")
+    parser.add_argument("--threads", type=int, default=4, help="sim + torch threads")
+    parser.add_argument("--n-envs", type=int, default=256)
+    parser.add_argument("--dart-p", type=float, default=0.15)
+    parser.add_argument(
+        "--beta-first", type=float, default=0.0, help="round-1 script mixing β"
+    )
+    parser.add_argument("--mode", choices=("finetune", "scratch"), default="finetune")
+    parser.add_argument(
+        "--init", type=Path, default=None, help="round-0 checkpoint (skip training)"
+    )
+    parser.add_argument("--epochs", type=int, default=8, help="round-0 / scratch")
+    parser.add_argument("--finetune-epochs", type=int, default=2)
+    parser.add_argument("--finetune-lr", type=float, default=3e-4)
+    parser.add_argument("--finetune-lr-final", type=float, default=3e-5)
+    parser.add_argument("--batch-size", type=int, default=4096)
+    parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--lr-final", type=float, default=1e-4)
+    parser.add_argument("--label-smoothing", type=float, default=0.02)
+    parser.add_argument("--fire-pos-weight", type=float, default=1.0)
+    parser.add_argument("--throttle-change-weight", type=float, default=1.0)
+    parser.add_argument("--duel-n", type=int, default=512)
+    parser.add_argument(
+        "--duel-argmax", action="store_true", help="also duel the argmax policy"
+    )
+    parser.set_defaults(func=run_dagger)
+
+
+def run_dagger(args: argparse.Namespace) -> int:
+    """Run the ``dagger`` subcommand, printing one line per finished round."""
+    from spacefight.rl import bc
+
+    base_train = bc.TrainConfig(
+        epochs=args.epochs,
+        batch_size=args.batch_size,
+        lr=args.lr,
+        lr_final=args.lr_final,
+        label_smoothing=args.label_smoothing,
+        fire_pos_weight=args.fire_pos_weight,
+        throttle_change_weight=args.throttle_change_weight,
+        seed=args.seed,
+    )
+    config = bc.DaggerConfig(
+        rounds=args.rounds,
+        rows_per_round=args.rows_per_round,
+        base_rows=args.base_rows,
+        seed=args.seed,
+        n_envs=args.n_envs,
+        dart_p=args.dart_p,
+        beta_first=args.beta_first,
+        mode=args.mode,
+        base_train=base_train,
+        finetune_train=dataclasses.replace(
+            base_train,
+            epochs=args.finetune_epochs,
+            lr=args.finetune_lr,
+            lr_final=args.finetune_lr_final,
+        ),
+        max_rows=args.max_rows,
+        duel_n=args.duel_n,
+        duel_argmax=args.duel_argmax,
+    )
+
+    def report(row: dict[str, object]) -> None:
+        duel = row["duel"]
+        if not isinstance(duel, dict):
+            raise TypeError("round row has no duel dict")
+        print(
+            f"round {row['round']} ({row['wall_s']:.0f}s, {row['aggregate_rows']} rows) "
+            f"agreement {json.dumps(row['holdout_agreement'])} "
+            f"duel {json.dumps(duel['sample']['summary'])}",
+            flush=True,
+        )
+
+    result = bc.dagger(
+        args.out, config, n_threads=args.threads, init=args.init, on_round=report
+    )
+    print(f"best round {result.best_round} -> {result.best}; wrote {result.eval_path}")
     return 0
 
 
@@ -209,6 +311,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="python -m spacefight.train_spike")
     subparsers = parser.add_subparsers(dest="command", required=True)
     add_bc_parser(subparsers)
+    add_dagger_parser(subparsers)
     add_ppo_parser(subparsers)
     return parser
 
