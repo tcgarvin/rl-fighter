@@ -19,6 +19,14 @@ pub fn sim_version() -> u32 {
     sim::SIM_VERSION
 }
 
+/// Arena radius (metres) for a match of `n_ships` ships in total, both teams: the
+/// shared rule of `sim::setup::arena_radius_for` (450 m duel, +25 m per extra ship),
+/// so the live page's arenas match the ones the pilots trained in.
+#[wasm_bindgen(js_name = arenaRadiusFor)]
+pub fn arena_radius_for(n_ships: u32) -> f32 {
+    sim::setup::arena_radius_for(n_ships as usize)
+}
+
 /// The module's linear memory, for building views from the `*_ptr()` offsets.
 #[wasm_bindgen]
 pub fn wasm_memory() -> JsValue {

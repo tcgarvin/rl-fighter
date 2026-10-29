@@ -44,5 +44,14 @@ fn rlf_sim(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("ACTION_LAYOUT", action_layout)?;
 
     m.add_class::<vec_env::VecEnv>()?;
+    m.add_function(wrap_pyfunction!(arena_radius_for, m)?)?;
     Ok(())
+}
+
+/// Arena radius in metres for a match of `n_ships` ships in total (both teams):
+/// 450 m for a duel plus 25 m per extra ship (`sim::setup::arena_radius_for`, the
+/// rule the live page uses too).
+#[pyfunction]
+fn arena_radius_for(n_ships: usize) -> f32 {
+    sim::setup::arena_radius_for(n_ships)
 }
