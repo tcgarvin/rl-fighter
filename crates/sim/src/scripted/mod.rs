@@ -127,6 +127,8 @@ pub(crate) struct Engagement {
     pub rel_pos: Vec2,
     /// `|rel_pos|`, floored at 1 mm.
     pub dist: f32,
+    /// `target.vel - me.vel`.
+    pub rel_vel: Vec2,
     /// World heading to the lead point of the ship's primary weapon.
     pub lead_heading: f32,
     /// Range of the ship's primary (first turret's) weapon; 0 with no turrets.
@@ -356,6 +358,7 @@ fn engage(cat: &Catalogue, me: &Ship, hull: &HullDef, target: &Ship) -> Engageme
     Engagement {
         rel_pos,
         dist,
+        rel_vel: target.vel - me.vel,
         lead_heading: lead.angle(),
         gun_range,
         target_aspect: wrap_angle((-rel_pos).angle() - target.heading).abs(),

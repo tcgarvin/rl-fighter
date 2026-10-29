@@ -14,6 +14,7 @@ use sim::actions::{ShipAction, THROTTLE_DECREASE, THROTTLE_HOLD, THROTTLE_INCREA
 use sim::data::Catalogue;
 use sim::math::{PI, Vec2, clamp, wrap_angle};
 use sim::physics::RAMP_STEP;
+use sim::scripted::fighter::EXTEND_RANGE_FACTOR;
 use sim::scripted::strafer::{ORBIT_RADIUS, orbit_sign};
 use sim::scripted::{act, allocate_thrusters, levels_to_throttle_heads, projected_levels};
 use sim::state::{MAX_THRUSTERS, Match};
@@ -192,10 +193,10 @@ fn fighter_facing_away_turns_toward_target() {
 #[test]
 fn fighter_extends_after_a_merge_then_comes_round() {
     // Backs to each other 30 m apart (just after a head-on pass): hold heading and burn
-    // out to 1.2 × gun range, then turn back toward the target.
+    // out to `EXTEND_RANGE_FACTOR` × gun range, then turn back toward the target.
     let (cat, mut m) = duel(FIGHTER, FIGHTER, Vec2::ZERO, 0.0, Vec2::new(-30.0, 0.0));
     m.ships[1].heading = PI;
-    let extend_to = 1.2 * cat.weapon(GAUSS).range;
+    let extend_to = EXTEND_RANGE_FACTOR * cat.weapon(GAUSS).range;
     let mut turned_at = None;
     for tick in 0..900 {
         let a = act(&m, &cat, 0);
@@ -217,6 +218,74 @@ fn fighter_extends_after_a_merge_then_comes_round() {
     let dist = (m.ships[1].pos - m.ships[0].pos).length();
     assert!(turned_at.is_some(), "never came round ({dist} m out)");
     assert!(dist > extend_to, "came round early at {dist} m");
+}
+
+/// Two fighters nose to nose `gap` m apart on the x axis, each flying at `speed`
+/// toward the other.
+fn head_on(gap: f32, speed: f32) -> (Catalogue, Match) {
+    let (cat, mut m) = duel(FIGHTER, FIGHTER, Vec2::ZERO, 0.0, Vec2::new(gap, 0.0));
+    m.ships[0].vel = Vec2::new(speed, 0.0);
+    m.ships[1].heading = PI;
+    m.ships[1].vel = Vec2::new(-speed, 0.0);
+    (cat, m)
+}
+
+#[test]
+fn fighter_sidesteps_a_collision_course_to_starboard_and_keeps_firing() {
+    // 60 m apart closing at 80 m/s: closest approach (dead on) in 0.75 s. Each pilot
+    // pushes on the RCS pods that thrust toward its own starboard (fl, rl: dir (0,-1)),
+    // leaves the main engine off, and still has the gun on the target.
+    let (cat, m) = head_on(60.0, 40.0);
+    for ship in 0..2u8 {
+        let a = act(&m, &cat, ship);
+        assert_eq!(
+            a.throttle[..5],
+            [
+                THROTTLE_HOLD,
+                THROTTLE_INCREASE,
+                THROTTLE_HOLD,
+                THROTTLE_INCREASE,
+                THROTTLE_HOLD
+            ],
+            "ship {ship}"
+        );
+        assert_eq!(a.fire[0], 1, "ship {ship}");
+    }
+}
+
+#[test]
+fn fighter_does_not_sidestep_a_pass_that_already_misses() {
+    // Same closing pass, but offset 30 m sideways: no deconfliction, so the RCS pods
+    // only turn the nose and none pushes the ship sideways as a pair.
+    let (cat, mut m) = head_on(60.0, 40.0);
+    m.ships[1].pos.y = 30.0;
+    let a = act(&m, &cat, 0);
+    let pair = |i: usize, j: usize| {
+        a.throttle[i] == THROTTLE_INCREASE && a.throttle[j] == THROTTLE_INCREASE
+    };
+    assert!(!pair(1, 3) && !pair(2, 4), "sidestepped: {:?}", a.throttle);
+}
+
+#[test]
+fn scripted_fighters_pass_head_on_without_touching() {
+    // Full steps from a dead-on collision course 300 m apart at 50 m/s each: the two
+    // pilots must sidestep (opposite ways, from the exact tie) and pass with their
+    // centres well clear of touching side by side (circles r ≤ 2.6 m, so 5.2 m).
+    let (cat, mut m) = head_on(300.0, 50.0);
+    let mut closest = f32::INFINITY;
+    for _ in 0..150 {
+        for ship in 0..2u8 {
+            let a = act(&m, &cat, ship);
+            m.set_action(ship, a);
+        }
+        m.step(&cat);
+        let rel = m.ships[1].pos - m.ships[0].pos;
+        closest = closest.min(rel.length());
+        if rel.dot(m.ships[1].vel - m.ships[0].vel) > 0.0 && rel.length() > 50.0 {
+            break;
+        }
+    }
+    assert!(closest > 8.0, "closest approach {closest} m");
 }
 
 #[test]
