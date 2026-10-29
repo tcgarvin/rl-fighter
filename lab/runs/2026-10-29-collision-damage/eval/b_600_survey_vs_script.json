@@ -1,0 +1,40 @@
+{
+  "n": 128,
+  "a_win": 1.0,
+  "median_ticks": 336.5,
+  "matches_with_contact": 0.3203125,
+  "contacts_per_match": 0.390625,
+  "contact_tick_share": 0.001226530804792905,
+  "near_tick_share": {
+    "<10m": 0.019341447306349655,
+    "<20m": 0.11017548825360883,
+    "<40m": 0.2910180205679781
+  },
+  "closing_mps": {
+    "p10": 10.389596465936908,
+    "p50": 33.97586321653324,
+    "p90": 64.51442885241815,
+    "max": 73.33093438990902
+  },
+  "closing_share": {
+    ">5": 0.98,
+    ">15": 0.84,
+    ">30": 0.6,
+    ">60": 0.18
+  },
+  "contact_bearing_share": {
+    "nose(<45)": 0.73,
+    "flank(45-135)": 0.27,
+    "tail(>=135)": 0.0
+  },
+  "head_on_share": 0.48,
+  "median_length": 380.5,
+  "draw_rate": 0.0,
+  "crashes_per_match": 0.28125,
+  "crash_deaths_per_match": 0.0078125,
+  "matches_with_crash_death": 0.0078125,
+  "double_crash_kill_rate": 0.0,
+  "crash_hp_share": 0.014078979080775426,
+  "a": "lab/runs/2026-10-29-collision-damage/arm_b_pull/checkpoints/ppo_bc_600.pt",
+  "b": "script"
+}
