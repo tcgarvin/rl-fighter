@@ -6,7 +6,7 @@
 | Branch | `m1-sim` → `spike/learnability` |
 | Question | DESIGN §12 item 3: with a small MLP on a CPU-only laptop, does a fighter learn to fly, aim and fire by driving thrusters and a trigger directly, within ~4 h? |
 | Scenario | 1v1 fighter vs fighter, arena 450 m, 90 s limit, `reaction_ticks` 2 (SIM_SPEC §0 item 3), on `SIM_VERSION` 2 |
-| Status | planned (update to running / done / aborted); sim v2 block **lifted** 2026-10-28: WP11–15 merged on `m1-sim`, `SIM_VERSION` 2, duel gate passed (`lab/runs/2026-10-28-sim-v2/results.md`) |
+| Status | **done 2026-10-29, verdict PASS** (`results.md`); sim v2 block **lifted** 2026-10-28: WP11–15 merged on `m1-sim`, `SIM_VERSION` 2, duel gate passed (`lab/runs/2026-10-28-sim-v2/results.md`) |
 | Hands | balance sweep: agent A (= SIM_SPEC WP15); policy + BC: agent B; PPO loop: agent C; eval: agent D (see §8) |
 
 **Sim v2 first.** The sim refinements in SIM_SPEC §0 (lighter damping, throttle ramp,

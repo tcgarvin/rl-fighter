@@ -410,7 +410,7 @@ Feedback from round 1 (2026-10-27):
    hulls, thruster physics, power split, weapons, shields, hits, a scripted fighter,
    and a determinism test comparing native and WASM builds. **M1b:** the PyO3 batched
    VecEnv and a throughput benchmark.
-3. **Learnability spike** (moved ahead of the web client, 2026-10-28). Fighter vs.
+3. **Learnability spike. Done (2026-10-29), PASS:** BC → DAgger → PPO beat the script 512/512; PPO from scratch never learned to fire (`lab/runs/2026-10-28-learnability-spike/results.md`). A first live duel page is at `/duel/`. (Moved ahead of the web client, 2026-10-28.) Fighter vs.
    fighter with a small MLP: behaviour cloning from the scripted controller, then PPO,
    on the CPU. The question: can actuator-level control learn in a night? It is the
    project's biggest risk; the web client is not, and the story demo holds the site.
