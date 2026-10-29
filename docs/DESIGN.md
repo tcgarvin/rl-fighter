@@ -341,7 +341,9 @@ the next run.
   seed, with enough variety that it never feels like a rotation.
 - **Pages:**
   - `/` is the live match.
-  - `/journal` is the lab journal, generated from `lab/runs/`.
+  - `/notebook/` is the experiment notebook (the lab journal), generated from
+    `lab/runs/`.
+  - `/story/` is the scripted story demo: where the match structure is going.
   - `/hulls` is the hull catalogue.
 - **Performance target:** 60 fps on Intel Iris Xe-class integrated graphics, with
   hours of uptime and no memory growth. A soak test is part of CI.
@@ -421,9 +423,12 @@ Feedback from round 1 (2026-10-27):
    fighter with a small MLP: behaviour cloning from the scripted controller, then PPO,
    on the CPU. The question: can actuator-level control learn in a night? It is the
    project's biggest risk; the web client is not, and the story demo holds the site.
-4. **M2, Live web.** The WASM client with a scripted match, the fit-all camera, and
-   journal page scaffolding. Hosting and `scripts/deploy.sh` already exist (§9); M2
-   moves the site from the scripted story demo (`prototypes/story/`) to `web/`.
+4. **M2, The whole site, end to end** (plan: `docs/M2_PLAN.md`; widened 2026-10-29
+   at the user's request, before any nightly automation). The live match at `/` with
+   every ship flown by the champion pilot over mixed fleets of the current hulls, the
+   experiment notebook, the hull catalogue, one site shell, and the champion bundle.
+   Later milestones are stubbed (random rosters, plain skirmish, the spike MLP for all
+   hulls, a fleet eval instead of a league). The story demo moves to `/story/`.
 5. **M3, Pilots learn.** The attention policy, eval harness v1, the self-play league,
    and the first champion deployed.
 6. **M4, Nightly lab on.** Starting with conservative experiments (fine-tuning, hull
