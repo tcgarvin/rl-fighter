@@ -1,4 +1,4 @@
-"""Export a spike-policy checkpoint for in-browser inference (``web/duel/``).
+"""Export a spike-policy checkpoint for in-browser inference (the live page, ``web/``).
 
 Writes two files into ``--out``:
 
@@ -17,7 +17,7 @@ The export refuses a checkpoint whose obs_dim or sim_version does not match the
 WASM build it will run against (``--wasm-sim-version`` / ``--wasm-obs-dim``, which
 ``scripts/build_site.sh`` reads from the freshly built bundle).
 
-    python -m tools.export_policy --checkpoint X.pt --out dist/duel/policy \\
+    python -m tools.export_policy --checkpoint X.pt --out web/public/bundle/policy \\
         --wasm-sim-version 2 --wasm-obs-dim 385 [--eval-json eval/x_vs_script.json]
 """
 
