@@ -1,0 +1,4 @@
+# Netlify redirects. The old live duel page (web/duel/, retired in M2) is now the
+# live page with a 1v1 fighter roster.
+/duel     /?fleets=duel  302
+/duel/*   /?fleets=duel  302

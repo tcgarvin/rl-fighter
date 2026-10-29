@@ -42,31 +42,39 @@ uv run python tools/bench_env.py --assert-floors
 # Rust gate (fmt, clippy, native + wasip1 tests, wasm-pack, rlf_sim build + tests)
 scripts/check.sh
 
-# Build the website into dist/: story demo at /, live learned-pilot duel at /duel/
-# (release wasm, policy export + sim_version check, lab notes, headless smoke match)
-scripts/build_site.sh lab/runs/<run>/ppo_bc/checkpoints/ppo_bc_<N>.pt [eval.json]
-python3 -m http.server -d dist 8000   # preview
+# Champion bundle for the live page into web/public/bundle/ (release wasm, policy export
+# + sim_version check, catalogue, manifest.json rlf.bundle/1, headless N-ship smoke)
+scripts/build_bundle.sh <checkpoint.pt> <run-id> [eval.json]
+# Web client (web/: Vite + TS). npm run build typechecks; preview serves web/dist
+cd web && npm install && npm run build && npx vite preview --port 4173
 
-# Parity of the browser policy with torch, and the headless duel smoke test
+# Build the website into dist/: live page at /, story demo at /story/ (bundle + web build)
+scripts/build_site.sh lab/runs/<run>/<arm>/checkpoints/ppo_bc_<N>.pt <run-id> [eval.json]
+
+# Parity of the browser policy with torch; the headless live-match smoke test
 uv run python -m pytest tests/test_web_policy.py -v
-node tools/web/duel_smoke.mjs dist/duel/pkg dist/duel/policy 3
+node --experimental-strip-types tools/web/live_smoke.mjs web/public/bundle 4 [--hulls fighter,strafer,gunship]
+# Screenshots (390x844, 1440x900) into web/shots/live/, and a 10-minute heap/GPU soak,
+# against a running preview / web/dist; RLF_GPU=1 uses the host GPU instead of SwiftShader
+node tools/web/live_shots.mjs http://localhost:4173
+node tools/web/live_soak.mjs 10 8
 
 # Deploy dist/ (rl-fighter.tcgarvin.com); needs NETLIFY_AUTH_TOKEN in .env
-scripts/deploy.sh            # or: scripts/deploy.sh <checkpoint.pt> to rebuild first
+scripts/deploy.sh            # or: scripts/deploy.sh <checkpoint.pt> <run-id> to rebuild first
 
-# M2 site (web/, Vite + TS): data for /notebook/ (from lab/runs) and /hulls/ (from assets/)
-scripts/build_pages_data.sh  # = cd web && npm run data; writes web/public/{notebook,hulls}/data/
-cd web && npm install && npm run build   # tsc --noEmit + vite build into web/dist/
+# Data for /notebook/ (from lab/runs) and /hulls/ (from assets/) into web/public/{notebook,hulls}/data/
+scripts/build_pages_data.sh  # = cd web && npm run data
 uv run python -m pytest tests/test_build_notebook.py tests/test_build_catalogue.py -v
 ```
 
 The project is moving to a Rust sim + three.js web client; `docs/DESIGN.md` is the
-source of truth for that direction. The website serves the scripted
-story demo in `prototypes/story/` at `/` (draft, then missions; it builds on the art-direction
-demo in `prototypes/art-direction/`) and, at `/duel/`, `web/duel/`: a live fighter duel
-where the learned spike policy flies in the browser (Rust sim in WASM, MLP inference in
-JS, the story's renderer modules imported from the site root). The sections below describe the
-original Python/NumPy prototype.
+source of truth for that direction. The website (`web/`, Vite + TypeScript) serves the
+live page at `/`: matches that loop forever, every ship flown by the champion policy
+(Rust sim in WASM, MLP inference in JS, `web/src/live/`, renderer modules in
+`web/src/render/`), loaded from the champion bundle at `/bundle/`. `/duel/` redirects to a
+1v1 fighter roster. The scripted story demo in `prototypes/story/` (draft, then missions;
+it builds on the art-direction demo in `prototypes/art-direction/`) is served at `/story/`.
+The sections below describe the original Python/NumPy prototype.
 
 ## Architecture
 

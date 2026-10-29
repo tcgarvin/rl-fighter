@@ -1,4 +1,4 @@
-// Run web/duel/policy.js over a batch of observations for tests/test_web_policy.py.
+// Run web/src/live/policy.js over a batch of observations for tests/test_web_policy.py.
 //
 // Usage: node tools/web/policy_parity.mjs <policy-dir> <obs.f32> <head_valid.u8> <out.json>
 // obs.f32: B × obs_dim little-endian float32; head_valid.u8: B × action_width bytes.
@@ -13,7 +13,7 @@ if (!outPath) {
   console.error("usage: node tools/web/policy_parity.mjs <policy-dir> <obs.f32> <head_valid.u8> <out.json>");
   process.exit(2);
 }
-const { createPolicy, mulberry32 } = await importRepo("web/duel/policy.js");
+const { createPolicy, mulberry32 } = await importRepo("web/src/live/policy.js");
 const { manifest, weights } = readPolicyFiles(policyDir);
 const policy = createPolicy(manifest, weights, {
   simVersion: manifest.sim_version,

@@ -1,4 +1,4 @@
-"""Parity of the browser policy (``web/duel/policy.js``) with ``SpikeActor``.
+"""Parity of the browser policy (``web/src/live/policy.js``) with ``SpikeActor``.
 
 ``tools/export_policy.py`` writes the weights; ``tools/web/policy_parity.mjs`` runs the
 JS forward pass and head sampling on the same observations under Node. Logits must

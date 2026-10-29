@@ -1,11 +1,10 @@
 # rl-fighter.tcgarvin.com. Deployed from this machine with scripts/deploy.sh, not by
 # Netlify's git builds, so there is no build command: the published directory is
-# plain static files (ES modules, three.js from jsDelivr).
+# plain static files.
 #
-# dist/ (gitignored) is assembled by scripts/build_site.sh: the scripted story demo
-# (prototypes/story/) at /, and the live learned-pilot duel (web/duel/ plus the
-# sim-wasm bundle and the exported policy) at /duel/. The real client replaces it
-# under web/ later (docs/DESIGN.md §9).
+# dist/ (gitignored) is assembled by scripts/build_site.sh: the Vite build of web/
+# (the live page at /, with the champion bundle at /bundle/) and the scripted story
+# demo (prototypes/story/) at /story/. Redirects live in web/public/_redirects.
 [build]
   publish = "dist"
   command = ""
@@ -17,6 +16,6 @@
     Cache-Control = "public, max-age=0, must-revalidate"
 
 [[headers]]
-  for = "/duel/pkg/*.wasm"
+  for = "/bundle/pkg/*.wasm"
   [headers.values]
     Content-Type = "application/wasm"
