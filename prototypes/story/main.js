@@ -428,8 +428,8 @@ function buildControls() {
   // The site's other page: the same art, flown by a trained policy instead of the script.
   const live = document.createElement("a");
   live.className = "live-link";
-  live.href = "/duel/";
-  live.textContent = "Live: a learned pilot →";
+  live.href = "/";
+  live.textContent = "Live: learned pilots →";
   el.append(next, details, live);
 }
 
