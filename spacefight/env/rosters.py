@@ -133,6 +133,19 @@ def load_hull_costs(assets_dir: Path = DEFAULT_ASSETS) -> dict[str, float]:
     return costs
 
 
+def hull_names_by_id(assets_dir: Path = DEFAULT_ASSETS) -> list[str]:
+    """Hull names in hull-id order: the sim's catalogue numbers the hull
+    directories in sorted name order (``Catalogue::load_dir``).
+
+    Raises:
+        FileNotFoundError: No hull directories.
+    """
+    names = sorted(p.parent.name for p in (assets_dir / "hulls").glob("*/hull.yaml"))
+    if not names:
+        raise FileNotFoundError(f"no hulls/*/hull.yaml under {assets_dir}")
+    return names
+
+
 @dataclass(frozen=True)
 class RosterDistribution:
     """Parameters of the training roster distribution (module docstring).
