@@ -30,12 +30,10 @@ def hull_names() -> list[str]:
     return sorted(load_hull_costs())
 
 
-def test_arena_rule_keeps_the_duel_and_grows_per_ship() -> None:
-    assert arena_radius_for(2) == 450.0
-    assert arena_radius_for(4) == 500.0
-    assert arena_radius_for(8) == 600.0
-    assert Roster.of(["gunship"], ["fighter"] * 3).arena_radius == 500.0
-    assert Roster.of(["gunship", "fighter"], ["fighter"] * 3).arena_radius == 525.0
+def test_arena_rule_is_the_duel_arena_for_every_fleet_size() -> None:
+    for n in range(2, 9):
+        assert arena_radius_for(n) == 450.0
+    assert Roster.of(["gunship", "fighter"], ["fighter"] * 3).arena_radius == 450.0
 
 
 def test_roster_properties_and_validation() -> None:

@@ -1,9 +1,9 @@
 """Fleet rosters for training and eval: who plays each match, and in what arena.
 
 A ``Roster`` is the two teams' hulls in slot order (team 0 first); its arena radius
-comes from the sim's shared rule ``rlf_sim.arena_radius_for`` (450 m for a duel,
-+25 m per extra ship; ``sim::setup::arena_radius_for``), which the live page uses
-too. ``RosterDistribution`` describes a seeded distribution of rosters with 1 to
+comes from the sim's shared rule ``rlf_sim.arena_radius_for``
+(``sim::setup::arena_radius_for``, 450 m for every fleet size today), which the
+live page uses too. ``RosterDistribution`` describes a seeded distribution of rosters with 1 to
 ``MAX_PER_SIDE`` ships a side; ``RosterSampler`` draws from it. ``RustVecEnv`` takes a
 sampler and queues a fresh draw for every env whenever its match ends.
 

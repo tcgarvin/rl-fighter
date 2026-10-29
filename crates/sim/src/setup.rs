@@ -18,16 +18,20 @@ pub const DEFAULT_TIME_LIMIT_TICKS: u32 = 2700;
 /// Default reaction delay, ticks (≈ 67 ms; SIM_SPEC §5 stage 3, v2).
 pub const DEFAULT_REACTION_TICKS: u8 = 2;
 
-/// Extra arena radius per ship beyond a duel's two, metres.
-pub const ARENA_RADIUS_PER_SHIP: f32 = 25.0;
+/// Extra arena radius per ship beyond a duel's two, metres (0: one size for all).
+pub const ARENA_RADIUS_PER_SHIP: f32 = 0.0;
 
 /// The arena radius for a match of `n_ships` ships in total (both teams):
-/// `DEFAULT_ARENA_RADIUS` (450 m) for a duel plus `ARENA_RADIUS_PER_SHIP` per ship
-/// beyond two, so 2v2 is 500 m and 4v4 600 m. Training rosters, the fleet eval and the
-/// live page all size their arenas with this one rule (DESIGN §6). Script-vs-script
-/// fleets at 450–600 m (lab/runs/2026-10-30-fleet-pilot/plan.md §2) changed win
-/// rates and engagement little; the larger arena cut light hulls' crash damage in 4v4
-/// by about a third. Fewer than two ships count as two.
+/// `DEFAULT_ARENA_RADIUS` plus `ARENA_RADIUS_PER_SHIP` per ship beyond two. Training
+/// rosters, the fleet eval and the live page all size their arenas with this one
+/// rule (DESIGN §6), so change it here and nowhere else.
+///
+/// It is 450 m for every fleet size up to `MAX_SHIPS`: script-vs-script fleets
+/// (lab/runs/2026-10-30-fleet-pilot/plan.md §2) at a growing radius (+25 m per
+/// ship, 600 m for 4v4) had the same engagement and crash damage as at 450 m but
+/// reached the time limit more often in 4v4 (0.28 vs 0.19), and the obs scale
+/// distances by the radius, so one radius keeps the duel pilots' inputs where
+/// they trained.
 pub fn arena_radius_for(n_ships: usize) -> f32 {
     let extra = n_ships.saturating_sub(2) as f32;
     DEFAULT_ARENA_RADIUS + ARENA_RADIUS_PER_SHIP * extra
@@ -181,11 +185,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn arena_radius_rule_keeps_the_duel_and_grows_per_ship() {
-        assert_eq!(arena_radius_for(0), DEFAULT_ARENA_RADIUS);
-        assert_eq!(arena_radius_for(2), 450.0);
-        assert_eq!(arena_radius_for(4), 500.0);
-        assert_eq!(arena_radius_for(5), 525.0);
-        assert_eq!(arena_radius_for(MAX_SHIPS), 600.0);
+    fn arena_radius_rule_is_the_duel_arena_for_every_fleet_size() {
+        for n in 0..=MAX_SHIPS {
+            assert_eq!(arena_radius_for(n), DEFAULT_ARENA_RADIUS);
+        }
+        assert_eq!(DEFAULT_ARENA_RADIUS, 450.0);
     }
 }
