@@ -425,7 +425,12 @@ function buildControls() {
   details.textContent = "Technical details";
   details.setAttribute("aria-pressed", String(showDetails));
   details.addEventListener("click", toggleDetails);
-  el.append(next, details);
+  // The site's other page: the same art, flown by a trained policy instead of the script.
+  const live = document.createElement("a");
+  live.className = "live-link";
+  live.href = "/duel/";
+  live.textContent = "Live: a learned pilot →";
+  el.append(next, details, live);
 }
 
 function toggleDetails() {
