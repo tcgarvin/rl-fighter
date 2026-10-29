@@ -838,7 +838,15 @@ predicted heading error and the current `omega`. The arena check uses `pos'`.
 Fighter (`role == "fighter"`), per tick (all quantities predicted as above):
 1. Target = nearest active enemy (`dist`), else coast (`IDLE`).
 2. Lead: `t = dist / speed`; `aim = atan2(rel_pos + rel_vel * t)`; `err = wrap(aim - heading')`.
-3. `go = 1 if dist > 60 || |err| > 1.2 else 0.3`; `force_body = (go * (1 if |err| < 0.9 else 0.2), 0)`.
+3. `force_body = (1 if |err| < 0.9 else 0.2, 0)`. **Extend (v2, WP15):** if the
+   target's bearing from our nose and our bearing from the target's nose both exceed
+   90° (backs to each other, i.e. just after a merge) and `dist < 1.2 × range` of the
+   primary weapon, hold the current heading (`aim = heading'`) with
+   `force_body = (1, 0)`. sim.js instead dropped to 0.3 throttle inside 60 m and
+   always turned straight back, so two scripted fighters parked nose to nose at
+   10–60 m, never left gun range after the first merge, and with the v2 nose armour
+   took 93 % of hits at 0.5× (WP15 sweep). A ship with the enemy on its tail (pointing
+   at it) still turns to fight.
 4. Arena: if `|pos'| > 0.85 R` → `aim = atan2(-pos')`, `force_body = (1, 0)`.
 5. `torque = clamp(10 * err - 1.6 * omega, -1, 1)`; target levels = allocator; throttle
    heads = `levels_to_throttle_heads`. (sim.js uses gain 2.5; with the allocator's

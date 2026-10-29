@@ -8,7 +8,7 @@
 
 mod common;
 
-use common::{FIGHTER, GUNSHIP, STRAFER, new_present_match, test_catalogue};
+use common::{FIGHTER, GAUSS, GUNSHIP, STRAFER, new_present_match, test_catalogue};
 use sim::DT;
 use sim::actions::{ShipAction, THROTTLE_DECREASE, THROTTLE_HOLD, THROTTLE_INCREASE};
 use sim::data::Catalogue;
@@ -168,7 +168,9 @@ fn emulate_turret_slew(m: &mut Match, cat: &Catalogue, ship: usize, a: &ShipActi
 
 #[test]
 fn fighter_facing_away_turns_toward_target() {
+    // The target sits on our tail pointing at us: turn to fight, do not extend.
     let (cat, mut m) = duel(FIGHTER, FIGHTER, Vec2::ZERO, 0.0, Vec2::new(-200.0, 0.0));
+    m.ships[1].heading = 0.0;
     assert!(bearing_err(&m, 0, 1).abs() > 3.0);
     let mut turned_at = None;
     for tick in 0..90 {
@@ -185,6 +187,36 @@ fn fighter_facing_away_turns_toward_target() {
         "still {} rad off",
         bearing_err(&m, 0, 1)
     );
+}
+
+#[test]
+fn fighter_extends_after_a_merge_then_comes_round() {
+    // Backs to each other 30 m apart (just after a head-on pass): hold heading and burn
+    // out to 1.2 × gun range, then turn back toward the target.
+    let (cat, mut m) = duel(FIGHTER, FIGHTER, Vec2::ZERO, 0.0, Vec2::new(-30.0, 0.0));
+    m.ships[1].heading = PI;
+    let extend_to = 1.2 * cat.weapon(GAUSS).range;
+    let mut turned_at = None;
+    for tick in 0..900 {
+        let a = act(&m, &cat, 0);
+        m.set_action(0, a);
+        m.step_motion(&cat);
+        let dist = (m.ships[1].pos - m.ships[0].pos).length();
+        if dist < extend_to - 5.0 {
+            assert!(
+                m.ships[0].heading.abs() < 0.05,
+                "turned at {dist} m while extending (heading {})",
+                m.ships[0].heading
+            );
+        }
+        if bearing_err(&m, 0, 1).abs() < 0.1 {
+            turned_at = Some(tick);
+            break;
+        }
+    }
+    let dist = (m.ships[1].pos - m.ships[0].pos).length();
+    assert!(turned_at.is_some(), "never came round ({dist} m out)");
+    assert!(dist > extend_to, "came round early at {dist} m");
 }
 
 #[test]

@@ -129,6 +129,11 @@ pub(crate) struct Engagement {
     pub dist: f32,
     /// World heading to the lead point of the ship's primary weapon.
     pub lead_heading: f32,
+    /// Range of the ship's primary (first turret's) weapon; 0 with no turrets.
+    pub gun_range: f32,
+    /// `|bearing|` of this ship as seen from the target's nose, in `[0, π]`
+    /// (0 = the target points straight at us).
+    pub target_aspect: f32,
 }
 
 /// The scripted action for `ship` in its current state.
@@ -341,14 +346,19 @@ fn pick_target<'a>(m: &'a Match, cat: &Catalogue, me: &Ship, role: Role) -> Opti
 fn engage(cat: &Catalogue, me: &Ship, hull: &HullDef, target: &Ship) -> Engagement {
     let rel_pos = target.pos - me.pos;
     let dist = rel_pos.length().max(1e-3);
-    let lead = match hull.turrets.first() {
-        Some(t) => lead_point(cat.weapon(t.weapon), me, target, rel_pos),
-        None => rel_pos,
+    let (lead, gun_range) = match hull.turrets.first() {
+        Some(t) => {
+            let weapon = cat.weapon(t.weapon);
+            (lead_point(weapon, me, target, rel_pos), weapon.range)
+        }
+        None => (rel_pos, 0.0),
     };
     Engagement {
         rel_pos,
         dist,
         lead_heading: lead.angle(),
+        gun_range,
+        target_aspect: wrap_angle((-rel_pos).angle() - target.heading).abs(),
     }
 }
 
