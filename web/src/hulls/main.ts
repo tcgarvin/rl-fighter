@@ -93,7 +93,8 @@ function weaponsTable(hull: Hull, weapons: Record<string, Weapon>): HTMLElement 
     const w = weapons[t.weapon];
     const tr = el("tr");
     tr.append(el("td", "mono", t.id.replace(/^turret\./, "")));
-    tr.append(el("td", "", w ? `${t.weapon} (${w.kind_label})` : t.weapon));
+    const kind = w && !w.kind_label.startsWith(t.weapon) ? ` (${w.kind_label})` : "";
+    tr.append(el("td", "", `${t.weapon}${kind}`));
     tr.append(el("td", "num", w ? n(w.damage) : "–"));
     tr.append(el("td", "num", w ? `${n(w.range)} m` : "–"));
     tr.append(el("td", "num", w ? `${n(w.rate, 1)}/s` : "–"));

@@ -254,7 +254,8 @@
 }
 
 .diagram__arc {
-  fill: rgba(255, 174, 105, 0.1);
+  /* Low fill: the gunship's three arcs overlap and must stay readable. */
+  fill: rgba(255, 174, 105, 0.06);
   stroke: var(--team-b);
   stroke-opacity: 0.55;
   stroke-width: 1;
