@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "data": "bash ../scripts/build_pages_data.sh",
     "dev": "vite",
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit && vite build",

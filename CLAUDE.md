@@ -53,6 +53,11 @@ node tools/web/duel_smoke.mjs dist/duel/pkg dist/duel/policy 3
 
 # Deploy dist/ (rl-fighter.tcgarvin.com); needs NETLIFY_AUTH_TOKEN in .env
 scripts/deploy.sh            # or: scripts/deploy.sh <checkpoint.pt> to rebuild first
+
+# M2 site (web/, Vite + TS): data for /notebook/ (from lab/runs) and /hulls/ (from assets/)
+scripts/build_pages_data.sh  # = cd web && npm run data; writes web/public/{notebook,hulls}/data/
+cd web && npm install && npm run build   # tsc --noEmit + vite build into web/dist/
+uv run python -m pytest tests/test_build_notebook.py tests/test_build_catalogue.py -v
 ```
 
 The project is moving to a Rust sim + three.js web client; `docs/DESIGN.md` is the

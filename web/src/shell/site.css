@@ -25,6 +25,14 @@
   --pad-right: max(16px, env(safe-area-inset-right));
   --measure: 680px;
   --page: 1120px;
+  /* Long-form prose (notebook, catalogue notes): a book face on every platform. */
+  --serif: "Iowan Old Style", Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
+  /* Chart series: the team hues stepped into the dark-mode lightness band
+     (validated with the dataviz palette checker against --bg-raised). */
+  --series-1: #3d98d8;
+  --series-2: #d07a38;
+  --series-3: #a9a59c;
+  --grid: rgba(229, 225, 216, 0.09);
 }
 
 *,
@@ -148,4 +156,463 @@ a {
   padding-top: 16px;
   font-size: 12px;
   color: var(--muted);
+}
+
+/* ------------------------------------------------------------------------
+   Shared document styles (notebook, catalogue): prose, tables, figures,
+   badges, buttons, disclosure. Phone portrait first; wider screens only
+   relax the measure.
+   ------------------------------------------------------------------------ */
+
+::selection {
+  background: rgba(99, 191, 255, 0.28);
+}
+
+.page a:focus-visible,
+.page button:focus-visible,
+.page summary:focus-visible {
+  outline: 2px solid var(--team-a);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.mono {
+  font-family: var(--mono);
+  font-size: 0.86em;
+  letter-spacing: 0;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+/* Long-form prose rendered from Markdown. Text keeps a readable measure;
+   tables and figures may use the full page width. */
+.prose {
+  font-family: var(--serif);
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--fg-soft);
+  overflow-wrap: break-word;
+}
+
+.prose > * {
+  max-width: var(--measure);
+}
+
+.prose > .table-scroll,
+.prose > .wide {
+  max-width: none;
+}
+
+.prose p,
+.prose ul,
+.prose ol {
+  margin: 0 0 1em;
+}
+
+.prose strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.prose h2,
+.prose h3,
+.prose h4 {
+  font-family: var(--font);
+  color: var(--fg);
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.prose h2 {
+  font-size: 13px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin: 2.6em 0 1em;
+  padding-top: 1.1em;
+  border-top: 1px solid var(--line);
+}
+
+.prose h3 {
+  font-size: 18px;
+  margin: 1.8em 0 0.6em;
+}
+
+.prose h4 {
+  font-size: 15px;
+  margin: 1.4em 0 0.5em;
+}
+
+.prose ul,
+.prose ol {
+  padding-left: 1.2em;
+}
+
+.prose li {
+  margin: 0.35em 0;
+  padding-left: 0.15em;
+}
+
+.prose li::marker {
+  color: var(--muted);
+}
+
+.prose a {
+  color: var(--fg);
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 3px;
+}
+
+.prose a:hover {
+  text-decoration-color: var(--fg);
+}
+
+.prose code {
+  font-family: var(--mono);
+  font-size: 0.8em;
+  color: var(--fg);
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 0.05em 0.3em;
+  overflow-wrap: anywhere;
+}
+
+.prose a.code-link {
+  text-decoration: none;
+}
+
+.prose a.code-link code {
+  border-color: var(--line-strong);
+}
+
+.prose a.code-link:hover code {
+  border-color: var(--fg-soft);
+}
+
+.prose pre {
+  font-size: 13px;
+  line-height: 1.5;
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.prose pre code {
+  border: 0;
+  padding: 0;
+  background: none;
+  font-size: 1em;
+  overflow-wrap: normal;
+}
+
+.pending {
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* Data tables scroll sideways inside their own box on a phone; the first
+   column stays put so a row can be read while scrolling. */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  margin: 1.2em 0 1.6em;
+  border-top: 1px solid var(--line-strong);
+  border-bottom: 1px solid var(--line);
+}
+
+.table-scroll table,
+table.data {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-soft);
+  min-width: 100%;
+}
+
+.table-scroll th,
+.table-scroll td,
+table.data th,
+table.data td {
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line);
+}
+
+.table-scroll th,
+table.data th {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  vertical-align: bottom;
+}
+
+.table-scroll tr:last-child td,
+table.data tr:last-child td {
+  border-bottom: 0;
+}
+
+.table-scroll td,
+.table-scroll th {
+  white-space: nowrap;
+}
+
+.table-scroll td:first-child,
+.table-scroll th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--bg);
+  padding-left: 0;
+  padding-right: 14px;
+  box-shadow: inset -1px 0 0 var(--line);
+}
+
+.table-scroll strong {
+  color: var(--fg);
+}
+
+.num {
+  text-align: right !important;
+}
+
+/* Verdict and status badges: a status dot plus a word, never colour alone. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--fg);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  padding: 3px 9px 3px 8px;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.badge--pass::before,
+.badge--shipped::before {
+  background: var(--pass);
+}
+
+.badge--partial::before {
+  background: var(--partial);
+}
+
+.badge--fail::before {
+  background: var(--fail);
+}
+
+.badge--quiet {
+  color: var(--muted);
+  border-color: var(--line);
+}
+
+.badge--quiet::before {
+  display: none;
+}
+
+/* A primary call to action ("Watch this pilot") and quieter text buttons. */
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 18px;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--bg);
+  background: var(--fg);
+  border: 0;
+  border-radius: 999px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.button:hover {
+  background: #fff;
+}
+
+.button__live {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--live);
+  box-shadow: 0 0 0 3px rgba(255, 93, 93, 0.25);
+}
+
+.text-button {
+  font-family: var(--font);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  background: none;
+  border: 0;
+  padding: 10px 0;
+  min-height: 40px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 3px;
+}
+
+.text-button:hover,
+.text-button[aria-pressed="true"] {
+  color: var(--fg);
+}
+
+/* Disclosure blocks (plan, eval files). */
+details.disclosure {
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  margin: 1.6em 0;
+}
+
+details.disclosure + details.disclosure {
+  margin-top: -1.6em;
+  border-top: 0;
+}
+
+details.disclosure > summary {
+  list-style: none;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  min-height: 48px;
+  padding: 14px 0;
+  cursor: pointer;
+  font-family: var(--font);
+  color: var(--fg);
+}
+
+details.disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.disclosure > summary::before {
+  content: "+";
+  font-family: var(--mono);
+  color: var(--muted);
+  width: 12px;
+  flex: none;
+}
+
+details.disclosure[open] > summary::before {
+  content: "\2212";
+}
+
+.disclosure__title {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.disclosure__meta {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.disclosure__body {
+  padding: 0 0 20px;
+}
+
+/* Figures (charts, diagrams). */
+.figure {
+  margin: 0;
+  font-family: var(--font);
+}
+
+.figure__title {
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg);
+  margin: 0 0 6px;
+}
+
+.figure__caption {
+  font-family: var(--font);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+  margin: 8px 0 0;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 16px;
+  font-family: var(--font);
+  font-size: 12px;
+  color: var(--fg-soft);
+  margin: 0 0 4px;
+  padding: 0;
+  list-style: none;
+}
+
+.prose .legend {
+  padding: 0;
+  margin: 0 0 4px;
+}
+
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+}
+
+.legend__key {
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+  display: inline-block;
+  flex: none;
+}
+
+.page-footer {
+  border-top: 1px solid var(--line);
+  margin-top: 56px;
+  padding-top: 16px;
+  font-family: var(--font);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.page-footer a {
+  color: var(--fg-soft);
+}
+
+@media (min-width: 720px) {
+  .prose {
+    font-size: 18px;
+  }
 }
