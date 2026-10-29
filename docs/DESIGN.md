@@ -107,6 +107,13 @@ retire from the active league, though they stay in history.
 - **Collision:** each hull is a compound of circles derived from the model's
   footprint. Projectiles are tested against those circles, using swept segments for
   fast bullets. Ships can collide with each other; the impulse depends on mass.
+  Since SIM_VERSION 3 a closing contact also does damage, growing with the square of
+  the closing speed above a free scrape speed and scaled per hull by `impact` arcs at
+  the contact bearing. Fighters are fragile in crashes and their noses most of all
+  (1.5×), so a head-on ram costs both pilots most of their hull and turning away pays;
+  a future ram hull (a Hammerhead corvette, the comet) gets a tough prow instead.
+  This is physics, not a reward penalty: pilots see it only as damage taken, and
+  nobody is credited for the other ship's crash damage (user decision 2026-10-29).
 - **Damage:** hull HP. Some hulls (not all) also carry a **shield**: a pool of shield
   HP that absorbs incoming damage first, then regenerates after a delay with no hits.
   The sim emits a shield-hit event with the impact point and normal. Shields are
