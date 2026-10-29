@@ -61,7 +61,7 @@ pub fn projectile_stride() -> usize {
 
 /// Floats per event in `events_*`: `[kind, a, b, x, y, nx_or_x2, ny_or_y2, extra]`
 /// (SIM_SPEC §9; kinds 0 fire, 1 beam, 2 hit, 3 shield hit, 4 burst, 5 death,
-/// 6 arrival).
+/// 6 arrival, 7 collision (v3)).
 #[wasm_bindgen(js_name = EVENT_STRIDE)]
 pub fn event_stride() -> usize {
     sim::events::EVENT_STRIDE

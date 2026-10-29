@@ -94,6 +94,7 @@ pub struct VecEnv {
     episode_count: Py<PyArray1<u32>>,
     hits: Py<PyArray3<i32>>,
     hit_count: Py<PyArray1<i32>>,
+    collision_damage: Py<PyArray2<f32>>,
 }
 
 /// Borrow every per-step buffer and call `f` with the slices.
@@ -110,6 +111,7 @@ macro_rules! with_step_buffers {
         let episode_count = $self.episode_count.bind($py);
         let hits = $self.hits.bind($py);
         let hit_count = $self.hit_count.bind($py);
+        let collision_damage = $self.collision_damage.bind($py);
         let mut obs = borrow_mut(obs, "obs")?;
         let actions = actions
             .try_readonly()
@@ -123,6 +125,7 @@ macro_rules! with_step_buffers {
         let mut episode_count = borrow_mut(episode_count, "episode_count")?;
         let mut hits = borrow_mut(hits, "hits")?;
         let mut hit_count = borrow_mut(hit_count, "hit_count")?;
+        let mut collision_damage = borrow_mut(collision_damage, "collision_damage")?;
         let $bufs = StepBuffers {
             obs: as_slice(&mut obs, "obs")?,
             actions: actions
@@ -137,6 +140,7 @@ macro_rules! with_step_buffers {
             episode_count: as_slice(&mut episode_count, "episode_count")?,
             hits: as_slice(&mut hits, "hits")?,
             hit_count: as_slice(&mut hit_count, "hit_count")?,
+            collision_damage: as_slice(&mut collision_damage, "collision_damage")?,
         };
         $body
     }};
@@ -253,6 +257,7 @@ impl VecEnv {
             episode_count: PyArray1::zeros(py, [n], false).unbind(),
             hits: PyArray3::zeros(py, [n, MAX_HITS, HIT_FIELDS], false).unbind(),
             hit_count: PyArray1::zeros(py, [n], false).unbind(),
+            collision_damage: PyArray2::zeros(py, [n, s], false).unbind(),
         };
         {
             let thruster_mask = env.thruster_mask.bind(py);
@@ -507,5 +512,12 @@ impl VecEnv {
     #[getter]
     fn hit_count(&self, py: Python<'_>) -> Py<PyArray1<i32>> {
         self.hit_count.clone_ref(py)
+    }
+    /// v3: hull damage each ship took from ship-ship collisions in the last step,
+    /// after impact arcs (`[N,S] f32`; SIM_SPEC §5.5). Shield-absorbed collision
+    /// damage is not included.
+    #[getter]
+    fn collision_damage(&self, py: Python<'_>) -> Py<PyArray2<f32>> {
+        self.collision_damage.clone_ref(py)
     }
 }
