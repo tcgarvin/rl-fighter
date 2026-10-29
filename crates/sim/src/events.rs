@@ -18,6 +18,8 @@ pub const KIND_SHIELD_HIT: u8 = 3;
 pub const KIND_BURST: u8 = 4;
 pub const KIND_DEATH: u8 = 5;
 pub const KIND_ARRIVAL: u8 = 6;
+/// v3: appended last so the v2 codes stay stable.
+pub const KIND_COLLISION: u8 = 7;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Event {
@@ -69,10 +71,21 @@ pub enum Event {
         pos: Vec2,
         heading: f32,
     },
+    /// v3: a damaging ship-ship collision (closing speed above
+    /// `COLLISION_FREE_SPEED`). `a < b` are the slots, `pos` the contact point,
+    /// `normal` the unit contact normal from `a` to `b`, `closing` the closing speed
+    /// along it before the impulse (m/s).
+    Collision {
+        a: u8,
+        b: u8,
+        pos: Vec2,
+        normal: Vec2,
+        closing: f32,
+    },
 }
 
 impl Event {
-    /// Flat-encoding kind code (0..6 in declaration order).
+    /// Flat-encoding kind code (0..7 in declaration order).
     pub fn kind(&self) -> u8 {
         match self {
             Event::Fire { .. } => KIND_FIRE,
@@ -82,6 +95,7 @@ impl Event {
             Event::Burst { .. } => KIND_BURST,
             Event::Death { .. } => KIND_DEATH,
             Event::Arrival { .. } => KIND_ARRIVAL,
+            Event::Collision { .. } => KIND_COLLISION,
         }
     }
 
@@ -153,6 +167,22 @@ impl Event {
             Event::Arrival { ship, pos, heading } => {
                 [k, f32::from(ship), 0.0, pos.x, pos.y, 0.0, 0.0, heading]
             }
+            Event::Collision {
+                a,
+                b,
+                pos,
+                normal,
+                closing,
+            } => [
+                k,
+                f32::from(a),
+                f32::from(b),
+                pos.x,
+                pos.y,
+                normal.x,
+                normal.y,
+                closing,
+            ],
         }
     }
 }
@@ -245,11 +275,13 @@ impl Match {
     }
 
     /// Stage 1 helper (called by `Match::step`): clear the per-step combat outputs
-    /// this module owns: events, hits and `shots_fired`. `dropped_hits` is a running
-    /// total and is not reset.
+    /// this module owns: events, hits, `shots_fired` and (v3) the per-slot collision
+    /// damage. `dropped_hits` is a running total and is not reset.
     pub fn clear_combat_outputs(&mut self) {
         self.events.clear();
         self.hits.clear();
         self.shots_fired = [0; MAX_SHIPS];
+        self.collision_damage = [0.0; MAX_SHIPS];
+        self.collision_shield_damage = [0.0; MAX_SHIPS];
     }
 }
