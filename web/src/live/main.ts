@@ -12,7 +12,7 @@
 import { mountNav } from "../shell/nav";
 import "./live.css";
 import { mulberry32 } from "./policy.js";
-import { fetchManifest, loadBundle, type Bundle } from "./bundle.ts";
+import { fetchManifest, loadBundle, type Bundle, type BundleManifest } from "./bundle.ts";
 import { Hud, type Tally } from "./hud.ts";
 import { LiveMatch } from "./match.ts";
 import { Muster } from "./muster.ts";
@@ -85,6 +85,14 @@ function applyBundle(b: Bundle): void {
   hud.setCaption(b.manifest);
 }
 
+/** Load a bundle and check this page can draw every hull it may draft. */
+async function loadDrawable(manifest: BundleManifest): Promise<Bundle> {
+  const b = await loadBundle(BUNDLE_BASE, manifest);
+  const missing = b.manifest.roster.hulls.filter((h) => !hullSpec(h));
+  if (missing.length) throw new Error(`bundle ${b.manifest.bundle_id} rosters hulls this page has no model for: ${missing.join(", ")}`);
+  return b;
+}
+
 /** Look for a new bundle and preload it; a failed load keeps the current one. */
 async function checkBundle(retryFailed: boolean): Promise<void> {
   if (checking) return;
@@ -95,7 +103,7 @@ async function checkBundle(retryFailed: boolean): Promise<void> {
     id = manifest.bundle_id;
     const newest = pending?.manifest.bundle_id ?? bundle.manifest.bundle_id;
     if (id === newest || (id === failedBundleId && !retryFailed)) return;
-    pending = await loadBundle(BUNDLE_BASE, manifest);
+    pending = await loadDrawable(manifest);
     failedBundleId = null;
     console.info(`live: bundle ${id} loaded; it takes over at the next match`);
   } catch (err) {
@@ -119,7 +127,7 @@ function startMatch(): void {
   world.beginMatch(next);
   match?.free();
   match = next;
-  thrusterCounts = next.hullNames.map((n) => (hullSpec(n) as { thrusters?: unknown[] } | undefined)?.thrusters?.length ?? 0);
+  thrusterCounts = next.hullNames.map((n) => hullSpec(n)?.thrusters.length ?? 0);
   hud.resetMarkers(next.nShips);
   hud.hideResult();
   matchNumber += 1;
@@ -252,7 +260,7 @@ async function boot(): Promise<void> {
   layout();
   try {
     const manifest = await fetchManifest(BUNDLE_BASE);
-    applyBundle(await loadBundle(BUNDLE_BASE, manifest));
+    applyBundle(await loadDrawable(manifest));
   } catch (err) {
     console.error(err);
     hud.fail(`Could not load the pilot: ${err instanceof Error ? err.message : String(err)}. Retrying in a minute.`);

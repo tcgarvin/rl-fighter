@@ -38,6 +38,7 @@ export interface HullSpec {
   length: number;
   beam: number;
   radius: number;
+  thrusters: unknown[];
   shield?: { radius: number };
 }
 
@@ -140,6 +141,7 @@ export class World {
   private ring: THREE.Line | null = null;
   private ringRadius = 0;
   private elapsed = 0;
+  private size = { width: 0, height: 0 };
   private readonly tagPos = new THREE.Vector3();
 
   constructor(parent: HTMLElement) {
@@ -160,10 +162,14 @@ export class World {
     return renderHullThumbnails({ THREE, hullgeo, treatment, hulls }) as Record<string, [string, string]>;
   }
 
+  /** Fit the viewport and the HUD's free band; the GPU buffers resize only on a real change. */
   resize(width: number, height: number, safeTopPx: number, safeBottomPx: number): void {
-    this.renderer.setSize(width, height);
+    if (width !== this.size.width || height !== this.size.height) {
+      this.size = { width, height };
+      this.renderer.setSize(width, height);
+      treatment.onResize(width, height);
+    }
     this.cam.setSafeBand(width, height, safeTopPx, safeBottomPx);
-    treatment.onResize(width, height);
   }
 
   /** A faint ring at the arena radius (leaving it drains hull). Rebuilt only on change. */
