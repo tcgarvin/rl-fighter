@@ -1,0 +1,456 @@
+/* Hull catalogue: masthead, one card per hull, diagrams. */
+
+.hulls-head {
+  padding: 20px 0 8px;
+  max-width: var(--measure);
+}
+
+.hulls-head h1 {
+  font-family: var(--serif);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+.hulls-head .lede {
+  font-family: var(--serif);
+  font-size: 17px;
+}
+
+.paint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.paint .kicker {
+  margin-right: 6px;
+}
+
+.paint__swatch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 14px 0 10px;
+  font-family: var(--font);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.paint__swatch::before {
+  content: "";
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--team-a);
+}
+
+.paint__swatch--b::before {
+  background: var(--team-b);
+}
+
+.paint__swatch[aria-pressed="true"] {
+  color: var(--fg);
+  border-color: var(--line-strong);
+  background: var(--bg-raised);
+}
+
+.hull-list {
+  display: grid;
+  gap: 56px;
+  margin-top: 32px;
+}
+
+.hull {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 22px;
+  scroll-margin-top: 16px;
+}
+
+.hull + .hull {
+  border-top: 1px solid var(--line);
+  padding-top: 48px;
+}
+
+.hull__stage {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0a0f17;
+  border: 1px solid var(--line);
+}
+
+/* A scrim under the name plate keeps it legible when exhaust swings behind it. */
+.hull__stage::after {
+  content: "";
+  position: absolute;
+  inset: 55% 0 0 0;
+  background: linear-gradient(to bottom, transparent, rgba(4, 7, 11, 0.78));
+  pointer-events: none;
+}
+
+.hull__plate,
+.hull__cost {
+  z-index: 1;
+}
+
+.hull__lead {
+  display: grid;
+  gap: 22px;
+  min-width: 0;
+}
+
+.hull__stage--flat {
+  aspect-ratio: auto;
+  min-height: 120px;
+}
+
+.hull__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.hull__plate {
+  position: absolute;
+  left: 16px;
+  bottom: 12px;
+  pointer-events: none;
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.8);
+}
+
+.hull__plate .kicker {
+  margin: 0;
+  color: var(--fg-soft);
+}
+
+.hull__name {
+  font-family: var(--serif);
+  font-size: 34px;
+  font-weight: 400;
+  line-height: 1.05;
+  margin: 4px 0 0;
+}
+
+.hull__cost {
+  position: absolute;
+  right: 14px;
+  top: 12px;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.hull__no-gl {
+  margin: 0;
+  padding: 16px 16px 72px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.hull__scheme {
+  font-family: var(--font);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg);
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+
+.hull__notes p {
+  margin: 0 0 0.8em;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  margin: 20px 0 0;
+  background: var(--line);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.stat {
+  background: var(--bg);
+  padding: 10px 8px 10px 12px;
+  min-width: 0;
+}
+
+.stat:nth-child(4n + 1) {
+  padding-left: 0;
+}
+
+.stat__label {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 4px;
+}
+
+.stat__value {
+  margin: 0;
+  font-size: 19px;
+  color: var(--fg);
+  white-space: nowrap;
+}
+
+.stat__unit {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.hull__tech {
+  min-width: 0;
+}
+
+.diagram-figure .diagram {
+  display: block;
+  width: 100%;
+  max-width: 460px;
+  height: auto;
+  margin: 0 auto;
+}
+
+.diagram {
+  font-family: var(--font);
+}
+
+.diagram__label {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  fill: var(--muted);
+}
+
+.diagram__scale {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1;
+}
+
+.diagram__footprint {
+  fill: rgba(229, 225, 216, 0.07);
+  stroke: rgba(229, 225, 216, 0.5);
+  stroke-width: 1;
+}
+
+.diagram__shield {
+  fill: rgba(99, 191, 255, 0.04);
+  stroke: var(--team-a);
+  stroke-opacity: 0.7;
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+}
+
+.diagram__arc {
+  fill: rgba(255, 174, 105, 0.1);
+  stroke: var(--team-b);
+  stroke-opacity: 0.55;
+  stroke-width: 1;
+}
+
+.diagram__rest {
+  stroke: var(--team-b);
+  stroke-opacity: 0.4;
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+}
+
+.diagram__fixed {
+  stroke: var(--team-b);
+  stroke-width: 1.5;
+  stroke-dasharray: 6 4;
+}
+
+.diagram__turret {
+  fill: var(--team-b);
+  stroke: var(--bg);
+  stroke-width: 2;
+}
+
+.diagram__shaft {
+  stroke: var(--fg);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.diagram__head {
+  fill: var(--fg);
+}
+
+.diagram-legend {
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.diagram-key {
+  display: inline-block;
+  width: 18px;
+  height: 12px;
+  flex: none;
+  position: relative;
+}
+
+.key-thrust::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 5px;
+  top: 5px;
+  height: 2px;
+  background: var(--fg);
+}
+
+.key-thrust::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 2px;
+  border-left: 7px solid var(--fg);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+}
+
+.key-arc {
+  background: rgba(255, 174, 105, 0.12);
+  border: 1px solid rgba(255, 174, 105, 0.6);
+  border-radius: 12px 12px 0 0;
+}
+
+.key-fixed::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 5px;
+  border-top: 2px dashed var(--team-b);
+}
+
+.key-footprint {
+  border: 1px solid rgba(229, 225, 216, 0.5);
+  background: rgba(229, 225, 216, 0.07);
+  border-radius: 50%;
+  width: 12px;
+  margin: 0 3px;
+}
+
+.key-shield {
+  border: 1px dashed var(--team-a);
+  border-radius: 50%;
+  width: 12px;
+  margin: 0 3px;
+}
+
+.rings {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.ring {
+  display: block;
+  width: 100%;
+  max-width: 168px;
+  height: auto;
+  margin: 0 auto;
+}
+
+.ring__arc {
+  fill: none;
+  stroke: var(--fg);
+  stroke-linecap: butt;
+}
+
+.ring__label {
+  font-family: var(--font);
+  font-size: 11px;
+  fill: var(--fg-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.ring__nose {
+  fill: var(--muted);
+}
+
+.ring-figure__caption {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+  text-align: center;
+}
+
+.ring-figure__caption strong {
+  color: var(--fg);
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.ring-figure__arcs {
+  color: var(--fg-soft);
+}
+
+.hull__subhead {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin: 28px 0 0;
+}
+
+.hull__table {
+  margin-top: 8px;
+}
+
+.hull__source {
+  color: var(--fg-soft);
+  font-family: var(--mono);
+}
+
+@media (max-width: 420px) {
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stat:nth-child(n) {
+    padding-left: 12px;
+  }
+
+  .stat:nth-child(2n + 1) {
+    padding-left: 0;
+  }
+}
+
+@media (min-width: 1000px) {
+  .hulls-head {
+    padding-top: 40px;
+  }
+
+  .hull {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    column-gap: 56px;
+    align-items: start;
+  }
+
+  .hull__name {
+    font-size: 44px;
+  }
+}
