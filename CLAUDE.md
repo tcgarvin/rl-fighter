@@ -42,14 +42,25 @@ uv run python tools/bench_env.py --assert-floors
 # Rust gate (fmt, clippy, native + wasip1 tests, wasm-pack, rlf_sim build + tests)
 scripts/check.sh
 
-# Deploy the website (rl-fighter.tcgarvin.com); needs NETLIFY_AUTH_TOKEN in .env
-scripts/deploy.sh
+# Build the website into dist/: story demo at /, live learned-pilot duel at /duel/
+# (release wasm, policy export + sim_version check, lab notes, headless smoke match)
+scripts/build_site.sh lab/runs/<run>/ppo_bc/checkpoints/ppo_bc_<N>.pt [eval.json]
+python3 -m http.server -d dist 8000   # preview
+
+# Parity of the browser policy with torch, and the headless duel smoke test
+uv run python -m pytest tests/test_web_policy.py -v
+node tools/web/duel_smoke.mjs dist/duel/pkg dist/duel/policy 3
+
+# Deploy dist/ (rl-fighter.tcgarvin.com); needs NETLIFY_AUTH_TOKEN in .env
+scripts/deploy.sh            # or: scripts/deploy.sh <checkpoint.pt> to rebuild first
 ```
 
 The project is moving to a Rust sim + three.js web client; `docs/DESIGN.md` is the
-source of truth for that direction. The website currently serves the scripted
-story demo in `prototypes/story/` (draft, then missions; it builds on the art-direction
-demo in `prototypes/art-direction/`). The sections below describe the
+source of truth for that direction. The website serves the scripted
+story demo in `prototypes/story/` at `/` (draft, then missions; it builds on the art-direction
+demo in `prototypes/art-direction/`) and, at `/duel/`, `web/duel/`: a live fighter duel
+where the learned spike policy flies in the browser (Rust sim in WASM, MLP inference in
+JS, the story's renderer modules imported from the site root). The sections below describe the
 original Python/NumPy prototype.
 
 ## Architecture
