@@ -19,7 +19,7 @@ use sim::obs::OBS_DIM;
 use sim::state::{MAX_HITS, MAX_REACTION_TICKS, MAX_SHIPS, MAX_THRUSTERS, MAX_TURRETS, MatchPhase};
 use sim::{DT, TICK_HZ};
 
-use crate::batch::{Batch, BatchConfig, HIT_FIELDS, StaticBuffers, StepBuffers};
+use crate::batch::{Batch, BatchConfig, HIT_FIELDS, Roster, StepBuffers};
 
 /// Borrow `arr` mutably as a flat slice, or explain why not (another Rust borrow is
 /// live, or the user made the array read-only).
@@ -70,11 +70,15 @@ fn resolve_fleets(cat: &Catalogue, fleets: &[Vec<String>]) -> PyResult<[Vec<Hull
     Ok(out)
 }
 
-/// Batched env over `n_envs` matches with fixed fleets.
+/// Batched env over `n_envs` matches. Every env starts with `fleets`; any env can
+/// switch to another roster at its next rebuild (`set_next_roster`).
 ///
 /// All buffer properties return the same numpy arrays on every call; `step()` and
 /// `reset()` overwrite them in place. Write actions into `env.actions` (or pass an
-/// array to `step`) before stepping.
+/// array to `step`) before stepping. Every match has `n_ships` slots; a match with
+/// fewer ships pads the rest (team and hull id -1, zero obs, masks and `alive` false).
+/// `team`, `hull_id`, the three slot masks and `arena_radius` describe the current
+/// match and change only when a match is rebuilt.
 #[pyclass(module = "rlf_sim")]
 pub struct VecEnv {
     batch: Batch,
@@ -95,6 +99,7 @@ pub struct VecEnv {
     hits: Py<PyArray3<i32>>,
     hit_count: Py<PyArray1<i32>>,
     collision_damage: Py<PyArray2<f32>>,
+    arena_radius: Py<PyArray1<f32>>,
 }
 
 /// Borrow every per-step buffer and call `f` with the slices.
@@ -112,6 +117,12 @@ macro_rules! with_step_buffers {
         let hits = $self.hits.bind($py);
         let hit_count = $self.hit_count.bind($py);
         let collision_damage = $self.collision_damage.bind($py);
+        let thruster_mask = $self.thruster_mask.bind($py);
+        let turret_mask = $self.turret_mask.bind($py);
+        let fixed_turret = $self.fixed_turret.bind($py);
+        let team = $self.team.bind($py);
+        let hull_id = $self.hull_id.bind($py);
+        let arena_radius = $self.arena_radius.bind($py);
         let mut obs = borrow_mut(obs, "obs")?;
         let actions = actions
             .try_readonly()
@@ -126,6 +137,12 @@ macro_rules! with_step_buffers {
         let mut hits = borrow_mut(hits, "hits")?;
         let mut hit_count = borrow_mut(hit_count, "hit_count")?;
         let mut collision_damage = borrow_mut(collision_damage, "collision_damage")?;
+        let mut thruster_mask = borrow_mut(thruster_mask, "thruster_mask")?;
+        let mut turret_mask = borrow_mut(turret_mask, "turret_mask")?;
+        let mut fixed_turret = borrow_mut(fixed_turret, "fixed_turret")?;
+        let mut team = borrow_mut(team, "team")?;
+        let mut hull_id = borrow_mut(hull_id, "hull_id")?;
+        let mut arena_radius = borrow_mut(arena_radius, "arena_radius")?;
         let $bufs = StepBuffers {
             obs: as_slice(&mut obs, "obs")?,
             actions: actions
@@ -141,6 +158,12 @@ macro_rules! with_step_buffers {
             hits: as_slice(&mut hits, "hits")?,
             hit_count: as_slice(&mut hit_count, "hit_count")?,
             collision_damage: as_slice(&mut collision_damage, "collision_damage")?,
+            thruster_mask: as_slice(&mut thruster_mask, "thruster_mask")?,
+            turret_mask: as_slice(&mut turret_mask, "turret_mask")?,
+            fixed_turret: as_slice(&mut fixed_turret, "fixed_turret")?,
+            team: as_slice(&mut team, "team")?,
+            hull_id: as_slice(&mut hull_id, "hull_id")?,
+            arena_radius: as_slice(&mut arena_radius, "arena_radius")?,
         };
         $body
     }};
@@ -180,9 +203,11 @@ impl VecEnv {
     /// YAML under `assets_dir`, and reset them (episode 0, seeds
     /// `split(seed, i, 0)`). `n_threads = 0` uses rayon's default thread count.
     /// `reaction_ticks` is the match-wide action delay `d` in `0..=MAX_REACTION_TICKS`
-    /// (a hull's own `reaction_ticks` overrides it).
+    /// (a hull's own `reaction_ticks` overrides it). `max_ships` is the number of
+    /// ship slots per match (default: the size of `fleets`, at most `MAX_SHIPS`);
+    /// rosters queued later with `set_next_roster` must fit in it.
     #[new]
-    #[pyo3(signature = (assets_dir, n_envs, fleets, seed, arena_radius=450.0, time_limit_s=90.0, n_threads=0, record_events=false, reaction_ticks=2))]
+    #[pyo3(signature = (assets_dir, n_envs, fleets, seed, arena_radius=450.0, time_limit_s=90.0, n_threads=0, record_events=false, reaction_ticks=2, max_ships=None))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         py: Python<'_>,
@@ -195,6 +220,7 @@ impl VecEnv {
         n_threads: i64,
         record_events: bool,
         reaction_ticks: i64,
+        max_ships: Option<i64>,
     ) -> PyResult<Self> {
         if n_envs < 1 {
             return Err(PyValueError::new_err(format!(
@@ -223,23 +249,36 @@ impl VecEnv {
         let cat = Catalogue::load_dir(Path::new(assets_dir))
             .map_err(|e| PyValueError::new_err(format!("loading {assets_dir:?}: {e}")))?;
         let fleets = resolve_fleets(&cat, &fleets)?;
+        let total = fleets[0].len() + fleets[1].len();
+        let n_ships = match max_ships {
+            None => total,
+            Some(m) if (total as i64..=MAX_SHIPS as i64).contains(&m) => m as usize,
+            Some(m) => {
+                return Err(PyValueError::new_err(format!(
+                    "max_ships must be in {total}..={MAX_SHIPS} (the fleets have {total} ships), got {m}"
+                )));
+            }
+        };
         let n = n_envs as usize;
         let batch = Batch::new(
             cat,
             BatchConfig {
                 n_envs: n,
                 base_seed: seed,
-                arena_radius,
                 time_limit_ticks,
                 reaction_ticks,
-                fleets,
+                roster: Roster {
+                    fleets,
+                    arena_radius,
+                },
+                n_ships,
                 n_threads: n_threads as usize,
                 record_events,
             },
         )
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
         let s = batch.n_ships();
-        let env = VecEnv {
+        let mut env = VecEnv {
             batch,
             obs: PyArray3::zeros(py, [n, s, OBS_DIM], false).unbind(),
             actions: PyArray3::zeros(py, [n, s, ACTION_WIDTH], false).unbind(),
@@ -258,29 +297,39 @@ impl VecEnv {
             hits: PyArray3::zeros(py, [n, MAX_HITS, HIT_FIELDS], false).unbind(),
             hit_count: PyArray1::zeros(py, [n], false).unbind(),
             collision_damage: PyArray2::zeros(py, [n, s], false).unbind(),
+            arena_radius: PyArray1::zeros(py, [n], false).unbind(),
         };
-        {
-            let thruster_mask = env.thruster_mask.bind(py);
-            let turret_mask = env.turret_mask.bind(py);
-            let fixed_turret = env.fixed_turret.bind(py);
-            let team = env.team.bind(py);
-            let hull_id = env.hull_id.bind(py);
-            let mut thruster_mask = borrow_mut(thruster_mask, "thruster_mask")?;
-            let mut turret_mask = borrow_mut(turret_mask, "turret_mask")?;
-            let mut fixed_turret = borrow_mut(fixed_turret, "fixed_turret")?;
-            let mut team = borrow_mut(team, "team")?;
-            let mut hull_id = borrow_mut(hull_id, "hull_id")?;
-            env.batch.write_static(StaticBuffers {
-                thruster_mask: as_slice(&mut thruster_mask, "thruster_mask")?,
-                turret_mask: as_slice(&mut turret_mask, "turret_mask")?,
-                fixed_turret: as_slice(&mut fixed_turret, "fixed_turret")?,
-                team: as_slice(&mut team, "team")?,
-                hull_id: as_slice(&mut hull_id, "hull_id")?,
-            });
-        }
-        let mut env = env;
         env.reset(py)?;
         Ok(env)
+    }
+
+    /// Queue a roster for env `i`: its next match (after its next done, or the next
+    /// `reset()`) and every match after that is `fleets[0]` vs `fleets[1]` in an
+    /// arena of `arena_radius` metres. Replaces a roster queued earlier; the current
+    /// match is untouched. Raises ValueError for unknown hulls, an empty team, more
+    /// ships than `n_ships` or a bad radius, and IndexError for a bad `i`.
+    fn set_next_roster(
+        &mut self,
+        i: i64,
+        fleets: Vec<Vec<String>>,
+        arena_radius: f32,
+    ) -> PyResult<()> {
+        let n = self.batch.n_envs() as i64;
+        if !(0..n).contains(&i) {
+            return Err(PyIndexError::new_err(format!(
+                "env index {i} out of range for {n} envs"
+            )));
+        }
+        let fleets = resolve_fleets(self.batch.catalogue(), &fleets)?;
+        self.batch
+            .set_next_roster(
+                i as usize,
+                Roster {
+                    fleets,
+                    arena_radius,
+                },
+            )
+            .map_err(|e| PyValueError::new_err(e.to_string()))
     }
 
     /// Rebuild every match at episode 0 and write the fresh observations. Rewards,
@@ -440,7 +489,7 @@ impl VecEnv {
     fn n_envs(&self) -> usize {
         self.batch.n_envs()
     }
-    /// Ships per match (S): the fleet total.
+    /// Ship slots per match (S): `max_ships`, or the constructor's fleet total.
     #[getter]
     fn n_ships(&self) -> usize {
         self.batch.n_ships()
@@ -512,6 +561,11 @@ impl VecEnv {
     #[getter]
     fn hit_count(&self, py: Python<'_>) -> Py<PyArray1<i32>> {
         self.hit_count.clone_ref(py)
+    }
+    /// Arena radius of each env's current match (`[N] f32`, metres).
+    #[getter]
+    fn arena_radius(&self, py: Python<'_>) -> Py<PyArray1<f32>> {
+        self.arena_radius.clone_ref(py)
     }
     /// v3: hull damage each ship took from ship-ship collisions in the last step,
     /// after impact arcs (`[N,S] f32`; SIM_SPEC §5.5). Shield-absorbed collision

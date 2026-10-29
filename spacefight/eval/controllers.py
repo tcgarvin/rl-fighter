@@ -168,6 +168,54 @@ class Policy:
         return out
 
 
+class PerHull:
+    """Routes each ship to a controller by its hull (e.g. a duel champion flying
+    the fighters of a team whose other hulls fly the script).
+
+    Args:
+        default: Controller for hulls without an override.
+        overrides: Hull id -> controller.
+        names: Hull id -> name, for the label.
+    """
+
+    def __init__(
+        self,
+        default: Controller,
+        overrides: dict[int, Controller],
+        names: dict[int, str],
+    ) -> None:
+        self.default = default
+        self.overrides = dict(overrides)
+        self.names = dict(names)
+
+    @property
+    def label(self) -> str:
+        parts = [
+            f"{self.names[h]}={c.label}" for h, c in sorted(self.overrides.items())
+        ]
+        return f"{self.default.label}+" + ",".join(parts)
+
+    def reset(self, seed: int) -> None:
+        self.default.reset(seed)
+        for k, ctrl in enumerate(self.overrides.values()):
+            ctrl.reset(seed + 1000 * (k + 1))
+
+    def act(self, env: RustVecEnv, rows: NDArray[np.bool_]) -> NDArray[np.int8]:
+        _check_rows(env, rows)
+        out = np.zeros((int(rows.sum()), ACTION_WIDTH), dtype=np.int8)
+        hull = env.hull_id[rows]
+        routed = np.zeros(hull.shape, dtype=np.bool_)
+        for hid, ctrl in self.overrides.items():
+            sel = rows & (env.hull_id == hid)
+            if sel.any():
+                out[hull == hid] = ctrl.act(env, sel)
+            routed |= hull == hid
+        rest = rows & ~np.isin(env.hull_id, list(self.overrides))
+        if rest.any():
+            out[~routed] = self.default.act(env, rest)
+        return out
+
+
 def make_controller(spec: str, sample: bool = True, seed: int = 0) -> Controller:
     """Build a controller from a CLI spec: ``script``, ``random`` or a checkpoint path.
 

@@ -9,6 +9,15 @@ env (``spacefight.rl.opponents``). Every step stores all ``R = N * S`` ship rows
 row joins the PPO batch iff it is a learner row (team 0, or team 1 of a self-play
 env) and its ``act_mask`` is set (SIM_SPEC §7.1: a masked row has no effect).
 
+Fleets (``rosters`` set): every env draws a roster of 1-4 ships a side per episode
+(``spacefight.env.rosters``) in ``max_ships`` padded slots, so each step also stores
+every slot's team, hull and head masks (they change when a match is rebuilt). Every
+alive ship of the learning team(s) is a sample, each labelled by its own hull's
+script. A ``fleet`` critic values a ship from its own obs plus pooled embeddings of
+its teammates and of the enemies in the same match (``FleetCritic``), so PPO
+minibatches are drawn as whole (step, env) groups: every training row of a group
+lands in the same minibatch, together with the obs of its match.
+
 Credit and the rollout boundary. ``RustCreditAdapter`` moves each hit's shooter
 reward from the landing step to the step stamped with its ``decision_tick``. A shot
 lands up to ~36 ticks after it was chosen, so the last ``t_tail`` (40) steps of a
@@ -44,6 +53,11 @@ import torch.nn as nn
 import yaml  # type: ignore[import-untyped]
 from numpy.typing import NDArray
 
+from spacefight.env.rosters import (
+    RosterSampler,
+    hull_names_by_id,
+    resolve_distribution,
+)
 from spacefight.env.rust_env import OBS_LAYOUT, SIM_VERSION, RustVecEnv, StepInfo
 from spacefight.rl.credit import (
     HIT_DAMAGE_MILLI,
@@ -66,11 +80,19 @@ from spacefight.rl.opponents import (
 )
 from spacefight.rl.spike_policy import (
     ACTION_WIDTH,
+    CRITIC_KINDS,
+    CRITIC_SPIKE,
     HEAD_GROUPS,
+    N_THRUSTERS,
+    N_TURRETS,
     OBS_DIM,
+    Critic,
+    FleetCritic,
     HeadMasks,
     SpikeActor,
     SpikeCritic,
+    as_critic_kind,
+    critic_kind,
     load_policy,
     mean_head_entropy,
     save_policy,
@@ -158,6 +180,11 @@ LOG_KEYS: tuple[str, ...] = (
     "opponents_self",
     "opponents_snapshot",
     "snapshot_pool",
+    "ships_per_match",
+    "vs_scripted_win_by_class",
+    "hull_samples",
+    "hull_hit_rate",
+    "hull_damage_dealt",
 )
 
 
@@ -233,6 +260,16 @@ class PPOConfig:
         default_factory=lambda: [list(band) for band in DEFAULT_BANDS]
     )
     checkpoint_every: int = 100
+    # Fleets: a roster preset of spacefight.env.rosters ("" = the fixed ``fleets``),
+    # field overrides on it, and slots per match (0 = MAX_SHIPS with rosters, else
+    # the fleet size).
+    rosters: str = ""
+    roster_overrides: dict[str, object] = field(default_factory=dict)
+    max_ships: int = 0
+    # "spike" (own-obs critic) or "fleet" (centralised over the match's team set).
+    critic: str = CRITIC_SPIKE
+    # Frozen checkpoints in the snapshot pool from update 0 (paths).
+    pool_seed: list[str] = field(default_factory=list)
     # Scripted steps on both sides before the first rollout of a segment, so short
     # test rollouts start past the arrival + control lock (0 for real runs).
     env_warmup_steps: int = 0
@@ -279,7 +316,28 @@ class PPOConfig:
             raise ValueError("beta_decay_end must be >= beta_decay_start")
         if self.sim_threads < 0 or self.torch_threads <= 0:
             raise ValueError("sim_threads must be >= 0 and torch_threads > 0")
+        if self.critic not in CRITIC_KINDS:
+            raise ValueError(f"critic must be one of {CRITIC_KINDS}, got {self.critic}")
+        if self.max_ships < 0:
+            raise ValueError(f"max_ships must be >= 0, got {self.max_ships}")
+        if self.rosters:
+            self.roster_distribution()
+        elif self.roster_overrides:
+            raise ValueError("roster_overrides needs a rosters preset")
         OpponentSchedule(self.opponent_bands)
+
+    def roster_distribution(self) -> dict[str, object]:
+        """The roster distribution (preset + overrides) as a plain dict.
+
+        Raises:
+            KeyError: Unknown preset.
+            ValueError: Bad overrides, or no ``rosters`` preset set.
+        """
+        if not self.rosters:
+            raise ValueError("this config has fixed fleets, not rosters")
+        base = resolve_distribution(self.rosters).to_dict()
+        base.update(self.roster_overrides)
+        return resolve_distribution(base).to_dict()
 
     def to_dict(self) -> dict[str, object]:
         """Plain-type dict (yaml / checkpoint meta)."""
@@ -388,10 +446,18 @@ def compute_gae(
 
 @dataclass(frozen=True)
 class PPOBatch:
-    """Flat training rows of one update (only rows that join the loss)."""
+    """Training rows of one update, plus the matches they belong to.
 
-    obs: torch.Tensor  # [B, 385]
-    masks: HeadMasks
+    A *group* is one (buffer step, env): the S slots of one match at one step. The
+    critic needs a row's whole group (``FleetCritic``), so rows are addressed as
+    ``(group, slot)`` into ``obs`` / ``team``, which hold every group of the update
+    (views of the rollout buffer, not copies).
+    """
+
+    obs: torch.Tensor  # [G, S, 385] every group of the update
+    team: torch.Tensor  # [G, S] int64, -1 = padding
+    rows: torch.Tensor  # [B, 2] int64 (group, slot) of each training row
+    masks: HeadMasks  # B rows
     actions: torch.Tensor  # [B, 21] int64
     labels: torch.Tensor  # [B, 21] int64, script actions
     old_log_prob: torch.Tensor  # [B]
@@ -400,8 +466,31 @@ class PPOBatch:
 
     @property
     def size(self) -> int:
-        """Number of rows."""
-        return int(self.obs.shape[0])
+        """Number of training rows B."""
+        return int(self.rows.shape[0])
+
+    def minibatches(self, minibatch: int) -> list[torch.Tensor]:
+        """Row indices of ``ceil(B / minibatch)`` minibatches of whole groups, in a
+        fresh random order (torch's global RNG)."""
+        groups = torch.unique(self.rows[:, 0])
+        n_chunks = max(1, min(int(groups.numel()), -(-self.size // minibatch)))
+        member = torch.zeros(self.obs.shape[0], dtype=torch.bool)
+        out = []
+        for chunk in groups[torch.randperm(groups.numel())].tensor_split(n_chunks):
+            member[:] = False
+            member[chunk] = True
+            out.append(torch.nonzero(member[self.rows[:, 0]]).squeeze(1))
+        return out
+
+    def group_view(
+        self, idx: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """``(obs [U, S, 385], team [U, S], rows [K, 2])`` for the rows ``idx``,
+        re-indexed into the U groups they touch."""
+        rows = self.rows[idx]
+        groups, local = torch.unique(rows[:, 0], return_inverse=True)
+        local_rows = torch.stack([local, rows[:, 1]], dim=1)
+        return self.obs[groups], self.team[groups], local_rows
 
 
 @dataclass(frozen=True)
@@ -422,13 +511,13 @@ class UpdateSettings:
 
 def ppo_update(
     actor: SpikeActor,
-    critic: SpikeCritic,
+    critic: Critic,
     actor_opt: torch.optim.Optimizer,
     critic_opt: torch.optim.Optimizer,
     batch: PPOBatch,
     settings: UpdateSettings,
 ) -> dict[str, float]:
-    """Run the clipped PPO epochs on ``batch``.
+    """Run the clipped PPO epochs on ``batch`` (minibatches of whole groups).
 
     With ``actor_frozen`` only the critic is trained; the actor's diagnostics
     (entropy, script NLL) are computed without gradient on the first epoch.
@@ -449,12 +538,11 @@ def ppo_update(
         counts[name] = counts.get(name, 0) + 1
 
     for epoch in range(settings.epochs):
-        order = torch.randperm(batch.size)
-        for start in range(0, batch.size, settings.minibatch):
-            idx = order[start : start + settings.minibatch]
-            obs = batch.obs[idx]
+        for idx in batch.minibatches(settings.minibatch):
+            group_obs, group_team, local_rows = batch.group_view(idx)
+            obs = group_obs[local_rows[:, 0], local_rows[:, 1]]
             masks = batch.masks.index(idx)
-            values = critic(obs)
+            values = critic.forward_set(group_obs, group_team, local_rows)
             value_loss = nn.functional.mse_loss(values, batch.returns[idx])
             add("value_loss", float(value_loss.detach()))
             if settings.actor_frozen:
@@ -543,6 +631,13 @@ class RolloutStorage:
         self.dones = np.zeros((length, rows), dtype=np.bool_)
         self.act_mask = np.zeros((length, rows), dtype=np.bool_)
         self.learner = np.zeros((length, rows), dtype=np.bool_)
+        # Each slot's match before the step (rosters change at resets): team (-1 =
+        # padding), hull id and head masks.
+        self.team = np.zeros((length, rows), dtype=np.int8)
+        self.hull = np.zeros((length, rows), dtype=np.int16)
+        self.thruster = np.zeros((length, rows, N_THRUSTERS), dtype=np.bool_)
+        self.turret = np.zeros((length, rows, N_TURRETS), dtype=np.bool_)
+        self.fixed = np.zeros((length, rows, N_TURRETS), dtype=np.bool_)
         # Logged reward components and counts of each step.
         self.dealt = np.zeros((length, rows), dtype=np.float32)
         self.taken = np.zeros((length, rows), dtype=np.float32)
@@ -567,6 +662,16 @@ class RolloutStorage:
         """[n_steps, R] rows that join the loss: learner rows with ``act_mask``."""
         return self.learner[: self.n_steps] & self.act_mask[: self.n_steps]
 
+    def masks(self, steps: slice, flat: NDArray[np.int64] | None = None) -> HeadMasks:
+        """Head masks of buffer rows ``steps`` (flattened), optionally only the
+        flat indices ``flat`` of those."""
+        thruster = self.thruster[steps].reshape(-1, N_THRUSTERS)
+        turret = self.turret[steps].reshape(-1, N_TURRETS)
+        fixed = self.fixed[steps].reshape(-1, N_TURRETS)
+        if flat is not None:
+            thruster, turret, fixed = thruster[flat], turret[flat], fixed[flat]
+        return HeadMasks.from_numpy(thruster, turret, fixed)
+
     def shift_tail(self) -> None:
         """Move the last ``t_tail`` rows to the front after an update."""
         for arr in self._arrays():
@@ -587,16 +692,26 @@ class EpisodeTally:
         default_factory=lambda: {name: [0, 0, 0] for name in KIND_NAMES.values()}
     )
     lengths: list[int] = field(default_factory=list)
+    ships: list[int] = field(default_factory=list)
+    # Roster size class -> [wins, draws, losses] against the script.
+    scripted_by_class: dict[str, list[int]] = field(default_factory=dict)
 
-    def add(self, kind: int, winner: int, length: int) -> None:
+    def add(
+        self, kind: int, winner: int, length: int, size_class: str, n_ships: int
+    ) -> None:
         """Record one finished episode; winner is the sim's (0, 1, -1 draw)."""
         name = KIND_NAMES[OpponentKind(kind)]
         slot = 0 if winner == 0 else (1 if winner == -1 else 2)
         self.outcomes[name][slot] += 1
         self.lengths.append(length)
+        self.ships.append(n_ships)
+        if kind == OpponentKind.SCRIPTED:
+            self.scripted_by_class.setdefault(size_class, [0, 0, 0])[slot] += 1
 
     def log_fields(self) -> dict[str, object]:
-        """``vs_<kind>_{win,draw,loss,episodes}``, ``episodes``, mean length."""
+        """``vs_<kind>_{win,draw,loss,episodes}``, ``episodes``, mean length, mean
+        ships per match, and the win rate (draws ½) against the script per roster
+        size class."""
         out: dict[str, object] = {}
         for name, (win, draw, loss) in self.outcomes.items():
             total = win + draw + loss
@@ -608,6 +723,11 @@ class EpisodeTally:
         out["episode_length_mean"] = (
             float(np.mean(self.lengths)) if self.lengths else None
         )
+        out["ships_per_match"] = float(np.mean(self.ships)) if self.ships else None
+        out["vs_scripted_win_by_class"] = {
+            klass: (win + 0.5 * draw) / (win + draw + loss)
+            for klass, (win, draw, loss) in sorted(self.scripted_by_class.items())
+        }
         return out
 
 
@@ -653,9 +773,14 @@ class SpikeTrainer:
         torch.set_flush_denormal(True)
         torch.manual_seed(config.seed)
         self.rng = np.random.default_rng(config.seed)
-        self.pool = SnapshotPool()
+        self.pool = SnapshotPool([(-1, path) for path in config.pool_seed])
+        for _, path in self.pool.entries:
+            if not Path(path).is_file():
+                raise FileNotFoundError(f"pool_seed checkpoint {path} not found")
         self.next_update = 0
         self.elapsed = 0.0
+        self.actor: SpikeActor
+        self.critic: Critic
         if resume:
             self._load_checkpoint(latest_checkpoint(run_dir, config.tag))
             self._record_resumed_config()
@@ -664,6 +789,11 @@ class SpikeTrainer:
             self._make_optimisers()
             write_config(config, run_dir / "config.yaml")
         self.env_seed = config.seed + ENV_SEED_STRIDE * self.next_update
+        sampler = None
+        if config.rosters:
+            sampler = RosterSampler(
+                resolve_distribution(config.roster_distribution()), self.env_seed
+            )
         self.env = RustVecEnv(
             config.assets_dir,
             config.n_envs,
@@ -673,13 +803,12 @@ class SpikeTrainer:
             time_limit_s=config.time_limit_s,
             n_threads=config.sim_threads,
             reaction_ticks=config.reaction_ticks,
+            max_ships=config.max_ships or None,
+            roster_sampler=sampler,
         )
         self.n_envs, self.n_ships = self.env.n_envs, self.env.n_ships
         self.rows = self.n_envs * self.n_ships
-        self.team = np.asarray(self.env.team, dtype=np.int8).reshape(self.rows)
-        self.masks = HeadMasks.from_numpy(
-            self.env.thruster_mask, self.env.turret_mask, self.env.fixed_turret
-        )
+        self.hull_names = hull_names_by_id(Path(config.assets_dir))
         self.storage = RolloutStorage(
             config.n_steps, config.t_tail, self.n_envs, self.n_ships
         )
@@ -698,16 +827,24 @@ class SpikeTrainer:
             self.env.scripted_actions()
             self.env.step()
 
+    @property
+    def team(self) -> NDArray[np.int8]:
+        """[R] team of each slot of the env's current matches (-1 = padding)."""
+        return np.asarray(self.env.team, dtype=np.int8).reshape(self.rows)
+
     # -- setup ---------------------------------------------------------------
 
-    def _initial_nets(self) -> tuple[SpikeActor, SpikeCritic]:
+    def _initial_nets(self) -> tuple[SpikeActor, Critic]:
+        """Actor and critic of a new run; a spike critic from the init checkpoint
+        becomes the base of a fleet critic when ``config.critic`` is "fleet"."""
         if self.config.init == INIT_SCRATCH:
-            return SpikeActor(), SpikeCritic()
+            fresh: Critic = SpikeCritic()
+            return SpikeActor(), as_critic_kind(fresh, self.config.critic)
         path = Path(self.config.init)
         if not path.is_file():
             raise FileNotFoundError(f"init policy {path} not found")
         actor, critic, _ = load_policy(path)
-        return actor, critic
+        return actor, as_critic_kind(critic, self.config.critic)
 
     def _make_optimisers(self) -> None:
         self.actor_opt = torch.optim.Adam(
@@ -747,7 +884,7 @@ class SpikeTrainer:
             "critic_opt": self.critic_opt.state_dict(),
             "torch_rng": torch.get_rng_state(),
             "numpy_rng": self.rng.bit_generator.state,
-            "pool": [[u, Path(p).name] for u, p in self.pool.entries],
+            "pool": [[u, _pool_name(p, path.parent)] for u, p in self.pool.entries],
         }
         torch.save(payload, tmp)
         os.replace(tmp, path)
@@ -758,6 +895,11 @@ class SpikeTrainer:
         if not isinstance(train, dict) or train.get("format") != _TRAIN_STATE_FORMAT:
             raise ValueError(f"{path} has no {_TRAIN_STATE_FORMAT} train state")
         self.actor, self.critic, _ = load_policy(path)
+        if critic_kind(self.critic) != self.config.critic:
+            raise ValueError(
+                f"{path} has a {critic_kind(self.critic)} critic but the config asks "
+                f"for {self.config.critic}"
+            )
         self._make_optimisers()
         self.actor_opt.load_state_dict(train["actor_opt"])
         self.critic_opt.load_state_dict(train["critic_opt"])
@@ -767,7 +909,7 @@ class SpikeTrainer:
         self.elapsed = float(train["elapsed"])
         ckpt_dir = path.parent
         self.pool = SnapshotPool(
-            [(int(u), str(ckpt_dir / n)) for u, n in train["pool"]]
+            [(int(u), _pool_path(str(n), ckpt_dir)) for u, n in train["pool"]]
         )
 
     def _record_resumed_config(self) -> None:
@@ -898,45 +1040,56 @@ class SpikeTrainer:
     def _collect(self, update: int) -> tuple[EpisodeTally, int]:
         """Fill the storage's collect range; returns episode tally and steps."""
         env, store = self.env, self.storage
-        rows, n_ships = self.rows, self.n_ships
-        learner_team = self.team == 0
+        rows, n_ships, n_envs = self.rows, self.n_ships, self.n_envs
         tally = EpisodeTally()
         collect = store.collect_range()
         self.actor.eval()
         for b in collect:
             kinds = self.opponents.kinds
+            team = env.team.reshape(rows)
+            store.team[b] = team
+            store.hull[b] = env.hull_id.reshape(rows)
+            store.thruster[b] = env.thruster_mask.reshape(rows, N_THRUSTERS)
+            store.turret[b] = env.turret_mask.reshape(rows, N_TURRETS)
+            store.fixed[b] = env.fixed_turret.reshape(rows, N_TURRETS)
+            masks = store.masks(slice(b, b + 1))
             self_play_env = np.repeat(kinds == OpponentKind.SELF, n_ships)
-            learner = learner_team | self_play_env
+            learner = (team == 0) | ((team == 1) & self_play_env)
             store.learner[b] = learner
-            policy_rows = torch.from_numpy(np.flatnonzero(learner))
+            policy_np = np.flatnonzero(learner)
+            policy_rows = torch.from_numpy(policy_np)
             obs_now = env.obs.reshape(rows, OBS_DIM)
             store.obs[b] = obs_now
             store.act_mask[b] = env.act_mask.reshape(rows)
-            # Script labels for every row; team-1 scripted rows keep them.
+            # Script labels for every row (each hull's own script); team-1 scripted
+            # rows keep them as their actions.
             store.labels[b] = env.scripted_actions().reshape(rows, ACTION_WIDTH)
             actions = store.actions[b]
             actions[:] = store.labels[b]
             obs_t = torch.from_numpy(store.obs[b])
             with torch.no_grad():
-                obs_p = obs_t[policy_rows]
-                out = self.actor.sample(obs_p, self.masks.index(policy_rows))
-                values = self.critic(obs_p)
-                actions[policy_rows.numpy()] = out.actions.to(torch.int8).numpy()
+                out = self.actor.sample(obs_t[policy_rows], masks.index(policy_rows))
+                values = self.critic.forward_set(
+                    obs_t.reshape(n_envs, n_ships, OBS_DIM),
+                    torch.from_numpy(team.astype(np.int64)).reshape(n_envs, n_ships),
+                    _pairs(policy_np, n_ships),
+                )
+                actions[policy_np] = out.actions.to(torch.int8).numpy()
                 for index, envs in snapshot_groups(
                     kinds, self.opponents.snapshot
                 ).items():
-                    snap_rows = torch.from_numpy(
-                        _team_rows(envs, self.team, n_ships, 1)
-                    )
+                    snap_np = _team_rows(envs, team, n_ships, 1)
+                    snap_rows = torch.from_numpy(snap_np)
                     snap = self.pool.actor(index).sample(
-                        obs_t[snap_rows], self.masks.index(snap_rows)
+                        obs_t[snap_rows], masks.index(snap_rows)
                     )
-                    actions[snap_rows.numpy()] = snap.actions.to(torch.int8).numpy()
+                    actions[snap_np] = snap.actions.to(torch.int8).numpy()
             store.log_prob[b] = 0.0
             store.values[b] = 0.0
-            store.log_prob[b, policy_rows.numpy()] = out.log_prob.numpy()
-            store.values[b, policy_rows.numpy()] = values.numpy()
-            env.actions[...] = actions.reshape(self.n_envs, n_ships, ACTION_WIDTH)
+            store.log_prob[b, policy_np] = out.log_prob.numpy()
+            store.values[b, policy_np] = values.numpy()
+            env.actions[...] = actions.reshape(n_envs, n_ships, ACTION_WIDTH)
+            rosters = list(env.rosters)
             _, rewards, dones, info = env.step()
             self.credit.record_step(
                 b,
@@ -951,7 +1104,14 @@ class SpikeTrainer:
             if done_envs.size:
                 lengths = info.prev_tick[done_envs].astype(np.int64) + 1
                 for env_id, length in zip(done_envs, lengths):
-                    tally.add(int(kinds[env_id]), int(info.winner[env_id]), int(length))
+                    roster = rosters[int(env_id)]
+                    tally.add(
+                        int(kinds[env_id]),
+                        int(info.winner[env_id]),
+                        int(length),
+                        roster.size_class,
+                        roster.n_ships,
+                    )
                 self.opponents.assign(done_envs, update, len(self.pool))
         store.filled = store.length
         self._collected = collect
@@ -999,15 +1159,20 @@ class SpikeTrainer:
         terminal = store.terminal[b]
         terminal[:] = 0.0
         if dones.any():
+            # The finished match's teams (the env already holds the next match's).
+            team = store.team[b]
             win_rows = np.repeat(winner.astype(np.int64), n_ships)
-            decided = done_rows & (win_rows >= 0)
-            terminal[decided] = np.where(self.team[decided] == win_rows[decided], 1, -1)
+            decided = done_rows & (win_rows >= 0) & (team >= 0)
+            terminal[decided] = np.where(team[decided] == win_rows[decided], 1, -1)
 
         next_obs = self.env.obs.reshape(rows, OBS_DIM)
         outside = (next_obs[:, _ARENA_MARGIN_COL] < 0.0) & prev_alive & ~done_rows
         store.outside[b] = outside
         store.arena[b] = ARENA_PENALTY * outside
-        residual = raw - dealt + taken - terminal - store.arena[b]
+        # v3 collision hull damage is in the raw reward too; shield collision damage
+        # is not exported, so it can add a few phantom shots on shielded hulls.
+        crash = HULL_DAMAGE_WEIGHT * info.collision_damage.reshape(rows) * prev_alive
+        residual = raw - dealt + taken - terminal - store.arena[b] + crash
         shots = np.maximum(np.rint(residual / FIRE_COST), 0).astype(np.int32)
         store.shots[b] = shots
         store.fire_cost[b] = FIRE_COST * shots
@@ -1023,23 +1188,27 @@ class SpikeTrainer:
     # -- GAE + batch ---------------------------------------------------------
 
     def _prepare_batch(self) -> tuple[PPOBatch, dict[str, object]]:
-        """Credit, tail values, GAE and the flat batch; plus reward stats."""
+        """Credit, tail values, GAE and the batch; plus reward stats."""
         cfg, store = self.config, self.storage
+        n_envs, n_ships = self.n_envs, self.n_ships
         new = slice(self._collected.start, self._collected.stop)
         stats = self._rollout_stats(new)
         self.credit.inject_into_rewards(store.rewards, 0, store.length)
         with torch.no_grad():
             if self._collected.start > 0:
                 # Carried rows: re-value with the current critic.
-                tail_obs = torch.from_numpy(store.obs[: store.t_tail])
-                store.values[: store.t_tail] = (
-                    self.critic(tail_obs.reshape(-1, OBS_DIM))
-                    .reshape(store.t_tail, self.rows)
-                    .numpy()
-                )
-                store.values[: store.t_tail] *= store.learner[: store.t_tail]
-            last_values = self.critic(
-                torch.from_numpy(self.env.obs.reshape(self.rows, OBS_DIM))
+                tail = slice(0, store.t_tail)
+                flat = np.flatnonzero(store.learner[tail].reshape(-1))
+                values = np.zeros(store.t_tail * self.rows, dtype=np.float32)
+                values[flat] = self._values(
+                    store.obs[tail], store.team[tail], flat
+                ).numpy()
+                store.values[tail] = values.reshape(store.t_tail, self.rows)
+            team_now = np.asarray(self.env.team).reshape(1, self.rows)
+            real = np.flatnonzero(team_now.reshape(-1) >= 0)
+            last_values = np.zeros(self.rows, dtype=np.float32)
+            last_values[real] = self._values(
+                self.env.obs.reshape(1, self.rows, OBS_DIM), team_now, real
             ).numpy()
         advantages, returns = compute_gae(
             store.rewards,
@@ -1058,10 +1227,13 @@ class SpikeTrainer:
         stats["explained_variance"] = (
             float(1.0 - np.var(rets - values) / var) if var > 0 else 0.0
         )
-        row_idx = torch.from_numpy(flat % self.rows)
         batch = PPOBatch(
-            obs=torch.from_numpy(store.obs[:n].reshape(-1, OBS_DIM)[flat]),
-            masks=self.masks.index(row_idx),
+            obs=torch.from_numpy(store.obs[:n].reshape(n * n_envs, n_ships, OBS_DIM)),
+            team=torch.from_numpy(
+                store.team[:n].reshape(n * n_envs, n_ships).astype(np.int64)
+            ),
+            rows=_pairs(flat, n_ships),
+            masks=store.masks(slice(0, n), flat),
             actions=torch.from_numpy(
                 store.actions[:n].reshape(-1, ACTION_WIDTH)[flat].astype(np.int64)
             ),
@@ -1074,23 +1246,54 @@ class SpikeTrainer:
         )
         return batch, stats
 
+    def _values(
+        self,
+        obs: NDArray[np.float32],
+        team: NDArray[np.int8],
+        flat: NDArray[np.int64],
+    ) -> torch.Tensor:
+        """Critic values of the flat rows ``flat`` of ``[L, R]`` buffer rows."""
+        length = obs.shape[0]
+        groups = length * self.n_envs
+        return self.critic.forward_set(
+            torch.from_numpy(obs).reshape(groups, self.n_ships, OBS_DIM),
+            torch.from_numpy(team.astype(np.int64)).reshape(groups, self.n_ships),
+            _pairs(flat, self.n_ships),
+        )
+
     def _rollout_stats(self, new: slice) -> dict[str, object]:
         """Reward split and behaviour stats over the learner's team-0 rows of the
-        newly collected steps (before credit is injected)."""
+        newly collected steps (before credit is injected), overall and per hull."""
         store = self.storage
-        team0 = self.team == 0
-        active = store.act_mask[new][:, team0]
-        samples = max(int(active.size), 1)
+        team0 = store.team[new] == 0
+        active = store.act_mask[new] & team0
+        samples = max(int(team0.sum()), 1)
 
         def mean(arr: NDArray[np.generic]) -> float:
-            return float(arr[new][:, team0].sum()) / samples
+            return float(arr[new][team0].sum()) / samples
 
-        credit = self.credit.credit[:, team0]
-        shots = int(store.shots[new][:, team0].sum())
-        hits = int(store.hits[new][:, team0].sum())
+        credit = self.credit.credit[store.team == 0]
+        shots = int(store.shots[new][team0].sum())
+        hits = int(store.hits[new][team0].sum())
         n_active = max(int(active.sum()), 1)
-        obs = store.obs[new][:, team0]
-        actions = store.actions[new][:, team0]
+        obs = store.obs[new]
+        actions = store.actions[new]
+        hull = store.hull[new]
+        hull_samples: dict[str, int] = {}
+        hull_hit_rate: dict[str, float | None] = {}
+        hull_dealt: dict[str, float | None] = {}
+        for hid, name in enumerate(self.hull_names):
+            sel = active & (hull == hid)
+            count = int(sel.sum())
+            if not (team0 & (hull == hid)).any():
+                continue
+            hull_samples[name] = count
+            h_shots = int(store.shots[new][team0 & (hull == hid)].sum())
+            h_hits = int(store.hits[new][team0 & (hull == hid)].sum())
+            hull_hit_rate[name] = h_hits / h_shots if h_shots else None
+            hull_dealt[name] = (
+                float(store.dealt[new][sel].sum()) / count if count else None
+            )
         return {
             "reward_mean": mean(store.rewards),
             "reward_damage_dealt": mean(store.dealt),
@@ -1108,13 +1311,34 @@ class SpikeTrainer:
             "shots": shots,
             "hits": hits,
             "hit_rate": hits / shots if shots else None,
-            "outside_arena_share": float(store.outside[new][:, team0].sum()) / n_active,
+            "outside_arena_share": float(store.outside[new][team0].sum()) / n_active,
+            "hull_samples": hull_samples,
+            "hull_hit_rate": hull_hit_rate,
+            "hull_damage_dealt": hull_dealt,
         }
+
+
+def _pairs(flat: NDArray[np.int64], n_ships: int) -> torch.Tensor:
+    """[K, 2] int64 ``(group, slot)`` of flat ``group * n_ships + slot`` indices."""
+    flat64 = np.asarray(flat, dtype=np.int64)
+    return torch.from_numpy(np.stack([flat64 // n_ships, flat64 % n_ships], axis=1))
 
 
 def _team_rows(
     envs: NDArray[np.int64], team: NDArray[np.int8], n_ships: int, which: int
 ) -> NDArray[np.int64]:
-    """Flat rows of every ship of team ``which`` in ``envs``."""
-    slots = np.flatnonzero(team[:n_ships] == which)
-    return (envs[:, None] * n_ships + slots[None, :]).reshape(-1)
+    """Flat rows of every ship of team ``which`` in ``envs`` (``team`` is [N * S])."""
+    rows = (envs[:, None] * n_ships + np.arange(n_ships)[None, :]).reshape(-1)
+    return rows[team[rows] == which]
+
+
+def _pool_name(path: str, ckpt_dir: Path) -> str:
+    """How the train state records a pool entry: the bare name of a checkpoint of
+    this run, else the path as given (a ``pool_seed`` entry)."""
+    p = Path(path)
+    return p.name if p.parent == ckpt_dir else path
+
+
+def _pool_path(name: str, ckpt_dir: Path) -> str:
+    """Inverse of ``_pool_name``."""
+    return name if len(Path(name).parts) > 1 else str(ckpt_dir / name)

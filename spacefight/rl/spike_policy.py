@@ -437,6 +437,134 @@ class SpikeCritic(nn.Module):
         out: torch.Tensor = self.net(obs).squeeze(-1)
         return out
 
+    def forward_set(
+        self, obs: torch.Tensor, team: torch.Tensor, rows: torch.Tensor
+    ) -> torch.Tensor:
+        """Values of the ``rows`` of a set of matches (own obs only; see
+        ``FleetCritic.forward_set`` for the arguments)."""
+        return self(obs[rows[:, 0], rows[:, 1]])
+
+
+# Width of the per-ship embedding the fleet critic pools over.
+CONTEXT_DIM = 64
+# Ship counts enter the fleet critic divided by this (4 a side at most).
+_COUNT_SCALE = 4.0
+
+
+class FleetCritic(nn.Module):
+    """Centralised critic over a padded, masked team set (MAPPO-style, M2 stub).
+
+    The value of ship ``i`` is the spike critic's value of its own obs plus a
+    correction from the whole match: every present ship's obs is embedded by a
+    shared encoder; the embeddings of ``i``'s present teammates (``i`` excluded) and
+    of the present enemies are mean-pooled; the correction MLP sees the spike
+    critic's hidden state for ``i``, both pools and both counts. Padding slots
+    (team -1) and absent or dead ships (obs ``present`` = 0) are masked out, so any
+    team size up to the slot count works. The correction's output layer starts at
+    zero, so a fleet critic warm-started from a ``SpikeCritic`` (``from_spike``)
+    first predicts exactly what that critic did.
+
+    Args:
+        hidden: Width of the spike critic's hidden layers.
+        context: Width of the per-ship embedding.
+    """
+
+    def __init__(self, hidden: int = HIDDEN, context: int = CONTEXT_DIM) -> None:
+        super().__init__()
+        self.hidden = hidden
+        self.context = context
+        self.base = SpikeCritic(hidden)
+        self.encoder = nn.Sequential(
+            nn.Linear(OBS_DIM, context),
+            nn.Tanh(),
+            nn.Linear(context, context),
+            nn.Tanh(),
+        )
+        self.mix = nn.Sequential(
+            nn.Linear(hidden + 2 * context + 2, hidden // 2),
+            nn.Tanh(),
+            nn.Linear(hidden // 2, 1),
+        )
+        for module in (*self.encoder, *self.mix):
+            if isinstance(module, nn.Linear):
+                nn.init.orthogonal_(module.weight, gain=_HIDDEN_GAIN)
+                nn.init.zeros_(module.bias)
+        last = self.mix[-1]
+        if not isinstance(last, nn.Linear):
+            raise TypeError("fleet critic mix must end in a Linear layer")
+        nn.init.zeros_(last.weight)
+        nn.init.zeros_(last.bias)
+
+    @classmethod
+    def from_spike(cls, spike: SpikeCritic, context: int = CONTEXT_DIM) -> FleetCritic:
+        """A fleet critic whose base is a copy of ``spike`` (same values at first)."""
+        critic = cls(hidden=spike.hidden, context=context)
+        critic.base.load_state_dict(spike.state_dict())
+        return critic
+
+    def forward(self, obs: torch.Tensor) -> torch.Tensor:
+        """Own-obs values [B] (no match context; the base critic's estimate)."""
+        return self.base(obs)
+
+    def forward_set(
+        self, obs: torch.Tensor, team: torch.Tensor, rows: torch.Tensor
+    ) -> torch.Tensor:
+        """Values of selected ships of a batch of matches.
+
+        Args:
+            obs: [G, S, 385] observations of every slot of G matches.
+            team: [G, S] team of each slot (-1 = padding).
+            rows: [K, 2] int64 ``(match, slot)`` pairs to value.
+
+        Returns:
+            [K] values.
+        """
+        if obs.dim() != 3 or obs.shape[-1] != OBS_DIM:
+            raise ValueError(f"obs must be [G, S, {OBS_DIM}], got {tuple(obs.shape)}")
+        if team.shape != obs.shape[:2]:
+            raise ValueError(
+                f"team must be {tuple(obs.shape[:2])}, got {tuple(team.shape)}"
+            )
+        g, s = rows[:, 0], rows[:, 1]
+        present = (obs[..., 0] > 0.5) & (team >= 0)
+        embed = torch.zeros(
+            (*obs.shape[:2], self.context), dtype=obs.dtype, device=obs.device
+        )
+        if bool(present.any()):
+            embed[present] = self.encoder(obs[present])
+        my_team = team[g, s]
+        others = present[g]  # [K, S]
+        same = team[g] == my_team[:, None]
+        not_me = torch.ones_like(others)
+        not_me[torch.arange(rows.shape[0], device=obs.device), s] = False
+        ally = (others & same & not_me).to(obs.dtype)
+        enemy = (others & ~same).to(obs.dtype)
+        n_ally = ally.sum(-1, keepdim=True)
+        n_enemy = enemy.sum(-1, keepdim=True)
+        group = embed[g]  # [K, S, C]
+        ally_pool = (ally[..., None] * group).sum(1) / n_ally.clamp(min=1.0)
+        enemy_pool = (enemy[..., None] * group).sum(1) / n_enemy.clamp(min=1.0)
+        own = obs[g, s]
+        _check_obs(own)
+        trunk = self.base.net[:-1]
+        head = self.base.net[-1]
+        hidden = trunk(own)
+        features = torch.cat(
+            [
+                hidden,
+                ally_pool,
+                enemy_pool,
+                n_ally / _COUNT_SCALE,
+                n_enemy / _COUNT_SCALE,
+            ],
+            dim=-1,
+        )
+        out: torch.Tensor = (head(hidden) + self.mix(features)).squeeze(-1)
+        return out
+
+
+Critic = SpikeCritic | FleetCritic
+
 
 def _checked_actions(actions: torch.Tensor, valid: torch.Tensor) -> torch.Tensor:
     """Validate unmasked heads and return int64 actions with masked heads at HOLD."""
@@ -554,37 +682,78 @@ def act_numpy(
     return actions.reshape(*obs.shape[:-1], ACTION_WIDTH)
 
 
+CRITIC_SPIKE = "spike"
+CRITIC_FLEET = "fleet"
+CRITIC_KINDS = (CRITIC_SPIKE, CRITIC_FLEET)
+
+
+def critic_kind(critic: Critic) -> str:
+    """``"spike"`` or ``"fleet"``."""
+    return CRITIC_FLEET if isinstance(critic, FleetCritic) else CRITIC_SPIKE
+
+
+def as_critic_kind(critic: Critic, kind: str) -> Critic:
+    """``critic`` as a ``kind`` critic: a spike critic becomes the base of a fresh
+    fleet critic; a fleet critic is only ever kept as one.
+
+    Raises:
+        ValueError: Unknown kind, or a fleet critic asked to become a spike one.
+    """
+    if kind not in CRITIC_KINDS:
+        raise ValueError(f"critic kind must be one of {CRITIC_KINDS}, got {kind!r}")
+    if critic_kind(critic) == kind:
+        return critic
+    if isinstance(critic, SpikeCritic) and kind == CRITIC_FLEET:
+        return FleetCritic.from_spike(critic)
+    raise ValueError("a fleet critic cannot be turned back into a spike critic")
+
+
 def save_policy(
-    path: Path, actor: SpikeActor, critic: SpikeCritic, meta: dict[str, object]
+    path: Path, actor: SpikeActor, critic: Critic, meta: dict[str, object]
 ) -> None:
     """Write actor, critic and ``meta`` to ``path`` (``torch.save``).
 
     ``meta`` must hold only plain types (str, int, float, bool, lists, dicts) so the
-    file loads with ``weights_only=True``.
+    file loads with ``weights_only=True``. A fleet critic is stored with
+    ``critic_kind`` "fleet"; older files without the key hold a spike critic.
     """
     payload = {
         "format": _CHECKPOINT_FORMAT,
         "actor_hidden": actor.hidden,
         "critic_hidden": critic.hidden,
+        "critic_kind": critic_kind(critic),
         "actor": actor.state_dict(),
         "critic": critic.state_dict(),
         "meta": dict(meta),
     }
+    if isinstance(critic, FleetCritic):
+        payload["critic_context"] = critic.context
     path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(payload, path)
 
 
-def load_policy(path: Path) -> tuple[SpikeActor, SpikeCritic, dict[str, object]]:
+def load_policy(path: Path) -> tuple[SpikeActor, Critic, dict[str, object]]:
     """Load a checkpoint written by ``save_policy`` onto the CPU.
 
     Raises:
-        ValueError: The file is not a spike-policy checkpoint.
+        ValueError: The file is not a spike-policy checkpoint, or names an unknown
+            critic kind.
     """
     payload = torch.load(path, map_location="cpu", weights_only=True)
     if not isinstance(payload, dict) or payload.get("format") != _CHECKPOINT_FORMAT:
         raise ValueError(f"{path} is not a {_CHECKPOINT_FORMAT} checkpoint")
     actor = SpikeActor(hidden=int(payload["actor_hidden"]))
-    critic = SpikeCritic(hidden=int(payload["critic_hidden"]))
+    kind = payload.get("critic_kind", CRITIC_SPIKE)
+    critic: Critic
+    if kind == CRITIC_SPIKE:
+        critic = SpikeCritic(hidden=int(payload["critic_hidden"]))
+    elif kind == CRITIC_FLEET:
+        critic = FleetCritic(
+            hidden=int(payload["critic_hidden"]),
+            context=int(payload["critic_context"]),
+        )
+    else:
+        raise ValueError(f"{path} has unknown critic kind {kind!r}")
     actor.load_state_dict(payload["actor"])
     critic.load_state_dict(payload["critic"])
     meta: dict[str, object] = dict(payload["meta"])

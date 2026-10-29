@@ -21,6 +21,13 @@ Three steps:
 Labels are only meaningful where ``HeadMasks.head_valid()`` is true; masked slots
 of ``scripted_actions()`` hold arbitrary filler, so every comparison is restricted
 to valid heads.
+
+Fleets: with ``rosters`` (a ``spacefight.env.rosters`` preset) every env draws a
+roster of 1-4 ships a side per episode and every present ship is a row, labelled by
+its own hull's script; rows carry their hull id, the head masks are read per step
+(they change when a match is rebuilt), and ``bc_eval`` breaks agreement down by
+hull. DAgger rounds in fleet mode are scored on the fleet eval
+(``spacefight.eval.fleet``) instead of the fighter duel.
 """
 
 from __future__ import annotations
@@ -37,7 +44,13 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
+from spacefight.env.rosters import (
+    RosterSampler,
+    hull_names_by_id,
+    resolve_distribution,
+)
 from spacefight.env.rust_env import SIM_VERSION, RustVecEnv
+from spacefight.eval import fleet
 from spacefight.eval.controllers import Policy, Scripted
 from spacefight.eval.duel import DuelResult, evaluate
 from spacefight.rl.spike_policy import (
@@ -107,6 +120,7 @@ class BCDataset:
         fixed_turret: [R, 6] bool slot masks.
         env_index: [R] int32 env the row came from.
         ship: [R] int8 ship slot.
+        hull: [R] int16 hull id of the row's ship (``hull_names_by_id`` order).
         step: [R] int32 batched env step the row was observed on.
         holdout: [R] bool, True for rows of held-out envs.
         stats: Collection statistics.
@@ -121,6 +135,7 @@ class BCDataset:
     fixed_turret: NDArray[np.bool_]
     env_index: NDArray[np.int32]
     ship: NDArray[np.int8]
+    hull: NDArray[np.int16]
     step: NDArray[np.int32]
     holdout: NDArray[np.bool_]
     stats: CollectStats
@@ -204,6 +219,46 @@ def apply_dart_noise(
     return executed, noised
 
 
+def make_env(
+    n_envs: int,
+    n_threads: int,
+    seed: int,
+    reaction_ticks: int,
+    assets_dir: Path,
+    rosters: str = "",
+) -> RustVecEnv:
+    """The collection env: fighter duels, or a roster preset's fleets (the roster
+    sampler is seeded with ``seed`` too)."""
+    if not rosters:
+        return RustVecEnv(
+            assets_dir,
+            n_envs,
+            [list(team) for team in FIGHTER_DUEL],
+            seed,
+            n_threads=n_threads,
+            reaction_ticks=reaction_ticks,
+        )
+    sampler = RosterSampler(resolve_distribution(rosters), seed)
+    return RustVecEnv(
+        assets_dir,
+        n_envs,
+        [list(team) for team in FIGHTER_DUEL],
+        seed,
+        n_threads=n_threads,
+        reaction_ticks=reaction_ticks,
+        roster_sampler=sampler,
+    )
+
+
+def _flat_masks(env: RustVecEnv) -> tuple[NDArray[np.bool_], ...]:
+    """Owned ``[N * S, 8 / 6 / 6]`` copies of the env's current head masks."""
+    return (
+        env.thruster_mask.reshape(-1, 8).copy(),
+        env.turret_mask.reshape(-1, 6).copy(),
+        env.fixed_turret.reshape(-1, 6).copy(),
+    )
+
+
 def collect(
     n_rows: int,
     n_envs: int = 256,
@@ -214,6 +269,7 @@ def collect(
     reaction_ticks: int = 2,
     obs_dtype: str = "float16",
     assets_dir: Path = DEFAULT_ASSETS,
+    rosters: str = "",
 ) -> BCDataset:
     """Collect ``n_rows`` scripted-vs-scripted rows with DART noise.
 
@@ -227,6 +283,7 @@ def collect(
         reaction_ticks: Sim reaction delay.
         obs_dtype: Storage dtype of the observations, one of OBS_DTYPES.
         assets_dir: Asset directory for the sim.
+        rosters: Roster preset for fleets ("" = fighter duels).
 
     Returns:
         The dataset with its stats.
@@ -236,33 +293,30 @@ def collect(
     if obs_dtype not in OBS_DTYPES:
         raise ValueError(f"obs_dtype must be one of {OBS_DTYPES}, got {obs_dtype}")
     start = time.perf_counter()
-    env = RustVecEnv(
-        assets_dir,
-        n_envs,
-        [list(team) for team in FIGHTER_DUEL],
-        seed,
-        n_threads=n_threads,
-        reaction_ticks=reaction_ticks,
-    )
+    env = make_env(n_envs, n_threads, seed, reaction_ticks, assets_dir, rosters)
     rng = np.random.default_rng(seed)
-    thruster = env.thruster_mask.copy()
-    turret = env.turret_mask.copy()
-    fixed = env.fixed_turret.copy()
-    head_valid = valid_heads(thruster, turret, fixed).reshape(-1, ACTION_WIDTH)
     held_env = holdout_envs(n_envs, holdout_frac)
     env_of_slot = np.repeat(np.arange(n_envs, dtype=np.int32), env.n_ships)
     ship_of_slot = np.tile(np.arange(env.n_ships, dtype=np.int8), n_envs)
-    flat_thruster = thruster.reshape(-1, thruster.shape[-1])
-    flat_turret = turret.reshape(-1, turret.shape[-1])
-    flat_fixed = fixed.reshape(-1, fixed.shape[-1])
 
     out = _empty_buffers(n_rows, obs_dtype)
     filled = 0
     step = 0
     while filled < n_rows:
+        flat_thruster, flat_turret, flat_fixed = _flat_masks(env)
+        hull_of_slot = env.hull_id.reshape(-1)
         labels = env.scripted_actions().reshape(-1, ACTION_WIDTH).copy()
-        executed, noised = apply_dart_noise(labels, head_valid, dart_p, rng)
         keep = np.flatnonzero(env.act_mask.reshape(-1))[: n_rows - filled]
+        # Noise only real ships (padding slots have no valid head).
+        real = np.flatnonzero(env.team.reshape(-1) >= 0)
+        head_valid = valid_heads(
+            flat_thruster[real], flat_turret[real], flat_fixed[real]
+        )
+        executed = labels.copy()
+        noised = np.zeros(labels.shape[0], dtype=np.bool_)
+        executed[real], noised[real] = apply_dart_noise(
+            labels[real], head_valid, dart_p, rng
+        )
         rows = slice(filled, filled + keep.size)
         out["obs"][rows] = env.obs.reshape(-1, OBS_DIM)[keep]
         out["labels"][rows] = labels[keep]
@@ -273,6 +327,7 @@ def collect(
         out["fixed_turret"][rows] = flat_fixed[keep]
         out["env_index"][rows] = env_of_slot[keep]
         out["ship"][rows] = ship_of_slot[keep]
+        out["hull"][rows] = hull_of_slot[keep]
         out["step"][rows] = step
         filled += keep.size
         env.step(executed.reshape(env.actions.shape))
@@ -307,6 +362,7 @@ def _empty_buffers(n_rows: int, obs_dtype: str) -> dict[str, np.ndarray]:
         "fixed_turret": np.empty((n_rows, 6), dtype=np.bool_),
         "env_index": np.empty(n_rows, dtype=np.int32),
         "ship": np.empty(n_rows, dtype=np.int8),
+        "hull": np.empty(n_rows, dtype=np.int16),
         "step": np.empty(n_rows, dtype=np.int32),
     }
 
@@ -443,8 +499,11 @@ def predict(actor: SpikeActor, dataset: BCDataset, rows: np.ndarray) -> np.ndarr
     return preds
 
 
-def bc_eval(actor: SpikeActor, dataset: BCDataset) -> dict[str, object]:
-    """Held-out agreement per head group, fire precision / recall, hold shares.
+def bc_eval(
+    actor: SpikeActor, dataset: BCDataset, assets_dir: Path = DEFAULT_ASSETS
+) -> dict[str, object]:
+    """Held-out agreement per head group, fire precision / recall, hold shares, and
+    per hull (``hulls``: rows and agreement per head group of each hull present).
 
     Only valid heads are compared. A group with no valid head (slew on the
     fighter's fixed gun) reports ``agreement: None`` and ``heads: 0``.
@@ -500,11 +559,27 @@ def bc_eval(actor: SpikeActor, dataset: BCDataset) -> dict[str, object]:
             "recall": true_pos / int(fire_labels.sum()) if fire_labels.any() else None,
         }
     )
-    all_agree = np.where(valid, agree, True).all(-1)
+    all_agree: NDArray[np.bool_] = np.asarray(np.where(valid, agree, True).all(-1))
+    names = hull_names_by_id(assets_dir)
+    hulls: dict[str, dict[str, object]] = {}
+    row_hull = dataset.hull[rows]
+    for hid in np.unique(row_hull):
+        sel = row_hull == hid
+        per: dict[str, object] = {"rows": int(sel.sum())}
+        for name, cols in HEAD_GROUPS.items():
+            group_valid = valid[sel][:, cols]
+            per[name] = (
+                float(agree[sel][:, cols][group_valid].mean())
+                if group_valid.any()
+                else None
+            )
+        per["exact_row"] = float(all_agree[sel].mean())
+        hulls[names[int(hid)]] = per
     return {
         "holdout_rows": int(rows.size),
         "groups": groups,
         "exact_row_agreement": float(all_agree.mean()),
+        "hulls": hulls,
     }
 
 
@@ -527,10 +602,12 @@ def run(
     obs_dtype: str = "float16",
     config: TrainConfig | None = None,
     save_dataset: bool = False,
+    rosters: str = "",
 ) -> BCRunResult:
     """Collect, train, evaluate; write ``bc.pt`` and ``bc_eval.json`` in ``out_dir``.
 
     The checkpoint holds the trained actor and a freshly initialised critic.
+    ``rosters`` is a roster preset for fleets ("" = fighter duels).
     """
     config = config or TrainConfig(seed=seed)
     if n_threads > 0:
@@ -542,6 +619,7 @@ def run(
         seed=seed,
         dart_p=dart_p,
         obs_dtype=obs_dtype,
+        rosters=rosters,
     )
     if save_dataset:
         dataset.save(out_dir / DATASET_NAME)
@@ -567,6 +645,7 @@ def run(
             "dart_p": dart_p,
             "obs_dtype": obs_dtype,
             "fleets": [list(team) for team in FIGHTER_DUEL],
+            "rosters": rosters,
             "reaction_ticks": 2,
         },
     }
@@ -604,11 +683,12 @@ def collect_on_policy(
     reaction_ticks: int = 2,
     obs_dtype: str = "float16",
     assets_dir: Path = DEFAULT_ASSETS,
+    rosters: str = "",
 ) -> BCDataset:
     """Collect ``n_rows`` rows of ``actor`` flying against the script (DAgger).
 
-    Env ``i`` puts the learner on team ``i % 2`` (the eval's side split); the other
-    team flies the script. Each step the script's actions for every ship are
+    Env ``i`` puts the learner on team ``i % 2`` (the eval's side split) and the
+    actor flies every ship of that team; the other team flies the script. Each step the script's actions for every ship are
     fetched *before* the learner's actions are written, so the learner's rows are
     labelled with what the script would do in the learner's own states. With
     probability ``beta`` per learner ship-tick the script's action is executed
@@ -632,6 +712,7 @@ def collect_on_policy(
         reaction_ticks: Sim reaction delay.
         obs_dtype: Storage dtype of the observations, one of OBS_DTYPES.
         assets_dir: Asset directory for the sim.
+        rosters: Roster preset for fleets ("" = fighter duels).
 
     Returns:
         The dataset with its stats.
@@ -645,30 +726,22 @@ def collect_on_policy(
     if obs_dtype not in OBS_DTYPES:
         raise ValueError(f"obs_dtype must be one of {OBS_DTYPES}, got {obs_dtype}")
     start = time.perf_counter()
-    env = RustVecEnv(
-        assets_dir,
-        n_envs,
-        [list(team) for team in FIGHTER_DUEL],
-        seed,
-        n_threads=n_threads,
-        reaction_ticks=reaction_ticks,
-    )
+    env = make_env(n_envs, n_threads, seed, reaction_ticks, assets_dir, rosters)
     rng = np.random.default_rng(seed)
     torch.manual_seed(seed)
     learner_team = np.arange(n_envs) % 2
-    learner_slot = (env.team == learner_team[:, None]).reshape(-1)
     held_env = holdout_envs(n_envs, holdout_frac)
     env_of_slot = np.repeat(np.arange(n_envs, dtype=np.int32), env.n_ships)
     ship_of_slot = np.tile(np.arange(env.n_ships, dtype=np.int8), n_envs)
-    flat_thruster = env.thruster_mask.copy().reshape(-1, 8)
-    flat_turret = env.turret_mask.copy().reshape(-1, 6)
-    flat_fixed = env.fixed_turret.copy().reshape(-1, 6)
 
     out = _empty_buffers(n_rows, obs_dtype)
     filled = 0
     step = 0
     actor.eval()
     while filled < n_rows:
+        flat_thruster, flat_turret, flat_fixed = _flat_masks(env)
+        hull_of_slot = env.hull_id.reshape(-1)
+        learner_slot = (env.team == learner_team[:, None]).reshape(-1)
         labels = env.scripted_actions().reshape(-1, ACTION_WIDTH).copy()
         learn = np.flatnonzero(learner_slot & env.act_mask.reshape(-1))
         obs = env.obs.reshape(-1, OBS_DIM)[learn]
@@ -695,6 +768,7 @@ def collect_on_policy(
         out["fixed_turret"][rows] = flat_fixed[keep]
         out["env_index"][rows] = env_of_slot[keep]
         out["ship"][rows] = ship_of_slot[keep]
+        out["hull"][rows] = hull_of_slot[keep]
         out["step"][rows] = step
         filled += n_keep
         env.step(executed.reshape(env.actions.shape))
@@ -736,6 +810,7 @@ _ROW_FIELDS = (
     "fixed_turret",
     "env_index",
     "ship",
+    "hull",
     "step",
     "holdout",
 )
@@ -844,6 +919,15 @@ class DaggerConfig:
         duel_n: Duels per evaluation (``eval.duel.evaluate``).
         duel_argmax: Also evaluate the argmax policy each round.
         obs_dtype: Storage dtype of the observations.
+        rosters: Roster preset for fleets ("" = fighter duels). In fleet mode
+            every round is scored on the fleet eval vs the script (``fleet_suite``,
+            ``fleet_n_per_roster`` matches per roster) and the best round is the
+            one with the best fleet win rate; the fighter duel is still reported.
+        fleet_suite: Fleet eval suite of the round scores.
+        fleet_n_per_roster: Matches per roster of the round scores.
+        best_from_round: ``best.pt`` is the best of rounds ``best_from_round``
+            and later (1 keeps an ``init`` that never saw this data, or plain BC,
+            from being picked).
     """
 
     rounds: int = 3
@@ -862,12 +946,20 @@ class DaggerConfig:
     duel_n: int = 512
     duel_argmax: bool = False
     obs_dtype: str = "float16"
+    rosters: str = ""
+    fleet_suite: str = "fleet_v1"
+    fleet_n_per_roster: int = 32
+    best_from_round: int = 0
 
     def __post_init__(self) -> None:
         if self.mode not in DAGGER_MODES:
             raise ValueError(f"mode must be one of {DAGGER_MODES}, got {self.mode}")
         if self.rounds < 0:
             raise ValueError(f"rounds must be >= 0, got {self.rounds}")
+        if not 0 <= self.best_from_round <= self.rounds:
+            raise ValueError(
+                f"best_from_round must be in 0..{self.rounds}, got {self.best_from_round}"
+            )
         if self.total_rows > self.max_rows:
             raise ValueError(
                 f"{self.total_rows} aggregate rows exceed max_rows {self.max_rows}"
@@ -923,6 +1015,39 @@ def agreement_summary(report: dict[str, object]) -> dict[str, object]:
     }
 
 
+def fleet_summary(result: fleet.FleetResult) -> dict[str, object]:
+    """The learner-side numbers of a fleet round score."""
+    side = result.side_a
+    return {
+        "win_rate": side.win_rate,
+        "draw_rate": result.match.draw_rate,
+        "time_limit_rate": result.match.time_limit_rate,
+        "by_class": {k: c.win_rate for k, c in result.classes.items()},
+        "hull_damage": {h: m.damage_dealt for h, m in side.hulls.items()},
+        "hull_survival": {h: m.survival for h, m in side.hulls.items()},
+        "hull_hit_rate": {h: m.hit_rate for h, m in side.hulls.items()},
+        "script_hull_damage": {
+            h: m.damage_dealt for h, m in result.side_b.hulls.items()
+        },
+        "engine_duty": side.all_ships.engine_duty,
+        "outside_share": side.all_ships.outside_share,
+    }
+
+
+def _fleet(checkpoint: Path, config: DaggerConfig, n_threads: int) -> dict[str, object]:
+    start = time.perf_counter()
+    cfg = fleet.FleetEvalConfig(
+        suite=config.fleet_suite, n_per_roster=config.fleet_n_per_roster
+    )
+    result = fleet.evaluate(Policy(checkpoint), Scripted(), cfg, n_threads=n_threads)
+    return {
+        "summary": fleet_summary(result),
+        "markdown": result.markdown(),
+        "wall_s": time.perf_counter() - start,
+        "result": result.to_dict(),
+    }
+
+
 def _duel(checkpoint: Path, config: DaggerConfig, n_threads: int) -> dict[str, object]:
     out: dict[str, object] = {}
     for sample in (True, False) if config.duel_argmax else (True,):
@@ -959,7 +1084,7 @@ def dagger(
     init: Path | None = None,
     on_round: Callable[[dict[str, object]], None] | None = None,
 ) -> DaggerResult:
-    """DAgger on the scripted fighter: round 0 is BC, then on-policy rounds.
+    """DAgger on the scripted pilots: round 0 is BC, then on-policy rounds.
 
     Round 0 re-collects the scripted DART dataset (``collect`` with
     ``config.seed``) and either trains on it or, with ``init``, takes that
@@ -992,6 +1117,7 @@ def dagger(
             seed=config.seed,
             dart_p=config.dart_p,
             obs_dtype=config.obs_dtype,
+            rosters=config.rosters,
         )
     )
     round0 = store.part(0)
@@ -1019,6 +1145,7 @@ def dagger(
                 seed=config.seed + k,
                 beta=beta,
                 obs_dtype=config.obs_dtype,
+                rosters=config.rosters,
             )
         )
         part = store.part(k)
@@ -1043,7 +1170,9 @@ def dagger(
         rows.append(row | {"beta": beta})
         _save_round(out_dir, k, actor, rows, config, n_threads, start, init, on_round)
 
-    best_round = max(range(len(rows)), key=lambda i: _win_rate(rows[i]))
+    best_round = max(
+        range(config.best_from_round, len(rows)), key=lambda i: _win_rate(rows[i])
+    )
     best = out_dir / DAGGER_BEST_NAME
     shutil.copyfile(out_dir / dagger_checkpoint_name(best_round), best)
     eval_path = _write_dagger_eval(out_dir, config, init, rows, best_round)
@@ -1062,6 +1191,12 @@ def _train_report(config: TrainConfig, log: TrainLog) -> dict[str, object]:
 
 
 def _win_rate(row: dict[str, object]) -> float:
+    """The round's score: its fleet win rate in fleet mode, else its duel's."""
+    if "fleet" in row:
+        scored = row["fleet"]
+        if not isinstance(scored, dict):
+            raise TypeError("round row's fleet entry is not a dict")
+        return float(scored["summary"]["win_rate"])
     duel = row["duel"]
     if not isinstance(duel, dict):
         raise TypeError("round row has no duel dict")
@@ -1118,6 +1253,8 @@ def _save_round(
     )
     row["checkpoint"] = str(checkpoint)
     row["duel"] = _duel(checkpoint, config, n_threads)
+    if config.rosters:
+        row["fleet"] = _fleet(checkpoint, config, n_threads)
     row["wall_s"] = time.perf_counter() - start
     _write_dagger_eval(out_dir, config, init, rows)
     if on_round is not None:

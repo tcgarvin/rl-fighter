@@ -29,3 +29,4 @@ web/public/bundle/
 web/public/notebook/data/
 web/public/hulls/data/
 web/shots/
+lab/runs/*/smoke/

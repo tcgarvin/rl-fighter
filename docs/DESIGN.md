@@ -224,6 +224,13 @@ station assault (attackers against a pre-placed, turreted, immobile station).
 flagships and supply, with a scripted commander. Then a learned commander. Then
 learned drafting.
 
+**Arena size** comes from one rule, `sim::setup::arena_radius_for(n_ships)`, which
+training, the fleet eval and the live page all call (`rlf_sim.arena_radius_for`,
+`arenaRadiusFor` in the WASM build). It is 450 m for every fleet up to 8 ships: a
+radius that grew with the fleet bought nothing in script-vs-script fleets and made
+4v4s run to the time limit more often (`lab/runs/2026-10-30-fleet-pilot/plan.md`
+§2).
+
 ## 7. Learning
 
 ### Pilots

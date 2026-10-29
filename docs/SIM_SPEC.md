@@ -778,7 +778,8 @@ adapter's `credit_dead_shooters` option decides whether to add that credit.
 **VecEnv episode semantics**: `done[i]` is true on the step where match `i` reaches
 `Over`; rewards for that step include the terminal term; `winner[i] ∈ {-1,0,1}`
 (`-2` otherwise). The env then immediately rebuilds match `i` with
-`seed = split(base_seed, i, episode_count[i])` and the same fleets, and the returned
+`seed = split(base_seed, i, episode_count[i])` and the same roster (or the one queued
+with `set_next_roster(i, ...)`, §10.1), and the returned
 obs row is the fresh match's first observation (ships not present yet → obs ≈ zeros
 with `present = 0`). Episode generation `episode_count[i]` is exposed for credit.
 
@@ -818,8 +819,10 @@ renderer can show glancing (`< 1`) and raking (`> 1`) hits). WASM:
 env = rlf_sim.VecEnv(assets_dir: str, n_envs: int, fleets: list[list[str]],  # [[team0 hulls],[team1 hulls]]
                      seed: int, arena_radius: float = 450.0, time_limit_s: float = 90.0,
                      n_threads: int = 0, record_events: bool = False,
-                     reaction_ticks: int = 2)                                # v2; 0..MAX_REACTION_TICKS
-env.n_envs, env.n_ships -> int (S = fleet total; MAX_SHIPS cap), env.dt -> float
+                     reaction_ticks: int = 2,                                # v2; 0..MAX_REACTION_TICKS
+                     max_ships: int | None = None)                           # S; default the fleet total
+env.n_envs, env.n_ships -> int (S = max_ships or fleet total; MAX_SHIPS cap), env.dt -> float
+env.set_next_roster(i, fleets, arena_radius)  # env i's next match (next done or reset) and later ones
 env.reset()                       # rebuild every match with episode_count = 0
 env.step(actions=None)            # reads env.actions (or copies `actions` in first), advances all matches, auto-resets
 # zero-copy buffers, owned by the env, overwritten in place on every step():
@@ -829,6 +832,7 @@ env.act_mask [N,S] bool        env.thruster_mask [N,S,8] bool  env.turret_mask [
 env.fixed_turret [N,S,6] bool  env.team [N,S] i8  env.hull_id [N,S] i16  env.alive [N,S] bool
 env.tick [N] u32  env.episode_count [N] u32  env.hits [N,64,6] i32  env.hit_count [N] i32
 env.collision_damage [N,S] f32  # v3: hull damage each ship took from collisions this step (after impact arcs)
+env.arena_radius [N] f32        # radius of each env's current match
 env.scripted_actions(team: int | None = None)   # writes the scripted controller's actions into env.actions for the given team (or all ships)
 env.state_hash() -> np.ndarray[N] u64           # per match
 env.render_state(i) -> dict                     # ships/projectiles of match i (debug); ships carry thrust_level, queue
@@ -836,6 +840,7 @@ env.events() -> np.ndarray[E, 9] f32            # record_events only; column 0 =
 rlf_sim.OBS_LAYOUT, rlf_sim.OBS_SLOTS, rlf_sim.ACTION_LAYOUT, rlf_sim.SIM_VERSION,
 rlf_sim.OBS_DIM, rlf_sim.ACTION_WIDTH, rlf_sim.MAX_SHIPS, rlf_sim.MAX_HITS, rlf_sim.HIT_FIELDS,
 rlf_sim.HIT_DAMAGE_SCALE, rlf_sim.MAX_REACTION_TICKS
+rlf_sim.arena_radius_for(n_ships) -> float      # the shared arena rule (sim::setup::arena_radius_for)
 ```
 
 `act_mask` is written with the obs after each step/reset and follows the §7.1
@@ -850,7 +855,25 @@ Buffers are numpy arrays allocated once in `__new__` (`PyArray::zeros`) and held
 (`py.allow_threads`) and runs `rayon` `par_iter_mut` over matches, each writing its
 own obs/reward rows (disjoint `chunks_mut`). The rayon pool is built once with
 `n_threads` (0 = rayon default). The property getters return the same array objects
-every call. Fleets are fixed per env; heterogeneous fleets per match are M3.
+every call.
+
+**Rosters** (fleet pilot v1, `lab/runs/2026-10-30-fleet-pilot/plan.md`): every match
+has `S` slots; a match with `k < S` ships fills slots `0..k` (team 0 then team 1)
+and pads the rest: team and hull id -1, zero obs, `act_mask`, `alive` and all slot
+masks false, zero rewards; padding never shoots or is hit. `set_next_roster`
+validates the roster (known hulls, non-empty teams, at most `S` ships, a valid radius)
+and applies it when env `i` is next rebuilt; it then sticks until replaced. `team`,
+`hull_id`, the three slot masks and `arena_radius` describe each env's current
+match and are rewritten only when that match is rebuilt, so after a done step they
+already belong to the new match (`RustVecEnv`'s `StepInfo.prev_team` keeps the
+finished one). A fixed-fleet env padded with `max_ships` steps bit-identically to
+the unpadded one. `RustVecEnv(roster_sampler=...)` (`spacefight/env/rosters.py`)
+queues a fresh seeded draw for every env each time its match ends.
+
+**Arena rule**: `sim::setup::arena_radius_for(n_ships)` is the one place that sizes an
+arena for a fleet (450 m for every size today; the reasons are in its doc comment and
+the fleet pilot plan §2). Python gets it as `rlf_sim.arena_radius_for`, the browser as
+`arenaRadiusFor`; training rosters, the fleet eval and the live page all call it.
 
 ### 10.2 sim-wasm
 
@@ -866,6 +889,7 @@ class WasmMatch {
   obs(ship: number): Float32Array;    // for in-browser inference (M2); OBS_DIM floats
   tick(): number; phase(): number; winner(): number; state_hash_hex(): string;
 }
+arenaRadiusFor(n_ships: number): number;  // the shared arena rule (§10.1)
 ```
 
 `config_json` is `MatchConfig` serialised with serde

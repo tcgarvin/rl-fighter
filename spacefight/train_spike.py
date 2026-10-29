@@ -8,6 +8,10 @@ through ``args.func(args)``::
     python -m spacefight.train_spike ppo --run-dir RUN --init bc.pt
     python -m spacefight.train_spike ppo --run-dir RUN --init scratch
     python -m spacefight.train_spike ppo --run-dir RUN --resume
+
+Fleets: ``bc`` and ``dagger`` take ``--rosters fleet_v1`` (every present ship of a
+1-4-a-side mixed fleet is a row, labelled by its hull's script); ``ppo`` takes
+``--set rosters=fleet_v1 --set critic=fleet``.
 """
 
 from __future__ import annotations
@@ -60,6 +64,11 @@ def add_bc_parser(subparsers: argparse._SubParsersAction) -> None:
     parser.add_argument(
         "--save-dataset", action="store_true", help="also write bc_dataset.npz"
     )
+    parser.add_argument(
+        "--rosters",
+        default="",
+        help="roster preset for fleets (e.g. fleet_v1); default: fighter duels",
+    )
     parser.set_defaults(func=run_bc)
 
 
@@ -87,6 +96,7 @@ def run_bc(args: argparse.Namespace) -> int:
         obs_dtype=args.obs_dtype,
         config=config,
         save_dataset=args.save_dataset,
+        rosters=args.rosters,
     )
     print(json.dumps(result.eval["groups"], indent=2))
     print(f"wrote {result.checkpoint} and {result.eval_path}")
@@ -138,6 +148,20 @@ def add_dagger_parser(subparsers: argparse._SubParsersAction) -> None:  # type: 
     parser.add_argument(
         "--duel-argmax", action="store_true", help="also duel the argmax policy"
     )
+    parser.add_argument(
+        "--rosters",
+        default="",
+        help="roster preset for fleets (e.g. fleet_v1); rounds are then scored on "
+        "the fleet eval",
+    )
+    parser.add_argument("--fleet-suite", default="fleet_v1")
+    parser.add_argument("--fleet-n-per-roster", type=int, default=32)
+    parser.add_argument(
+        "--best-from-round",
+        type=int,
+        default=0,
+        help="best.pt is the best of this round and later (1: never plain BC/init)",
+    )
     parser.set_defaults(func=run_dagger)
 
 
@@ -174,16 +198,26 @@ def run_dagger(args: argparse.Namespace) -> int:
         max_rows=args.max_rows,
         duel_n=args.duel_n,
         duel_argmax=args.duel_argmax,
+        rosters=args.rosters,
+        fleet_suite=args.fleet_suite,
+        fleet_n_per_roster=args.fleet_n_per_roster,
+        best_from_round=args.best_from_round,
     )
 
     def report(row: dict[str, object]) -> None:
         duel = row["duel"]
         if not isinstance(duel, dict):
             raise TypeError("round row has no duel dict")
+        scored = row.get("fleet")
+        fleet_part = (
+            f" fleet {json.dumps(scored['summary'])}"
+            if isinstance(scored, dict)
+            else ""
+        )
         print(
             f"round {row['round']} ({row['wall_s']:.0f}s, {row['aggregate_rows']} rows) "
             f"agreement {json.dumps(row['holdout_agreement'])} "
-            f"duel {json.dumps(duel['sample']['summary'])}",
+            f"duel {json.dumps(duel['sample']['summary'])}{fleet_part}",
             flush=True,
         )
 

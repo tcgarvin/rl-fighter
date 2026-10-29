@@ -180,12 +180,16 @@ class RecordingTrainer(SpikeTrainer):
         return out
 
 
-def test_credit_lands_on_decision_step_across_rollouts(tmp_path):
+@pytest.mark.parametrize("fleet", [False, True], ids=["duel", "fleet"])
+def test_credit_lands_on_decision_step_across_rollouts(tmp_path, fleet):
     """Each hit's shooter reward moves to the buffer step stamped with its
     decision_tick (3 ticks before the shot at reaction_ticks 2), including hits
-    that land in a later rollout and move into the carried tail rows."""
+    that land in a later rollout and move into the carried tail rows; with fleets,
+    for every one of up to 8 shooters per match."""
     n_steps, t_tail, reaction = 16, 40, 2
     params = {**SMALL, "n_envs": 32, "env_warmup_steps": 200}
+    if fleet:
+        params.update({"rosters": "fleet_v1", "critic": "fleet"})
     config = PPOConfig.preset(
         "scratch", n_updates=3, t_tail=t_tail, reaction_ticks=reaction, **params
     )

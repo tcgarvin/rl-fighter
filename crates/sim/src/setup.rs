@@ -18,6 +18,25 @@ pub const DEFAULT_TIME_LIMIT_TICKS: u32 = 2700;
 /// Default reaction delay, ticks (≈ 67 ms; SIM_SPEC §5 stage 3, v2).
 pub const DEFAULT_REACTION_TICKS: u8 = 2;
 
+/// Extra arena radius per ship beyond a duel's two, metres (0: one size for all).
+pub const ARENA_RADIUS_PER_SHIP: f32 = 0.0;
+
+/// The arena radius for a match of `n_ships` ships in total (both teams):
+/// `DEFAULT_ARENA_RADIUS` plus `ARENA_RADIUS_PER_SHIP` per ship beyond two. Training
+/// rosters, the fleet eval and the live page all size their arenas with this one
+/// rule (DESIGN §6), so change it here and nowhere else.
+///
+/// It is 450 m for every fleet size up to `MAX_SHIPS`: script-vs-script fleets
+/// (lab/runs/2026-10-30-fleet-pilot/plan.md §2) at a growing radius (+25 m per
+/// ship, 600 m for 4v4) had the same engagement and crash damage as at 450 m but
+/// reached the time limit more often in 4v4 (0.28 vs 0.19), and the obs scale
+/// distances by the radius, so one radius keeps the duel pilots' inputs where
+/// they trained.
+pub fn arena_radius_for(n_ships: usize) -> f32 {
+    let extra = n_ships.saturating_sub(2) as f32;
+    DEFAULT_ARENA_RADIUS + ARENA_RADIUS_PER_SHIP * extra
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct MatchConfig {
     pub seed: u64,
@@ -81,6 +100,14 @@ impl fmt::Display for SetupError {
 }
 
 impl std::error::Error for SetupError {}
+
+impl MatchConfig {
+    /// Check the config against `cat` without building a match (the checks of
+    /// [`Match::new`]).
+    pub fn validate(&self, cat: &Catalogue) -> Result<(), SetupError> {
+        validate(cat, self)
+    }
+}
 
 fn validate(cat: &Catalogue, cfg: &MatchConfig) -> Result<(), SetupError> {
     if !(cfg.arena_radius.is_finite() && cfg.arena_radius > 0.0) {
@@ -150,5 +177,18 @@ impl Match {
         };
         arrival::schedule_arrivals(&mut m.ships, &mut m.rng, m.cfg.arena_radius);
         Ok(m)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn arena_radius_rule_is_the_duel_arena_for_every_fleet_size() {
+        for n in 0..=MAX_SHIPS {
+            assert_eq!(arena_radius_for(n), DEFAULT_ARENA_RADIUS);
+        }
+        assert_eq!(DEFAULT_ARENA_RADIUS, 450.0);
     }
 }
