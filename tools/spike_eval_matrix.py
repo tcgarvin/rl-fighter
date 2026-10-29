@@ -2,7 +2,7 @@
 
 Every pairing of ``tools.lab_report.matrix_pairings()`` is one ``evaluate(a, b)``
 duel (n = 512, base seed 100 000, sides swapped) written as
-``<run-dir>/eval/<a>[_argmax]_vs_<b>.json`` (schema ``rlf.eval.duel/1``). Pairings
+``<run-dir>/eval/<a>[_argmax]_vs_<b>.json`` (schema ``rlf.eval.duel/2``). Pairings
 whose JSON exists are skipped, so the tool is resumable; a pairing whose
 checkpoint does not exist yet (training unfinished) is reported as blocked.
 
