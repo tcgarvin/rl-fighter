@@ -51,6 +51,13 @@ python3 -m http.server -d dist 8000   # preview
 uv run python -m pytest tests/test_web_policy.py -v
 node tools/web/duel_smoke.mjs dist/duel/pkg dist/duel/policy 3
 
+# Fleets (1-4 ships a side, mixed hulls): fleet eval (schema rlf.eval.fleet/1), the
+# script-vs-script fleet survey, and the fleet pilot v1 run (BC -> DAgger -> PPO;
+# SMOKE=1 runs every stage at tiny sizes into the run's gitignored smoke/ dir)
+uv run python -m spacefight.eval.fleet --a <checkpoint.pt> --b script --out fleet.json
+PYTHONPATH=. uv run python tools/fleet_survey.py --n-per-roster 128
+nohup lab/runs/2026-10-30-fleet-pilot/run.sh > lab/runs/2026-10-30-fleet-pilot/run.out 2>&1 &
+
 # Deploy dist/ (rl-fighter.tcgarvin.com); needs NETLIFY_AUTH_TOKEN in .env
 scripts/deploy.sh            # or: scripts/deploy.sh <checkpoint.pt> to rebuild first
 ```
