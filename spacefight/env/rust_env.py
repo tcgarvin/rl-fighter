@@ -299,14 +299,24 @@ class RustVecEnv:
         """[N] arena radius of each env's current match, metres (view)."""
         return self._env.arena_radius
 
-    def set_next_roster(self, i: int, roster: Roster) -> None:
-        """Queue ``roster`` (arena from the shared rule) for env ``i``'s next match.
+    def set_next_roster(
+        self, i: int, roster: Roster, arena_radius: float | None = None
+    ) -> None:
+        """Queue ``roster`` for env ``i``'s next match.
+
+        Args:
+            i: Env index.
+            roster: The teams.
+            arena_radius: Arena radius in metres; ``None`` uses the shared rule
+                (``roster.arena_radius``). Overrides are for surveys only: training
+                and the live page use the rule.
 
         Raises:
             ValueError: The roster does not fit ``n_ships`` or names unknown hulls.
             IndexError: ``i`` out of range.
         """
-        self._env.set_next_roster(i, roster.fleets(), roster.arena_radius)
+        radius = roster.arena_radius if arena_radius is None else arena_radius
+        self._env.set_next_roster(i, roster.fleets(), radius)
         self._next[i] = roster
 
     # -- live buffers ---------------------------------------------------------
