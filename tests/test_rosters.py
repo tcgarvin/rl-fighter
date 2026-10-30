@@ -10,6 +10,7 @@ import rlf_sim
 
 from spacefight.env.rosters import (
     FLEET_HULLS,
+    MAX_FLEET_SHIPS,
     MAX_PER_SIDE,
     ROSTER_PRESETS,
     Roster,
@@ -46,11 +47,25 @@ def test_roster_properties_and_validation() -> None:
     with pytest.raises(ValueError):
         Roster.of([], ["fighter"])
     with pytest.raises(ValueError):
-        Roster.of(["fighter"] * 5, ["fighter"] * 4)
+        Roster.of(["fighter"] * 11, ["fighter"] * 10)
 
 
 def test_hull_costs_come_from_the_yaml() -> None:
-    assert load_hull_costs() == {"fighter": 10.0, "strafer": 10.0, "gunship": 30.0}
+    assert load_hull_costs() == {
+        "carrier": 120.0,
+        "fighter": 10.0,
+        "freighter": 40.0,
+        "gunship": 30.0,
+        "strafer": 10.0,
+    }
+
+
+def test_fleet_rosters_draw_strike_craft_only() -> None:
+    """Capital ships (SIM_VERSION 4) never enter a training or eval roster."""
+    for name, dist in ROSTER_PRESETS.items():
+        for roster in RosterSampler(dist, 0).sample_many(300):
+            hulls = set(roster.teams[0]) | set(roster.teams[1])
+            assert hulls <= set(FLEET_HULLS), (name, hulls)
 
 
 def test_sampler_is_deterministic_per_seed() -> None:
@@ -122,7 +137,7 @@ def test_sampled_env_buffers_follow_each_envs_roster() -> None:
     env = RustVecEnv(
         ASSETS, 12, DUEL, 7, n_threads=2, time_limit_s=6.0, roster_sampler=sampler
     )
-    assert env.n_ships == rlf_sim.MAX_SHIPS
+    assert env.n_ships == MAX_FLEET_SHIPS == 8
     _check_buffers_match_rosters(env)
     seen: set[str] = set()
     for _ in range(400):  # 6 s limit: every env resets twice
@@ -190,4 +205,4 @@ def test_rosters_that_do_not_fit_are_rejected() -> None:
     with pytest.raises(IndexError):
         env.set_next_roster(5, Roster.of(["fighter"], ["fighter"]))
     with pytest.raises(ValueError, match="max_ships"):
-        RustVecEnv(ASSETS, 2, DUEL, 0, max_ships=9)
+        RustVecEnv(ASSETS, 2, DUEL, 0, max_ships=rlf_sim.MAX_SHIPS + 1)

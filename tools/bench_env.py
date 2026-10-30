@@ -44,6 +44,18 @@ SCENARIOS = [
         2000,
     ),
     Scenario("single-thread 1v1", [["fighter"], ["fighter"]], 1, 600, 300),
+    # SIM_VERSION 4 (MAX_SHIPS 20): the largest fleet-pilot training roster, 8 ships.
+    # Measured at 2,200 steps/s before and after the cap went from 8 to 20.
+    Scenario(
+        "4v4 mixed",
+        [
+            ["fighter", "strafer", "gunship", "fighter"],
+            ["fighter", "strafer", "gunship", "fighter"],
+        ],
+        16,
+        2000,
+        1000,
+    ),
 ]
 
 

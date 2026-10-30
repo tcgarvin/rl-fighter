@@ -249,9 +249,13 @@
               slots × <span data-fact="obs.ships.record_width">12</span>), nearest first:
               friend or foe, relative position and velocity, relative heading, hull and
               shield fractions, size and distance. A match holds at most
-              <span data-fact="sim.max_ships">8</span> ships
-              (<span data-fact="sim.max_ships_a_side">4</span> a side), so the seven slots
-              cover every other ship on the field; nothing is cut off yet.
+              <span data-fact="sim.max_ships">20</span> ships (a carrier's docked wing
+              counts), so the pilot sees the nearest
+              <span data-fact="sim.near_ships">7</span> of up to
+              <span data-fact="sim.max_others">19</span> others. A strike-craft fleet has
+              at most <span data-fact="fleet.max_ships">8</span> ships
+              (<span data-fact="fleet.max_per_side">4</span> a side), where the seven slots
+              cover every other ship; in a carrier battle the farthest drop out of view.
             </li>
             <li>
               <strong>Projectiles</strong> (<span data-fact="obs.projectiles.records">8</span>
@@ -424,7 +428,12 @@
               Gunship: <span data-fact="hull.gunship.thrusters">6</span> thrusters and
               <span data-fact="hull.gunship.slewing">3</span> turning turrets. From
               <code>assets/hulls/*/hull.yaml</code>; the <a href="/hulls/">hull catalogue</a>
-              draws them.
+              draws them. This pilot does not fly capital ships: scripts fly the carrier
+              (<span data-fact="hull.carrier.thrusters">7</span> thrusters,
+              <span data-fact="hull.carrier.slewing">3</span> flak turrets) and the
+              freighter, a convoy transport
+              (<span data-fact="hull.freighter.thrusters">6</span> thrusters,
+              <span data-fact="hull.freighter.turrets">0</span> guns).
             </figcaption>
           </figure>
           <h3>The reaction delay</h3>
@@ -464,7 +473,7 @@
           <p>
             In the browser the same arithmetic runs as a plain JavaScript loop over the
             exported weights (<a class="code-link" href="https://github.com/tcgarvin/rl-fighter/blob/main/web/src/live/policy.js"><code>web/src/live/policy.js</code></a>;
-            a pytest checks it against PyTorch). With eight ships at 30 ticks a second, that
+            a pytest checks it against PyTorch). With <span data-fact="fleet.max_ships">8</span> ships at 30 ticks a second, that
             is about <span data-fact="browser.mmacs">43</span> million multiply-adds a
             second, which a phone handles easily.
           </p>
@@ -621,7 +630,8 @@
 
       <footer class="page-footer">
         This page describes champion <code data-fact="champion.id">2026-10-30-fleet-pilot-v1</code>
-        (sim version <span data-fact="sim.version">3</span>; hulls
+        (trained in sim version <span data-fact="champion.sim_version">3</span>, flying
+        in sim version <span data-fact="sim.version">4</span>; hulls
         <span data-fact="champion.hulls">fighter, strafer, gunship</span>). Its numbers are
         checked against the sim, the policy code, the hull files and the exported champion
         weights by <code>tools/pilot_facts.py</code> on every site build.

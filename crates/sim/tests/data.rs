@@ -11,6 +11,8 @@ const WEAPONS: &str = include_str!("../../../assets/weapons.yaml");
 const FIGHTER: &str = include_str!("../../../assets/hulls/fighter/hull.yaml");
 const STRAFER: &str = include_str!("../../../assets/hulls/strafer/hull.yaml");
 const GUNSHIP: &str = include_str!("../../../assets/hulls/gunship/hull.yaml");
+const CARRIER: &str = include_str!("../../../assets/hulls/carrier/hull.yaml");
+const FREIGHTER: &str = include_str!("../../../assets/hulls/freighter/hull.yaml");
 
 const DEG: f32 = PI / 180.0;
 
@@ -19,8 +21,10 @@ fn shipped() -> Catalogue {
     Catalogue::from_yaml(
         &[
             ("strafer", STRAFER),
+            ("freighter", FREIGHTER),
             ("gunship", GUNSHIP),
             ("fighter", FIGHTER),
+            ("carrier", CARRIER),
         ],
         WEAPONS,
     )
@@ -68,11 +72,46 @@ fn assert_rule(errors: &[String], rule: u32, count: usize) {
 fn shipped_hulls_sorted_by_name() {
     let cat = shipped();
     let names: Vec<&str> = cat.hulls.iter().map(|h| h.name.as_str()).collect();
-    assert_eq!(names, ["fighter", "gunship", "strafer"]);
-    assert_eq!(cat.hull_id("fighter"), Some(0));
-    assert_eq!(cat.hull_id("gunship"), Some(1));
-    assert_eq!(cat.hull_id("strafer"), Some(2));
+    // v4: the carrier sorts first, so every v3 hull id shifted (SIM_SPEC §4.3).
+    assert_eq!(
+        names,
+        ["carrier", "fighter", "freighter", "gunship", "strafer"]
+    );
+    assert_eq!(cat.hull_id("carrier"), Some(0));
+    assert_eq!(cat.hull_id("fighter"), Some(1));
+    assert_eq!(cat.hull_id("freighter"), Some(2));
+    assert_eq!(cat.hull_id("gunship"), Some(3));
+    assert_eq!(cat.hull_id("strafer"), Some(4));
     assert_eq!(cat.hull_id("bomber"), None);
+}
+
+#[test]
+fn carrier_bays_and_capital_hulls_load() {
+    let cat = shipped();
+    let carrier = cat.hull(cat.hull_id("carrier").unwrap());
+    assert_eq!(carrier.role, "carrier");
+    assert_eq!(carrier.bays.len(), 2);
+    assert_eq!(carrier.bays[0].id, "bay.port");
+    assert!((carrier.bays[0].dir.length() - 1.0).abs() < 1e-6);
+    assert!(carrier.bays[0].dir.y > 0.0 && carrier.bays[1].dir.y < 0.0);
+    assert!(approx(carrier.bound_radius, 20.5));
+    assert_eq!(carrier.turrets.len(), 3);
+    let freighter = cat.hull(cat.hull_id("freighter").unwrap());
+    assert_eq!(freighter.role, "transport");
+    assert!(freighter.turrets.is_empty(), "the freighter is unarmed");
+    assert!(freighter.bays.is_empty());
+    assert!(freighter.bound_radius <= freighter.shield_radius);
+}
+
+#[test]
+fn rule13_too_many_bays() {
+    let mut text = FIGHTER.replace("bays: []", "bays:");
+    for i in 0..5 {
+        text.push_str(&format!("\n  - {{id: bay.{i}, pos: [0, 0], dir: [1, 0]}}"));
+    }
+    text.push('\n');
+    let errors = hull_errors(&text.replace("name: fighter", "name: bad"));
+    assert_rule(&errors, 13, 1);
 }
 
 #[test]
@@ -313,7 +352,8 @@ fn single_uniform_armour_arc_loads_and_equals_absent() {
 #[test]
 fn shipped_armour_arcs() {
     let cat = shipped();
-    let fighter = &cat.hulls[0];
+    let hull = |n: &str| cat.hull(cat.hull_id(n).unwrap());
+    let fighter = hull("fighter");
     let arcs: Vec<(f32, f32, f32)> = fighter
         .armour
         .iter()
@@ -331,8 +371,8 @@ fn shipped_armour_arcs() {
         assert!(approx(got.0, want.0) && approx(got.1, want.1), "{got:?}");
         assert_eq!(got.2, want.2);
     }
-    // Strafer and gunship carry no armour block: uniform 1x.
-    for hull in &cat.hulls[1..] {
+    // Every other hull carries no armour block: uniform 1x.
+    for hull in cat.hulls.iter().filter(|h| h.name != "fighter") {
         assert!(hull.armour.is_empty(), "{}", hull.name);
         assert_eq!(armour_mult(hull, PI), 1.0);
     }
@@ -352,7 +392,8 @@ fn rule12_impact_arcs_follow_the_armour_rules() {
 #[test]
 fn shipped_impact_arcs() {
     let cat = shipped();
-    let (fighter, gunship, strafer) = (&cat.hulls[0], &cat.hulls[1], &cat.hulls[2]);
+    let hull = |n: &str| cat.hull(cat.hull_id(n).unwrap());
+    let (fighter, gunship, strafer) = (hull("fighter"), hull("gunship"), hull("strafer"));
     // Fighter and strafer: nose 1.5x within +-45 deg, 1x elsewhere (engine included).
     for hull in [fighter, strafer] {
         assert_eq!(hull.impact.len(), 3, "{}", hull.name);
@@ -373,6 +414,16 @@ fn shipped_impact_arcs() {
     // Gunship: uniformly sturdier.
     for deg in [-180.0f32, -90.0, 0.0, 90.0, 180.0] {
         assert_eq!(impact_mult(gunship, deg * DEG), 0.75, "gunship at {deg}");
+        assert_eq!(
+            impact_mult(hull("freighter"), deg * DEG),
+            0.75,
+            "freighter at {deg}"
+        );
+        assert_eq!(
+            impact_mult(hull("carrier"), deg * DEG),
+            0.5,
+            "carrier at {deg}"
+        );
     }
 }
 

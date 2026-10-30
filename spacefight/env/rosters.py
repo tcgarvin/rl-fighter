@@ -39,9 +39,14 @@ import yaml  # type: ignore[import-untyped]
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ASSETS = REPO_ROOT / "assets"
 
-# Hulls a fleet pilot flies, and the most ships a side can field (MAX_SHIPS = 8).
+# Hulls a fleet pilot flies (strike craft only: carrier and freighter are capital
+# ships flown by scripts, SIM_SPEC §11), and the most ships a side can field.
 FLEET_HULLS: tuple[str, ...] = ("fighter", "strafer", "gunship")
 MAX_PER_SIDE = 4
+# Slots per match of a fleet roster env: two full sides. The sim allows more
+# (``MAX_SHIPS``, 20 since SIM_VERSION 4, for carrier hangars), but a training env
+# pads every match to its slot count, so it stays at what the rosters need.
+MAX_FLEET_SHIPS: int = 2 * MAX_PER_SIDE
 MAX_SHIPS: int = int(rlf_sim.MAX_SHIPS)
 
 _ABBREV = {"fighter": "F", "strafer": "S", "gunship": "G"}

@@ -35,7 +35,7 @@ import numpy as np
 import rlf_sim
 from numpy.typing import NDArray
 
-from spacefight.env.rosters import Roster, RosterSampler
+from spacefight.env.rosters import MAX_FLEET_SHIPS, Roster, RosterSampler
 
 SIM_VERSION: int = int(rlf_sim.SIM_VERSION)
 OBS_DIM: int = rlf_sim.OBS_DIM
@@ -185,7 +185,7 @@ class RustVecEnv:
             ``0..=MAX_REACTION_TICKS`` (a hull's own value overrides it).
         copy_outputs: Return owned copies instead of buffer views.
         max_ships: Ship slots per match (default: the size of ``fleets``, or
-            ``MAX_SHIPS`` with a sampler).
+            ``MAX_FLEET_SHIPS`` (8) with a sampler).
         roster_sampler: Draw every env's roster per episode (module docstring);
             each roster's arena radius is the shared ``arena_radius_for`` rule and
             ``arena_radius`` is ignored.
@@ -211,7 +211,7 @@ class RustVecEnv:
         roster_sampler: RosterSampler | None = None,
     ) -> None:
         if max_ships is None and roster_sampler is not None:
-            max_ships = int(rlf_sim.MAX_SHIPS)
+            max_ships = MAX_FLEET_SHIPS
         self._env = rlf_sim.VecEnv(
             str(assets_dir),
             n_envs,

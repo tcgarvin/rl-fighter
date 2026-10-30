@@ -54,11 +54,13 @@ else
 fi
 
 # The policy export checks its checkpoint against the bundle it will run with.
-read -r SIM_VERSION OBS_DIM < <(node --input-type=module -e "
+# SIM_VERSION 4+: the build also flies pilots of the versions in pilot_compat_versions().
+read -r SIM_VERSION OBS_DIM PILOT_COMPAT < <(node --input-type=module -e "
 import fs from 'node:fs';
 const sim = await import('$PKG/sim_wasm.js');
 sim.initSync({ module: fs.readFileSync('$PKG/sim_wasm_bg.wasm') });
-console.log(sim.sim_version(), sim.OBS_DIM());
+const compat = sim.pilot_compat_versions ? Array.from(sim.pilot_compat_versions()) : [sim.sim_version()];
+console.log(sim.sim_version(), sim.OBS_DIM(), compat.join(','));
 ")
 
 step "assemble $BUNDLE"
@@ -68,14 +70,15 @@ cp "$PKG/sim_wasm.js" "$PKG/sim_wasm_bg.wasm" "$BUNDLE/pkg/"
 
 step "export policy: $CHECKPOINT (sim_version $SIM_VERSION, obs_dim $OBS_DIM)"
 EXPORT_ARGS=(--checkpoint "$CHECKPOINT" --out "$BUNDLE/policy"
-    --wasm-sim-version "$SIM_VERSION" --wasm-obs-dim "$OBS_DIM")
+    --wasm-sim-version "$SIM_VERSION" --wasm-obs-dim "$OBS_DIM" --wasm-pilot-compat "$PILOT_COMPAT")
 if [[ -n "$EVAL_JSON" ]]; then
     EXPORT_ARGS+=(--eval-json "$EVAL_JSON")
 fi
 "$PYTHON" -m tools.export_policy "${EXPORT_ARGS[@]}"
 
 step "catalogue + manifest"
-BUNDLE_ARGS=(--bundle "$BUNDLE" --run "$RUN_ID" --assets assets)
+BUNDLE_ARGS=(--bundle "$BUNDLE" --run "$RUN_ID" --assets assets
+    --sim-version "$SIM_VERSION" --pilot-compat "$PILOT_COMPAT")
 [[ -n "${RLF_CHAMPION_ID:-}" ]] && BUNDLE_ARGS+=(--champion-id "$RLF_CHAMPION_ID")
 [[ -n "${RLF_CHAMPION_NAME:-}" ]] && BUNDLE_ARGS+=(--champion-name "$RLF_CHAMPION_NAME")
 [[ -n "${RLF_CHAMPION_HULLS:-}" ]] && BUNDLE_ARGS+=(--hulls "$RLF_CHAMPION_HULLS")

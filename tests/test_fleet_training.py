@@ -217,7 +217,7 @@ def test_fleet_ppo_rows_follow_each_steps_roster(tmp_path: Path) -> None:
     )
     trainer = SpikeTrainer(config, tmp_path / "run")
     assert isinstance(trainer.critic, FleetCritic)
-    assert trainer.n_ships == 8
+    assert trainer.n_ships == 8  # MAX_FLEET_SHIPS, not the sim's MAX_SHIPS
     trainer._collect(0)
     batch, _ = trainer._prepare_batch()
     store = trainer.storage

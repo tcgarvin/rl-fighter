@@ -37,6 +37,9 @@ scripts/check.sh
 # Build the Rust sim's Python extension (rlf_sim) into the venv, test, benchmark
 uv run maturin develop -m crates/sim-py/Cargo.toml --release
 uv run python -m pytest tests/test_rust_env.py -v
+uv run python -m pytest tests/test_rust_missions.py -v   # SIM_VERSION 4 missions + commander API
+# Mission timeline diagnostic (carrier battle, convoy escort, stub commanders)
+cargo test -p sim --test missions timeline -- --ignored --nocapture
 uv run python tools/bench_env.py --assert-floors
 
 # Rust gate (fmt, clippy, native + wasip1 tests, wasm-pack, rlf_sim build + tests)

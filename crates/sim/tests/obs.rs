@@ -15,7 +15,7 @@ use sim::data::{Catalogue, HullId, WeaponKind};
 use sim::math::PI;
 use sim::obs::*;
 use sim::setup::MatchConfig;
-use sim::state::{MAX_PROJECTILES, MAX_REACTION_TICKS, MAX_SHIPS, Match, Projectile};
+use sim::state::{MAX_PROJECTILES, MAX_REACTION_TICKS, Match, Projectile};
 
 const EPS: f32 = 1e-5;
 
@@ -91,7 +91,7 @@ fn block_offsets_match_spec() {
     );
     assert_eq!(
         (N_NEAR_SHIPS, N_NEAR_PROJ, N_PENDING_SLOTS),
-        (MAX_SHIPS - 1, 8, MAX_REACTION_TICKS)
+        (7, 8, MAX_REACTION_TICKS)
     );
     assert_eq!(
         (

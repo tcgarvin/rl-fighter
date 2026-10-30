@@ -70,8 +70,11 @@ pub const N_THRUSTER_SLOTS: usize = MAX_THRUSTERS;
 pub const TURRET_W: usize = 10;
 pub const N_TURRET_SLOTS: usize = MAX_TURRETS;
 pub const SHIP_W: usize = 12;
-/// Other active ships observed: every other slot of a full match.
-pub const N_NEAR_SHIPS: usize = MAX_SHIPS - 1;
+/// Other active ships observed, nearest first. v2 sized it as every other slot of an
+/// 8-ship match; v4 raises `MAX_SHIPS` to 20 but keeps 7, so the obs layout (and
+/// pilot v1) is unchanged: a pilot sees its 7 nearest present ships.
+pub const N_NEAR_SHIPS: usize = 7;
+const _: () = assert!(N_NEAR_SHIPS < MAX_SHIPS);
 pub const PROJ_W: usize = 8;
 /// Hostile live projectiles observed, most threatening first.
 pub const N_NEAR_PROJ: usize = 8;

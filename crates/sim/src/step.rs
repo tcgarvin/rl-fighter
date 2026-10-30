@@ -7,9 +7,7 @@
 use crate::actions::ShipAction;
 use crate::data::Catalogue;
 use crate::events::Event;
-use crate::state::{
-    MAX_REACTION_TICKS, MAX_SHIPS, MAX_THRUSTERS, Match, MatchPhase, ShipIdx, WINNER_DRAW,
-};
+use crate::state::{MAX_REACTION_TICKS, MAX_SHIPS, MAX_THRUSTERS, Match, MatchPhase, ShipIdx};
 
 /// Team values closer than this at the time limit are a draw (§5.8).
 pub const VALUE_TIE_EPS: f32 = 1e-3;
@@ -33,6 +31,10 @@ impl Match {
         if self.phase == MatchPhase::Over {
             return;
         }
+
+        // 1b. v4: the commanders' slow tick: squads, orders, waypoints, launches
+        // (command.rs).
+        self.step_commanders(cat);
 
         // 2. Arrivals (arrival.rs); this file emits their events.
         let mut arrived: Vec<ShipIdx> = Vec::new();
@@ -67,8 +69,10 @@ impl Match {
         self.apply_arena(cat);
         // 12. Deaths.
         self.resolve_deaths();
-        // 13. Termination and winner.
-        self.check_termination();
+        // 12b. v4: mission rules: a lost carrier's hangar, convoy jumps (mission.rs).
+        self.step_mission_rules();
+        // 13. Termination, winner and end reason per mission (mission.rs).
+        self.check_termination(cat);
         // 14. Rewards, including the terminal term (reward.rs).
         self.compute_rewards(&earning);
     }
@@ -93,40 +97,14 @@ impl Match {
         }
     }
 
-    /// Stage 13 (§5.8): the match is over when a team has no alive ships (pending
-    /// arrivals count as alive) — winner the surviving team, or a draw if both are
-    /// gone — or at the time limit, where the higher team value
-    /// `Σ_alive (hp + 0.5 * shield)` wins and values within `VALUE_TIE_EPS` draw.
-    pub fn check_termination(&mut self) {
-        let mut alive = [0u32; 2];
-        for s in self.ships.iter().filter(|s| s.alive) {
-            alive[s.team as usize] += 1;
-        }
-        let winner = match alive {
-            [0, 0] => WINNER_DRAW,
-            [0, _] => 1,
-            [_, 0] => 0,
-            _ if self.tick >= self.cfg.time_limit_ticks => {
-                let [v0, v1] = self.team_values();
-                if (v0 - v1).abs() < VALUE_TIE_EPS {
-                    WINNER_DRAW
-                } else if v0 > v1 {
-                    0
-                } else {
-                    1
-                }
-            }
-            _ => return,
-        };
-        self.phase = MatchPhase::Over;
-        self.winner = winner;
-    }
-
-    /// Time-limit tiebreak value per team: `Σ_alive (hp + 0.5 * shield)`, slot order.
+    /// Time-limit tiebreak value per team: `Σ (hp + 0.5 * shield)` over the ships
+    /// still in the match (alive, not jumped out; v4), slot order.
     pub fn team_values(&self) -> [f32; 2] {
         let mut v = [0.0f32; 2];
-        for s in self.ships.iter().filter(|s| s.alive) {
-            v[s.team as usize] += s.hp + VALUE_SHIELD_WEIGHT * s.shield;
+        for (i, s) in self.ships.iter().enumerate() {
+            if self.in_match(i) {
+                v[s.team as usize] += s.hp + VALUE_SHIELD_WEIGHT * s.shield;
+            }
         }
         v
     }

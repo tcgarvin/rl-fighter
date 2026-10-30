@@ -389,15 +389,27 @@ def fetch(
     return cached
 
 
-def watchable(champions: Sequence[Champion]) -> list[Champion]:
-    """Past champions the live page can replay: those of the current one's sim season.
+def pilot_compat_versions() -> tuple[int, ...]:
+    """Sim versions whose pilots fly in the installed sim build
+    (``rlf_sim.PILOT_COMPAT_VERSIONS``, SIM_SPEC §0.2)."""
+    import rlf_sim
 
-    A bundle carries the current sim build, and pilots only fly in their own season.
+    return tuple(int(v) for v in rlf_sim.PILOT_COMPAT_VERSIONS)
+
+
+def watchable(
+    champions: Sequence[Champion], compat: Sequence[int] | None = None
+) -> list[Champion]:
+    """Past champions the live page can replay with the current sim build.
+
+    A bundle carries the current sim build, and a pilot flies in it if its sim
+    version is one of the build's pilot-compatible versions (``compat``, default
+    ``rlf_sim.PILOT_COMPAT_VERSIONS``; SIM_VERSION 4 still flies v3 pilots).
     """
     if not champions:
         return []
-    current = champions[-1]
-    return [c for c in champions[:-1] if c.sim_version == current.sim_version]
+    versions = set(pilot_compat_versions() if compat is None else compat)
+    return [c for c in champions[:-1] if c.sim_version in versions]
 
 
 def build_env(champion: Champion, checkpoint: Path) -> dict[str, str]:

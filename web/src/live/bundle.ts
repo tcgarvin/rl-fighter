@@ -23,7 +23,10 @@ export interface ChampionEval {
 export interface BundleManifest {
   schema: string;
   bundle_id: string;
+  /** The wasm build's sim version. */
   sim_version: number;
+  /** The policy's (training) sim version; absent in bundles before SIM_VERSION 4. */
+  pilot_sim_version?: number;
   champion: {
     id: string;
     name: string;
@@ -60,6 +63,7 @@ export function parseManifest(raw: unknown): BundleManifest {
   const { champion, match, roster } = raw;
   need(typeof raw.bundle_id === "string" && raw.bundle_id.length > 0, "bundle_id", 0);
   need(Number.isInteger(raw.sim_version), "sim_version", 0);
+  need(raw.pilot_sim_version === undefined || Number.isInteger(raw.pilot_sim_version), "pilot_sim_version", 0);
   need(isRecord(champion) && typeof champion.id === "string" && typeof champion.run === "string", "champion", 0);
   need(isRecord(champion) && Array.isArray(champion.hulls) && champion.hulls.length > 0, "champion.hulls", 0);
   need(isRecord(match) && [match.arena_radius, match.time_limit_ticks, match.reaction_ticks].every((v) => typeof v === "number"), "match", 0);
@@ -82,6 +86,8 @@ export function assembleBundle(
 ): Bundle {
   const layout = simLayout(sim);
   if (layout.simVersion !== manifest.sim_version) throw new Error(`bundle says sim_version ${manifest.sim_version}, its wasm is ${layout.simVersion}`);
+  const pilot = manifest.pilot_sim_version ?? manifest.sim_version;
+  if (!layout.pilotCompat.includes(pilot)) throw new Error(`bundle pilot is for sim_version ${pilot}; this wasm flies pilots of ${layout.pilotCompat.join(", ")}`);
   const policy = createPolicy(policyManifest, weights, layout);
   for (const hull of manifest.roster.hulls) {
     if (!catalogue.info[hull]) throw new Error(`roster hull ${hull} is not in the catalogue`);

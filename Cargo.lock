@@ -494,6 +494,7 @@ dependencies = [
  "rand_pcg",
  "serde",
  "serde-saphyr",
+ "serde_json",
  "sim",
 ]
 

@@ -16,6 +16,8 @@
 //! levels are projected through the queued actions, and fire readiness is checked
 //! for the application tick.
 
+pub mod capital;
+pub mod commander;
 pub mod fighter;
 pub mod gunship;
 pub mod strafer;
@@ -94,6 +96,9 @@ enum Role {
     Fighter,
     Skirmisher,
     Anchor,
+    /// v4: capital ships, flown to their waypoint (`capital.rs`).
+    Carrier,
+    Transport,
 }
 
 impl Role {
@@ -102,6 +107,8 @@ impl Role {
             "fighter" => Some(Role::Fighter),
             "skirmisher" => Some(Role::Skirmisher),
             "anchor" => Some(Role::Anchor),
+            crate::mission::ROLE_CARRIER => Some(Role::Carrier),
+            crate::mission::ROLE_TRANSPORT => Some(Role::Transport),
             _ => None,
         }
     }
@@ -151,6 +158,11 @@ pub fn act(m: &Match, cat: &Catalogue, ship: ShipIdx) -> ShipAction {
     let Some(role) = Role::of(&hull.role) else {
         return ShipAction::IDLE;
     };
+    match role {
+        Role::Carrier => return capital::carrier(m, cat, me, hull),
+        Role::Transport => return capital::transport(m, me, hull),
+        Role::Fighter | Role::Skirmisher | Role::Anchor => {}
+    }
     let Some(target) = pick_target(m, cat, me, role) else {
         return ShipAction::IDLE;
     };
@@ -164,6 +176,7 @@ pub fn act(m: &Match, cat: &Catalogue, ship: ShipIdx) -> ShipAction {
         Role::Fighter => fighter::manoeuvre(me, &eng),
         Role::Skirmisher => strafer::manoeuvre(me, &eng),
         Role::Anchor => gunship::manoeuvre(&eng),
+        Role::Carrier | Role::Transport => unreachable!("capital roles returned above"),
     };
     if me.pos.length() > ARENA_TURN_BACK * m.cfg.arena_radius {
         plan = Manoeuvre {

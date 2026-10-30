@@ -4,13 +4,19 @@
 
 use serde::Deserialize;
 use sim::actions::{self, ACTION_WIDTH, ShipAction};
+use sim::command::{CommanderMode, MAX_SQUADS, Order, Waypoint};
 use sim::data::{Catalogue, HullId};
+use sim::mission::{JumpState, Mission, is_carrier, is_transport};
 use sim::obs::OBS_DIM;
 use sim::scripted;
 use sim::setup::{
     DEFAULT_ARENA_RADIUS, DEFAULT_REACTION_TICKS, DEFAULT_TIME_LIMIT_TICKS, MatchConfig,
 };
-use sim::state::{MAX_THRUSTERS, MAX_TURRETS, Match, ShipIdx};
+use sim::spec::{
+    CommandSpec, CommanderObsView, MissionSpec, MissionStateView, OutcomeView, parse_commanders,
+    to_json,
+};
+use sim::state::{Attach, MAX_THRUSTERS, MAX_TURRETS, Match, NONE, ShipIdx};
 
 /// Floats per ship in the ships view:
 /// `[pos.x, pos.y, vel.x, vel.y, heading, omega, hp, shield, alive, present, team,
@@ -32,6 +38,28 @@ pub const SHIP_POWER_OFFSET: usize = SHIP_TURRET_OFFSET + MAX_TURRETS;
 const _: () = assert!(SHIP_POWER_OFFSET + 3 == SHIP_STRIDE);
 const _: () = assert!(SHIP_STRIDE == 29);
 
+/// v4: floats per ship in the mission view (`ship_ext_*`), same ship order as the
+/// ships view: `[role, docked, parent, jump, charge_until, has_waypoint, waypoint.x,
+/// waypoint.y, squad, order_kind]`. `role` 0 strike craft (or any other role), 1
+/// carrier, 2 transport; `parent` the carrier a docked ship waits in, else -1; `jump`
+/// 0 idle, 1 charging (until tick `charge_until`), 2 jumped out (escaped); `squad`
+/// its squad index in its team or -1, `order_kind` that squad's order (0 none, 1
+/// attack, 2 guard, 3 hold).
+pub const SHIP_EXT_STRIDE: usize = 10;
+/// v4: floats per squad in `squads()`, team 0's `MAX_SQUADS` then team 1's:
+/// `[team, index, n_members, members_mask, order_kind, target, point.x, point.y,
+/// radius]`; `target` the attacked or guarded slot or -1; `point` the hold point or
+/// the target's position now; `members_mask` bit `s` = slot `s` (exact in f32).
+pub const SQUAD_STRIDE: usize = 9;
+/// v4: floats in `team_state(team)`: `[carrier_slot, carrier_hp, carrier_max_hp,
+/// carrier_shield, carrier_max_shield, hangar_count, bays, bays_ready]` (carrier
+/// fields -1/0 without a carrier).
+pub const TEAM_STRIDE: usize = 8;
+/// v4: floats in `convoy()` during a convoy escort (empty otherwise): `[total,
+/// en_route, charging, escaped, destroyed, to_destroy, to_escape, progress, start.x,
+/// start.y, jump_point.x, jump_point.y, jump_radius, charge_ticks]`.
+pub const CONVOY_STRIDE: usize = 14;
+
 /// `config_json` schema (SIM_SPEC §10.2): `MatchConfig` with hull names.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -45,6 +73,13 @@ struct ConfigJson {
     #[serde(default = "default_reaction_ticks")]
     reaction_ticks: u8,
     fleets: [Vec<String>; 2],
+    /// v4: a kind name (`"carrier_battle"`) or a mission spec object (SIM_SPEC
+    /// §10.3); absent is deathmatch.
+    #[serde(default)]
+    mission: Option<serde_json::Value>,
+    /// v4: `["scripted", "external"]`; absent is both scripted.
+    #[serde(default)]
+    commanders: Option<Vec<String>>,
 }
 
 fn default_arena_radius() -> f32 {
@@ -72,12 +107,25 @@ pub fn parse_config(cat: &Catalogue, config_json: &str) -> Result<MatchConfig, S
             })
             .collect()
     };
+    let mission = match &raw.mission {
+        None => Mission::Deathmatch,
+        Some(serde_json::Value::String(name)) => MissionSpec::parse(name)?.build(raw.arena_radius),
+        Some(spec) => serde_json::from_value::<MissionSpec>(spec.clone())
+            .map_err(|e| format!("config_json: mission: {e}"))?
+            .build(raw.arena_radius),
+    };
+    let commanders = match &raw.commanders {
+        None => [CommanderMode::Scripted; 2],
+        Some(names) => parse_commanders(names).map_err(|e| format!("config_json: {e}"))?,
+    };
     Ok(MatchConfig {
         seed: raw.seed,
         arena_radius: raw.arena_radius,
         time_limit_ticks: raw.time_limit_ticks,
         reaction_ticks: raw.reaction_ticks,
         fleets: [resolve(0)?, resolve(1)?],
+        mission,
+        commanders,
     })
 }
 
@@ -86,8 +134,20 @@ pub struct MatchCore {
     cat: Catalogue,
     m: Match,
     ships: Vec<f32>,
+    ship_ext: Vec<f32>,
     projectiles: Vec<f32>,
     events: Vec<f32>,
+}
+
+fn slot_f(s: ShipIdx) -> f32 {
+    if s == NONE { -1.0 } else { f32::from(s) }
+}
+
+fn check_team(team: u32) -> Result<u8, String> {
+    match team {
+        0 | 1 => Ok(team as u8),
+        t => Err(format!("team must be 0 or 1, got {t}")),
+    }
 }
 
 impl MatchCore {
@@ -108,6 +168,7 @@ impl MatchCore {
             cat,
             m,
             ships: Vec::new(),
+            ship_ext: Vec::new(),
             projectiles: Vec::new(),
             events: Vec::new(),
         };
@@ -182,6 +243,154 @@ impl MatchCore {
         &self.ships
     }
 
+    /// v4: the per-ship mission view (`SHIP_EXT_STRIDE` floats per ship).
+    pub fn ship_ext_view(&self) -> &[f32] {
+        &self.ship_ext
+    }
+
+    /// v4: `MissionKind` code (0 deathmatch, 1 carrier battle, 2 convoy escort).
+    pub fn mission_kind(&self) -> u8 {
+        self.m.cfg.mission.kind().index()
+    }
+
+    /// v4: `EndReason` code (0 not over, 1 eliminated, 2 time limit, 3 carrier
+    /// destroyed, 4 convoy through, 5 convoy destroyed).
+    pub fn end_reason(&self) -> u8 {
+        self.m.mission.end_reason.index()
+    }
+
+    /// v4: whether the next `step` is a slow (command) tick.
+    pub fn command_due(&self) -> bool {
+        self.m.command_due()
+    }
+
+    /// v4: queue commands (a JSON command object or array, SIM_SPEC §10.3) for
+    /// `team`'s next slow tick; only used if that team's commander is external.
+    pub fn submit_commands(&mut self, team: u32, json: &str) -> Result<(), String> {
+        let team = check_team(team)?;
+        let cmds = CommandSpec::parse_list(json)?
+            .iter()
+            .map(|c| c.to_command(&self.cat))
+            .collect::<Result<Vec<_>, _>>()?;
+        for c in cmds {
+            self.m.submit_command(team, c);
+        }
+        Ok(())
+    }
+
+    /// v4: JSON array of `team`'s command outcomes on the last slow tick.
+    pub fn command_results_json(&self, team: u32) -> Result<String, String> {
+        let views: Vec<OutcomeView> = self
+            .m
+            .command_results(check_team(team)?)
+            .iter()
+            .map(OutcomeView::of)
+            .collect();
+        Ok(to_json(&views))
+    }
+
+    /// v4: JSON of `team`'s commander observation.
+    pub fn commander_obs_json(&self, team: u32) -> Result<String, String> {
+        let obs = self.m.commander_obs(&self.cat, check_team(team)?);
+        Ok(to_json(&CommanderObsView::of(&self.m, &self.cat, &obs)))
+    }
+
+    /// v4: JSON of the whole mission and command state (debugging, the log).
+    pub fn mission_state_json(&self) -> String {
+        to_json(&MissionStateView::of(&self.m, &self.cat))
+    }
+
+    /// v4: every squad, `SQUAD_STRIDE` floats each (team 0's then team 1's).
+    pub fn squads(&self) -> Vec<f32> {
+        let mut out = Vec::with_capacity(2 * MAX_SQUADS * SQUAD_STRIDE);
+        for team in 0..2u8 {
+            for (k, sq) in self.m.command.squads[usize::from(team)].iter().enumerate() {
+                let (target, point, radius) = match sq.order {
+                    Order::None => (NONE, [0.0, 0.0], 0.0),
+                    Order::Attack { target } | Order::Guard { ward: target } => {
+                        let p = self.m.ships()[usize::from(target)].pos;
+                        (target, [p.x, p.y], 0.0)
+                    }
+                    Order::Hold { point, radius } => (NONE, [point.x, point.y], radius),
+                };
+                out.extend_from_slice(&[
+                    f32::from(team),
+                    k as f32,
+                    sq.len() as f32,
+                    sq.members as f32,
+                    f32::from(sq.order.kind()),
+                    slot_f(target),
+                    point[0],
+                    point[1],
+                    radius,
+                ]);
+            }
+        }
+        out
+    }
+
+    /// v4: `team`'s carrier and hangar, `TEAM_STRIDE` floats.
+    pub fn team_state(&self, team: u32) -> Result<Vec<f32>, String> {
+        let t = check_team(team)?;
+        let c = self.m.carrier_of(t);
+        let hangar = self.m.hangar(t).len() as f32;
+        if c == NONE {
+            return Ok(vec![-1.0, 0.0, 0.0, 0.0, 0.0, hangar, 0.0, 0.0]);
+        }
+        let ship = &self.m.ships()[usize::from(c)];
+        let hull = self.cat.hull(ship.hull);
+        let ready = (0..hull.bays.len())
+            .filter(|&b| {
+                ship.active() && self.m.tick() >= self.m.mission.bay_ready[usize::from(t)][b]
+            })
+            .count();
+        Ok(vec![
+            f32::from(c),
+            ship.hp,
+            hull.hp,
+            ship.shield,
+            hull.shield.map_or(0.0, |s| s.hp),
+            hangar,
+            hull.bays.len() as f32,
+            ready as f32,
+        ])
+    }
+
+    /// v4: hull ids of `team`'s docked reserves, in launch order.
+    pub fn hangar_hulls(&self, team: u32) -> Result<Vec<u16>, String> {
+        let t = check_team(team)?;
+        Ok(self
+            .m
+            .hangar(t)
+            .iter()
+            .map(|&s| self.m.ships()[usize::from(s)].hull)
+            .collect())
+    }
+
+    /// v4: the convoy, `CONVOY_STRIDE` floats (empty outside a convoy escort).
+    pub fn convoy(&self) -> Vec<f32> {
+        let Mission::ConvoyEscort(ce) = &self.m.cfg.mission else {
+            return Vec::new();
+        };
+        let st = self.m.convoy_status();
+        vec![
+            f32::from(st.total),
+            f32::from(st.en_route),
+            f32::from(st.charging),
+            f32::from(st.escaped),
+            f32::from(st.destroyed),
+            f32::from(st.to_destroy),
+            f32::from(st.to_escape),
+            st.progress,
+            ce.start.x,
+            ce.start.y,
+            ce.jump_point.x,
+            ce.jump_point.y,
+            ce.jump_radius,
+            ce.charge_ticks as f32,
+        ]
+    }
+
     pub fn projectiles_view(&self) -> &[f32] {
         &self.projectiles
     }
@@ -227,6 +436,45 @@ impl MatchCore {
             self.ships.extend_from_slice(&s.thrust_level);
             self.ships.extend_from_slice(&s.turret_angle);
             self.ships.extend_from_slice(&s.power);
+        }
+        self.ship_ext.clear();
+        for s in self.m.ships() {
+            let hull = self.cat.hull(s.hull);
+            let role = if is_carrier(hull) {
+                1.0
+            } else if is_transport(hull) {
+                2.0
+            } else {
+                0.0
+            };
+            let (jump, until) = match self.m.jump_state(s.slot) {
+                JumpState::Idle => (0.0, 0.0),
+                JumpState::Charging { until } => (1.0, until as f32),
+                JumpState::Departed => (2.0, 0.0),
+            };
+            let (has_wp, wp) = match self.m.command.waypoints[usize::from(s.slot)] {
+                Waypoint::Unset => (0.0, [0.0, 0.0]),
+                Waypoint::At(p) => (1.0, [p.x, p.y]),
+            };
+            let (squad, order) = match self.m.squad_of(s.slot) {
+                Some(k) => {
+                    let sq = &self.m.command.squads[usize::from(s.team)][usize::from(k)];
+                    (f32::from(k), f32::from(sq.order.kind()))
+                }
+                None => (-1.0, 0.0),
+            };
+            self.ship_ext.extend_from_slice(&[
+                role,
+                b(s.attach == Attach::Docked),
+                slot_f(s.parent),
+                jump,
+                until,
+                has_wp,
+                wp[0],
+                wp[1],
+                squad,
+                order,
+            ]);
         }
         self.projectiles.clear();
         for (slot, p) in self.m.projectiles().iter().enumerate() {

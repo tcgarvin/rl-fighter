@@ -10,16 +10,54 @@ use numpy::{
 };
 use pyo3::exceptions::{PyIndexError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList};
+use pyo3::types::{PyAnyMethods, PyDict, PyList, PyString};
 use sim::actions::ACTION_WIDTH;
 use sim::actions::act_mask;
+use sim::command::CommanderMode;
 use sim::data::{Catalogue, HullId};
 use sim::events::EVENT_STRIDE;
+use sim::mission::Mission;
 use sim::obs::OBS_DIM;
+use sim::spec::{
+    CommandSpec, CommanderObsView, MissionSpec, MissionStateView, OutcomeView, parse_commanders,
+    to_json,
+};
 use sim::state::{MAX_HITS, MAX_REACTION_TICKS, MAX_SHIPS, MAX_THRUSTERS, MAX_TURRETS, MatchPhase};
 use sim::{DT, TICK_HZ};
 
 use crate::batch::{Batch, BatchConfig, HIT_FIELDS, Roster, StepBuffers};
+
+/// JSON text of a Python object (`json.dumps`), for the shared serde specs.
+fn json_dumps(py: Python<'_>, obj: &Bound<'_, PyAny>) -> PyResult<String> {
+    py.import("json")?
+        .call_method1("dumps", (obj,))?
+        .extract::<String>()
+}
+
+/// Python object from JSON text (`json.loads`).
+fn json_loads<'py>(py: Python<'py>, text: &str) -> PyResult<Bound<'py, PyAny>> {
+    py.import("json")?.call_method1("loads", (text,))
+}
+
+/// A mission from `None` (deathmatch), a kind name (`"carrier_battle"`) or a dict
+/// spec (SIM_SPEC §10.3), defaults filled for `arena_radius`.
+fn mission_from_py(
+    py: Python<'_>,
+    obj: Option<&Bound<'_, PyAny>>,
+    arena_radius: f32,
+) -> PyResult<Mission> {
+    let Some(obj) = obj else {
+        return Ok(Mission::Deathmatch);
+    };
+    let text = if obj.is_instance_of::<PyString>() {
+        obj.extract::<String>()?
+    } else {
+        json_dumps(py, obj)?
+    };
+    MissionSpec::parse(&text)
+        .map(|spec| spec.build(arena_radius))
+        .map_err(PyValueError::new_err)
+}
 
 /// Borrow `arr` mutably as a flat slice, or explain why not (another Rust borrow is
 /// live, or the user made the array read-only).
@@ -87,6 +125,7 @@ pub struct VecEnv {
     rewards: Py<PyArray2<f32>>,
     dones: Py<PyArray1<bool>>,
     winner: Py<PyArray1<i8>>,
+    end_reason: Py<PyArray1<i8>>,
     act_mask: Py<PyArray2<bool>>,
     thruster_mask: Py<PyArray3<bool>>,
     turret_mask: Py<PyArray3<bool>>,
@@ -110,6 +149,7 @@ macro_rules! with_step_buffers {
         let rewards = $self.rewards.bind($py);
         let dones = $self.dones.bind($py);
         let winner = $self.winner.bind($py);
+        let end_reason = $self.end_reason.bind($py);
         let act_mask = $self.act_mask.bind($py);
         let alive = $self.alive.bind($py);
         let tick = $self.tick.bind($py);
@@ -130,6 +170,7 @@ macro_rules! with_step_buffers {
         let mut rewards = borrow_mut(rewards, "rewards")?;
         let mut dones = borrow_mut(dones, "dones")?;
         let mut winner = borrow_mut(winner, "winner")?;
+        let mut end_reason = borrow_mut(end_reason, "end_reason")?;
         let mut act_mask = borrow_mut(act_mask, "act_mask")?;
         let mut alive = borrow_mut(alive, "alive")?;
         let mut tick = borrow_mut(tick, "tick")?;
@@ -151,6 +192,7 @@ macro_rules! with_step_buffers {
             rewards: as_slice(&mut rewards, "rewards")?,
             dones: as_slice(&mut dones, "dones")?,
             winner: as_slice(&mut winner, "winner")?,
+            end_reason: as_slice(&mut end_reason, "end_reason")?,
             act_mask: as_slice(&mut act_mask, "act_mask")?,
             alive: as_slice(&mut alive, "alive")?,
             tick: as_slice(&mut tick, "tick")?,
@@ -169,7 +211,27 @@ macro_rules! with_step_buffers {
     }};
 }
 
+fn check_team(team: i64) -> PyResult<u8> {
+    match team {
+        0 | 1 => Ok(team as u8),
+        t => Err(PyValueError::new_err(format!(
+            "team must be 0 or 1, got {t}"
+        ))),
+    }
+}
+
 impl VecEnv {
+    fn check_index(&self, i: i64) -> PyResult<usize> {
+        let n = self.batch.n_envs() as i64;
+        if (0..n).contains(&i) {
+            Ok(i as usize)
+        } else {
+            Err(PyIndexError::new_err(format!(
+                "match index {i} out of range for {n} envs"
+            )))
+        }
+    }
+
     fn copy_actions_in(&self, py: Python<'_>, src: &Bound<'_, PyAny>) -> PyResult<()> {
         let n = self.batch.n_envs();
         let s = self.batch.n_ships();
@@ -205,9 +267,12 @@ impl VecEnv {
     /// `reaction_ticks` is the match-wide action delay `d` in `0..=MAX_REACTION_TICKS`
     /// (a hull's own `reaction_ticks` overrides it). `max_ships` is the number of
     /// ship slots per match (default: the size of `fleets`, at most `MAX_SHIPS`);
-    /// rosters queued later with `set_next_roster` must fit in it.
+    /// rosters queued later with `set_next_roster` must fit in it. v4: `mission` is
+    /// `None` (deathmatch, the v3 match), a kind name or a dict spec (SIM_SPEC §10.3);
+    /// `commanders` names each team's commander mode, `"scripted"` (default) or
+    /// `"external"` (commands via `submit_command`).
     #[new]
-    #[pyo3(signature = (assets_dir, n_envs, fleets, seed, arena_radius=450.0, time_limit_s=90.0, n_threads=0, record_events=false, reaction_ticks=2, max_ships=None))]
+    #[pyo3(signature = (assets_dir, n_envs, fleets, seed, arena_radius=450.0, time_limit_s=90.0, n_threads=0, record_events=false, reaction_ticks=2, max_ships=None, mission=None, commanders=None))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         py: Python<'_>,
@@ -221,6 +286,8 @@ impl VecEnv {
         record_events: bool,
         reaction_ticks: i64,
         max_ships: Option<i64>,
+        mission: Option<&Bound<'_, PyAny>>,
+        commanders: Option<Vec<String>>,
     ) -> PyResult<Self> {
         if n_envs < 1 {
             return Err(PyValueError::new_err(format!(
@@ -249,6 +316,11 @@ impl VecEnv {
         let cat = Catalogue::load_dir(Path::new(assets_dir))
             .map_err(|e| PyValueError::new_err(format!("loading {assets_dir:?}: {e}")))?;
         let fleets = resolve_fleets(&cat, &fleets)?;
+        let mission = mission_from_py(py, mission, arena_radius)?;
+        let commanders = match commanders {
+            None => [CommanderMode::Scripted; 2],
+            Some(names) => parse_commanders(&names).map_err(PyValueError::new_err)?,
+        };
         let total = fleets[0].len() + fleets[1].len();
         let n_ships = match max_ships {
             None => total,
@@ -270,10 +342,12 @@ impl VecEnv {
                 roster: Roster {
                     fleets,
                     arena_radius,
+                    mission,
                 },
                 n_ships,
                 n_threads: n_threads as usize,
                 record_events,
+                commanders,
             },
         )
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
@@ -285,6 +359,7 @@ impl VecEnv {
             rewards: PyArray2::zeros(py, [n, s], false).unbind(),
             dones: PyArray1::zeros(py, [n], false).unbind(),
             winner: PyArray1::zeros(py, [n], false).unbind(),
+            end_reason: PyArray1::zeros(py, [n], false).unbind(),
             act_mask: PyArray2::zeros(py, [n, s], false).unbind(),
             thruster_mask: PyArray3::zeros(py, [n, s, MAX_THRUSTERS], false).unbind(),
             turret_mask: PyArray3::zeros(py, [n, s, MAX_TURRETS], false).unbind(),
@@ -307,12 +382,17 @@ impl VecEnv {
     /// `reset()`) and every match after that is `fleets[0]` vs `fleets[1]` in an
     /// arena of `arena_radius` metres. Replaces a roster queued earlier; the current
     /// match is untouched. Raises ValueError for unknown hulls, an empty team, more
-    /// ships than `n_ships` or a bad radius, and IndexError for a bad `i`.
+    /// ships than `n_ships`, a bad radius or fleets that do not fit the mission, and
+    /// IndexError for a bad `i`. v4: `mission` as in the constructor (default
+    /// deathmatch).
+    #[pyo3(signature = (i, fleets, arena_radius, mission=None))]
     fn set_next_roster(
         &mut self,
+        py: Python<'_>,
         i: i64,
         fleets: Vec<Vec<String>>,
         arena_radius: f32,
+        mission: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<()> {
         let n = self.batch.n_envs() as i64;
         if !(0..n).contains(&i) {
@@ -321,12 +401,14 @@ impl VecEnv {
             )));
         }
         let fleets = resolve_fleets(self.batch.catalogue(), &fleets)?;
+        let mission = mission_from_py(py, mission, arena_radius)?;
         self.batch
             .set_next_roster(
                 i as usize,
                 Roster {
                     fleets,
                     arena_radius,
+                    mission,
                 },
             )
             .map_err(|e| PyValueError::new_err(e.to_string()))
@@ -375,6 +457,81 @@ impl VecEnv {
         Ok(())
     }
 
+    /// v4: queue commands for team `team` of match `i`, applied on that match's next
+    /// slow tick (`command_due`). `commands` is one command dict or a list of them
+    /// (SIM_SPEC §10.3). Only an `"external"` team's commands are used; the queue is
+    /// dropped if the match ends first.
+    fn submit_command(
+        &mut self,
+        py: Python<'_>,
+        i: i64,
+        team: i64,
+        commands: &Bound<'_, PyAny>,
+    ) -> PyResult<()> {
+        let i = self.check_index(i)?;
+        let team = check_team(team)?;
+        let text = json_dumps(py, commands)?;
+        let specs = CommandSpec::parse_list(&text).map_err(PyValueError::new_err)?;
+        let cmds = specs
+            .iter()
+            .map(|c| c.to_command(self.batch.catalogue()))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(PyValueError::new_err)?;
+        let m = self.batch.match_at_mut(i);
+        for c in cmds {
+            m.submit_command(team, c);
+        }
+        Ok(())
+    }
+
+    /// v4: `bool[N]`, whether each match's next step is a slow (command) tick.
+    fn command_due<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<bool>> {
+        let out: Vec<bool> = (0..self.batch.n_envs())
+            .map(|i| self.batch.match_at(i).command_due())
+            .collect();
+        out.into_pyarray(py)
+    }
+
+    /// v4: outcomes of team `team`'s commands on match `i`'s last slow tick, a list
+    /// of dicts (`command`, `outcome`, and `ship`/`bay` or `reason`).
+    fn command_results<'py>(
+        &self,
+        py: Python<'py>,
+        i: i64,
+        team: i64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let m = self.batch.match_at(self.check_index(i)?);
+        let views: Vec<OutcomeView> = m
+            .command_results(check_team(team)?)
+            .iter()
+            .map(OutcomeView::of)
+            .collect();
+        json_loads(py, &to_json(&views))
+    }
+
+    /// v4: team `team`'s commander observation of match `i` (a dict; SIM_SPEC §5.9).
+    fn commander_obs<'py>(
+        &self,
+        py: Python<'py>,
+        i: i64,
+        team: i64,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let m = self.batch.match_at(self.check_index(i)?);
+        let cat = self.batch.catalogue();
+        let obs = m.commander_obs(cat, check_team(team)?);
+        json_loads(py, &to_json(&CommanderObsView::of(m, cat, &obs)))
+    }
+
+    /// v4: match `i`'s mission and command state (a dict: mission, end reason,
+    /// carriers, hangars, bay cooldowns, squads, convoy, per-ship mission fields).
+    fn mission_state<'py>(&self, py: Python<'py>, i: i64) -> PyResult<Bound<'py, PyAny>> {
+        let m = self.batch.match_at(self.check_index(i)?);
+        json_loads(
+            py,
+            &to_json(&MissionStateView::of(m, self.batch.catalogue())),
+        )
+    }
+
     /// Per-match determinism hash (SIM_SPEC §12), a new `uint64[N]` array.
     fn state_hash<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<u64>> {
         let mut out = vec![0u64; self.batch.n_envs()];
@@ -404,6 +561,8 @@ impl VecEnv {
         )?;
         out.set_item("winner", m.winner())?;
         out.set_item("arena_radius", m.cfg.arena_radius)?;
+        out.set_item("mission", m.cfg.mission.kind().name())?;
+        out.set_item("end_reason", m.mission.end_reason.name())?;
         let ships = PyList::empty(py);
         for s in m.ships() {
             let hull = cat.hull(s.hull);
@@ -412,6 +571,12 @@ impl VecEnv {
             d.set_item("team", s.team)?;
             d.set_item("hull", hull.name.as_str())?;
             d.set_item("hull_id", s.hull)?;
+            d.set_item("role", hull.role.as_str())?;
+            d.set_item("docked", s.attach == sim::state::Attach::Docked)?;
+            d.set_item(
+                "escaped",
+                m.jump_state(s.slot) == sim::mission::JumpState::Departed,
+            )?;
             d.set_item("pos", (s.pos.x, s.pos.y))?;
             d.set_item("vel", (s.vel.x, s.vel.y))?;
             d.set_item("heading", s.heading)?;
@@ -517,6 +682,12 @@ impl VecEnv {
     #[getter]
     fn winner(&self, py: Python<'_>) -> Py<PyArray1<i8>> {
         self.winner.clone_ref(py)
+    }
+    /// v4: `EndReason` code of the match that ended on the last step (`[N] i8`; 0
+    /// while running; `rlf_sim.END_REASONS` names them).
+    #[getter]
+    fn end_reason(&self, py: Python<'_>) -> Py<PyArray1<i8>> {
+        self.end_reason.clone_ref(py)
     }
     #[getter]
     fn act_mask(&self, py: Python<'_>) -> Py<PyArray2<bool>> {

@@ -229,7 +229,13 @@ training, the fleet eval and the live page all call (`rlf_sim.arena_radius_for`,
 `arenaRadiusFor` in the WASM build). It is 450 m for every fleet up to 8 ships: a
 radius that grew with the fleet bought nothing in script-vs-script fleets and made
 4v4s run to the time limit more often (`lab/runs/2026-10-30-fleet-pilot/plan.md`
-§2).
+§2). Missions (SIM_VERSION 4) size their arena with
+`sim::mission::arena_radius_for_mission(kind, n_ships)` (`rlf_sim` and
+`arenaRadiusForMission` in WASM), the one per-mission rule. It is the same 450 m for
+the carrier battle and the convoy escort: the pilot obs scales distances by the
+radius, so pilot v1 keeps the inputs it trained on, and both layouts fit (carriers at
+0.72 R; the convoy route crosses the centre from −0.55 R to +0.75 R). The mission
+survey (WP-S2) may change it there and nowhere else.
 
 ## 7. Learning
 

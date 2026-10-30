@@ -1,0 +1,7 @@
+# sim golden trace 2v2_mixed_s11 (SIM_VERSION 3); regenerate with UPDATE_GOLDEN=1
+# tick state_hash aux_digest; end tick state_hash aux_digest phase winner
+1 ed4286ee8e25db6e 901c7a375fb5cf15
+30 ac81e7d74cadc23d 1ac091c08db50045
+300 ada7fb86d729e685 01e0ff65d6139384
+1000 6ac22d33e5d6d2aa 61a68dfdf2e3762c
+end 1671 29f3c45a63161a45 4c1051a0f7a6fba7 over 1

@@ -39,5 +39,5 @@ export function mulberry32(seed: number): Rng;
 export function createPolicy(
   manifest: PolicyManifest,
   weightsBuffer: ArrayBuffer,
-  expect: { simVersion: number; obsDim: number; actionWidth: number },
+  expect: { simVersion: number; obsDim: number; actionWidth: number; pilotCompat?: number[] },
 ): Policy;

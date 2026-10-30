@@ -21,6 +21,20 @@ export interface WasmMatch {
   tick(): number;
   phase(): number;
   winner(): number;
+  // v4 (SIM_SPEC §10.2): missions and the commander layer.
+  ship_ext_ptr(): number;
+  ship_ext_len(): number;
+  mission_kind(): number;
+  end_reason(): number;
+  command_due(): boolean;
+  submit_commands(team: number, json: string): void;
+  command_results_json(team: number): string;
+  commander_obs_json(team: number): string;
+  mission_state_json(): string;
+  squads(): Float32Array;
+  team_state(team: number): Float32Array;
+  hangar_hulls(team: number): Uint16Array;
+  convoy(): Float32Array;
 }
 
 export interface SimModule {
@@ -28,6 +42,18 @@ export interface SimModule {
   initSync(init: { module: BufferSource }): unknown;
   WasmMatch: new (hulls: Array<[string, string]>, weaponsYaml: string, configJson: string) => WasmMatch;
   sim_version(): number;
+  /** v4: sim versions whose pilots fly in this build. */
+  pilot_compat_versions(): Uint32Array;
+  pilot_compatible(version: number): boolean;
+  arenaRadiusForMission(mission: string, nShips: number): number;
+  missionTimeLimitTicks(mission: string): number;
+  MAX_SHIPS(): number;
+  COMMAND_TICKS(): number;
+  MAX_SQUADS(): number;
+  SHIP_EXT_STRIDE(): number;
+  SQUAD_STRIDE(): number;
+  TEAM_STRIDE(): number;
+  CONVOY_STRIDE(): number;
   /** Arena radius for a match of this many ships: the one rule training uses (sim::setup). */
   arenaRadiusFor(nShips: number): number;
   wasm_memory(): WebAssembly.Memory;
@@ -43,6 +69,8 @@ export interface SimModule {
 
 export interface SimLayout {
   simVersion: number;
+  /** Sim versions whose pilots this build flies (v4; just simVersion before). */
+  pilotCompat: number[];
   obsDim: number;
   actionWidth: number;
   shipStride: number;
@@ -57,6 +85,7 @@ export interface SimLayout {
 export function simLayout(sim: SimModule): SimLayout {
   return {
     simVersion: sim.sim_version(),
+    pilotCompat: typeof sim.pilot_compat_versions === "function" ? Array.from(sim.pilot_compat_versions()) : [sim.sim_version()],
     obsDim: sim.OBS_DIM(),
     actionWidth: sim.ACTION_WIDTH(),
     shipStride: sim.SHIP_STRIDE(),
@@ -90,7 +119,7 @@ export interface MatchSettings {
 
 export const PROJECTILE_KINDS = ["bullet", "beam", "flak", "torpedo"] as const;
 export type ProjectileKind = (typeof PROJECTILE_KINDS)[number];
-export const EVENT_KINDS = ["fire", "beam", "hit", "shieldHit", "burst", "death", "arrival", "collision"] as const;
+export const EVENT_KINDS = ["fire", "beam", "hit", "shieldHit", "burst", "death", "arrival", "collision", "launch", "order", "jumpCharge", "jumpOut", "matchEnd"] as const;
 export type EventKind = (typeof EVENT_KINDS)[number] | "unknown";
 
 export const MAX_THRUSTERS = 8;

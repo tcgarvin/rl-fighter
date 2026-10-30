@@ -141,6 +141,16 @@ def test_a_budget_too_small_for_one_ship_is_refused(tmp_path: Path) -> None:
         build(bundle, "run", ASSETS, REPO, budget=5)
 
 
+def test_a_v3_pilot_rides_a_v4_build_only_if_compatible(tmp_path: Path) -> None:
+    bundle = _fake_bundle(tmp_path, [["fighter"], ["fighter"]])
+    manifest = build(bundle, "run", ASSETS, REPO, sim_version=4, pilot_compat=[3, 4])
+    assert (manifest["sim_version"], manifest["pilot_sim_version"]) == (4, 3)
+    with pytest.raises(BundleError, match="pilot-compatible"):
+        build(bundle, "run", ASSETS, REPO, sim_version=4, pilot_compat=[4])
+    same = build(bundle, "run", ASSETS, REPO)
+    assert (same["sim_version"], same["pilot_sim_version"]) == (3, 3)
+
+
 def test_missing_policy_export_is_reported(tmp_path: Path) -> None:
     bundle = _fake_bundle(tmp_path, [["fighter"], ["fighter"]])
     (bundle / "policy/weights.bin").unlink()

@@ -61,7 +61,7 @@ pub struct ArmourArc {
     pub mult: f32,
 }
 
-/// Parsed and validated but unused in M1; reserved for flagships (M5).
+/// A launch bay (v4, SIM_SPEC §5.9): launched ships leave the mouth at `pos` along `dir`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BayDef {
     pub id: String,
