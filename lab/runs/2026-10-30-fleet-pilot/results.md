@@ -5,6 +5,9 @@ evaluated). **Promoted: warm arm, PPO update 400, as `2026-10-30-fleet-pilot-v1`
 It now flies every ship on the live page, in mixed fleets. The v3 fighter champion
 can still be watched at `/?champion=2026-10-29-v3-fighter`.
 
+Verdict: **PARTIAL**. H1 is met only with the engine-duty bound waived, H2 holds
+(warm beats fresh), and H0 is rejected (one network serves every hull).
+
 **The gates were amended after they ran.** Under the original §5 no candidate
 passed. warm_400 failed only G3's fighter engine-duty floor (0.130 against 0.15).
 The user waived the engine-duty bound: if flying slowly is the strongest strategy, it
@@ -84,6 +87,7 @@ warm_400 against the scripts, per hull (side a is the pilot), from
 | b | gunship | 448 | 72.4 | 57.5 | 0.09 | 0.195 | 170.2 | 0.89 | 0.0000 | 0.35 | 1.24 | 0.4 | 0.346 |
 | b | strafer | 928 | 27.0 | 21.8 | 0.04 | 0.288 | 61.8 | 0.81 | 0.0000 | 0.41 | 1.68 | 0.4 | 0.098 |
 | b | all | 2432 | 45.8 | 32.7 | 0.10 | 0.306 | 68.5 | 0.85 | 0.0000 | 0.36 | 1.52 | 1.0 | 0.178 |
+
 ## To discuss: why coasting wins
 
 - **Is it the sim?** It could be the speed cap, the turn rate relative to the gun
