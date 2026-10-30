@@ -59,6 +59,28 @@ fn mission_from_py(
         .map_err(PyValueError::new_err)
 }
 
+/// Ticks of a time limit in seconds; ValueError unless positive and finite.
+fn time_limit_ticks(time_limit_s: f32) -> PyResult<u32> {
+    if !(time_limit_s.is_finite() && time_limit_s > 0.0) {
+        return Err(PyValueError::new_err(format!(
+            "time_limit_s must be positive and finite, got {time_limit_s}"
+        )));
+    }
+    Ok((time_limit_s * TICK_HZ).round().max(1.0) as u32)
+}
+
+/// Commander modes from `None` (`default`) or two names (`"scripted"`, `"random"`,
+/// `"external"`).
+fn commanders_from_py(
+    names: Option<Vec<String>>,
+    default: [CommanderMode; 2],
+) -> PyResult<[CommanderMode; 2]> {
+    match names {
+        None => Ok(default),
+        Some(names) => parse_commanders(&names).map_err(PyValueError::new_err),
+    }
+}
+
 /// Borrow `arr` mutably as a flat slice, or explain why not (another Rust borrow is
 /// live, or the user made the array read-only).
 fn borrow_mut<'py, T: Element, D: numpy::ndarray::Dimension>(
@@ -123,6 +145,7 @@ pub struct VecEnv {
     obs: Py<PyArray3<f32>>,
     actions: Py<PyArray3<i8>>,
     rewards: Py<PyArray2<f32>>,
+    order_rewards: Py<PyArray2<f32>>,
     dones: Py<PyArray1<bool>>,
     winner: Py<PyArray1<i8>>,
     end_reason: Py<PyArray1<i8>>,
@@ -139,6 +162,10 @@ pub struct VecEnv {
     hit_count: Py<PyArray1<i32>>,
     collision_damage: Py<PyArray2<f32>>,
     arena_radius: Py<PyArray1<f32>>,
+    /// v5: what `set_next_roster` falls back to: the constructor's commanders and
+    /// time limit.
+    default_commanders: [CommanderMode; 2],
+    default_time_limit_ticks: u32,
 }
 
 /// Borrow every per-step buffer and call `f` with the slices.
@@ -147,6 +174,7 @@ macro_rules! with_step_buffers {
         let obs = $self.obs.bind($py);
         let actions = $self.actions.bind($py);
         let rewards = $self.rewards.bind($py);
+        let order_rewards = $self.order_rewards.bind($py);
         let dones = $self.dones.bind($py);
         let winner = $self.winner.bind($py);
         let end_reason = $self.end_reason.bind($py);
@@ -168,6 +196,7 @@ macro_rules! with_step_buffers {
             .try_readonly()
             .map_err(|e| PyValueError::new_err(format!("env.actions cannot be read: {e}")))?;
         let mut rewards = borrow_mut(rewards, "rewards")?;
+        let mut order_rewards = borrow_mut(order_rewards, "order_rewards")?;
         let mut dones = borrow_mut(dones, "dones")?;
         let mut winner = borrow_mut(winner, "winner")?;
         let mut end_reason = borrow_mut(end_reason, "end_reason")?;
@@ -190,6 +219,7 @@ macro_rules! with_step_buffers {
                 .as_slice()
                 .map_err(|e| PyValueError::new_err(format!("env.actions: {e}")))?,
             rewards: as_slice(&mut rewards, "rewards")?,
+            order_rewards: as_slice(&mut order_rewards, "order_rewards")?,
             dones: as_slice(&mut dones, "dones")?,
             winner: as_slice(&mut winner, "winner")?,
             end_reason: as_slice(&mut end_reason, "end_reason")?,
@@ -269,8 +299,9 @@ impl VecEnv {
     /// ship slots per match (default: the size of `fleets`, at most `MAX_SHIPS`);
     /// rosters queued later with `set_next_roster` must fit in it. v4: `mission` is
     /// `None` (deathmatch, the v3 match), a kind name or a dict spec (SIM_SPEC §10.3);
-    /// `commanders` names each team's commander mode, `"scripted"` (default) or
-    /// `"external"` (commands via `submit_command`).
+    /// `commanders` names each team's commander mode, `"scripted"` (default),
+    /// `"external"` (commands via `submit_command`) or (v5) `"random"` (the scripted
+    /// logistics with random squads and orders).
     #[new]
     #[pyo3(signature = (assets_dir, n_envs, fleets, seed, arena_radius=450.0, time_limit_s=90.0, n_threads=0, record_events=false, reaction_ticks=2, max_ships=None, mission=None, commanders=None))]
     #[allow(clippy::too_many_arguments)]
@@ -299,11 +330,7 @@ impl VecEnv {
                 "n_threads must be >= 0 (0 = default), got {n_threads}"
             )));
         }
-        if !(time_limit_s.is_finite() && time_limit_s > 0.0) {
-            return Err(PyValueError::new_err(format!(
-                "time_limit_s must be positive and finite, got {time_limit_s}"
-            )));
-        }
+        let time_limit_ticks = time_limit_ticks(time_limit_s)?;
         let reaction_ticks = u8::try_from(reaction_ticks)
             .ok()
             .filter(|&d| usize::from(d) <= MAX_REACTION_TICKS)
@@ -312,15 +339,11 @@ impl VecEnv {
                     "reaction_ticks must be in 0..={MAX_REACTION_TICKS}, got {reaction_ticks}"
                 ))
             })?;
-        let time_limit_ticks = (time_limit_s * TICK_HZ).round().max(1.0) as u32;
         let cat = Catalogue::load_dir(Path::new(assets_dir))
             .map_err(|e| PyValueError::new_err(format!("loading {assets_dir:?}: {e}")))?;
         let fleets = resolve_fleets(&cat, &fleets)?;
         let mission = mission_from_py(py, mission, arena_radius)?;
-        let commanders = match commanders {
-            None => [CommanderMode::Scripted; 2],
-            Some(names) => parse_commanders(&names).map_err(PyValueError::new_err)?,
-        };
+        let commanders = commanders_from_py(commanders, [CommanderMode::Scripted; 2])?;
         let total = fleets[0].len() + fleets[1].len();
         let n_ships = match max_ships {
             None => total,
@@ -337,17 +360,17 @@ impl VecEnv {
             BatchConfig {
                 n_envs: n,
                 base_seed: seed,
-                time_limit_ticks,
                 reaction_ticks,
                 roster: Roster {
                     fleets,
                     arena_radius,
                     mission,
+                    commanders,
+                    time_limit_ticks,
                 },
                 n_ships,
                 n_threads: n_threads as usize,
                 record_events,
-                commanders,
             },
         )
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
@@ -357,6 +380,7 @@ impl VecEnv {
             obs: PyArray3::zeros(py, [n, s, OBS_DIM], false).unbind(),
             actions: PyArray3::zeros(py, [n, s, ACTION_WIDTH], false).unbind(),
             rewards: PyArray2::zeros(py, [n, s], false).unbind(),
+            order_rewards: PyArray2::zeros(py, [n, s], false).unbind(),
             dones: PyArray1::zeros(py, [n], false).unbind(),
             winner: PyArray1::zeros(py, [n], false).unbind(),
             end_reason: PyArray1::zeros(py, [n], false).unbind(),
@@ -373,6 +397,8 @@ impl VecEnv {
             hit_count: PyArray1::zeros(py, [n], false).unbind(),
             collision_damage: PyArray2::zeros(py, [n, s], false).unbind(),
             arena_radius: PyArray1::zeros(py, [n], false).unbind(),
+            default_commanders: commanders,
+            default_time_limit_ticks: time_limit_ticks,
         };
         env.reset(py)?;
         Ok(env)
@@ -384,8 +410,12 @@ impl VecEnv {
     /// match is untouched. Raises ValueError for unknown hulls, an empty team, more
     /// ships than `n_ships`, a bad radius or fleets that do not fit the mission, and
     /// IndexError for a bad `i`. v4: `mission` as in the constructor (default
-    /// deathmatch).
-    #[pyo3(signature = (i, fleets, arena_radius, mission=None))]
+    /// deathmatch). v5: `commanders` as in the constructor (default: the
+    /// constructor's); `time_limit_s` the match's clock (default: the mission's own
+    /// limit, `mission_time_limit_s`, when a mission is given, else the
+    /// constructor's `time_limit_s`). Every field sticks with the roster.
+    #[pyo3(signature = (i, fleets, arena_radius, mission=None, commanders=None, time_limit_s=None))]
+    #[allow(clippy::too_many_arguments)]
     fn set_next_roster(
         &mut self,
         py: Python<'_>,
@@ -393,6 +423,8 @@ impl VecEnv {
         fleets: Vec<Vec<String>>,
         arena_radius: f32,
         mission: Option<&Bound<'_, PyAny>>,
+        commanders: Option<Vec<String>>,
+        time_limit_s: Option<f32>,
     ) -> PyResult<()> {
         let n = self.batch.n_envs() as i64;
         if !(0..n).contains(&i) {
@@ -401,7 +433,15 @@ impl VecEnv {
             )));
         }
         let fleets = resolve_fleets(self.batch.catalogue(), &fleets)?;
+        let time_limit_ticks = match (time_limit_s, mission) {
+            (Some(s), _) => time_limit_ticks(s)?,
+            (None, None) => self.default_time_limit_ticks,
+            (None, Some(_)) => mission_from_py(py, mission, arena_radius)?
+                .kind()
+                .default_time_limit_ticks(),
+        };
         let mission = mission_from_py(py, mission, arena_radius)?;
+        let commanders = commanders_from_py(commanders, self.default_commanders)?;
         self.batch
             .set_next_roster(
                 i as usize,
@@ -409,6 +449,8 @@ impl VecEnv {
                     fleets,
                     arena_radius,
                     mission,
+                    commanders,
+                    time_limit_ticks,
                 },
             )
             .map_err(|e| PyValueError::new_err(e.to_string()))
@@ -732,6 +774,14 @@ impl VecEnv {
     #[getter]
     fn hit_count(&self, py: Python<'_>) -> Py<PyArray1<i32>> {
         self.hit_count.clone_ref(py)
+    }
+    /// v5: the order reward of the last step (`[N,S] f32`, SIM_SPEC §8): attack
+    /// damage on the ordered target, guard and hold shaping, arrival and capped
+    /// presence, guard damage near the ward. Separate from `rewards` (the trainer
+    /// weights it); zero for padding and ships that do not earn.
+    #[getter]
+    fn order_rewards(&self, py: Python<'_>) -> Py<PyArray2<f32>> {
+        self.order_rewards.clone_ref(py)
     }
     /// Arena radius of each env's current match (`[N] f32`, metres).
     #[getter]

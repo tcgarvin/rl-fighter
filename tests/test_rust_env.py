@@ -21,7 +21,8 @@ rlf_sim = pytest.importorskip(
 )
 
 ASSETS = str(Path(__file__).resolve().parent.parent / "assets")
-OBS_DIM = 385
+OBS_DIM = 403
+OBS_DIM_V4 = 385
 ACTION_WIDTH = 21
 MAX_HITS = 64
 HIT_FIELDS = 6
@@ -60,9 +61,13 @@ def random_actions(rng, shape):
 def test_module_constants():
     assert rlf_sim.OBS_DIM == OBS_DIM
     assert rlf_sim.ACTION_WIDTH == ACTION_WIDTH
-    assert rlf_sim.SIM_VERSION == 4
-    assert list(rlf_sim.PILOT_COMPAT_VERSIONS) == [3, 4]
+    assert rlf_sim.SIM_VERSION == 5
+    assert list(rlf_sim.PILOT_COMPAT_VERSIONS) == [3, 4, 5]
     assert rlf_sim.pilot_compatible(3) and not rlf_sim.pilot_compatible(2)
+    assert rlf_sim.PILOT_OBS_DIMS == {3: OBS_DIM_V4, 4: OBS_DIM_V4, 5: OBS_DIM}
+    assert rlf_sim.OBS_DIM_V4 == OBS_DIM_V4
+    assert rlf_sim.MAX_TRAIN_SHIPS == 12
+    assert list(rlf_sim.COMMANDER_MODES) == ["scripted", "external", "random"]
     assert rlf_sim.MAX_SHIPS == 20 and rlf_sim.N_NEAR_SHIPS == 7
     assert rlf_sim.EVENT_KINDS["collision"] == EVENT_COLLISION
     assert rlf_sim.EVENT_KINDS["match_end"] == EVENT_MATCH_END
@@ -76,6 +81,7 @@ def test_module_constants():
         "pending",
         "turret_arc",
         "turret_range",
+        "order",
     ]
     offset = 0
     for off, width in layout.values():
@@ -85,6 +91,7 @@ def test_module_constants():
     assert layout["ships"] == (137, 84)
     assert layout["projectiles"] == (221, 64)
     assert layout["pending"] == (285, 88)
+    assert layout["order"] == (OBS_DIM_V4, 18)
     assert rlf_sim.OBS_SLOTS == {
         "self": 1,
         "thrusters": 8,
@@ -94,6 +101,7 @@ def test_module_constants():
         "pending": 4,
         "turret_arc": 6,
         "turret_range": 6,
+        "order": 1,
     }
     for name, (_, width) in layout.items():
         assert width % rlf_sim.OBS_SLOTS[name] == 0, name
@@ -118,6 +126,7 @@ def test_buffer_shapes_and_dtypes():
         "obs": ((n, s, OBS_DIM), np.float32),
         "actions": ((n, s, ACTION_WIDTH), np.int8),
         "rewards": ((n, s), np.float32),
+        "order_rewards": ((n, s), np.float32),
         "dones": ((n,), np.bool_),
         "winner": ((n,), np.int8),
         "act_mask": ((n, s), np.bool_),

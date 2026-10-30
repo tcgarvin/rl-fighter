@@ -6,7 +6,8 @@ Rust env.
 
 Views versus copies: by default every array returned by ``reset``/``step`` (``obs``,
 ``rewards``, ``dones`` and the ``StepInfo`` fields ``winner``, ``episode_count``,
-``tick``, ``act_mask``, ``alive``, ``hits``, ``hit_count``) is a *view* of a buffer
+``tick``, ``act_mask``, ``alive``, ``hits``, ``hit_count``, ``order_rewards``) is a
+*view* of a buffer
 owned by the Rust env, overwritten in place by the next ``step()`` or ``reset()``.
 Store them with ``np.copy`` / ``StepInfo.copy()``, or construct the env with
 ``copy_outputs=True`` to get owned arrays from every call. The ``prev_*`` fields of
@@ -39,6 +40,11 @@ from spacefight.env.rosters import MAX_FLEET_SHIPS, Roster, RosterSampler
 
 SIM_VERSION: int = int(rlf_sim.SIM_VERSION)
 OBS_DIM: int = rlf_sim.OBS_DIM
+# SIM_VERSION 5: sim version -> the obs width a pilot of that version consumes
+# (``obs[..., :width]``; v3/v4 pilots read the 385-float prefix, SIM_SPEC §0.3).
+PILOT_OBS_DIMS: dict[int, int] = {int(k): int(v) for k, v in rlf_sim.PILOT_OBS_DIMS.items()}
+# Slots a stage B training env pads its rosters to (SIM_SPEC §10.1).
+MAX_TRAIN_SHIPS: int = int(rlf_sim.MAX_TRAIN_SHIPS)
 ACTION_WIDTH: int = rlf_sim.ACTION_WIDTH
 MAX_HITS: int = rlf_sim.MAX_HITS
 HIT_FIELDS: int = rlf_sim.HIT_FIELDS
@@ -131,6 +137,8 @@ class StepInfo:
         collision_damage: [N, S] f32 view: hull damage each ship took from ship-ship
             collisions this step, after impact arcs (SIM_VERSION 3, SIM_SPEC §5.5).
             Collisions make no ``hits`` rows and credit nobody.
+        order_rewards: [N, S] f32 view: the order reward of this step (SIM_VERSION 5,
+            SIM_SPEC §8), separate from ``rewards``; the trainer weights it.
         thruster_mask: [N, S, 8] bool view, of the current match.
         turret_mask: [N, S, 6] bool view, of the current match.
         fixed_turret: [N, S, 6] bool view, of the current match (slew head
@@ -151,6 +159,7 @@ class StepInfo:
     hits: NDArray[np.int32]
     hit_count: NDArray[np.int32]
     collision_damage: NDArray[np.float32]
+    order_rewards: NDArray[np.float32]
     thruster_mask: NDArray[np.bool_]
     turret_mask: NDArray[np.bool_]
     fixed_turret: NDArray[np.bool_]
@@ -300,7 +309,13 @@ class RustVecEnv:
         return self._env.arena_radius
 
     def set_next_roster(
-        self, i: int, roster: Roster, arena_radius: float | None = None
+        self,
+        i: int,
+        roster: Roster,
+        arena_radius: float | None = None,
+        mission: str | dict | None = None,
+        commanders: Sequence[str] | None = None,
+        time_limit_s: float | None = None,
     ) -> None:
         """Queue ``roster`` for env ``i``'s next match.
 
@@ -310,13 +325,27 @@ class RustVecEnv:
             arena_radius: Arena radius in metres; ``None`` uses the shared rule
                 (``roster.arena_radius``). Overrides are for surveys only: training
                 and the live page use the rule.
+            mission: ``None`` (deathmatch), a mission name or a spec dict
+                (SIM_SPEC §10.3), passed to ``rlf_sim``.
+            commanders: Two commander modes (``"scripted"``, ``"random"``,
+                ``"external"``); ``None`` keeps the env's.
+            time_limit_s: Match clock; ``None`` is the mission's default when a
+                mission is given, else the env's ``time_limit_s``.
 
         Raises:
-            ValueError: The roster does not fit ``n_ships`` or names unknown hulls.
+            ValueError: The roster does not fit ``n_ships`` or the mission, or names
+                unknown hulls or commander modes.
             IndexError: ``i`` out of range.
         """
         radius = roster.arena_radius if arena_radius is None else arena_radius
-        self._env.set_next_roster(i, roster.fleets(), radius)
+        self._env.set_next_roster(
+            i,
+            roster.fleets(),
+            radius,
+            mission=mission,
+            commanders=None if commanders is None else list(commanders),
+            time_limit_s=time_limit_s,
+        )
         self._next[i] = roster
 
     # -- live buffers ---------------------------------------------------------
@@ -335,6 +364,11 @@ class RustVecEnv:
     def act_mask(self) -> NDArray[np.bool_]:
         """[N, S] whether each ship's next action counts (view)."""
         return self._env.act_mask
+
+    @property
+    def order_rewards(self) -> NDArray[np.float32]:
+        """[N, S] order reward of the last step (view; SIM_SPEC §8, v5)."""
+        return self._env.order_rewards
 
     # -- stepping -------------------------------------------------------------
 
@@ -391,6 +425,7 @@ class RustVecEnv:
             hits=env.hits,
             hit_count=env.hit_count,
             collision_damage=env.collision_damage,
+            order_rewards=env.order_rewards,
             thruster_mask=env.thruster_mask,
             turret_mask=env.turret_mask,
             fixed_turret=env.fixed_turret,

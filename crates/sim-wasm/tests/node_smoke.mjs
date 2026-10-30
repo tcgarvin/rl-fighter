@@ -54,6 +54,16 @@ const scenarios = [
       ["fighter", "fighter", "strafer", "gunship", "fighter", "strafer"],
     ],
   },
+  // v5: the random commander on both sides.
+  {
+    golden: "carrier_battle_random_s31",
+    seed: 31,
+    extra: { mission: "carrier_battle", time_limit_ticks: 9000, commanders: ["random", "random"] },
+    fleets: [
+      ["carrier", "fighter", "strafer", "fighter", "gunship", "fighter", "fighter"],
+      ["carrier", "fighter", "strafer", "fighter", "gunship", "fighter", "fighter"],
+    ],
+  },
 ];
 
 function goldenEnd(name) {
@@ -72,8 +82,12 @@ function check(cond, msg) {
 }
 
 check(sim.SHIP_STRIDE() === 29 && sim.EVENT_STRIDE() === 8 && sim.PROJECTILE_STRIDE() === 8, "strides");
-check(sim.ACTION_WIDTH() === 21 && sim.OBS_DIM() === 385, "action/obs widths");
-check(sim.sim_version() === 4 && Array.from(sim.pilot_compat_versions()).join() === "3,4", "v4 + pilot compat");
+check(sim.ACTION_WIDTH() === 21 && sim.OBS_DIM() === 403, "action/obs widths");
+check(sim.sim_version() === 5 && Array.from(sim.pilot_compat_versions()).join() === "3,4,5", "v5 + pilot compat");
+check(sim.pilotObsDim(3) === 385 && sim.pilotObsDim(4) === 385 && sim.pilotObsDim(5) === 403, "pilot obs dims");
+check(JSON.stringify(JSON.parse(sim.pilotObsDimsJson())) === '{"3":385,"4":385,"5":403}', "pilotObsDimsJson");
+check(JSON.parse(sim.obsLayoutJson()).blocks.at(-1).join() === "order,385,18", "obs layout ends with the order block");
+check(sim.MAX_TRAIN_SHIPS() === 12, "MAX_TRAIN_SHIPS");
 check(sim.pilot_compatible(3) && !sim.pilot_compatible(2), "pilot_compatible");
 check(sim.SHIP_EXT_STRIDE() === 10 && sim.SQUAD_STRIDE() === 9 && sim.TEAM_STRIDE() === 8 && sim.CONVOY_STRIDE() === 14, "v4 strides");
 check(sim.MAX_SHIPS() === 20 && sim.COMMAND_TICKS() === 60 && sim.arenaRadiusForMission("convoy_escort", 13) === 450, "v4 constants");
