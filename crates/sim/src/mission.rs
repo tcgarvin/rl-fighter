@@ -179,7 +179,7 @@ const CARRIER_WING_9: &[&str] = &[
     "carrier", "fighter", "strafer", "fighter", "gunship", "fighter", "strafer", "fighter",
     "gunship", "fighter",
 ];
-const CONVOY_4: &[&str] = &[
+const CONVOY_4_3: &[&str] = &[
     "freighter",
     "freighter",
     "freighter",
@@ -187,10 +187,6 @@ const CONVOY_4: &[&str] = &[
     "fighter",
     "strafer",
     "fighter",
-    "gunship",
-];
-const RAIDERS_6: &[&str] = &[
-    "fighter", "fighter", "strafer", "gunship", "fighter", "strafer",
 ];
 const CONVOY_3: &[&str] = &[
     "freighter",
@@ -199,8 +195,8 @@ const CONVOY_3: &[&str] = &[
     "fighter",
     "strafer",
     "fighter",
+    "gunship",
 ];
-const RAIDERS_5: &[&str] = &["fighter", "strafer", "fighter", "gunship", "fighter"];
 const CONVOY_5: &[&str] = &[
     "freighter",
     "freighter",
@@ -212,9 +208,13 @@ const CONVOY_5: &[&str] = &[
     "fighter",
     "gunship",
 ];
-const RAIDERS_7: &[&str] = &[
-    "fighter", "fighter", "strafer", "gunship", "fighter", "strafer", "fighter",
+const RAIDERS_8: &[&str] = &[
+    "fighter", "fighter", "strafer", "gunship", "fighter", "strafer", "fighter", "fighter",
 ];
+const RAIDERS_6: &[&str] = &[
+    "fighter", "fighter", "strafer", "gunship", "fighter", "strafer",
+];
+const RAIDERS_5: &[&str] = &["fighter", "strafer", "fighter", "gunship", "fighter"];
 
 const CARRIER_ROSTERS: &[MissionRoster] = &[
     MissionRoster {
@@ -233,7 +233,7 @@ const CARRIER_ROSTERS: &[MissionRoster] = &[
 const CONVOY_ROSTERS: &[MissionRoster] = &[
     MissionRoster {
         name: "4 freighters",
-        fleets: [CONVOY_4, RAIDERS_6],
+        fleets: [CONVOY_4_3, RAIDERS_6],
     },
     MissionRoster {
         name: "3 freighters",
@@ -241,7 +241,7 @@ const CONVOY_ROSTERS: &[MissionRoster] = &[
     },
     MissionRoster {
         name: "5 freighters",
-        fleets: [CONVOY_5, RAIDERS_7],
+        fleets: [CONVOY_5, RAIDERS_8],
     },
 ];
 

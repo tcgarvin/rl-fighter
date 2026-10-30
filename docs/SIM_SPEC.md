@@ -730,14 +730,52 @@ ticks left, mission kind; own ships by hull id `in_space` (active), `arriving`,
 one only while active); own bays ready; `ConvoyStatus`; own active transports; own
 squads. A learned commander will flatten it.
 
-**Scripted commander** (`scripted/commander.rs`, a **stub** WP-S2 replaces): launch
-one reserve per bay per slow tick while fewer than `STUB_WING_IN_SPACE = 6` of the
-team's strike craft are on the field or on the way; transports' waypoint = the jump
-point; one squad (0) of every own strike craft in the match ordered to attack the
-enemy capital ship nearest the team's anchor (its carrier, else its lead transport,
-else the centroid of its active ships), else the nearest enemy, else no order; when a
-carrier's wing is spent (none in space, arriving or docked), its waypoint becomes the
-enemy carrier's position (a flak duel, so attrition still ends in a kill).
+**Scripted commander** (`scripted/commander.rs`, WP-S2; it replaced WP-S1's stub).
+Deterministic, no rng, and stateless: what it remembers between slow ticks is the
+command state itself, which is also its hysteresis. An order changes only for a
+clearly better one (an attack target is kept unless another is nearer than `0.6 ×`
+its distance `− 30 m`; a guard's ward unless another transport has 2 more threats; a
+hold point while the new one is within 120 m), squad membership moves only when a
+squad is the wrong size (the members furthest from the ward leave first), and a squad
+command or waypoint that changes nothing (a waypoint within 20 m of the current one)
+is not sent. So every `Order` event is a real change, for the web's command log.
+"Strike craft" below are own non-capital ships in the match and not docked; "wing" is
+those.
+
+- *Carrier battle.* **Launches** (fleet order, the sim picks the bay): keep
+  `WING_BASE = 3` strike craft in space or on the way, one more every 30 s; one
+  launch at most every `LAUNCH_INTERVAL_TICKS = 360` (12 s); **scramble** one per bay
+  per slow tick while ≥ `THREAT_COUNT = 2` enemy strike craft are within
+  `THREAT_RADIUS = 200` m of the carrier; empty the hangar (one per bay per slow tick)
+  in the last `LATE_TICKS = 1800` (60 s). A ship launched this slow tick is put in the
+  guard at once. **Squads**: squad 0 *guards* the carrier, `⌈n/3⌉` of the wing (`⌈n/2⌉`
+  while threatened, until no enemy strike craft is within 280 m); squad 1 *strikes*
+  the enemy carrier, unless the enemy strike craft within 220 m of it outnumber the
+  strike squad (`2·escort > strikers` to turn away from the carrier, `escort >
+  strikers + 1` once on it), in which case it attacks the enemy strike craft nearest
+  its centroid. **Carrier waypoint**, first match wins: the wing is spent (no strike
+  craft, empty hangar) → the enemy carrier's position (a flak duel, so attrition still
+  ends in a kill); the last 60 s → `STANDOFF = 170` m short of the enemy carrier
+  (inside flak range); threatened → `RETREAT_STEP = 100` m away from the threats'
+  centroid (inside `0.78 R`); winning (own wing ≥ 2 × the enemy strike craft in space
+  + 2, or own carrier hull fraction ≥ the enemy's + 0.2) → the standoff point; else
+  patrol `(side · 0.6 R, ±60 m)`, switching every 20 s.
+- *Convoy escort, defenders.* Transports keep the jump point setup gave them (the
+  transport is a sitting duck: never re-routed). Squad 0 *guards* the most threatened
+  transport that is not charging (most enemies within 220 m; the lead transport, the
+  one furthest along the route, while none is threatened), `⌈n/2⌉` of the escort.
+  Squad 1 *intercepts* the enemy nearest any transport; before the attackers arrive it
+  *holds* 120 m off the lead transport toward their side (radius 80 m).
+- *Convoy escort, attackers.* Two **waves**: wave 1 (squad 0, the first `⌈n/2⌉` in slot
+  order) attacks the transport scoring highest on route progress + hull fraction lost
+  (+ 0.2 while it charges its jump), switching only for a score 0.25 higher; wave 2
+  (squad 1) *holds* a staging point 150 m ahead of the lead transport along the route
+  and 110 m toward the attackers' side (radius 60 m), and goes in on the same target
+  once wave 1 is down to half wave 2's size, or at 30 s; once in, it stays in.
+- *Deathmatch.* The fleet split in slot order into two squads: squad 0 attacks the
+  enemy nearest its centroid, squad 1 the most damaged enemy (hull + shield fraction
+  lost) within 300 m of its centroid (switching for 0.2 more damage). These orders are
+  only shown: scripted pilots do not follow a scripted deathmatch commander (§11).
 
 ### 5.10 Missions (v4)
 
@@ -1234,20 +1272,54 @@ Fighter (`role == "fighter"`), per tick (all quantities predicted as above):
 7. Power: `3` (weapons) if `dist < range`, `2` (engines) if `dist > 1.5 range`, else 0;
    `1` (shields) if `tick - last_hit_tick < 36 && shield/max < 0.3` (shielded hulls).
 
+**Squad orders (WP-S2, `scripted/orders.rs`).** A strike-craft pilot whose squad has
+an order picks its target from the order instead of the nearest enemy; everything
+after target selection (manoeuvre, deconfliction, turrets, power) is unchanged:
+- *Attack* `target`: the target; but an enemy strike craft within `0.4 ×` the primary
+  gun range is fought first while the target is more than twice that away
+  (self-defence on a strike run). A target that died since the slow tick falls back
+  to the role's own choice until the commander re-tasks the squad.
+- *Guard* `ward`: the enemy nearest the ward within 180 m plus the ward's bound
+  radius; *Hold* `point, radius`: the enemy nearest the point within `radius + 120`
+  m. With nobody there the pilot keeps station: it wants the ward's velocity (0 for a
+  hold) plus `0.5/s ×` the offset to its station (capped at `0.6 ×` its speed cap),
+  where the station is on a ring round the ward (bound radius + 45 m) or the point
+  (`radius/2`), at angle `slot × 2.4 rad` so a squad spreads; it turns its nose along
+  the missing velocity, burns within 0.5 rad of it and coasts under 4 m/s missing.
+- *None*: exactly the pre-order behaviour.
+
+Pilots follow orders in every mission **except a deathmatch whose team has the
+scripted commander**: there the orders are only shown, so the default deathmatch
+(the fleet pilot's eval and training opponent, and the `v3_compat_*` traces) is
+bit-identical to v3. An external commander's orders are followed in a deathmatch too
+(stage B's random orders). Against a capital ship the fighter's deconfliction miss
+distance is both bound radii plus 6 m instead of 11 m, and it covers the whole
+shortfall itself (a capital ship does not sidestep), so a strafing run does not fly
+into the carrier's hull.
+
 **Capital ships (v4, `scripted/capital.rs`).** Both fly their waypoint
-(`Match.command.waypoints`) with a softer PD (`torque = clamp(4·err − 8·omega, ±1)`),
-and allocate the mains (thrusters with `dir.x > 0.5`) from the force request alone and
-every other thruster from the torque request alone, so they never turn on an off-axis
-main (that would add thrust a carrier cannot take back, and yaw a transport must not
-have). *Carrier* (first cut; WP-S2 refines): outside `ARRIVE_RADIUS = 25` m it turns
-to the waypoint and burns the mains while within 0.6 rad of it and slower than
-`min(cap, 0.08 · (dist − 25))` (it has no reverse thrust and stops on drag, which
-coasts ≈ 10 v); inside, or without a waypoint, it holds heading and coasts; the
-fighters' arena turn-back; shared power rules (§11 item 7) against the nearest enemy;
-flak by the shared turret aim. *Transport* (final, user 2026-10-30): points at its
-waypoint, mains on while its forward speed is below `TRANSPORT_CRUISE_FRAC = 0.8` ×
-cap, heading held with the RCS; within 25 m of the point it cuts the mains and holds
-heading. It never evades or reacts to threats; balanced power; no guns.
+(`Match.command.waypoints`) and allocate the mains (thrusters with `dir.x > 0.5`) from
+the force request alone and every other thruster from the torque request alone, so
+they never turn on an off-axis main (that would add thrust a carrier cannot take back,
+and yaw a transport must not have). *Carrier* (WP-S2): a turn-rate profile sized to
+its own yaw authority `α` (full RCS, even power): wanted rate `sign(err) · min(√(α ·
+e), 0.8 · e, 0.8 · ω_settle)` with `e = |err| − 0.02` rad (the hold band; ω_settle =
+`α · DT / (1 − ANGULAR_DRAG)`), torque request `(want − ω) / (0.5 α)`. RCS hysteresis:
+with every RCS pod off, a request under `RCS_ON_REQUEST = 0.4` stays 0, and once on a
+pod runs until the request falls into the allocator's dead zone (≈ 0.21), so it no
+longer chatters while holding heading. Outside `ARRIVE_RADIUS = 25` m it burns the
+mains while within 0.6 rad of the waypoint and slower than `want = min(cap, 0.08 ·
+(dist − 25))`, coming on below `want − 0.5` m/s once off, and staying lit at cruise
+(`want = cap`; the soft cap holds the speed). No reverse thrust: it stops on drag
+(≈ 10 v of coast). Inside, or without a waypoint, it holds heading and coasts; the
+fighters' arena turn-back; shared power rules (§11 item 7) against the nearest enemy.
+Its flak tracks the nearest enemy **strike craft** in reach (1.4 × range), and a
+capital ship only when none is (flak cannot hit projectiles; a torpedo is a threat
+through its launcher). *Transport* (final, user 2026-10-30): points at its waypoint
+(PD `torque = clamp(4·err − 8·omega, ±1)`), mains on while its forward speed is below
+`TRANSPORT_CRUISE_FRAC = 0.8` × cap, heading held with the RCS; within 25 m of the
+point it cuts the mains and holds heading. It never evades or reacts to threats;
+balanced power; no guns.
 
 Roles as shipped: `fighter` (fighter), `skirmisher` (strafer: orbit at 120 m,
 `orbit_sign = +1 if slot even else -1`) and `anchor` (gunship: standoff 170 m,

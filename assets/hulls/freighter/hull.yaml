@@ -7,10 +7,10 @@
 # the art agent's model.glb (DESIGN §5); body frame +x forward, +y port.
 name: freighter
 role: transport
-hp: 500
+hp: 400
 mass: 300.0
 inertia: 40000.0       # with 300 N heading-hold RCS: about 6 deg/s at most
-speed_cap: 14.0
+speed_cap: 10.5
 static: false
 shield: {hp: 80, regen_rate: 6, regen_delay: 5, radius: 15}
 impact:                # v3 collision damage: heavier than a strike craft, like the gunship

@@ -197,7 +197,7 @@ pub fn gunship_hull() -> HullDef {
 
 /// v4 carrier (SIM_SPEC §4.1): flak, two bays.
 pub fn carrier_hull() -> HullDef {
-    let mut h = hull("carrier", "carrier", 1500.0, 600.0, 90000.0, 8.0);
+    let mut h = hull("carrier", "carrier", 1000.0, 600.0, 90000.0, 8.0);
     h.cost = 120;
     h.shield = Some(ShieldDef {
         hp: 260.0,
@@ -250,7 +250,7 @@ pub fn carrier_hull() -> HullDef {
 
 /// v4 freighter, the convoy transport: unarmed, weak heading-hold RCS.
 pub fn freighter_hull() -> HullDef {
-    let mut h = hull("freighter", "transport", 500.0, 300.0, 40000.0, 14.0);
+    let mut h = hull("freighter", "transport", 400.0, 300.0, 40000.0, 10.5);
     h.cost = 40;
     h.shield = Some(ShieldDef {
         hp: 80.0,

@@ -51,6 +51,7 @@ CAPITAL_ROLES: frozenset[str] = frozenset({"carrier", "transport"})
 LAUNCH_BIN_S = 30.0
 # Convoy progress is sampled every this many ticks (the last sample is the end).
 PROGRESS_EVERY = 30
+TORCH_THREADS = 4
 END_REASONS: tuple[str, ...] = tuple(rlf_sim.END_REASONS)
 KIND_DEATH = int(rlf_sim.EVENT_KINDS["death"])
 KIND_LAUNCH = int(rlf_sim.EVENT_KINDS["launch"])
@@ -116,6 +117,11 @@ class MatchRecord:
     destroyed: int = 0
     progress: float = 0.0  # convoy route progress at the end (0..1)
     carrier_travel: tuple[float, float] = (0.0, 0.0)  # per team, metres sampled
+    # Last sample before the end (every PROGRESS_EVERY ticks), per team: strike craft
+    # still in the match and not docked, docked reserves, carrier hull fraction.
+    strike_left: tuple[int, int] = (0, 0)
+    hangar_left: tuple[int, int] = (0, 0)
+    carrier_hp: tuple[float, float] = (0.0, 0.0)
 
 
 def quantile(values: Sequence[float], q: float) -> float:
@@ -162,6 +168,9 @@ class RosterSummary:
     progress_mean: float
     defender_wins_with_escape: float  # convoy: share of team-0 wins with an escape
     carrier_travel_m: float  # mean metres a carrier moved (both teams)
+    strike_left: list[float]  # per team, mean at the last sample
+    hangar_left: list[float]
+    carrier_hp: list[float]
 
 
 def summarise(name: str, records: Sequence[MatchRecord], horizon_s: float) -> RosterSummary:
@@ -207,7 +216,15 @@ def summarise(name: str, records: Sequence[MatchRecord], horizon_s: float) -> Ro
         carrier_travel_m=round(
             float(np.mean([sum(r.carrier_travel) / 2 for r in records])), 1
         ),
+        strike_left=_per_team_mean([r.strike_left for r in records]),
+        hangar_left=_per_team_mean([r.hangar_left for r in records]),
+        carrier_hp=_per_team_mean([r.carrier_hp for r in records]),
     )
+
+
+def _per_team_mean(values: Sequence[tuple[float, float]]) -> list[float]:
+    arr = np.asarray(values, dtype=np.float64).reshape(-1, 2)
+    return [round(float(v), 2) for v in arr.mean(axis=0)]
 
 
 @dataclass(frozen=True)
@@ -239,6 +256,10 @@ class _Pilot:
     def __init__(self, checkpoint: Path, seed: int) -> None:
         from spacefight.eval.controllers import Policy
 
+        import torch
+
+        # Small batches: more intra-op threads only contend with the sim's rayon pool.
+        torch.set_num_threads(TORCH_THREADS)
         self.policy = Policy(checkpoint, sample=True)
         self.policy.reset(seed)
         self.label = self.policy.label
@@ -255,6 +276,28 @@ def _carrier_slots(roster: RosterSpec, roles: dict[str, str]) -> list[int]:
     return slots
 
 
+def _sample_end_state(rec: MatchRecord, ships: list[dict[str, Any]]) -> None:
+    """Overwrite ``rec``'s end-state fields from a ``render_state`` ship list."""
+    strike = [0, 0]
+    hangar = [0, 0]
+    carrier = [0.0, 0.0]
+    for s in ships:
+        team = int(s["team"])
+        if team < 0 or not s["alive"]:
+            continue
+        if s["role"] == "carrier":
+            carrier[team] = float(s["hp"]) / float(s["max_hp"])
+        elif s["role"] in CAPITAL_ROLES:
+            continue
+        elif s["docked"]:
+            hangar[team] += 1
+        elif not s.get("escaped", False):
+            strike[team] += 1
+    rec.strike_left = (strike[0], strike[1])
+    rec.hangar_left = (hangar[0], hangar[1])
+    rec.carrier_hp = (carrier[0], carrier[1])
+
+
 def run_mission(
     mission: str,
     rosters: Sequence[RosterSpec],
@@ -263,10 +306,14 @@ def run_mission(
     pilot: _Pilot | None,
     n_threads: int = 0,
     assets_dir: Path = ASSETS,
+    overrides: dict[str, Any] | None = None,
+    time_limit_s: float | None = None,
 ) -> tuple[list[MatchRecord], float]:
     """Play every roster ``n_per_roster`` times; the records and the time limit (s).
 
     ``pilot`` None is the script mode; otherwise it flies every strike craft.
+    ``overrides`` are mission spec fields (SIM_SPEC §10.3) over the defaults, and
+    ``time_limit_s`` replaces the mission's default clock (balance experiments).
 
     Raises:
         ValueError: No rosters, or ``n_per_roster`` < 1.
@@ -275,7 +322,9 @@ def run_mission(
     if not rosters or n_per_roster < 1:
         raise ValueError("need at least one roster and n_per_roster >= 1")
     roles = load_roles(assets_dir)
-    time_limit_s = float(rlf_sim.mission_time_limit_s(mission))
+    if time_limit_s is None:
+        time_limit_s = float(rlf_sim.mission_time_limit_s(mission))
+    spec: str | dict[str, Any] = {"kind": mission, **overrides} if overrides else mission
     n_envs = len(rosters) * n_per_roster
     block = np.repeat(np.arange(len(rosters)), n_per_roster)
     max_ships = max(r.n_ships for r in rosters)
@@ -290,12 +339,12 @@ def run_mission(
         n_threads=n_threads,
         record_events=True,
         max_ships=max_ships,
-        mission=mission,
+        mission=spec,
     )
     for i, k in enumerate(block):
         r = rosters[int(k)]
         radius = float(rlf_sim.arena_radius_for_mission(mission, r.n_ships))
-        env.set_next_roster(i, [list(r.fleets[0]), list(r.fleets[1])], radius, mission)
+        env.set_next_roster(i, [list(r.fleets[0]), list(r.fleets[1])], radius, spec)
     env.reset()
 
     hull_names = sorted({h for r in rosters for f in r.fleets for h in f})
@@ -334,9 +383,10 @@ def run_mission(
             for i in np.flatnonzero(~done):
                 convoy = env.mission_state(int(i))["convoy"]
                 records[i].progress = float(convoy["progress"])
-        if mission == "carrier_battle" and step % PROGRESS_EVERY == 0:
+        if step % PROGRESS_EVERY == 0:
             for i in np.flatnonzero(~done):
                 ships = env.render_state(int(i))["ships"]
+                _sample_end_state(records[i], ships)
                 for side, slot in enumerate(carriers[i]):
                     pos = ships[slot]["pos"]
                     key = (int(i), side)
@@ -380,6 +430,8 @@ def survey(
     checkpoint: Path | None,
     missions: Sequence[str] = MISSIONS,
     n_threads: int = 0,
+    overrides: dict[str, dict[str, Any]] | None = None,
+    time_limits: dict[str, float] | None = None,
 ) -> SurveyResult:
     """Run the survey in ``mode`` over ``missions``.
 
@@ -396,7 +448,14 @@ def survey(
     for k, mission in enumerate(missions):
         rosters = default_rosters(mission)
         records, time_limit_s = run_mission(
-            mission, rosters, n_per_roster, seed + 10_000 * k, pilot, n_threads
+            mission,
+            rosters,
+            n_per_roster,
+            seed + 10_000 * k,
+            pilot,
+            n_threads,
+            overrides=(overrides or {}).get(mission),
+            time_limit_s=(time_limits or {}).get(mission),
         )
         summaries = [
             summarise(r.name, [m for m in records if m.roster == r.name], time_limit_s)
@@ -434,11 +493,14 @@ def markdown(result: SurveyResult) -> str:
         )
         rule = "|---|---|---|---|---|---|---|"
         if convoy:
-            head += " escaped | destroyed | progress | wins w/ escape |"
-            rule += "---|---|---|---|"
-        else:
-            head += " launches | launch median s | launch p90 s | launches per 30 s | carrier travel m |"
+            head += " escaped | destroyed | progress | wins w/ escape | strike left |"
             rule += "---|---|---|---|---|"
+        else:
+            head += (
+                " launches | launch median s | launch p90 s | launches per 30 s "
+                "| carrier travel m | strike left | hangar left | carrier hp |"
+            )
+            rule += "---|---|---|---|---|---|---|---|"
         out += [head, rule]
         for r in [*m.rosters, m.overall]:
             reasons = ", ".join(f"{k} {v:.2f}" for k, v in r.end_reasons.items())
@@ -447,16 +509,20 @@ def markdown(result: SurveyResult) -> str:
                 f"{r.time_limit_rate:.2f} | {r.length_median_s:.0f} | "
                 f"{r.length_p90_s:.0f} | {reasons} |"
             )
+            left = f" {r.strike_left[0]:.1f} / {r.strike_left[1]:.1f} |"
             if convoy:
                 row += (
                     f" {r.escaped_mean:.2f} | {r.destroyed_mean:.2f} | "
-                    f"{r.progress_mean:.2f} | {r.defender_wins_with_escape:.2f} |"
+                    f"{r.progress_mean:.2f} | {r.defender_wins_with_escape:.2f} |" + left
                 )
             else:
                 bins = " ".join(f"{b:.1f}" for b in r.launches_by_bin)
                 row += (
                     f" {r.launches_per_match:.1f} | {r.launch_median_s:.0f} | "
                     f"{r.launch_p90_s:.0f} | {bins} | {r.carrier_travel_m:.0f} |"
+                    + left
+                    + f" {r.hangar_left[0]:.1f} / {r.hangar_left[1]:.1f} |"
+                    f" {r.carrier_hp[0]:.2f} / {r.carrier_hp[1]:.2f} |"
                 )
             out.append(row)
     return "\n".join(out)
@@ -477,12 +543,33 @@ def main(argv: Sequence[str] | None = None) -> int:
     p.add_argument("--checkpoint", type=Path, help="live mode pilot (default: champion)")
     p.add_argument("--champion", default="current", help="champion id for --mode live")
     p.add_argument("--n-threads", type=int, default=0)
+    p.add_argument(
+        "--spec",
+        type=json.loads,
+        default={},
+        help="mission spec overrides as JSON, keyed by mission",
+    )
+    p.add_argument(
+        "--time-limit-s",
+        type=json.loads,
+        default={},
+        help="clock overrides as JSON, keyed by mission",
+    )
     p.add_argument("--out", type=Path, help="write the JSON result here")
     args = p.parse_args(argv)
     checkpoint = args.checkpoint
     if args.mode == "live" and checkpoint is None:
         checkpoint = _champion_checkpoint(args.champion)
-    result = survey(args.mode, args.n, args.seed, checkpoint, args.mission, args.n_threads)
+    result = survey(
+        args.mode,
+        args.n,
+        args.seed,
+        checkpoint,
+        args.mission,
+        args.n_threads,
+        overrides=args.spec,
+        time_limits=args.time_limit_s,
+    )
     print(markdown(result))
     print(f"\n({result.seconds:.0f} s)")
     if args.out is not None:

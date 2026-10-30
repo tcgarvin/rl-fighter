@@ -5,7 +5,7 @@
 # forward, +y port. WP-S2 may retune the numbers with the mission survey.
 name: carrier
 role: carrier          # flown by the scripted capital-ship pilot (SIM_SPEC §11)
-hp: 1500
+hp: 1000
 mass: 600.0
 inertia: 90000.0
 speed_cap: 8.0
