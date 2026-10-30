@@ -16,7 +16,7 @@ const ROLE_LINES: Record<string, string> = {
   skirmisher: "agile · beam",
   anchor: "slow · 3 turrets",
   carrier: "launches the wing",
-  transport: "unarmed · must escape",
+  transport: "unarmed · cargo",
 };
 const MAX_CARDS = 4;
 // Leaves time for the fade-out before the fleets jump.

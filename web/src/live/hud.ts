@@ -1,7 +1,9 @@
 // The DOM layer over the canvas: the running tally, match status, the perf readout
-// (sim + inference ms per tick against the 33 ms budget), the caption, the result
-// banner, a faint team ring round any hull drawn too small to read and, behind the
-// "Technical details" toggle, per-ship numbers next to each hull.
+// (sim + inference ms per tick against the 33 ms budget), the mission panel (carrier
+// hull per side, or the convoy's progress), the caption, the result banner with the
+// reason the match ended, a faint team ring round any hull drawn too small to read
+// and, behind the "Technical details" toggle, per-ship numbers next to each hull.
+// The "Show commands" toggle's state lives on <body class="commands">.
 
 import { JUMP_CHARGING, JUMP_DEPARTED, SIM_HZ, TICK_BUDGET_MS } from "./sim.ts";
 import type { LiveMatch } from "./match.ts";
@@ -267,7 +269,7 @@ function missionPanel(match: LiveMatch): string {
   if (match.mission === "convoy_escort" && c) {
     const left = convoyDistance(match);
     const parts = [`${c.escaped} through`, `${c.destroyed} lost`];
-    if (left !== null) parts.push(left > 0 ? `${Math.round(left)} m to go` : "at the jump point");
+    if (left !== null && !match.over) parts.push(left > 0 ? `${Math.round(left)} m to go` : "at the jump point");
     return (
       `<div class="mrow"><span class="mlabel">${teamSpan(0, "CONVOY")}</span><span class="pips">${convoyPips(match)}</span><span class="mnote">${parts.join(" · ")}</span></div>` +
       `<div class="mrow msub">${teamSpan(0, `${TEAM_NAMES[0]} needs ${c.toEscape} through`)} · ${teamSpan(1, `${TEAM_NAMES[1]} needs ${c.toDestroy} kill${c.toDestroy === 1 ? "" : "s"}`)}</div>`

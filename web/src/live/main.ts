@@ -84,6 +84,9 @@ const tally: Tally = { wins: [0, 0], draws: 0 };
 let lastTime = performance.now();
 let framesSinceLayout = 0;
 let paused = false;
+// Smoothed real frame time (ms) and its worst over the last stats() call, for the soak test.
+let frameMs = 16.7;
+let worstFrameMs = 0;
 let thrusterCounts: number[] = [];
 
 // ---- Layout: the HUD sits under the nav; the camera frames the band between. ----
@@ -214,6 +217,8 @@ function statusLine(m: LiveMatch): string {
 
 function frame(now: number): void {
   const realDt = Math.min(0.1, (now - lastTime) / 1000);
+  frameMs += (realDt * 1000 - frameMs) * 0.05;
+  worstFrameMs = Math.max(worstFrameMs, realDt * 1000);
   lastTime = now;
   // A paused page (debug hook, for screenshots) keeps drawing the same instant.
   const dt = paused ? 0 : realDt * speed;
@@ -301,6 +306,10 @@ if (params.has("debug")) {
       reason: match?.over ? match.simReason : null,
       tick: match?.tick ?? 0,
       tally: { ...tally, wins: [...tally.wins] },
+      ships: match ? match.ships.filter((s) => match!.active(s)).length : 0,
+      frameMs,
+      worstFrameMs: ((w) => ((worstFrameMs = 0), w))(worstFrameMs),
+      tickMs: match ? match.timing.sim + match.timing.nn : 0,
       bundle: bundle?.manifest.bundle_id,
       gpu: world.gpuStats(),
     }),

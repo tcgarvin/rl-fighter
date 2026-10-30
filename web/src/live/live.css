@@ -191,8 +191,13 @@ body.details #meta-details {
 }
 
 #mission .mlabel {
+  flex: none;
   font-weight: 700;
-  min-width: 0;
+}
+
+#mission .mrow.team-a .mlabel,
+#mission .mrow.team-b .mlabel {
+  min-width: 9.6em;
 }
 
 #mission .mbar {

@@ -117,13 +117,13 @@ for (let i = 0; i < Number(nArg); i++) {
   const values = match.teamValues().map((v) => v.toFixed(0)).join("/");
   const extra =
     mission === "carrier_battle"
-      ? ` carriers ${match.teams.map((t) => `${Math.round((100 * Math.max(0, t.hp)) / Math.max(1, t.maxHp))}%`).join("/")}, hangars ${match.teams.map((t) => t.hangar).join("/")}`
+      ? `; carriers ${match.teams.map((t) => `${Math.round((100 * Math.max(0, t.hp)) / Math.max(1, t.maxHp))}%`).join("/")}, hangars ${match.teams.map((t) => t.hangar).join("/")}`
       : mission === "convoy_escort" && c
-        ? ` convoy ${c.escaped} escaped / ${c.destroyed} destroyed of ${c.total} (need ${c.toEscape} / ${c.toDestroy})`
+        ? `; convoy ${c.escaped} escaped / ${c.destroyed} destroyed of ${c.total} (need ${c.toEscape} / ${c.toDestroy})`
         : "";
   const ev = `events launch ${counts.launch} arrival ${counts.arrival} order ${counts.order} charge ${counts.jumpCharge} jump-out ${counts.jumpOut} death ${counts.death}`;
   console.log(
-    `live smoke: ${label}: ${w === -1 ? "draw" : `team ${w} wins`} (${match.simReason}) at tick ${match.tick} (${(match.tick / 30).toFixed(1)} s), value ${values};${extra}; ${ev}; peak ${peakPresent} ships on the field; ` +
+    `live smoke: ${label}: ${w === -1 ? "draw" : `team ${w} wins`} (${match.simReason}) at tick ${match.tick} (${(match.tick / 30).toFixed(1)} s), value ${values}${extra}; ${ev}; peak ${peakPresent} ships on the field; ` +
       `tick ${(meanSim + meanNn).toFixed(3)} ms = sim ${meanSim.toFixed(3)} + inference ${meanNn.toFixed(3)} (worst inference ${nnWorst.toFixed(2)}) of ${TICK_BUDGET_MS.toFixed(1)} ms · ` +
       `"${MISSION_TITLES[mission]}: ${brief} ${matchupLine(roster, bundle.catalogue.info)}"`,
   );

@@ -1,7 +1,9 @@
 // Soak test of the live page in headless Chromium: runs the real page (sped up with
 // ?speed=) for a while and samples, at every new match, the JS heap after a forced GC,
 // the three.js GPU resource counts and the DOM size. Fails if the heap grows more than
-// 10 % past the warm-up or any GPU count grows after it.
+// 10 % past the warm-up or any GPU count grows after it. It also reports, per match and
+// per mission, the most ships on the field and the frame and tick times (informational:
+// headless SwiftShader frame times say little about a real GPU).
 //
 // It serves a private copy of web/dist, so halfway through it can also check the
 // bundle swap: it publishes a broken manifest (the page must keep its bundle), then a
@@ -69,14 +71,32 @@ const samples = [];
 let lastMatch = 0;
 const swap = { brokenAt: null, validAt: null, keptOld: null, tookNew: null };
 const newId = `${original.bundle_id}-soak`;
+// Per match (between samples): the most ships on the field, the mean and worst frame
+// and the worst smoothed sim + inference tick, polled once a second.
+let load = { mission: "", ships: 0, frame: [], worstFrame: 0, tick: 0 };
+const loads = [];
 while (Date.now() - start < MINUTES * 60_000) {
   await page.waitForTimeout(SAMPLE_POLL_MS);
-  const matches = await page.evaluate(() => window.rlfLive.stats().matches);
+  const st = await page.evaluate(() => window.rlfLive.stats());
+  if (st.phase === "battle") {
+    load.mission = st.mission ?? "";
+    load.ships = Math.max(load.ships, st.ships ?? 0);
+    if (st.frameMs) load.frame.push(st.frameMs);
+    load.worstFrame = Math.max(load.worstFrame, st.worstFrameMs ?? 0);
+    load.tick = Math.max(load.tick, st.tickMs ?? 0);
+  }
+  const matches = st.matches;
   if (matches === lastMatch) continue;
   lastMatch = matches;
   const s = await sample();
   samples.push(s);
-  console.log(`live soak: ${(s.t / 1000).toFixed(0)} s match ${s.matches} heap ${(s.heap / 1048576).toFixed(2)} MiB gpu ${JSON.stringify(s.gpu)} dom ${s.dom} bundle ${s.bundle} tally ${s.tally.wins.join("-")}/${s.tally.draws}`);
+  const meanFrame = load.frame.length ? load.frame.reduce((a, b) => a + b, 0) / load.frame.length : 0;
+  if (load.mission) loads.push({ ...load, meanFrame });
+  const perf = load.mission
+    ? ` · last match ${load.mission}: peak ${load.ships} ships, frame ${meanFrame.toFixed(1)} ms mean / ${load.worstFrame.toFixed(0)} worst, tick ≤ ${load.tick.toFixed(2)} ms`
+    : "";
+  load = { mission: "", ships: 0, frame: [], worstFrame: 0, tick: 0 };
+  console.log(`live soak: ${(s.t / 1000).toFixed(0)} s match ${s.matches} heap ${(s.heap / 1048576).toFixed(2)} MiB gpu ${JSON.stringify(s.gpu)} dom ${s.dom} bundle ${s.bundle} tally ${s.tally.wins.join("-")}/${s.tally.draws}${perf}`);
   const half = (MINUTES * 60_000) / 2;
   if (swap.brokenAt === null && s.t > half) {
     // A manifest for a bundle whose wasm cannot match: the load must fail.
@@ -114,6 +134,14 @@ console.log(
     `(${(growth * 100).toFixed(1)} %, peak ${(peak / 1048576).toFixed(2)}); gpu ${JSON.stringify(first.gpu)} → ${JSON.stringify(last.gpu)}; dom ${first.dom} → ${last.dom}`,
 );
 console.log(`live soak: bundle swap: broken manifest kept the old bundle: ${swap.keptOld}; new bundle taken over: ${swap.tookNew}; page warnings: ${warnings.length}`);
+for (const mission of [...new Set(loads.map((l) => l.mission))]) {
+  const ls = loads.filter((l) => l.mission === mission);
+  const mean = ls.reduce((a, l) => a + l.meanFrame, 0) / ls.length;
+  console.log(
+    `live soak: ${mission} × ${ls.length}: peak ${Math.max(...ls.map((l) => l.ships))} ships on the field, frame ${mean.toFixed(1)} ms mean / ` +
+      `${Math.max(...ls.map((l) => l.worstFrame)).toFixed(0)} ms worst, tick ≤ ${Math.max(...ls.map((l) => l.tick)).toFixed(2)} ms`,
+  );
+}
 if (growth > HEAP_GROWTH_LIMIT) (failed = true), console.error(`live soak: FAIL heap grew ${(growth * 100).toFixed(1)} % (limit ${HEAP_GROWTH_LIMIT * 100} %)`);
 if (gpuGrew.length) (failed = true), console.error(`live soak: FAIL GPU resources grew after warm-up: ${gpuGrew.join(", ")}`);
 if (domGrew) (failed = true), console.error("live soak: FAIL DOM grew after warm-up");

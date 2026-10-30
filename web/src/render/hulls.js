@@ -1,4 +1,13 @@
-// Prototype hull specs shared by the scripted sim and every style module.
+// Render-side hull specs: the look (model, drawn length and beam, plume sizes, turret
+// heights) plus copies of the sim's mounts and numbers. The sim's YAML
+// (assets/hulls/<name>/hull.yaml) is the source of truth for gameplay numbers and
+// mounts; the live page overlays them from the bundle catalogue (web/src/live/world.ts
+// mergeSpec), so these copies matter only where no bundle is loaded (the hull
+// turntable, the M3 art preview). Aligned with the YAML on 2026-10-30 for the
+// freighter (hp 900 -> 500, mass 260 -> 300, inertia 16000 -> 40000, shield 200/10 ->
+// 80/6, mains 3300 -> 3000 N, radius 13.5 -> 12, its collision bound) and the
+// fighter's hp (60 -> 80); the carrier's and the strike craft's mounts already match.
+// Weapon numbers in WEAPONS below are v1's; the sim's are assets/weapons.yaml.
 // Body frame: +x forward, +y port (left). Units: metres, kg, seconds.
 // Style modules convert mounts with mountToLocal() into three.js local space
 // (+X forward, +Y up, +Z starboard).
@@ -10,7 +19,7 @@ export const HULLS = {
     length: 10,
     beam: 5.6,
     radius: 4.5,
-    hp: 60,
+    hp: 80,
     mass: 10,
     inertia: 55,
     speedCap: 60,
@@ -125,20 +134,20 @@ export const HULLS = {
     model: "freighter",
     length: 26,
     beam: 9,
-    radius: 13.5,
-    hp: 900,
-    mass: 260,
-    inertia: 16000,
+    radius: 12,
+    hp: 500,
+    mass: 300,
+    inertia: 40000,
     speedCap: 14,
-    shield: { hp: 200, regenRate: 10, regenDelay: 5, radius: 15 },
+    shield: { hp: 80, regenRate: 6, regenDelay: 5, radius: 15 },
     collision: [
       { pos: [8, 0], r: 4 },
       { pos: [0, 0], r: 4.5 },
       { pos: [-8, 0], r: 4.2 },
     ],
     thrusters: [
-      { id: "thruster.main.l", pos: [-13, 2], dir: [1, 0], force: 3300, size: 1.75 },
-      { id: "thruster.main.r", pos: [-13, -2], dir: [1, 0], force: 3300, size: 1.75 },
+      { id: "thruster.main.l", pos: [-13, 2], dir: [1, 0], force: 3000, size: 1.75 },
+      { id: "thruster.main.r", pos: [-13, -2], dir: [1, 0], force: 3000, size: 1.75 },
       { id: "thruster.rcs.fl", pos: [9, 4.2], dir: [0, -1], force: 300, size: 0.3 },
       { id: "thruster.rcs.fr", pos: [9, -4.2], dir: [0, 1], force: 300, size: 0.3 },
       { id: "thruster.rcs.rl", pos: [-9, 4.4], dir: [0, -1], force: 300, size: 0.3 },
