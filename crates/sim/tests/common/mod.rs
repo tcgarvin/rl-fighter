@@ -197,7 +197,7 @@ pub fn gunship_hull() -> HullDef {
 
 /// v4 carrier (SIM_SPEC §4.1): flak, two bays.
 pub fn carrier_hull() -> HullDef {
-    let mut h = hull("carrier", "carrier", 1500.0, 600.0, 90000.0, 10.0);
+    let mut h = hull("carrier", "carrier", 1500.0, 600.0, 90000.0, 8.0);
     h.cost = 120;
     h.shield = Some(ShieldDef {
         hp: 260.0,
@@ -211,13 +211,13 @@ pub fn carrier_hull() -> HullDef {
         circle(-13.0, 0.0, 7.5),
     ];
     h.thrusters = vec![
-        thruster("thruster.main.l", (-19.5, 4.5), (1.0, 0.0), 7000.0),
-        thruster("thruster.main.c", (-20.0, 0.0), (1.0, 0.0), 7000.0),
-        thruster("thruster.main.r", (-19.5, -4.5), (1.0, 0.0), 7000.0),
-        thruster("thruster.rcs.fl", (15.0, 8.0), (0.0, -1.0), 3500.0),
-        thruster("thruster.rcs.fr", (15.0, -8.0), (0.0, 1.0), 3500.0),
-        thruster("thruster.rcs.rl", (-14.0, 8.5), (0.0, -1.0), 3500.0),
-        thruster("thruster.rcs.rr", (-14.0, -8.5), (0.0, 1.0), 3500.0),
+        thruster("thruster.main.l", (-19.5, 4.5), (1.0, 0.0), 300.0),
+        thruster("thruster.main.c", (-20.0, 0.0), (1.0, 0.0), 300.0),
+        thruster("thruster.main.r", (-19.5, -4.5), (1.0, 0.0), 300.0),
+        thruster("thruster.rcs.fl", (15.0, 8.0), (0.0, -1.0), 450.0),
+        thruster("thruster.rcs.fr", (15.0, -8.0), (0.0, 1.0), 450.0),
+        thruster("thruster.rcs.rl", (-14.0, 8.5), (0.0, -1.0), 450.0),
+        thruster("thruster.rcs.rr", (-14.0, -8.5), (0.0, 1.0), 450.0),
     ];
     h.turrets = vec![
         turret("turret.flak.fore", (12.0, 0.0), 0.0, 270.0, 90.0, FLAK),

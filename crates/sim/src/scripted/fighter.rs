@@ -122,7 +122,7 @@ fn deconflict(me: &Ship, eng: &Engagement) -> Option<Manoeuvre> {
     }
     let miss = r + v * t_cpa;
     let miss_len = miss.length();
-    if miss_len >= SAFE_MISS {
+    if miss_len >= eng.safe_miss {
         return None;
     }
     let away = if miss_len > TIE_MISS {
@@ -143,7 +143,9 @@ fn deconflict(me: &Ship, eng: &Engagement) -> Option<Manoeuvre> {
         });
     }
     // Each ship covers half the shortfall (d = a t² / 2): two scripted pilots split it.
-    let need = (SAFE_MISS - miss_len) / (t_cpa * t_cpa).max(1e-3);
+    // A capital ship does not dodge, so against one the fighter covers all of it.
+    let share = if eng.safe_miss > SAFE_MISS { 2.0 } else { 1.0 };
+    let need = share * (eng.safe_miss - miss_len) / (t_cpa * t_cpa).max(1e-3);
     let push = (need / SIDESTEP_ACCEL).min(1.0);
     Some(Manoeuvre {
         force_body: Vec2::new(0.0, side * push),
@@ -154,4 +156,20 @@ fn deconflict(me: &Ship, eng: &Engagement) -> Option<Manoeuvre> {
 /// `1` toward port (body +y) for positive `lateral`, else `-1` (starboard).
 fn sign_or_starboard(lateral: f32) -> f32 {
     if lateral > 0.0 { 1.0 } else { -1.0 }
+}
+
+/// Clearance (m) beyond both bound radii a fighter keeps from a capital ship's centre
+/// when it deconflicts a pass (WP-S2): a carrier is ~40 m long, so the strike-craft
+/// `SAFE_MISS` would fly a strafing run straight into its hull.
+pub const CAPITAL_CLEARANCE: f32 = 6.0;
+
+/// The centre-to-centre miss distance a pilot of `hull` deconflicts to against a
+/// `target` hull: `SAFE_MISS` between strike craft (as in v3), both bound radii plus
+/// `CAPITAL_CLEARANCE` against a carrier or transport.
+pub(crate) fn safe_miss(hull: &crate::data::HullDef, target: &crate::data::HullDef) -> f32 {
+    if crate::mission::is_capital_ship(target) {
+        SAFE_MISS.max(hull.bound_radius + target.bound_radius + CAPITAL_CLEARANCE)
+    } else {
+        SAFE_MISS
+    }
 }

@@ -20,10 +20,12 @@ pub mod capital;
 pub mod commander;
 pub mod fighter;
 pub mod gunship;
+pub mod orders;
 pub mod strafer;
 
 use crate::DT;
 use crate::actions::{SLEW_HOLD, ShipAction, THROTTLE_DECREASE, THROTTLE_HOLD, THROTTLE_INCREASE};
+use crate::command::Order;
 use crate::data::{Catalogue, HullDef, WeaponDef, WeaponKind};
 use crate::math::{Vec2, clamp, wrap_angle};
 use crate::physics::{RAMP_STEP, ramp_level};
@@ -143,6 +145,8 @@ pub(crate) struct Engagement {
     /// `|bearing|` of this ship as seen from the target's nose, in `[0, π]`
     /// (0 = the target points straight at us).
     pub target_aspect: f32,
+    /// Centre-to-centre miss distance the fighter deconflicts to (`fighter::safe_miss`).
+    pub safe_miss: f32,
 }
 
 /// The scripted action for `ship` in its current state.
@@ -163,21 +167,60 @@ pub fn act(m: &Match, cat: &Catalogue, ship: ShipIdx) -> ShipAction {
         Role::Transport => return capital::transport(m, me, hull),
         Role::Fighter | Role::Skirmisher | Role::Anchor => {}
     }
-    let Some(target) = pick_target(m, cat, me, role) else {
-        return ShipAction::IDLE;
+    // WP-S2: a squad order picks the target (orders.rs); without one, the role's own
+    // choice, exactly as before orders existed.
+    let order = orders::active_order(m, me);
+    let target = if order == Order::None {
+        pick_target(m, cat, me, role)
+    } else {
+        let gun_range = hull
+            .turrets
+            .first()
+            .map_or(0.0, |t| cat.weapon(t.weapon).range);
+        orders::order_target(m, cat, me, gun_range, order, || {
+            pick_target(m, cat, me, role)
+        })
     };
     // Everything below sees the state on the tick this action applies.
     let ahead = lookahead_ticks(me);
     let me_now = me;
+    let Some(target) = target else {
+        if order == Order::None {
+            return ShipAction::IDLE;
+        }
+        let me = &predict(me_now, ahead, true);
+        let plan = orders::station_manoeuvre(m, cat, me, hull, order);
+        let dist = nearest_enemy(m, cat, me.team, me.pos, f32::INFINITY, |_| true)
+            .map_or(f32::INFINITY, |e| (e.pos - me.pos).length());
+        return steer_and_fight(m, cat, me_now, me, hull, plan, dist, ahead);
+    };
     let me = &predict(me, ahead, true);
     let eng = engage(cat, me, hull, &predict(target, ahead, false));
 
-    let mut plan = match role {
+    let plan = match role {
         Role::Fighter => fighter::manoeuvre(me, &eng),
         Role::Skirmisher => strafer::manoeuvre(me, &eng),
         Role::Anchor => gunship::manoeuvre(&eng),
         Role::Carrier | Role::Transport => unreachable!("capital roles returned above"),
     };
+    steer_and_fight(m, cat, me_now, me, hull, plan, eng.dist, ahead)
+}
+
+/// The shared tail of a strike craft's tick: the arena turn-back overrides `plan`,
+/// then the PD turn, thruster allocation and rate heads, the power split (against an
+/// enemy `dist` away) and the turrets. `me` is the predicted ship, `me_now` the
+/// current one.
+#[allow(clippy::too_many_arguments)]
+fn steer_and_fight(
+    m: &Match,
+    cat: &Catalogue,
+    me_now: &Ship,
+    me: &Ship,
+    hull: &HullDef,
+    mut plan: Manoeuvre,
+    dist: f32,
+    ahead: u32,
+) -> ShipAction {
     if me.pos.length() > ARENA_TURN_BACK * m.cfg.arena_radius {
         plan = Manoeuvre {
             force_body: Vec2::X,
@@ -189,9 +232,9 @@ pub fn act(m: &Match, cat: &Catalogue, ship: ShipIdx) -> ShipAction {
     let target_levels = allocate_thrusters(hull, plan.force_body, turn_torque(me, plan.heading));
     let projected = projected_levels(me_now, hull, m.tick);
     action.throttle = levels_to_throttle_heads(hull, &projected, &target_levels);
-    action.power = choose_power(m, cat, me, hull, eng.dist);
+    action.power = choose_power(m, cat, me, hull, dist);
     let p_w = weapons_multiplier_after_slew(me, hull, action.power);
-    aim_turrets(m, cat, me, hull, p_w, ahead, &mut action);
+    aim_turrets(m, cat, me, hull, p_w, ahead, false, &mut action);
     action
 }
 
@@ -375,6 +418,7 @@ fn engage(cat: &Catalogue, me: &Ship, hull: &HullDef, target: &Ship) -> Engageme
         lead_heading: lead.angle(),
         gun_range,
         target_aspect: wrap_angle((-rel_pos).angle() - target.heading).abs(),
+        safe_miss: fighter::safe_miss(hull, cat.hull(target.hull)),
     }
 }
 
@@ -399,6 +443,12 @@ fn lead_point(weapon: &WeaponDef, me: &Ship, target: &Ship, rel: Vec2) -> Vec2 {
 /// A turret is ready when its cooldown reaches 0 by the stage 6 of the tick the action
 /// applies (`ahead` ticks of cooldown at weapons multiplier `p_w`), since stage 7
 /// fires right after: gating on the cooldown as read now would fire late.
+///
+/// Bullet, beam and flak turrets aim at the nearest enemy in reach; with
+/// `threats_first` (the carrier's point defence, WP-S2) at the nearest enemy strike
+/// craft in reach, and at a capital ship only when no strike craft is. (Flak cannot
+/// hit projectiles, so a torpedo is a threat through the ship that launched it.)
+#[allow(clippy::too_many_arguments)]
 fn aim_turrets(
     m: &Match,
     cat: &Catalogue,
@@ -406,6 +456,7 @@ fn aim_turrets(
     hull: &HullDef,
     p_w: f32,
     ahead: u32,
+    threats_first: bool,
     action: &mut ShipAction,
 ) {
     for (j, turret) in hull.turrets.iter().enumerate() {
@@ -421,7 +472,11 @@ fn aim_turrets(
             })
         } else {
             let reach = weapon.range * TURRET_SEARCH_FACTOR;
-            nearest_enemy(m, cat, me.team, muzzle, reach, |_| true)
+            let strike = |h: &HullDef| !crate::mission::is_capital_ship(h);
+            threats_first
+                .then(|| nearest_enemy(m, cat, me.team, muzzle, reach, strike))
+                .flatten()
+                .or_else(|| nearest_enemy(m, cat, me.team, muzzle, reach, |_| true))
         };
         action.slew[j] = SLEW_HOLD;
         action.fire[j] = 0;
