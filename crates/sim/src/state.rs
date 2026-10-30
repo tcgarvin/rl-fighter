@@ -12,8 +12,10 @@ use crate::events::{EventBuf, HitRecord};
 use crate::hash::{StateHash, StateHasher};
 use crate::math::Vec2;
 use crate::mission::MissionState;
+use crate::order::OrderTracks;
 use crate::power;
 use crate::rng::Pcg32;
+use crate::scripted::random_commander::RandomCommander;
 use crate::setup::MatchConfig;
 
 /// Ships per match, both teams together, docked reserves included (v4: 20, was 8).
@@ -319,6 +321,13 @@ pub struct Match {
     /// v4, per team: what became of each command on the last slow tick (output, not
     /// hashed).
     pub command_results: [Vec<CommandOutcome>; 2],
+    /// v5: the random commander's own rng streams and memory (hashed; untouched
+    /// unless a team's commander is `Random`).
+    pub random_commander: RandomCommander,
+    /// v5, per slot: the ship's order instance (hashed; `order` module).
+    pub order_tracks: OrderTracks,
+    /// v5, per slot: the order reward of the last step (SIM_SPEC §8; output only).
+    pub order_rewards: [f32; MAX_SHIPS],
 }
 
 /// `winner` before the match is over.
@@ -352,10 +361,15 @@ impl Match {
         &self.rewards[..self.ships.len()]
     }
 
+    /// v5: order rewards of the last step, one per ship (SIM_SPEC §8).
+    pub fn order_rewards(&self) -> &[f32] {
+        &self.order_rewards[..self.ships.len()]
+    }
+
     /// FNV-1a 64 over the simulation state in SIM_SPEC §12 order: tick, rng state,
     /// every ship, every projectile pool slot, `proj_next`, phase, winner, then (v4)
     /// both teams' reserves (count, then slots), the mission state and the command
-    /// state.
+    /// state, then (v5) the random commander's state and every slot's order track.
     pub fn state_hash(&self) -> u64 {
         let mut h = StateHasher::new();
         h.write_u32(self.tick);
@@ -371,6 +385,8 @@ impl Match {
         }
         self.mission.hash_into(&mut h);
         self.command.hash_into(&mut h);
+        self.random_commander.hash_into(&mut h);
+        self.order_tracks.hash_into(&mut h);
         h.finish()
     }
 }

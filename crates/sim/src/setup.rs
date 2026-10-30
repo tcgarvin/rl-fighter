@@ -7,7 +7,9 @@ use crate::command::{CommandState, CommanderMode};
 use crate::data::{Catalogue, HullId};
 use crate::events::EventBuf;
 use crate::mission::{self, Mission, MissionState};
+use crate::order::OrderTrack;
 use crate::rng::Pcg32;
+use crate::scripted::random_commander::RandomCommander;
 use crate::state::{
     MAX_HITS, MAX_PROJECTILES, MAX_REACTION_TICKS, MAX_SHIPS, Match, MatchPhase, Projectile, Ship,
     WINNER_NONE,
@@ -18,6 +20,13 @@ pub const DEFAULT_ARENA_RADIUS: f32 = 450.0;
 pub const DEFAULT_TIME_LIMIT_TICKS: u32 = 2700;
 /// Default reaction delay, ticks (≈ 67 ms; SIM_SPEC §5 stage 3, v2).
 pub const DEFAULT_REACTION_TICKS: u8 = 2;
+
+/// v5: ship slots a training env pads its rosters to (M3 stage B: carrier battles
+/// and convoys with 4–5 strike craft a side fit in 12; deathmatch drafts need 8).
+/// Live rosters use up to `MAX_SHIPS`. Bindings export it; the trainer sizes its
+/// buffers with it.
+pub const MAX_TRAIN_SHIPS: usize = 12;
+const _: () = assert!(MAX_TRAIN_SHIPS <= MAX_SHIPS);
 
 /// Extra arena radius per ship beyond a duel's two, metres (0: one size for all).
 pub const ARENA_RADIUS_PER_SHIP: f32 = 0.0;
@@ -190,8 +199,12 @@ impl Match {
             command: CommandState::default(),
             inbox: [Vec::new(), Vec::new()],
             command_results: [Vec::new(), Vec::new()],
+            random_commander: RandomCommander::new(cfg.seed),
+            order_tracks: [OrderTrack::default(); MAX_SHIPS],
+            order_rewards: [0.0; MAX_SHIPS],
         };
         m.setup_mission(cat);
+        m.init_order_tracks(cat);
         Ok(m)
     }
 }

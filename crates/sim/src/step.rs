@@ -16,7 +16,7 @@ pub const VALUE_SHIELD_WEIGHT: f32 = 0.5;
 
 impl Match {
     /// Advance one tick (SIM_SPEC §5). Fills `events`, `hits`, `shots_fired`,
-    /// `outside_arena` and `rewards` for this tick.
+    /// `outside_arena`, `rewards` and (v5) `order_rewards` for this tick.
     ///
     /// After the match is `Over`, a step still clears the per-step outputs and
     /// advances `tick` (stage 1), then returns: ships, projectiles, rng, phase and
@@ -26,6 +26,7 @@ impl Match {
         // 1. Clear per-step outputs; advance the clock.
         self.clear_combat_outputs();
         self.rewards = [0.0; MAX_SHIPS];
+        self.order_rewards = [0.0; MAX_SHIPS];
         self.outside_arena = [false; MAX_SHIPS];
         self.tick += 1;
         if self.phase == MatchPhase::Over {
@@ -73,6 +74,8 @@ impl Match {
         self.step_mission_rules();
         // 13. Termination, winner and end reason per mission (mission.rs).
         self.check_termination(cat);
+        // 13b. v5: order instances and the order reward (order.rs, reward.rs).
+        self.compute_order_rewards(cat, &earning);
         // 14. Rewards, including the terminal term (reward.rs).
         self.compute_rewards(&earning);
     }

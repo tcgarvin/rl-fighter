@@ -15,6 +15,7 @@ pub mod hash;
 pub mod math;
 pub mod mission;
 pub mod obs;
+pub mod order;
 pub mod physics;
 pub mod power;
 pub mod projectiles;
@@ -35,17 +36,38 @@ pub use rng::Pcg32;
 /// Bumped whenever a golden determinism trace changes (SIM_SPEC §12).
 /// v4 (M3 stage A): missions, carriers and hangars, convoy jumps, the commander layer,
 /// `MAX_SHIPS` 20. Pilot obs and actions are unchanged from v3.
-pub const SIM_VERSION: u32 = 4;
+/// v5 (M3 stage B): the order block appended to the obs (`OBS_DIM` 403), order
+/// instances and the order reward, the random commander. The first 385 obs floats
+/// and every v4 trajectory are unchanged (SIM_SPEC §0.3).
+pub const SIM_VERSION: u32 = 5;
 
-/// Sim versions whose trained pilots fly correctly in this build: their obs and
-/// action layouts, and deathmatch trajectories with up to 8 ships, are identical
-/// (SIM_SPEC §0.2; proven by `tests/determinism.rs::v3_compat_*`). The bundle and the
-/// champion registry accept a pilot whose `sim_version` is in this list.
-pub const PILOT_COMPAT_VERSIONS: &[u32] = &[3, 4];
+/// Sim versions whose trained pilots fly correctly in this build: their obs prefix
+/// and action layout, and deathmatch trajectories with up to 8 ships, are identical
+/// (SIM_SPEC §0.2, §0.3; proven by `tests/determinism.rs::v3_compat_*` and
+/// `v4_compat_*`). The bundle and the champion registry accept a pilot whose
+/// `sim_version` is in this list; it reads the first [`pilot_obs_dim`] floats of the
+/// obs.
+pub const PILOT_COMPAT_VERSIONS: &[u32] = &[3, 4, 5];
+
+/// `(sim version, obs width)` for every pilot-compatible version: a pilot of that
+/// version consumes `obs[..width]` (v3 and v4 pilots the 385-float prefix).
+pub const PILOT_OBS_DIMS: &[(u32, usize)] = &[
+    (3, obs::OBS_DIM_V4),
+    (4, obs::OBS_DIM_V4),
+    (5, obs::OBS_DIM),
+];
 
 /// Whether a pilot trained under sim `version` flies in this build.
 pub fn pilot_compatible(version: u32) -> bool {
     PILOT_COMPAT_VERSIONS.contains(&version)
+}
+
+/// The obs width a pilot of sim `version` consumes, `None` if it does not fly here.
+pub fn pilot_obs_dim(version: u32) -> Option<usize> {
+    PILOT_OBS_DIMS
+        .iter()
+        .find(|&&(v, _)| v == version)
+        .map(|&(_, d)| d)
 }
 
 /// Fixed simulation step, 30 Hz.

@@ -76,7 +76,8 @@ fn bullet(team: u8, pos: (f32, f32), vel: (f32, f32), damage: f32) -> Projectile
 
 #[test]
 fn block_offsets_match_spec() {
-    assert_eq!(OBS_DIM, 385);
+    assert_eq!(OBS_DIM, 403);
+    assert_eq!(OBS_DIM_V4, 385);
     assert_eq!((SELF_OFF, SELF_WIDTH), (0, 21));
     assert_eq!((THRUSTERS_OFF, THRUSTERS_WIDTH), (21, 56));
     assert_eq!((TURRETS_OFF, TURRETS_WIDTH), (77, 60));
@@ -85,6 +86,24 @@ fn block_offsets_match_spec() {
     assert_eq!((PENDING_OFF, PENDING_WIDTH), (285, 88));
     assert_eq!((TURRET_ARC_OFF, TURRET_ARC_WIDTH), (373, 6));
     assert_eq!((TURRET_RANGE_OFF, TURRET_RANGE_WIDTH), (379, 6));
+    assert_eq!((ORDER_OFF, ORDER_WIDTH), (385, 18));
+    assert_eq!(
+        (
+            order_f::HAS_ORDER,
+            order_f::KIND,
+            order_f::REL_POS_X,
+            order_f::REL_VEL_X,
+            order_f::SIGNED_DIST,
+            order_f::RADIUS,
+            order_f::HP,
+            order_f::BOUND_RADIUS,
+            order_f::SIN_REL_HEADING,
+            order_f::COS_REL_HEADING,
+            order_f::AGE,
+            order_f::MISSION
+        ),
+        (0, 1, 4, 6, 8, 9, 10, 11, 12, 13, 14, 15)
+    );
     assert_eq!(
         (SELF_W, THRUSTER_W, TURRET_W, SHIP_W, PROJ_W, PENDING_W),
         (21, 7, 10, 12, 8, 22)
@@ -124,7 +143,8 @@ fn obs_layout_and_slots_are_contiguous_and_cover_obs() {
             "projectiles",
             "pending",
             "turret_arc",
-            "turret_range"
+            "turret_range",
+            "order"
         ]
     );
     let slots: Vec<(&str, usize)> = OBS_SLOTS.to_vec();
@@ -138,7 +158,8 @@ fn obs_layout_and_slots_are_contiguous_and_cover_obs() {
             ("projectiles", 8),
             ("pending", 4),
             ("turret_arc", 6),
-            ("turret_range", 6)
+            ("turret_range", 6),
+            ("order", 1)
         ]
     );
     for (&(name, _, width), &(slot_name, n)) in OBS_LAYOUT.iter().zip(OBS_SLOTS) {

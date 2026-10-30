@@ -1,6 +1,9 @@
-//! Observation layout constants and `Match::write_obs` (SIM_SPEC §7.2, v2).
+//! Observation layout constants and `Match::write_obs` (SIM_SPEC §7.2, v2; v5 order
+//! block).
 //!
-//! The obs is a fixed 385-float vector in the observing ship's body frame (relative
+//! The obs is a fixed 403-float vector (385 through v4; v5 appends the 18-float
+//! `order` block, so the first `OBS_DIM_V4` floats are exactly v4's and a v3/v4
+//! pilot reads `obs[..OBS_DIM_V4]`) in the observing ship's body frame (relative
 //! vectors rotated by `-heading`, so forward = +x, port = +y). Every block is a
 //! sequence of fixed-width records of one entity (self, thruster, turret, ship,
 //! projectile, pending action); each record has its own writer so the later
@@ -31,17 +34,27 @@
 //!   beyond the hull's thrusters/turrets read 0).
 //! - Turret arc/range blocks are per turret slot and zero for absent slots;
 //!   `write_turret_extras` writes them so a token record can append them.
+//! - v5 order block (`write_order`): the ship's effective order (`order` module). A
+//!   ship with no order gets the all-zero block, mission one-hot and order age
+//!   included, so an order-less row reads exactly as a v4 obs padded with zeros.
+//!   The target point's velocity is the target's (attack, guard) or zero (hold);
+//!   heading and hit points are the target's, 0 for hold.
 
 use crate::actions::{POWER_MAX, ShipAction, THROTTLE_HOLD};
 use crate::arrival::ARRIVAL_LOCK_TICKS;
+use crate::command::Order;
 use crate::data::{Catalogue, HullDef, ThrusterDef};
 use crate::math::{TAU, Vec2, clamp, rot};
+use crate::order::{effective_order, order_geometry};
 use crate::state::{
     MAX_REACTION_TICKS, MAX_SHIPS, MAX_THRUSTERS, MAX_TURRETS, Match, Projectile, Ship, ShipIdx,
 };
 
-/// Total obs width.
-pub const OBS_DIM: usize = 385;
+/// Total obs width (v5; 385 through v4).
+pub const OBS_DIM: usize = 403;
+/// Width of the v3/v4 obs, the prefix every v5 obs starts with unchanged: what a
+/// pilot trained under SIM_VERSION 3 or 4 reads (`crate::PILOT_OBS_DIMS`).
+pub const OBS_DIM_V4: usize = 385;
 /// Every feature is clamped to `[-OBS_CLIP, OBS_CLIP]` after scaling.
 pub const OBS_CLIP: f32 = 5.0;
 
@@ -84,6 +97,12 @@ pub const PENDING_W: usize = 1 + MAX_THRUSTERS + 2 * MAX_TURRETS + 1;
 pub const N_PENDING_SLOTS: usize = MAX_REACTION_TICKS;
 /// Per-turret extras (arc, range), split across the two trailing blocks.
 pub const TURRET_EXTRA_W: usize = 2;
+/// v5 order record: has_order, kind one-hot[3], target rel pos[2], rel vel[2],
+/// signed distance, radius, hp, bound radius, sin/cos rel heading, age, mission
+/// one-hot[3].
+pub const ORDER_W: usize = 18;
+/// The order age feature saturates at this many ticks (10 s).
+pub const ORDER_AGE_TICKS: f32 = 300.0;
 
 // Block offsets and widths.
 pub const SELF_OFF: usize = 0;
@@ -102,9 +121,12 @@ pub const TURRET_ARC_OFF: usize = PENDING_OFF + PENDING_WIDTH;
 pub const TURRET_ARC_WIDTH: usize = N_TURRET_SLOTS;
 pub const TURRET_RANGE_OFF: usize = TURRET_ARC_OFF + TURRET_ARC_WIDTH;
 pub const TURRET_RANGE_WIDTH: usize = N_TURRET_SLOTS;
+pub const ORDER_OFF: usize = TURRET_RANGE_OFF + TURRET_RANGE_WIDTH;
+pub const ORDER_WIDTH: usize = ORDER_W;
 
-const _: () = assert!(TURRET_RANGE_OFF + TURRET_RANGE_WIDTH == OBS_DIM);
-const _: () = assert!(OBS_DIM == 385);
+const _: () = assert!(ORDER_OFF == OBS_DIM_V4);
+const _: () = assert!(ORDER_OFF + ORDER_WIDTH == OBS_DIM);
+const _: () = assert!(OBS_DIM == 403);
 const _: () = assert!(PENDING_W == 22);
 
 /// `(name, offset, width)` of every block, contiguous and in order; sim-py exports
@@ -118,6 +140,7 @@ pub const OBS_LAYOUT: &[(&str, usize, usize)] = &[
     ("pending", PENDING_OFF, PENDING_WIDTH),
     ("turret_arc", TURRET_ARC_OFF, TURRET_ARC_WIDTH),
     ("turret_range", TURRET_RANGE_OFF, TURRET_RANGE_WIDTH),
+    ("order", ORDER_OFF, ORDER_WIDTH),
 ];
 
 /// `(name, records)` per block, in `OBS_LAYOUT` order; each block's width is
@@ -131,6 +154,7 @@ pub const OBS_SLOTS: &[(&str, usize)] = &[
     ("pending", N_PENDING_SLOTS),
     ("turret_arc", N_TURRET_SLOTS),
     ("turret_range", N_TURRET_SLOTS),
+    ("order", 1),
 ];
 
 /// Feature indices within the self record.
@@ -227,6 +251,37 @@ pub mod pending_f {
     pub const FIRE: usize = SLEW + MAX_TURRETS;
     /// `power / POWER_MAX`.
     pub const POWER: usize = FIRE + MAX_TURRETS;
+}
+
+/// Feature indices within the v5 order record.
+pub mod order_f {
+    /// 1 when the ship has an order (0: the whole record is zero).
+    pub const HAS_ORDER: usize = 0;
+    /// One-hot attack, guard, hold.
+    pub const KIND: usize = 1;
+    /// Target point (the target, the ward, the hold point) relative position, body
+    /// frame, / R.
+    pub const REL_POS_X: usize = 4;
+    pub const REL_POS_Y: usize = 5;
+    /// Target point velocity − own velocity, body frame, / VS (hold: −own velocity).
+    pub const REL_VEL_X: usize = 6;
+    pub const REL_VEL_Y: usize = 7;
+    /// `(distance − radius) / R`: negative inside the order radius.
+    pub const SIGNED_DIST: usize = 8;
+    /// Order radius / R (attack 0; guard `GUARD_PRESENCE` + the ward's bound radius;
+    /// hold its radius; a capital ship's waypoint `CAPITAL_WAYPOINT_RADIUS`).
+    pub const RADIUS: usize = 9;
+    /// Target hp / max hp (0 for hold).
+    pub const HP: usize = 10;
+    /// Target bound radius / L (0 for hold).
+    pub const BOUND_RADIUS: usize = 11;
+    /// sin / cos of the target's heading relative to own (0 for hold).
+    pub const SIN_REL_HEADING: usize = 12;
+    pub const COS_REL_HEADING: usize = 13;
+    /// Ticks since the ship's order instance started / `ORDER_AGE_TICKS`, at most 1.
+    pub const AGE: usize = 14;
+    /// One-hot deathmatch, carrier battle, convoy escort.
+    pub const MISSION: usize = 15;
 }
 
 #[inline]
@@ -434,6 +489,45 @@ pub fn write_pending(a: &ShipAction, out: &mut [f32]) {
     clamp_record(out);
 }
 
+/// v5: `ship`'s order record (`ORDER_W` floats, module docs): all zero without an
+/// order.
+pub fn write_order(m: &Match, cat: &Catalogue, ship: &Ship, out: &mut [f32]) {
+    let out = &mut out[..ORDER_W];
+    out.fill(0.0);
+    let order = effective_order(m, usize::from(ship.slot));
+    let Some((point, radius)) = order_geometry(m, cat, order) else {
+        return;
+    };
+    let arena = m.cfg.arena_radius;
+    let target = match order {
+        Order::Attack { target } => Some(&m.ships[usize::from(target)]),
+        Order::Guard { ward } => Some(&m.ships[usize::from(ward)]),
+        Order::Hold { .. } | Order::None => None,
+    };
+    let delta = point - ship.pos;
+    let rel_pos = to_body(ship, delta);
+    let rel_vel = to_body(ship, target.map_or(Vec2::ZERO, |t| t.vel) - ship.vel);
+    out[order_f::HAS_ORDER] = 1.0;
+    out[order_f::KIND + usize::from(order.kind()) - 1] = 1.0;
+    out[order_f::REL_POS_X] = rel_pos.x / arena;
+    out[order_f::REL_POS_Y] = rel_pos.y / arena;
+    out[order_f::REL_VEL_X] = rel_vel.x / VS;
+    out[order_f::REL_VEL_Y] = rel_vel.y / VS;
+    out[order_f::SIGNED_DIST] = (delta.length() - radius) / arena;
+    out[order_f::RADIUS] = radius / arena;
+    if let Some(t) = target {
+        let hull = cat.hull(t.hull);
+        let rel_heading = t.heading - ship.heading;
+        out[order_f::HP] = t.hp / hull.hp;
+        out[order_f::BOUND_RADIUS] = hull.bound_radius / L;
+        out[order_f::SIN_REL_HEADING] = libm::sinf(rel_heading);
+        out[order_f::COS_REL_HEADING] = libm::cosf(rel_heading);
+    }
+    out[order_f::AGE] = (m.order_age(ship.slot) as f32 / ORDER_AGE_TICKS).min(1.0);
+    out[order_f::MISSION + usize::from(m.cfg.mission.kind().index())] = 1.0;
+    clamp_record(out);
+}
+
 /// Fixed-capacity smallest-K: keeps the `K` smallest `(key, index)` pairs in
 /// ascending order. Ties keep the lower index because candidates arrive in index
 /// order and only a strictly smaller key displaces an earlier entry.
@@ -549,5 +643,7 @@ impl Match {
             let o = PENDING_OFF + k * PENDING_W;
             write_pending(a, &mut out[o..o + PENDING_W]);
         }
+
+        write_order(self, cat, me, &mut out[ORDER_OFF..ORDER_OFF + ORDER_WIDTH]);
     }
 }
