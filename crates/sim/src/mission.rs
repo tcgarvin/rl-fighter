@@ -148,7 +148,7 @@ impl MissionKind {
 /// rule (DESIGN §6). Every mission uses [`arena_radius_for`] (450 m) today: the pilot
 /// obs scales distances by the radius, so pilot v1 sees the inputs it trained on, and
 /// both mission layouts fit (a carrier at `0.72 R`, the convoy route from `-0.55 R` to
-/// `+0.75 R` across the centre). WP-S2's mission survey may change it here.
+/// `+0.75 R` across the centre). The WP-S2 mission survey kept it: the missions balance at 450 m (lab/runs/2026-10-30-mission-survey); a change belongs here.
 pub fn arena_radius_for_mission(kind: MissionKind, n_ships: usize) -> f32 {
     match kind {
         MissionKind::Deathmatch | MissionKind::CarrierBattle | MissionKind::ConvoyEscort => {

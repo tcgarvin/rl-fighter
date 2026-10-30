@@ -69,7 +69,7 @@ every step's events, hits, rewards and obs.
 | 5 | The commander layer: a slow tick every `COMMAND_TICKS = 60` (stage 1b), squads with orders, capital-ship waypoints, launches; `CommanderMode::{Scripted, External}` per team; a coarse `CommanderObs`. Squads, orders and waypoints are hashed state | DESIGN §7 "Hierarchy" | §5 stage 1b, §5.9 |
 | 6 | Convoy jump-out (stage 12b): charge inside the jump radius, then leave the field and count as escaped (`JumpState`) | convoy escort | §5.10 |
 | 7 | Events `Launch` (8), `Order` (9), `JumpCharge` (10), `JumpOut` (11), `MatchEnd` (12), appended so codes 0–7 are unchanged | the web log, lines and result | §9 |
-| 8 | Scripted capital-ship pilots (`carrier`, `transport`) and a stub scripted commander | missions playable end to end | §11 |
+| 8 | Scripted capital-ship pilots (`carrier`, `transport`) and the scripted commander (WP-S1 stub, replaced in WP-S2: §5.9) | missions playable end to end | §11 |
 | 9 | State hash appends reserves, mission state and command state after `winner` | determinism | §12 |
 | 10 | `PILOT_COMPAT_VERSIONS = [3, 4]`: pilots trained under v3 fly in v4. Deathmatch with ≤ 8 ships is **bit-identical to v3**, proven by `tests/determinism.rs::v3_compat_*`, which replay the four v3 golden traces (kept verbatim in `tests/golden/v3/`) with the v3 hash (v3 hull ids, no v4 state) and the aux digest without event kinds ≥ 8 | pilot v1 is the live champion | §10, §12 |
 
@@ -77,6 +77,19 @@ Bindings: PyO3 and WASM gain mission selection, end reasons, external commands, 
 commander and mission views, and a shared JSON spec (§10.1–10.3). Bundles and the
 champion registry accept a pilot whose `sim_version` is in `PILOT_COMPAT_VERSIONS`
 (bundle manifest `sim_version` = the wasm's, `pilot_sim_version` = the policy's).
+
+**WP-S2 (still SIM_VERSION 4; stage A's sim was not shipped between WP-S1 and WP-S2).**
+The real scripted commander (§5.9), scripted strike craft that follow their squad's
+order (§11 "Squad orders"), the carrier pilot's rate profile and RCS hysteresis and
+point-defence flak (§11), hull retunes (carrier: hp 1500 → 1000, cap 10 → 8 m/s, mains
+7000 → 300 N, RCS 3500 → 450 N; freighter: hp 500 → 400, cap 14 → 10.5 m/s; mounts
+unchanged) and the default mission rosters (§10.3, `mission::default_rosters`), all
+chosen with the mission survey (`lab/runs/2026-10-30-mission-survey/`). The v4 golden
+traces were regenerated: the missions' because their play changed, the deathmatch ones
+only because the deathmatch commander now forms two squads (command state is hashed
+and `Order` events are in the aux digest). Deathmatch trajectories are unchanged: the
+`v3_compat_*` replays still pass untouched, since scripted pilots do not follow a
+scripted deathmatch commander.
 
 ---
 
@@ -132,7 +145,7 @@ crates/sim/                # no I/O by default; `fs` feature adds directory load
   src/scripted/mod.rs      # allocate_thrusters, act(match, ship) dispatch
   src/scripted/fighter.rs  # fighter controller (§11)
   src/scripted/capital.rs  # v4: carrier and transport pilots (§11)
-  src/scripted/commander.rs # v4: the scripted (stub) commander (§5.9)
+  src/scripted/commander.rs # v4: the scripted commander (WP-S2) (§5.9)
   tests/                   # integration tests per work package (§12)
   tests/golden/            # determinism hash traces (§9)
 crates/sim-py/             # pyo3 0.30 + numpy 0.30 + rayon; maturin; module `rlf_sim`
@@ -302,12 +315,12 @@ changes in bold; v4 capital ships at the end):
 | fighter | fighter | **80** | 10 | 55 | 60 | none | **nose 0.5 / flank 1.0 / engine 1.5** (arcs as above) | nose (±45°) 1.5 / else 1.0 | (2.0,0) 2.4; (-2.2,0) 2.6 |
 | strafer | skirmisher | 70 | 11 | 75 | 50 | 40 / 8 / 3 / 7.5 | uniform (absent) | nose (±45°) 1.5 / else 1.0 | (0,0) 3.2; (0,3.6) 2.4; (0,-3.6) 2.4 |
 | gunship | anchor | 320 | 60 | 2200 | 24 | 140 / 12 / 4 / 11 | uniform (absent) | 0.75 all round | (4.5,0) 3.6; (0,0) 4.6; (-4.5,0) 3.8 |
-| carrier (v4) | carrier | 1500 | 600 | 90000 | 10 | 260 / 15 / 5 / 24 | uniform | 0.5 all round | (13,0) 6.5; (0,0) 8.5; (-13,0) 7.5 |
-| freighter (v4) | transport | 500 | 300 | **40000** | 14 | 80 / 6 / 5 / 15 | uniform | 0.75 all round | (8,0) 4; (0,0) 4.5; (-8,0) 4.2 |
+| carrier (v4) | carrier | **1000** (WP-S2; was 1500) | 600 | 90000 | **8** (was 10) | 260 / 15 / 5 / 24 | uniform | 0.5 all round | (13,0) 6.5; (0,0) 8.5; (-13,0) 7.5 |
+| freighter (v4) | transport | **400** (WP-S2; was 500) | 300 | **40000** | **10.5** (was 14) | 80 / 6 / 5 / 15 | uniform | 0.75 all round | (8,0) 4; (0,0) 4.5; (-8,0) 4.2 |
 
 v4 mounts (the contract with the art agent's models; body frame): **carrier** mains
-`thruster.main.l/c/r` at (−19.5, 4.5) / (−20, 0) / (−19.5, −4.5), dir +x, 7000 N; RCS
-`thruster.rcs.fl/fr/rl/rr` at (15, ±8) / (−14, ±8.5), dir ∓y, 3500 N; flak turrets
+`thruster.main.l/c/r` at (−19.5, 4.5) / (−20, 0) / (−19.5, −4.5), dir +x, **300 N** (WP-S2; was 7000); RCS
+`thruster.rcs.fl/fr/rl/rr` at (15, ±8) / (−14, ±8.5), dir ∓y, **450 N** (was 3500; WP-S2: about 1.5 m/s² from the mains and 0.15 rad/s² of yaw at even power, so it reads as a capital ship); flak turrets
 `turret.flak.fore` (12, 0) rest 0 arc 270, `turret.flak.port` (−6, 7) rest 90 arc 200,
 `turret.flak.starboard` (−6, −7) rest −90 arc 200, all slew 90; bays `bay.port` (4, 9)
 dir (0.5, 0.87) and `bay.starboard` (4, −9) dir (0.5, −0.87); cost 120. **freighter**
@@ -1080,6 +1093,7 @@ env.render_state(i): + "mission", "end_reason"; ships + "role", "docked", "escap
 rlf_sim.PILOT_COMPAT_VERSIONS, N_NEAR_SHIPS, COMMAND_TICKS, MAX_SQUADS, MISSIONS, END_REASONS,
 rlf_sim.EVENT_KINDS (name -> code), arena_radius_for_mission(mission, n), mission_time_limit_s(mission),
 rlf_sim.pilot_compatible(version)
+rlf_sim.mission_rosters(mission) -> list[dict]       # WP-S2: default rosters, [{"name", "mission", "fleets": [[...], [...]]}]
 ```
 
 Training is unchanged by default: deathmatch, scripted commanders (they set squad
@@ -1163,6 +1177,8 @@ convoy(): Float32Array;     // CONVOY_STRIDE = 14 (empty unless convoy): [total,
 // module: pilot_compat_versions(): Uint32Array; pilot_compatible(v); arenaRadiusForMission(m, n);
 // missionTimeLimitTicks(m); MAX_SHIPS(); COMMAND_TICKS(); MAX_SQUADS(); SHIP_EXT_STRIDE();
 // SQUAD_STRIDE(); TEAM_STRIDE(); CONVOY_STRIDE()
+// WP-S2: missionRostersJson(m): string  // default rosters (§10.3), JSON array of
+//   {"name", "mission", "fleets": [[hull, ...], [hull, ...]]}; "[]" for deathmatch
 ```
 
 Web notes: hull ids in the ships view follow the catalogue the page passes (sorted by
@@ -1197,6 +1213,24 @@ Both bindings parse missions and commands with the same serde structs (PyO3 pass
  "order": {"kind": "none"} | {"kind": "attack", "target": 9} | {"kind": "guard", "ward": 0}
         | {"kind": "hold", "point": [x, y], "radius": 50}}
 ```
+
+**Default rosters** (WP-S2, `mission::default_rosters(kind)`, as `MissionRosterView`
+through `rlf_sim.mission_rosters` / `missionRostersJson`): what the live page drafts
+for a mission and the mission survey balances. Slot order matters (a carrier battle's
+first `jump_in` strike craft jump in, the rest launch in that order; transports form
+their files in order). The first entry is the default.
+
+| mission | name | team 0 | team 1 |
+|---|---|---|---|
+| carrier_battle | wing of 8 | carrier, F S F G F S F G | the same |
+| carrier_battle | wing of 6 | carrier, F F S F S G | the same |
+| carrier_battle | wing of 9 | carrier, F S F G F S F G F | the same |
+| convoy_escort | 4 freighters | 4 freighters, F S F | F F S G F S |
+| convoy_escort | 3 freighters | 3 freighters, F S F G | F S F G F |
+| convoy_escort | 5 freighters | 5 freighters, F S F G | F F S G F S F F |
+
+(F fighter, S strafer, G gunship.) Deathmatch has none: its rosters stay budget
+drafts of 2–4 strike craft a side.
 
 Views (serde-serialised): `CommanderObsView` (counts keyed by hull name),
 `MissionStateView` (mission, end reason, tick, command_due, carriers, hangars, bay
@@ -1355,9 +1389,9 @@ draws 0.016, median 1492 ticks, hit rate 0.46, 4.9 passes per match
   from v4 state (`tests/determinism.rs::v3_state_hash`: v3 hull ids, no v4 fields).
 - Native test (`crates/sim/tests/determinism.rs`): four golden scenarios, embedded
   with `include_str!` so the same binary runs under wasmtime:
-  v4 adds `carrier_battle_s23` (two carriers with six-ship wings, stub commanders, to
+  v4 adds `carrier_battle_s23` (two carriers with six-ship wings, scripted commanders, to
   a carrier kill) and `convoy_escort_s29` (four freighters and three escorts against
-  six attackers, to `convoy_through`), sampled every 300 ticks, with a `reason` line,
+  six attackers, to `convoy_destroyed`; both regenerated by WP-S2 with the real commander), sampled every 300 ticks, with a `reason` line,
   and the `v3_compat_*` replays of `tests/golden/v3/` (§0.2 item 10). The v3 scenarios:
   `duel_fighter_s7` (1v1 fighter, seed 7), `2v2_mixed_s11` (fighter+strafer vs
   gunship+fighter), `3v3_mixed_s13`, all 3000 ticks with the scripted controller

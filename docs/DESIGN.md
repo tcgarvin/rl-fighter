@@ -235,7 +235,8 @@ radius that grew with the fleet bought nothing in script-vs-script fleets and ma
 the carrier battle and the convoy escort: the pilot obs scales distances by the
 radius, so pilot v1 keeps the inputs it trained on, and both layouts fit (carriers at
 0.72 R; the convoy route crosses the centre from −0.55 R to +0.75 R). The mission
-survey (WP-S2) may change it there and nowhere else.
+survey (WP-S2) kept 450 m for both missions (it balanced them with hulls, rosters and
+the commander instead); a later change goes there and nowhere else.
 
 ## 7. Learning
 
