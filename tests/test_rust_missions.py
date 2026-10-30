@@ -184,3 +184,125 @@ def test_missions_can_be_queued_per_env() -> None:
     assert env.mission_state(1)["mission"] == "carrier_battle"
     roles = [s["role"] for s in env.render_state(1)["ships"]]
     assert roles.count("carrier") == 2
+
+
+# -- SIM_VERSION 5: the order block, the order reward, the random commander, and
+# -- per-roster commanders and clocks (SIM_SPEC §0.3, §5.9, §7.2, §8, §10.1).
+
+ORDER_OFF, ORDER_W = rlf_sim.OBS_LAYOUT["order"]
+TRAIN_CARRIER = ["carrier", "fighter", "fighter", "strafer", "gunship"]
+
+
+def test_v5_constants_and_pilot_obs_dims() -> None:
+    assert rlf_sim.SIM_VERSION == 5
+    assert (ORDER_OFF, ORDER_W) == (385, 18)
+    assert rlf_sim.OBS_DIM == ORDER_OFF + ORDER_W
+    assert rlf_sim.PILOT_OBS_DIMS == {3: 385, 4: 385, 5: 403}
+    assert set(rlf_sim.PILOT_OBS_DIMS) == set(rlf_sim.PILOT_COMPAT_VERSIONS)
+    assert rlf_sim.MAX_TRAIN_SHIPS == 12
+
+
+def test_random_commander_gives_orders_that_pilots_see() -> None:
+    env = rlf_sim.VecEnv(
+        ASSETS,
+        4,
+        [TRAIN_CARRIER, TRAIN_CARRIER],
+        9,
+        mission="carrier_battle",
+        commanders=["random", "random"],
+        time_limit_s=rlf_sim.mission_time_limit_s("carrier_battle"),
+        max_ships=rlf_sim.MAX_TRAIN_SHIPS,
+        n_threads=2,
+    )
+    assert env.mission_state(0)["commanders"] == ["random", "random"]
+    order_rewards = env.order_rewards
+    assert order_rewards.shape == (4, 12) and order_rewards.dtype == np.float32
+    seen_kinds: set[int] = set()
+    nonzero = False
+    for _ in range(900):
+        env.scripted_actions()
+        env.step()
+        assert env.order_rewards is order_rewards
+        block = env.obs[..., ORDER_OFF:]
+        has = block[..., 0] == 1.0
+        # A ship with an order has exactly one kind; one without has an all-zero block.
+        assert np.all(block[has][:, 1:4].sum(axis=1) == 1.0)
+        assert np.all(block[~has] == 0.0)
+        for k in range(3):
+            if np.any(block[has][:, 1 + k] == 1.0):
+                seen_kinds.add(k)
+        nonzero |= bool(np.any(env.order_rewards != 0.0))
+        # Padding slots earn nothing.
+        assert np.all(env.order_rewards[env.team < 0] == 0.0)
+    assert seen_kinds == {0, 1, 2}
+    assert nonzero
+
+
+def test_random_commander_is_deterministic() -> None:
+    def run() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        env = rlf_sim.VecEnv(
+            ASSETS,
+            3,
+            CONVOY,
+            4,
+            mission="convoy_escort",
+            commanders=["random", "random"],
+            n_threads=2,
+        )
+        obs, order_rewards = [], []
+        for _ in range(400):
+            env.scripted_actions()
+            env.step()
+            obs.append(env.obs[..., ORDER_OFF:].copy())
+            order_rewards.append(env.order_rewards.copy())
+        return np.stack(obs), np.stack(order_rewards), env.state_hash()
+
+    a, b = run(), run()
+    for x, y in zip(a, b):
+        np.testing.assert_array_equal(x, y)
+
+
+def test_set_next_roster_takes_commanders_and_a_clock() -> None:
+    env = rlf_sim.VecEnv(
+        ASSETS,
+        3,
+        [["fighter"], ["fighter"]],
+        2,
+        time_limit_s=60.0,
+        max_ships=12,
+    )
+    env.set_next_roster(
+        0,
+        [TRAIN_CARRIER, TRAIN_CARRIER],
+        450.0,
+        mission="carrier_battle",
+        commanders=["random", "scripted"],
+    )
+    env.set_next_roster(1, [["fighter"], ["fighter", "strafer"]], 450.0, time_limit_s=30.0)
+    env.set_next_roster(2, [["fighter"], ["fighter"]], 450.0, commanders=["random", "random"])
+    with pytest.raises(ValueError, match="commander"):
+        env.set_next_roster(2, [["fighter"], ["fighter"]], 450.0, commanders=["robot", "scripted"])
+    with pytest.raises(ValueError, match="two"):
+        env.set_next_roster(2, [["fighter"], ["fighter"]], 450.0, commanders=["random"])
+    with pytest.raises(ValueError, match="time_limit_s"):
+        env.set_next_roster(2, [["fighter"], ["fighter"]], 450.0, time_limit_s=-1.0)
+    env.reset()
+    s0, s1, s2 = (env.mission_state(i) for i in range(3))
+    # A mission without a clock gets the mission's own; none at all, the env's.
+    assert s0["commanders"] == ["random", "scripted"]
+    assert s0["time_limit_ticks"] == round(rlf_sim.mission_time_limit_s("carrier_battle") * 30)
+    assert (s1["commanders"], s1["time_limit_ticks"]) == (["scripted", "scripted"], 900)
+    assert (s2["commanders"], s2["time_limit_ticks"]) == (["random", "random"], 1800)
+    # The roster's commanders and clock stick through auto-resets: env 1 ends at 30 s.
+    for _ in range(901):
+        env.scripted_actions()
+        env.step()
+    assert env.episode_count[1] >= 1
+    assert env.mission_state(1)["time_limit_ticks"] == 900
+    assert env.mission_state(0)["commanders"] == ["random", "scripted"]
+    explicit = rlf_sim.VecEnv(ASSETS, 1, [["fighter"], ["fighter"]], 2, max_ships=12)
+    explicit.set_next_roster(
+        0, [TRAIN_CARRIER, TRAIN_CARRIER], 450.0, mission="carrier_battle", time_limit_s=20.0
+    )
+    explicit.reset()
+    assert explicit.mission_state(0)["time_limit_ticks"] == 600

@@ -37,6 +37,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+# The policy's input width: the SIM_VERSION 3/4 obs. A v5 sim obs (403 floats)
+# starts with these 385 unchanged and appends the order block (SIM_SPEC §0.3), so this
+# policy reads the prefix (``policy_obs``; ``rlf_sim.PILOT_OBS_DIMS[4]``).
 OBS_DIM = 385
 ACTION_WIDTH = 21
 N_LOGITS = 61
@@ -73,6 +76,19 @@ _ACTOR_OUTPUT_GAIN = 0.01
 _CRITIC_OUTPUT_GAIN = 1.0
 _HIDDEN_GAIN = math.sqrt(2.0)
 _CHECKPOINT_FORMAT = "spike_policy/1"
+
+
+def policy_obs(obs: np.ndarray) -> np.ndarray:
+    """The part of a sim obs ``[..., OBS_DIM or wider]`` this policy reads: its first
+    ``OBS_DIM`` floats (a view). SIM_VERSION 5 appends the 18-float order block
+    after the v4 obs, which a v4-shaped policy does not see.
+
+    Raises:
+        ValueError: The last axis is narrower than ``OBS_DIM``.
+    """
+    if obs.shape[-1] < OBS_DIM:
+        raise ValueError(f"obs last axis must be >= {OBS_DIM}, got shape {obs.shape}")
+    return obs[..., :OBS_DIM]
 
 
 def _flatten_leading(arr: np.ndarray, width: int, name: str) -> np.ndarray:
@@ -664,7 +680,8 @@ def act_numpy(
 
     Args:
         actor: The policy.
-        obs: [..., 385] float observations (e.g. ``env.obs`` of shape [N, S, 385]).
+        obs: [..., 385] float observations, or a wider sim obs whose first 385
+            floats are read (``policy_obs``; e.g. ``env.obs`` of shape [N, S, 403]).
         masks: Masks for the flattened rows (``HeadMasks.from_numpy`` of the env
             masks); moved to the actor's device.
         deterministic: Argmax instead of sampling.
@@ -672,7 +689,8 @@ def act_numpy(
     Returns:
         int8 actions of shape ``obs.shape[:-1] + (21,)``.
     """
-    flat = _flatten_leading(np.asarray(obs, dtype=np.float32), OBS_DIM, "obs")
+    obs = policy_obs(np.asarray(obs, dtype=np.float32))
+    flat = _flatten_leading(np.ascontiguousarray(obs), OBS_DIM, "obs")
     device = next(actor.parameters()).device
     with torch.no_grad():
         out = actor.sample(

@@ -93,13 +93,17 @@ def _activations(module: nn.Sequential) -> set[str]:
 
 
 def obs_facts() -> dict[str, str]:
-    """Width, offset and record count of every obs block, from the Rust sim."""
-    if rlf_sim.OBS_DIM != OBS_DIM:
+    """Width, offset and record count of every obs block the pilot reads, from the
+    Rust sim. The page describes the champion's network, whose input is the obs prefix
+    of its sim version (``rlf_sim.PILOT_OBS_DIMS``; SIM_VERSION 5 appends an order
+    block a v3/v4 pilot does not read)."""
+    if OBS_DIM not in dict(rlf_sim.PILOT_OBS_DIMS).values():
         raise PilotFactsError(
-            f"rlf_sim.OBS_DIM {rlf_sim.OBS_DIM} != spike_policy.OBS_DIM {OBS_DIM}"
+            f"spike_policy.OBS_DIM {OBS_DIM} is no pilot obs width of this sim "
+            f"({dict(rlf_sim.PILOT_OBS_DIMS)})"
         )
     facts = {
-        "obs.dim": str(rlf_sim.OBS_DIM),
+        "obs.dim": str(OBS_DIM),
         "sim.version": str(rlf_sim.SIM_VERSION),
         "sim.max_ships": str(rlf_sim.MAX_SHIPS),
         "sim.max_others": str(rlf_sim.MAX_SHIPS - 1),
@@ -112,6 +116,8 @@ def obs_facts() -> dict[str, str]:
     }
     slots = dict(rlf_sim.OBS_SLOTS)
     for name, (offset, width) in dict(rlf_sim.OBS_LAYOUT).items():
+        if offset + width > OBS_DIM:
+            continue
         records = slots[name]
         facts[f"obs.{name}.offset"] = str(offset)
         facts[f"obs.{name}.width"] = str(width)

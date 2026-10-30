@@ -18,16 +18,26 @@
 //! prove that deathmatch with up to 8 ships is bit-identical to v3 tick by tick
 //! (every ship and projectile, every obs, reward, hit and v3 event), which is what
 //! lets pilot v1 (trained under v3) fly in v4.
+//!
+//! v5 compatibility (SIM_SPEC §0.3): `v4_compat_*` replay all six v4 scenarios (the v4
+//! golden traces are kept verbatim under `tests/golden/v4/`) and render them as
+//! SIM_VERSION 4 would have: the state hash without the v5 random commander and
+//! order tracks, and the aux digest over the first `OBS_DIM_V4` obs floats. They
+//! prove that v5 changes no v4 trajectory, reward, hit or event under the scripted
+//! commander, every mission included, and that the obs prefix is bit-identical: the
+//! random commander's streams never touch the match rng. The v3 flavour also digests
+//! only the obs prefix.
 
 mod common;
 
 use common::asset_catalogue;
 use sim::actions::{ACTION_WIDTH, ShipAction};
+use sim::command::CommanderMode;
 use sim::data::{Catalogue, HullId};
 use sim::events::{EVENT_STRIDE, KIND_COLLISION};
 use sim::hash::StateHash;
 use sim::mission::{CarrierBattle, ConvoyEscort, EndReason, Mission};
-use sim::obs::OBS_DIM;
+use sim::obs::{OBS_DIM, OBS_DIM_V4};
 use sim::rng::Pcg32;
 use sim::scripted;
 use sim::setup::MatchConfig;
@@ -128,6 +138,26 @@ enum Flavour {
     Current,
     /// As SIM_VERSION 3 rendered it (module docs).
     V3,
+    /// As SIM_VERSION 4 rendered it (module docs).
+    V4,
+}
+
+impl Flavour {
+    /// Obs floats the flavour's aux digest covers.
+    fn obs_width(self) -> usize {
+        match self {
+            Flavour::Current => OBS_DIM,
+            Flavour::V3 | Flavour::V4 => OBS_DIM_V4,
+        }
+    }
+
+    fn version(self) -> u32 {
+        match self {
+            Flavour::Current => SIM_VERSION,
+            Flavour::V3 => 3,
+            Flavour::V4 => 4,
+        }
+    }
 }
 
 /// The v3 hull ids: the v3 catalogue was fighter, gunship, strafer, sorted by name.
@@ -158,10 +188,31 @@ fn v3_state_hash(cat: &Catalogue, m: &Match) -> u64 {
     h.finish()
 }
 
+/// `Match::state_hash` as SIM_VERSION 4 computed it: the v5 hash without the random
+/// commander's state and the order tracks.
+fn v4_state_hash(m: &Match) -> u64 {
+    let mut h = StateHasher::new();
+    h.write_u32(m.tick);
+    m.rng.hash_into(&mut h);
+    m.ships.as_slice().hash_into(&mut h);
+    m.projectiles.hash_into(&mut h);
+    h.write_usize(m.proj_next);
+    h.write_u8(m.phase.index());
+    h.write_i8(m.winner);
+    for reserve in &m.reserves {
+        h.write_usize(reserve.len());
+        reserve.as_slice().hash_into(&mut h);
+    }
+    m.mission.hash_into(&mut h);
+    m.command.hash_into(&mut h);
+    h.finish()
+}
+
 fn state_hash(flavour: Flavour, cat: &Catalogue, m: &Match) -> u64 {
     match flavour {
         Flavour::Current => m.state_hash(),
         Flavour::V3 => v3_state_hash(cat, m),
+        Flavour::V4 => v4_state_hash(m),
     }
 }
 
@@ -201,8 +252,13 @@ fn digest_outputs(
     }
     for slot in 0..m.ships().len() {
         m.write_obs(cat, slot as u8, obs);
-        for &f in obs.iter() {
+        for &f in &obs[..flavour.obs_width()] {
             aux.write_f32(f);
+        }
+    }
+    if flavour == Flavour::Current {
+        for &r in m.order_rewards() {
+            aux.write_f32(r);
         }
     }
 }
@@ -221,10 +277,7 @@ fn trace(
     let mut m = Match::new(&cat, cfg).expect("match setup");
     let mut aux = StateHasher::new();
     let mut obs = vec![0.0f32; OBS_DIM];
-    let version = match flavour {
-        Flavour::Current => SIM_VERSION,
-        Flavour::V3 => 3,
-    };
+    let version = flavour.version();
     let mut out = format!(
         "# sim golden trace {name} (SIM_VERSION {version}); regenerate with UPDATE_GOLDEN=1\n\
          # tick state_hash aux_digest; end tick state_hash aux_digest phase winner\n"
@@ -261,7 +314,7 @@ fn trace(
         aux.finish(),
         m.winner()
     );
-    if flavour == Flavour::Current && cfg.mission != Mission::Deathmatch {
+    if flavour != Flavour::V3 && cfg.mission != Mission::Deathmatch {
         out += &format!("reason {}\n", m.mission.end_reason.name());
     }
     out
@@ -472,21 +525,25 @@ pub fn convoy_config(cat: &Catalogue, seed: u64) -> MatchConfig {
     cfg
 }
 
-fn mission_trace(name: &str, cfg: &MatchConfig) -> String {
+fn mission_trace(name: &str, cfg: &MatchConfig, flavour: Flavour) -> String {
     trace(
         name,
         cfg,
         Driver::Scripted,
         MISSION_TICKS,
         |t| t % MISSION_SAMPLE_EVERY == 0,
-        Flavour::Current,
+        flavour,
     )
 }
 
 #[test]
 fn golden_carrier_battle_seed23() {
     let cat = asset_catalogue();
-    let actual = mission_trace("carrier_battle_s23", &carrier_battle_config(&cat, 23));
+    let actual = mission_trace(
+        "carrier_battle_s23",
+        &carrier_battle_config(&cat, 23),
+        Flavour::Current,
+    );
     check_golden(
         "carrier_battle_s23.txt",
         include_str!("golden/carrier_battle_s23.txt"),
@@ -497,11 +554,125 @@ fn golden_carrier_battle_seed23() {
 #[test]
 fn golden_convoy_escort_seed29() {
     let cat = asset_catalogue();
-    let actual = mission_trace("convoy_escort_s29", &convoy_config(&cat, 29));
+    let actual = mission_trace(
+        "convoy_escort_s29",
+        &convoy_config(&cat, 29),
+        Flavour::Current,
+    );
     check_golden(
         "convoy_escort_s29.txt",
         include_str!("golden/convoy_escort_s29.txt"),
         &actual,
+    );
+}
+
+/// v5: the random commander (`CommanderMode::Random`) on both teams of a carrier
+/// battle and a convoy escort, and on one team of a 3v3 deathmatch, with scripted
+/// pilots following its orders: its draws, squads and orders, the order obs block and
+/// the order rewards, native against wasm32.
+#[test]
+fn golden_carrier_battle_random_commander_seed31() {
+    let cat = asset_catalogue();
+    let mut cfg = carrier_battle_config(&cat, 31);
+    cfg.commanders = [CommanderMode::Random; 2];
+    let actual = mission_trace("carrier_battle_random_s31", &cfg, Flavour::Current);
+    check_golden(
+        "carrier_battle_random_s31.txt",
+        include_str!("golden/carrier_battle_random_s31.txt"),
+        &actual,
+    );
+}
+
+#[test]
+fn golden_convoy_escort_random_commander_seed37() {
+    let cat = asset_catalogue();
+    let mut cfg = convoy_config(&cat, 37);
+    cfg.commanders = [CommanderMode::Random; 2];
+    let actual = mission_trace("convoy_escort_random_s37", &cfg, Flavour::Current);
+    check_golden(
+        "convoy_escort_random_s37.txt",
+        include_str!("golden/convoy_escort_random_s37.txt"),
+        &actual,
+    );
+}
+
+#[test]
+fn golden_3v3_random_commander_seed41() {
+    let cat = asset_catalogue();
+    let mut cfg = config(
+        &cat,
+        41,
+        &["fighter", "strafer", "gunship"],
+        &["gunship", "fighter", "strafer"],
+    );
+    cfg.commanders = [CommanderMode::Random, CommanderMode::Scripted];
+    let actual = scripted_trace("3v3_random_commander_s41", &cfg, Flavour::Current);
+    check_golden(
+        "3v3_random_commander_s41.txt",
+        include_str!("golden/3v3_random_commander_s41.txt"),
+        &actual,
+    );
+}
+
+/// Compare with a v4 golden file, never rewritten (it is the v4 record).
+fn check_v4(embedded: &str, actual: &str) {
+    assert_eq!(
+        embedded, actual,
+        "a scripted-commander match diverged from SIM_VERSION 4 (SIM_SPEC §0.3)"
+    );
+}
+
+#[test]
+fn v4_compat_duel_fighter_seed7() {
+    check_v4(
+        include_str!("golden/v4/duel_fighter_s7.txt"),
+        &duel_trace(Flavour::V4),
+    );
+}
+
+#[test]
+fn v4_compat_2v2_mixed_seed11() {
+    check_v4(
+        include_str!("golden/v4/2v2_mixed_s11.txt"),
+        &mixed_2v2_trace(Flavour::V4),
+    );
+}
+
+#[test]
+fn v4_compat_3v3_mixed_seed13() {
+    check_v4(
+        include_str!("golden/v4/3v3_mixed_s13.txt"),
+        &mixed_3v3_trace(Flavour::V4),
+    );
+}
+
+#[test]
+fn v4_compat_3v3_random_actions_seed17() {
+    check_v4(
+        include_str!("golden/v4/3v3_random_s17.txt"),
+        &random_3v3_trace(Flavour::V4),
+    );
+}
+
+#[test]
+fn v4_compat_carrier_battle_seed23() {
+    let cat = asset_catalogue();
+    check_v4(
+        include_str!("golden/v4/carrier_battle_s23.txt"),
+        &mission_trace(
+            "carrier_battle_s23",
+            &carrier_battle_config(&cat, 23),
+            Flavour::V4,
+        ),
+    );
+}
+
+#[test]
+fn v4_compat_convoy_escort_seed29() {
+    let cat = asset_catalogue();
+    check_v4(
+        include_str!("golden/v4/convoy_escort_s29.txt"),
+        &mission_trace("convoy_escort_s29", &convoy_config(&cat, 29), Flavour::V4),
     );
 }
 

@@ -55,12 +55,15 @@ fi
 
 # The policy export checks its checkpoint against the bundle it will run with.
 # SIM_VERSION 4+: the build also flies pilots of the versions in pilot_compat_versions().
-read -r SIM_VERSION OBS_DIM PILOT_COMPAT < <(node --input-type=module -e "
+# SIM_VERSION 5+: a pilot reads the obs prefix of its own version (pilotObsDimsJson():
+# a v3/v4 pilot the first 385 floats of the v5 obs).
+read -r SIM_VERSION OBS_DIM PILOT_COMPAT PILOT_OBS_DIMS < <(node --input-type=module -e "
 import fs from 'node:fs';
 const sim = await import('$PKG/sim_wasm.js');
 sim.initSync({ module: fs.readFileSync('$PKG/sim_wasm_bg.wasm') });
 const compat = sim.pilot_compat_versions ? Array.from(sim.pilot_compat_versions()) : [sim.sim_version()];
-console.log(sim.sim_version(), sim.OBS_DIM(), compat.join(','));
+const dims = sim.pilotObsDimsJson ? sim.pilotObsDimsJson() : JSON.stringify(Object.fromEntries(compat.map((v) => [v, sim.OBS_DIM()])));
+console.log(sim.sim_version(), sim.OBS_DIM(), compat.join(','), dims);
 ")
 
 step "assemble $BUNDLE"
@@ -70,7 +73,8 @@ cp "$PKG/sim_wasm.js" "$PKG/sim_wasm_bg.wasm" "$BUNDLE/pkg/"
 
 step "export policy: $CHECKPOINT (sim_version $SIM_VERSION, obs_dim $OBS_DIM)"
 EXPORT_ARGS=(--checkpoint "$CHECKPOINT" --out "$BUNDLE/policy"
-    --wasm-sim-version "$SIM_VERSION" --wasm-obs-dim "$OBS_DIM" --wasm-pilot-compat "$PILOT_COMPAT")
+    --wasm-sim-version "$SIM_VERSION" --wasm-obs-dim "$OBS_DIM" --wasm-pilot-compat "$PILOT_COMPAT"
+    --wasm-pilot-obs-dims "$PILOT_OBS_DIMS")
 if [[ -n "$EVAL_JSON" ]]; then
     EXPORT_ARGS+=(--eval-json "$EVAL_JSON")
 fi

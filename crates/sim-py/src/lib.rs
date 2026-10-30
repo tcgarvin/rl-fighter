@@ -7,7 +7,7 @@ mod vec_env;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use sim::actions::{ACTION_WIDTH, FIRE_OFFSET, POWER_OFFSET, SLEW_OFFSET, THROTTLE_OFFSET};
-use sim::command::{COMMAND_TICKS, MAX_SQUADS};
+use sim::command::{COMMAND_TICKS, CommanderMode, MAX_SQUADS};
 use sim::events;
 use sim::mission::{EndReason, MissionKind};
 use sim::obs::N_NEAR_SHIPS;
@@ -27,6 +27,24 @@ fn rlf_sim(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("MAX_REACTION_TICKS", MAX_REACTION_TICKS)?;
     // v4.
     m.add("PILOT_COMPAT_VERSIONS", sim::PILOT_COMPAT_VERSIONS.to_vec())?;
+    // v5: sim version -> the obs width a pilot of that version consumes (obs[..., :w]).
+    let pilot_obs_dims = PyDict::new(py);
+    for &(version, width) in sim::PILOT_OBS_DIMS {
+        pilot_obs_dims.set_item(version, width)?;
+    }
+    m.add("PILOT_OBS_DIMS", pilot_obs_dims)?;
+    m.add("OBS_DIM_V4", sim::obs::OBS_DIM_V4)?;
+    m.add("MAX_TRAIN_SHIPS", sim::setup::MAX_TRAIN_SHIPS)?;
+    m.add(
+        "COMMANDER_MODES",
+        [
+            CommanderMode::Scripted,
+            CommanderMode::External,
+            CommanderMode::Random,
+        ]
+        .map(CommanderMode::name)
+        .to_vec(),
+    )?;
     m.add("N_NEAR_SHIPS", N_NEAR_SHIPS)?;
     m.add("COMMAND_TICKS", COMMAND_TICKS)?;
     m.add("MAX_SQUADS", MAX_SQUADS)?;

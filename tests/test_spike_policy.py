@@ -88,7 +88,8 @@ def env_masks(env) -> HeadMasks:
 
 def test_constants_match_the_sim():
     rust_env = pytest.importorskip("spacefight.env.rust_env")
-    assert OBS_DIM == rust_env.OBS_DIM
+    # The policy reads the v4 obs prefix (SIM_VERSION 5 appends the order block).
+    assert OBS_DIM == rust_env.PILOT_OBS_DIMS[4] == rust_env.OBS_LAYOUT["order"][0]
     assert ACTION_WIDTH == rust_env.ACTION_WIDTH
     assert tuple(int(h) for h in rust_env.ACTION_HIGHS) == sp.ACTION_HIGHS
     for name, cols in sp.HEAD_GROUPS.items():

@@ -108,7 +108,7 @@ impl MissionSpec {
     }
 }
 
-/// Parse `["scripted", "external"]`-style commander modes.
+/// Parse `["scripted", "external"]`-style commander modes (v5: also `"random"`).
 pub fn parse_commanders(names: &[String]) -> Result<[CommanderMode; 2], String> {
     if names.len() != 2 {
         return Err(format!(
@@ -118,7 +118,7 @@ pub fn parse_commanders(names: &[String]) -> Result<[CommanderMode; 2], String> 
     }
     let one = |n: &str| {
         CommanderMode::from_name(n)
-            .ok_or_else(|| format!("unknown commander mode {n:?} (scripted, external)"))
+            .ok_or_else(|| format!("unknown commander mode {n:?} (scripted, external, random)"))
     };
     Ok([one(&names[0])?, one(&names[1])?])
 }
@@ -453,6 +453,10 @@ pub struct MissionStateView {
     pub mission: &'static str,
     pub end_reason: &'static str,
     pub tick: u32,
+    /// v5: the match clock, ticks.
+    pub time_limit_ticks: u32,
+    /// v5: each team's commander mode (`"scripted"`, `"external"`, `"random"`).
+    pub commanders: [&'static str; 2],
     pub command_due: bool,
     /// Per team: carrier slot or -1.
     pub carrier: [i16; 2],
@@ -511,6 +515,8 @@ impl MissionStateView {
             mission: m.cfg.mission.kind().name(),
             end_reason: m.mission.end_reason.name(),
             tick: m.tick,
+            time_limit_ticks: m.cfg.time_limit_ticks,
+            commanders: m.cfg.commanders.map(|c| c.name()),
             command_due: m.command_due(),
             carrier: [
                 slot_or_minus_one(m.mission.carrier[0]),
