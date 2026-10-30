@@ -1622,6 +1622,19 @@ inference will dominate. v4 (`MAX_SHIPS` 20, this laptop, idle): 1v1 12,598, 2v2
 single-thread 2,731, 4v4 2,215 steps/s; before the cap change 11,473 / 7,303 / 2,849 /
 2,210 (no regression).
 
+v5 adds the stage B training shapes, 12 slots (`MAX_TRAIN_SHIPS`), random v scripted
+commander, with `scripted_actions()` every step for the trainer's labels: 4v4 @12
+(target 1,200, floor 600), carrier battle (carrier + 5 a side) and convoy (4
+freighters + 3 escorts v 5) @12 (target 600, floor 300). Measured 2026-10-30 at
+load ≈ 2–4 (other runs shared the machine): 1v1 11,738, 2v2 6,916, single-thread
+2,615, 4v4 2,179, 4v4 @12 + labels 1,718, carrier @12 + labels 400–488, convoy @12 +
+labels 513–605 steps/s. The mission shapes under random actions are a pessimistic
+bound (random flak and fire fill the projectile pool): with every ship flown by its
+script they run ≈ 1,060–1,090 steps/s (carrier) and 1,050–1,090 (convoy), ≈ 270 k
+match-ticks/s. v4 on the same machine and minute: carrier 490 / 1,117, convoy 622 /
+1,118 (labels / scripted play), so the order block, order tracks and order reward
+cost within noise.
+
 ## 14. Work packages
 
 Each package is one agent, one sitting. "Parallel" means no file overlap with the
