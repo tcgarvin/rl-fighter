@@ -16,6 +16,7 @@ The current champion is the latest promotion (ties broken by id), the same rule
         --hulls fighter --eval-json lab/runs/2026-10-29-collision-damage/eval/a_600_vs_script.json
     python -m tools.champion fetch [<id>]   # prints the local checkpoint path
     python -m tools.champion env [<id>]     # shell assignments for scripts/build_site.sh
+    python -m tools.champion past           # same-season past champions (replayable)
 """
 
 from __future__ import annotations
@@ -388,6 +389,17 @@ def fetch(
     return cached
 
 
+def watchable(champions: Sequence[Champion]) -> list[Champion]:
+    """Past champions the live page can replay: those of the current one's sim season.
+
+    A bundle carries the current sim build, and pilots only fly in their own season.
+    """
+    if not champions:
+        return []
+    current = champions[-1]
+    return [c for c in champions[:-1] if c.sim_version == current.sim_version]
+
+
 def build_env(champion: Champion, checkpoint: Path) -> dict[str, str]:
     """What ``scripts/build_site.sh`` needs to build the bundle for ``champion``."""
     return {
@@ -429,6 +441,7 @@ def _parser() -> argparse.ArgumentParser:
         f = sub.add_parser(command)
         f.add_argument("id", nargs="?", default="current")
     sub.add_parser("list")
+    sub.add_parser("past", help="ids of past champions the live page can replay")
     return parser
 
 
@@ -455,6 +468,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(
                     f"{c.promoted}  {c.id}  sim v{c.sim_version}  {','.join(c.hulls)}  {c.name}"
                 )
+        elif args.command == "past":
+            for c in watchable(load_champions(args.champions)):
+                print(c.id)
         else:
             champion = find_champion(args.id, args.champions)
             checkpoint = fetch(champion, args.cache)

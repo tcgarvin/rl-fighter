@@ -207,14 +207,16 @@ def test_champions_are_optional_but_must_be_complete(tmp_path: Path) -> None:
 # --- end to end ------------------------------------------------------------
 
 
-def _champion(champions: Path, cid: str, run: str, promoted: str) -> None:
+def _champion(
+    champions: Path, cid: str, run: str, promoted: str, sim_version: int = 3
+) -> None:
     d = champions / cid
     d.mkdir(parents=True)
     fields = {
         "id": cid,
         "name": cid.upper(),
         "run": f"lab/runs/{run}",
-        "sim_version": 3,
+        "sim_version": sim_version,
     }
     fields |= {"hulls": ["fighter"], "promoted": promoted, "eval": {}}
     (d / "champion.json").write_text(json.dumps(fields))
@@ -309,3 +311,18 @@ def test_the_real_lab_runs_build(tmp_path: Path) -> None:
     assert all(
         len(s["points"]) <= MAX_POINTS for c in spike["charts"] for s in c["series"]
     )
+
+
+def test_only_same_season_champions_get_a_watch_link(tmp_path: Path) -> None:
+    for run in ("2026-01-01-a", "2026-01-02-b", "2026-01-03-c"):
+        _write_run(tmp_path, run, f"# Run {run}\n\nShipped.\n")
+    champions = tmp_path / "lab" / "champions"
+    _champion(champions, "v2", "2026-01-01-a", "2026-01-01", sim_version=2)
+    _champion(champions, "v3a", "2026-01-02-b", "2026-01-02")
+    _champion(champions, "v3b", "2026-01-03-c", "2026-01-03")
+    out = tmp_path / "out"
+
+    index = build_notebook(tmp_path / "lab" / "runs", champions, out, tmp_path, _no_git)
+
+    watch = {r["id"]: r["champions"][0]["watchable"] for r in index["runs"]}
+    assert watch == {"2026-01-03-c": True, "2026-01-02-b": True, "2026-01-01-a": False}

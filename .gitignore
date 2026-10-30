@@ -26,6 +26,7 @@ lab/runs/**/*.npz
 # Web client (web/): npm deps, generated bundle and notebook data
 node_modules/
 web/public/bundle/
+web/public/champions/
 web/public/notebook/data/
 web/public/hulls/data/
 web/shots/

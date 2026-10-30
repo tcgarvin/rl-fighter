@@ -9,6 +9,8 @@ export interface ChampionRef {
   hulls: string[];
   promoted: string;
   current: boolean;
+  /** The live page can fly it: the current champion, or a past one of its sim season. */
+  watchable: boolean;
   /** "/" for the current champion, "/?champion=<id>" for a past one. */
   href: string;
 }

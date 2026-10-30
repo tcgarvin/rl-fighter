@@ -16,7 +16,8 @@
 # Env: PYTHON (default: the repo's .venv python), RLF_SKIP_WASM=1 reuses the last
 #      wasm-pack build, RLF_CHAMPION_ID / RLF_CHAMPION_NAME / RLF_CHAMPION_HULLS
 #      (comma-separated; default: the hulls it trained on) / RLF_ROSTER_BUDGET
-#      override the manifest, RLF_SMOKE_MATCHES (default 4).
+#      override the manifest, RLF_SMOKE_MATCHES (default 4), RLF_BUNDLE_DIR writes the
+#      bundle somewhere else (scripts/build_site.sh: past champions' bundles).
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -32,7 +33,7 @@ RUN_ID="$2"
 EVAL_JSON="${3:-}"
 PYTHON="${PYTHON:-$REPO_ROOT/.venv/bin/python}"
 PKG="$REPO_ROOT/target/wasm-pack/sim-wasm-release"
-BUNDLE="$REPO_ROOT/web/public/bundle"
+BUNDLE="${RLF_BUNDLE_DIR:-$REPO_ROOT/web/public/bundle}"
 
 step() { printf '\n==> %s\n' "$*"; }
 

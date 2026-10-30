@@ -75,12 +75,14 @@ export class Hud {
     document.body.classList.toggle("details", on);
   }
 
-  setCaption(manifest: BundleManifest): void {
+  /** The caption under the battle; `replay` marks a past champion (?champion=). */
+  setCaption(manifest: BundleManifest, replay = false): void {
     const c = manifest.champion;
     const mixed = manifest.roster.hulls.length > 1 ? " One net flies every hull." : "";
-    this.captionEl.innerHTML =
-      `Every ship here is the same neural network, flying by thruster and trigger, trained overnight.${mixed} ` +
-      `<a href="/notebook/#${encodeURIComponent(c.run)}">How this pilot learned&nbsp;→</a>`;
+    const lead = replay
+      ? `A past champion, ${escapeHtml(c.name)}: every ship is flown by it.${mixed} <a href="/">Watch today's pilot&nbsp;→</a> `
+      : `Every ship here is the same neural network, flying by thruster and trigger, trained overnight.${mixed} `;
+    this.captionEl.innerHTML = lead + `<a href="/notebook/#${encodeURIComponent(c.run)}">How this pilot learned&nbsp;→</a>`;
   }
 
   setTally(t: Tally): void {

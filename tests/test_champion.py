@@ -20,6 +20,7 @@ from tools.champion import (
     load_champions,
     promote,
     sha256_of,
+    watchable,
 )
 
 BASE_URL = "https://example.test"
@@ -195,3 +196,17 @@ def test_records_with_the_wrong_schema_or_directory_are_rejected(
 def test_the_gcs_store_only_writes_under_its_prefix(tmp_path: Path) -> None:
     with pytest.raises(ChampionError, match="outside"):
         GcsStore().put(tmp_path / "x.pt", "me.png")
+
+
+def test_only_same_season_past_champions_are_watchable(lab: dict[str, Path]) -> None:
+    store = DirStore(lab["store"])
+    _promote(lab, store, "2026-10-28-v2", promoted="2026-10-28")
+    _promote(lab, store, "2026-10-29-v3", promoted="2026-10-29")
+    _promote(lab, store, "2026-10-30-fleet", promoted="2026-10-30")
+    record = lab["champions"] / "2026-10-28-v2" / "champion.json"
+    record.write_text(
+        record.read_text().replace('"sim_version": 3', '"sim_version": 2')
+    )
+
+    ids = [c.id for c in watchable(load_champions(lab["champions"]))]
+    assert ids == ["2026-10-29-v3"]

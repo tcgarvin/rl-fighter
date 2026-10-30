@@ -20,7 +20,9 @@ import { chooseRoster, parseRosterMode, type Roster } from "./roster.ts";
 import { SIM_DT, SIM_HZ } from "./sim.ts";
 import { World, hullSpec } from "./world.ts";
 
-const BUNDLE_BASE = "/bundle/";
+const CURRENT_BUNDLE = "/bundle/";
+// Champion ids are dated slugs (tools/champion.py); anything else is ignored.
+const CHAMPION_ID = /^\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*$/;
 const MUSTER_SECONDS = 6;
 // The wreck burns this long under the result banner before the next match.
 const RESULT_HOLD = 3.5;
@@ -40,6 +42,10 @@ const pinnedSeed = params.has("seed") ? Number(params.get("seed")) : null;
 const warmup = Math.max(0, Number(params.get("warmup") ?? 0));
 const speed = Math.min(32, Math.max(1, Number(params.get("speed") ?? 1) || 1));
 let showDetails = params.has("details");
+// ?champion=<id> replays a past champion of this sim season from /champions/<id>/
+// (scripts/build_site.sh); the current champion lives at /bundle/.
+const replay = CHAMPION_ID.test(params.get("champion") ?? "") ? params.get("champion")! : "";
+let bundleBase = replay ? `/champions/${replay}/` : CURRENT_BUNDLE;
 
 const nav = mountNav("live", true);
 const hud = new Hud();
@@ -81,12 +87,12 @@ function applyBundle(b: Bundle): void {
   bundle = b;
   const missing = b.catalogue.hulls.map(([name]) => name).filter((n) => !thumbnails[n] && hullSpec(n));
   if (missing.length) Object.assign(thumbnails, world.thumbnails(missing));
-  hud.setCaption(b.manifest);
+  hud.setCaption(b.manifest, bundleBase !== CURRENT_BUNDLE);
 }
 
 /** Load a bundle and check this page can draw every hull it may draft. */
 async function loadDrawable(manifest: BundleManifest): Promise<Bundle> {
-  const b = await loadBundle(BUNDLE_BASE, manifest);
+  const b = await loadBundle(bundleBase, manifest);
   const missing = b.manifest.roster.hulls.filter((h) => !hullSpec(h));
   if (missing.length) throw new Error(`bundle ${b.manifest.bundle_id} rosters hulls this page has no model for: ${missing.join(", ")}`);
   return b;
@@ -98,7 +104,7 @@ async function checkBundle(retryFailed: boolean): Promise<void> {
   checking = true;
   let id: string | null = null;
   try {
-    const manifest = await fetchManifest(BUNDLE_BASE);
+    const manifest = await fetchManifest(bundleBase);
     id = manifest.bundle_id;
     const newest = pending?.manifest.bundle_id ?? bundle.manifest.bundle_id;
     if (id === newest || (id === failedBundleId && !retryFailed)) return;
@@ -254,13 +260,26 @@ if (params.has("debug")) {
   };
 }
 
+/** The manifest to start from: the replayed champion's, else the current one's. */
+async function bootManifest(): Promise<BundleManifest> {
+  if (bundleBase !== CURRENT_BUNDLE) {
+    try {
+      return await fetchManifest(bundleBase);
+    } catch (err) {
+      // The current champion, or one retired with its season, has no replay bundle.
+      console.info(`live: no replay bundle for ${replay}; flying the current champion`, err);
+      bundleBase = CURRENT_BUNDLE;
+    }
+  }
+  return fetchManifest(bundleBase);
+}
+
 async function boot(): Promise<void> {
   hud.setDetails(showDetails);
   hud.setTally(tally);
   layout();
   try {
-    const manifest = await fetchManifest(BUNDLE_BASE);
-    applyBundle(await loadDrawable(manifest));
+    applyBundle(await loadDrawable(await bootManifest()));
   } catch (err) {
     console.error(err);
     hud.fail(`Could not load the pilot: ${err instanceof Error ? err.message : String(err)}. Retrying in a minute.`);

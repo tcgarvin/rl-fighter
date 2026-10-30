@@ -33,6 +33,21 @@ fi
 
 scripts/build_bundle.sh "$@"
 
+# Past champions of this sim season, replayable at /?champion=<id>; their bundles go
+# to /champions/<id>/ and reuse the wasm just built.
+PY="${PYTHON:-$REPO_ROOT/.venv/bin/python}"
+rm -rf web/public/champions
+for past in $("$PY" -m tools.champion past); do
+    step "past champion $past -> /champions/$past/"
+    PAST_ENV="$("$PY" -m tools.champion env "$past")"
+    (
+        eval "$PAST_ENV"
+        export RLF_CHAMPION_ID RLF_CHAMPION_NAME RLF_CHAMPION_HULLS
+        RLF_SKIP_WASM=1 RLF_SMOKE_MATCHES=1 RLF_BUNDLE_DIR="$REPO_ROOT/web/public/champions/$past" \
+            scripts/build_bundle.sh "$CHAMPION_CHECKPOINT" "$CHAMPION_RUN" "$CHAMPION_EVAL_JSON"
+    )
+done
+
 step "notebook and hull catalogue data (lab/runs, lab/champions, assets)"
 scripts/build_pages_data.sh
 

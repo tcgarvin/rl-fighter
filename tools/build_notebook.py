@@ -498,17 +498,23 @@ def load_champions(champions_dir: Path) -> list[Champion]:
     return sorted(champions, key=lambda c: (c.promoted, c.id))
 
 
-def champion_entry(champion: Champion, current_id: str | None) -> dict[str, Any]:
-    """The notebook's view of a champion, with its "watch this pilot" link."""
-    current = champion.id == current_id
+def champion_entry(champion: Champion, current: Champion | None) -> dict[str, Any]:
+    """The notebook's view of a champion, with its "watch this pilot" link.
+
+    Past champions of the current one's sim season are replayable on the live page
+    (``scripts/build_site.sh`` builds their bundles); older seasons' are not.
+    """
+    is_current = current is not None and champion.id == current.id
+    same_season = current is not None and champion.sim_version == current.sim_version
     return {
         "id": champion.id,
         "name": champion.name,
         "sim_version": champion.sim_version,
         "hulls": list(champion.hulls),
         "promoted": champion.promoted,
-        "current": current,
-        "href": "/" if current else f"/?champion={champion.id}",
+        "current": is_current,
+        "watchable": is_current or same_season,
+        "href": "/" if is_current else f"/?champion={champion.id}",
     }
 
 
@@ -530,7 +536,7 @@ def build_run(
     run_dir: Path,
     run_ids: frozenset[str],
     champions: Sequence[Champion],
-    current_champion: str | None,
+    current_champion: Champion | None,
     repo_root: Path,
     committed_at: Callable[[Path], int | None],
 ) -> RunEntry:
@@ -628,7 +634,7 @@ def build_notebook(
             )
     run_ids = frozenset(d.name for d in run_dirs)
     champions = load_champions(champions_dir)
-    current = champions[-1].id if champions else None
+    current = champions[-1] if champions else None
     entries = [
         build_run(d, run_ids, champions, current, repo_root, committed_at)
         for d in run_dirs
@@ -644,12 +650,11 @@ def build_notebook(
         (out_dir / f"{entry.index['id']}.json").write_text(
             json.dumps(entry.page, ensure_ascii=False, separators=(",", ":"))
         )
-    by_id = {c.id: c for c in champions}
     index = {
         "schema": INDEX_SCHEMA,
         "runs": [e.index for e in entries],
         "current_champion": (
-            champion_entry(by_id[current], current) | {"run": by_id[current].run}
+            champion_entry(current, current) | {"run": current.run}
             if current is not None
             else None
         ),

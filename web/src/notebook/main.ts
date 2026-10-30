@@ -153,7 +153,7 @@ function indexItem(run: IndexRun): HTMLLIElement {
   if (facts.length) foot.append(document.createTextNode(` · ${facts.join(" · ")}`));
   a.append(foot);
   li.append(a);
-  for (const champion of run.champions) li.append(watchButton(champion));
+  for (const champion of run.champions) if (champion.watchable) li.append(watchButton(champion));
   return li;
 }
 
@@ -189,7 +189,7 @@ function renderRun(run: RunPage, openPlan: boolean): void {
   head.append(kicker, el("h1", "", run.title), badges);
   if (run.champions.length) {
     const actions = el("div", "nb-entry-head__actions");
-    for (const c of run.champions) actions.append(watchButton(c));
+    for (const c of run.champions) if (c.watchable) actions.append(watchButton(c));
     head.append(actions);
   }
 
