@@ -6,7 +6,7 @@
 // blows the 30 Hz budget. The TS sources need Node's type stripping:
 //
 //   node --experimental-strip-types tools/web/live_smoke.mjs <bundle-dir> [matches=4]
-//        [--seed 1] [--modes duel,2v2,3v3,4v4,draft] [--hulls fighter,strafer,gunship]
+//        [--seed 1] [--modes draft,2v2,3v3,4v4] [--hulls fighter,strafer,gunship]
 //
 // --modes cycles roster modes (as ?fleets= on the page; "draft" uses the manifest's
 // roster rules). --hulls overrides which hulls are drafted, to exercise mixed fleets
@@ -29,7 +29,7 @@ if (!bundleDir) {
   process.exit(2);
 }
 const seed0 = Number(flags.seed ?? 1);
-const modes = (flags.modes ?? "duel,2v2,3v3,4v4,draft").split(",");
+const modes = (flags.modes ?? "draft,2v2,3v3,4v4").split(",");
 
 const { mulberry32 } = await importRepo("web/src/live/policy.js");
 const { LiveMatch } = await importRepo("web/src/live/match.ts");
