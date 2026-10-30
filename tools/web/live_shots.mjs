@@ -27,7 +27,9 @@ const VIEWPORTS = [
 // commands=0 pins the commander layer off, so no scene depends on another's choice.
 const MISSION_SCENES = (mission, seed, mid) => [
   { name: `${mission}-muster`, query: `seed=${seed}&mission=${mission}&commands=0`, phase: "muster", after: 1.6 },
-  { name: `${mission}-opening`, query: `seed=${seed}&mission=${mission}&commands=0`, phase: "battle", after: 2.5 },
+  // Fast-forwarded past the muster (a real-time muster on a loaded machine takes minutes),
+  // then a second live so launch and jump-in effects are in the shot.
+  { name: `${mission}-opening`, query: `seed=${seed}&mission=${mission}&warmup=1.5&commands=0`, phase: "battle", after: 1.0 },
   { name: `${mission}-mid-commands`, query: `seed=${seed}&mission=${mission}&warmup=${mid}&commands=1`, phase: "battle", after: 1.5 },
   { name: `${mission}-result`, query: `seed=${seed}&mission=${mission}&warmup=999&commands=0`, phase: "result", after: 1.0 },
 ];
@@ -60,7 +62,7 @@ for (const vp of VIEWPORTS) {
         return s && s.phase === phase && s.phaseTime >= after;
       },
       scene,
-      { timeout: 90000, polling: 100 },
+      { timeout: 240000, polling: 100 },
     );
     // Freeze sim and effects time: a loaded machine can take seconds per frame.
     await page.evaluate(() => window.rlfLive.pause());
