@@ -1,0 +1,2575 @@
+{
+  "config": {
+    "rounds": 3,
+    "rows_per_round": 2000000,
+    "base_rows": 3000000,
+    "seed": 0,
+    "n_envs": 128,
+    "dart_p": 0.15,
+    "beta_first": 0.0,
+    "mode": "finetune",
+    "base_train": {
+      "epochs": 8,
+      "batch_size": 4096,
+      "lr": 0.001,
+      "lr_final": 0.0001,
+      "label_smoothing": 0.02,
+      "fire_pos_weight": 1.0,
+      "throttle_change_weight": 1.0,
+      "seed": 0
+    },
+    "finetune_train": {
+      "epochs": 2,
+      "batch_size": 4096,
+      "lr": 0.0003,
+      "lr_final": 3e-05,
+      "label_smoothing": 0.02,
+      "fire_pos_weight": 1.0,
+      "throttle_change_weight": 1.0,
+      "seed": 0
+    },
+    "max_rows": 9000000,
+    "duel_n": 256,
+    "duel_argmax": false,
+    "obs_dtype": "float16",
+    "rosters": "fleet_v1",
+    "fleet_suite": "fleet_v1",
+    "fleet_n_per_roster": 32,
+    "best_from_round": 1
+  },
+  "init": null,
+  "best_round": 3,
+  "rounds": [
+    {
+      "round": 0,
+      "source": "dart_script",
+      "collect": {
+        "env_steps": 6562,
+        "rows": 3000000,
+        "holdout_rows": 163192,
+        "noise_rate": 0.149753,
+        "changed_rate": 0.09822266666666667,
+        "fire_rate": 0.160381,
+        "wall_s": 7.532282400992699
+      },
+      "aggregate_rows": 3000000,
+      "train": {
+        "config": {
+          "epochs": 8,
+          "batch_size": 4096,
+          "lr": 0.001,
+          "lr_final": 0.0001,
+          "label_smoothing": 0.02,
+          "fire_pos_weight": 1.0,
+          "throttle_change_weight": 1.0,
+          "seed": 0
+        },
+        "epoch_loss": [
+          0.45214829647742183,
+          0.34828919198626584,
+          0.3209855258614413,
+          0.3075190814608356,
+          0.2994135980483529,
+          0.29436270401568115,
+          0.2912999405709748,
+          0.2895360340529181
+        ],
+        "steps": 5544,
+        "wall_s": 208.98269307799637
+      },
+      "holdout_agreement_collector": null,
+      "holdout_agreement": {
+        "throttle": 0.9484956393361949,
+        "fire": 0.9359998327339634,
+        "fire_recall": 0.6406023993873905,
+        "fire_precision": 0.7986634135992362,
+        "power": 0.7305505171822149,
+        "exact_row": 0.499779400951027
+      },
+      "beta": 1.0,
+      "checkpoint": "lab/runs/2026-10-30-fleet-pilot/dagger_fresh/bc_dagger_r0.pt",
+      "duel": {
+        "sample": {
+          "summary": {
+            "win_rate": 0.001953125,
+            "draw_rate": 0.00390625,
+            "hit_rate": 0.0670839351628952,
+            "engagement_rate": 0.9334658835538695,
+            "outside_share": 0.00299380670521288,
+            "main_engine_duty": 0.4120775535355351,
+            "fire_rate": 0.10715144184171145,
+            "shots": 48.6796875,
+            "kill_rate": 1.0,
+            "script_hit_rate": 0.3870549720365571,
+            "script_engagement_rate": 0.9333805595545501,
+            "script_main_engine_duty": 0.41005562831754055
+          },
+          "markdown": "| policy:bc_dagger_r0.pt | script | 256 | 0.002 | 0.004 | 0.996 | 1081 (664\u20131398) | 1.000 | 1.62 | 48.7 | 3.3 | 0.067 | 10.0 | 0.933 | 0.0030 | 0.412 | 0.107 | 44.4 | 0 |",
+          "wall_s": 6.809573867940344,
+          "result": {
+            "a": "policy:bc_dagger_r0.pt",
+            "b": "script",
+            "config": {
+              "n": 256,
+              "seed": 100000,
+              "reaction_ticks": 2,
+              "arena_radius": 450.0,
+              "time_limit_s": 90.0,
+              "fleets": [
+                [
+                  "fighter"
+                ],
+                [
+                  "fighter"
+                ]
+              ],
+              "sim_version": 3
+            },
+            "match": {
+              "length_median": 1081.0,
+              "length_p10": 663.5,
+              "length_p90": 1397.5,
+              "kill_rate": 1.0,
+              "time_limit_rate": 0.0,
+              "draw_rate": 0.00390625,
+              "a_win_rate_team0": 0.0,
+              "a_win_rate_team1": 0.00390625,
+              "crashes_per_match": 0.55078125,
+              "crash_hp_share": 0.18778115242614912
+            },
+            "side_a": {
+              "wins": 0,
+              "draws": 1,
+              "losses": 255,
+              "win_rate": 0.001953125,
+              "passes": 1.625,
+              "shots": 48.6796875,
+              "hits": 3.265625,
+              "hit_rate": 0.0670839351628952,
+              "damage_dealt": 10.029296875,
+              "shield_damage_dealt": 0.0,
+              "engagement_rate": 0.9334658835538695,
+              "outside_share": 0.00299380670521288,
+              "main_engine_duty": 0.4120775535355351,
+              "fire_rate": 0.10715144184171145,
+              "shots_per_s": 1.4240007313115617,
+              "mean_speed": 44.36092962882183,
+              "nan_matches": 0,
+              "stuck_matches": 0,
+              "nan_or_stuck": 0
+            },
+            "side_b": {
+              "wins": 255,
+              "draws": 1,
+              "losses": 0,
+              "win_rate": 0.998046875,
+              "passes": 1.625,
+              "shots": 57.2734375,
+              "hits": 22.16796875,
+              "hit_rate": 0.3870549720365571,
+              "damage_dealt": 73.80859375,
+              "shield_damage_dealt": 0.0,
+              "engagement_rate": 0.9333805595545501,
+              "outside_share": 0.0,
+              "main_engine_duty": 0.41005562831754055,
+              "fire_rate": 0.1594872033431799,
+              "shots_per_s": 1.6752359406777724,
+              "mean_speed": 40.077768312793495,
+              "nan_matches": 0,
+              "stuck_matches": 0,
+              "nan_or_stuck": 0
+            },
+            "schema": "rlf.eval.duel/2"
+          }
+        }
+      },
+      "fleet": {
+        "summary": {
+          "win_rate": 0.013671875,
+          "draw_rate": 0.0,
+          "time_limit_rate": 0.0703125,
+          "by_class": {
+            "1v1": 0.041666666666666664,
+            "2v2": 0.03125,
+            "3v3": 0.0,
+            "2v3": 0.0,
+            "draft": 0.0,
+            "4v4": 0.0
+          },
+          "hull_damage": {
+            "fighter": 4.024621212121212,
+            "gunship": 42.89732142857143,
+            "strafer": 3.7273706896551726
+          },
+          "hull_survival": {
+            "fighter": 0.0,
+            "gunship": 0.13392857142857142,
+            "strafer": 0.03017241379310345
+          },
+          "hull_hit_rate": {
+            "fighter": 0.11299951267056531,
+            "gunship": 0.10230994506732285,
+            "strafer": 0.05792552432586674
+          },
+          "script_hull_damage": {
+            "fighter": 108.35227272727273,
+            "gunship": 180.67633928571428,
+            "strafer": 88.63577586206897
+          },
+          "engine_duty": 0.4184436991247818,
+          "outside_share": 0.0028986769154756746
+        },
+        "markdown": "**policy:bc_dagger_r0.pt** vs **script**: win 0.014, draws 0.000, time limit 0.070, median 1025 ticks (n = 512)\n\n| class | rosters | n | win | draw | time limit | median ticks |\n|---|---|---|---|---|---|---|\n| 1v1 | 3 | 96 | 0.042 | 0.000 | 0.312 | 1358 |\n| 2v2 | 3 | 96 | 0.031 | 0.000 | 0.000 | 879 |\n| 3v3 | 3 | 96 | 0.000 | 0.000 | 0.000 | 1068 |\n| 2v3 | 2 | 64 | 0.000 | 0.000 | 0.000 | 909 |\n| draft | 3 | 96 | 0.000 | 0.000 | 0.062 | 988 |\n| 4v4 | 2 | 64 | 0.000 | 0.000 | 0.000 | 934 |\n\n| side | hull | ships | dmg | shield dmg | survival | hit rate | shots | engage | outside | engine | passes | crash dmg | fire |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n| a | fighter | 528 | 4.0 | 12.2 | 0.00 | 0.113 | 31.1 | 0.89 | 0.0050 | 0.35 | 1.37 | 11.3 | 0.109 |\n| a | gunship | 224 | 42.9 | 65.1 | 0.13 | 0.102 | 257.6 | 0.94 | 0.0024 | 0.49 | 1.20 | 2.8 | 0.364 |\n| a | strafer | 464 | 3.7 | 11.0 | 0.03 | 0.058 | 90.6 | 0.84 | 0.0012 | 0.42 | 1.67 | 1.3 | 0.099 |\n| a | all | 1216 | 11.1 | 21.5 | 0.04 | 0.088 | 95.5 | 0.89 | 0.0029 | 0.42 | 1.45 | 5.9 | 0.184 |\n| b | fighter | 528 | 108.4 | 43.9 | 0.95 | 0.707 | 44.9 | 0.92 | 0.0000 | 0.46 | 1.51 | 13.0 | 0.147 |\n| b | gunship | 224 | 180.7 | 85.0 | 1.00 | 0.201 | 308.0 | 0.92 | 0.0000 | 0.50 | 1.64 | 0.2 | 0.411 |\n| b | strafer | 464 | 88.6 | 39.9 | 0.99 | 0.336 | 129.2 | 0.90 | 0.0000 | 0.44 | 2.54 | 0.4 | 0.111 |\n| b | all | 1216 | 114.2 | 49.9 | 0.98 | 0.333 | 125.5 | 0.91 | 0.0000 | 0.46 | 1.93 | 5.8 | 0.194 |",
+        "wall_s": 22.682892913930118,
+        "result": {
+          "a": "policy:bc_dagger_r0.pt",
+          "b": "script",
+          "config": {
+            "suite": "fleet_v1",
+            "n_per_roster": 32,
+            "seed": 200000,
+            "reaction_ticks": 2,
+            "time_limit_s": 90.0,
+            "arena_radius": 0.0,
+            "sim_version": 3
+          },
+          "match": {
+            "n": 512,
+            "length_median": 1025.0,
+            "length_p10": 633.7,
+            "length_p90": 2042.200000000001,
+            "draw_rate": 0.0,
+            "time_limit_rate": 0.0703125
+          },
+          "classes": {
+            "1v1": {
+              "klass": "1v1",
+              "rosters": 3,
+              "n": 96,
+              "win_rate": 0.041666666666666664,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.3125,
+              "length_median": 1358.0
+            },
+            "2v2": {
+              "klass": "2v2",
+              "rosters": 3,
+              "n": 96,
+              "win_rate": 0.03125,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 879.0
+            },
+            "3v3": {
+              "klass": "3v3",
+              "rosters": 3,
+              "n": 96,
+              "win_rate": 0.0,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 1068.5
+            },
+            "2v3": {
+              "klass": "2v3",
+              "rosters": 2,
+              "n": 64,
+              "win_rate": 0.0,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 909.0
+            },
+            "draft": {
+              "klass": "draft",
+              "rosters": 3,
+              "n": 96,
+              "win_rate": 0.0,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0625,
+              "length_median": 988.5
+            },
+            "4v4": {
+              "klass": "4v4",
+              "rosters": 2,
+              "n": 64,
+              "win_rate": 0.0,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 934.0
+            }
+          },
+          "rosters": [
+            {
+              "name": "1v1 F v F",
+              "klass": "1v1",
+              "label": "F v F",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 1098.5
+            },
+            {
+              "name": "1v1 S v S",
+              "klass": "1v1",
+              "label": "S v S",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.09375,
+              "length_median": 1127.0
+            },
+            {
+              "name": "1v1 G v G",
+              "klass": "1v1",
+              "label": "G v G",
+              "n": 32,
+              "wins": 4,
+              "draws": 0,
+              "losses": 28,
+              "win_rate": 0.125,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.84375,
+              "length_median": 2700.0
+            },
+            {
+              "name": "2v2 FS v FS",
+              "klass": "2v2",
+              "label": "FS v FS",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 863.5
+            },
+            {
+              "name": "2v2 FG v SS",
+              "klass": "2v2",
+              "label": "FG v SS",
+              "n": 32,
+              "wins": 1,
+              "draws": 0,
+              "losses": 31,
+              "win_rate": 0.03125,
+              "team0_win_rate": 0.53125,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 1224.0
+            },
+            {
+              "name": "2v2 SG v FF",
+              "klass": "2v2",
+              "label": "SG v FF",
+              "n": 32,
+              "wins": 2,
+              "draws": 0,
+              "losses": 30,
+              "win_rate": 0.0625,
+              "team0_win_rate": 0.5625,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 1044.0
+            },
+            {
+              "name": "3v3 FSG v FSG",
+              "klass": "3v3",
+              "label": "FSG v FSG",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 1162.0
+            },
+            {
+              "name": "3v3 FFS v SSF",
+              "klass": "3v3",
+              "label": "FFS v SSF",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 818.5
+            },
+            {
+              "name": "3v3 FFG v SSG",
+              "klass": "3v3",
+              "label": "FFG v SSG",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 1167.5
+            },
+            {
+              "name": "2v3 FG v FFS",
+              "klass": "2v3",
+              "label": "FG v FFS",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 909.0
+            },
+            {
+              "name": "2v3 SS v FFF",
+              "klass": "2v3",
+              "label": "SS v FFF",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 851.0
+            },
+            {
+              "name": "draft G v FFF",
+              "klass": "draft",
+              "label": "G v FFF",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 757.0
+            },
+            {
+              "name": "draft G v SSS",
+              "klass": "draft",
+              "label": "G v SSS",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.1875,
+              "length_median": 1334.5
+            },
+            {
+              "name": "draft GF v FFSS",
+              "klass": "draft",
+              "label": "GF v FFSS",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 919.5
+            },
+            {
+              "name": "4v4 FFSS v FFSS",
+              "klass": "4v4",
+              "label": "FFSS v FFSS",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 793.5
+            },
+            {
+              "name": "4v4 FSGF v SSFG",
+              "klass": "4v4",
+              "label": "FSGF v SSFG",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 1145.0
+            }
+          ],
+          "side_a": {
+            "win_rate": 0.013671875,
+            "draws": 0,
+            "all_ships": {
+              "ships": 1216,
+              "damage_dealt": 11.071957236842104,
+              "shield_damage_dealt": 21.454769736842106,
+              "survival": 0.03618421052631579,
+              "shots": 95.54029605263158,
+              "hits": 8.384046052631579,
+              "hit_rate": 0.08775403048796233,
+              "engagement_rate": 0.887324186082301,
+              "outside_share": 0.0028986769154756746,
+              "engine_duty": 0.4184436991247818,
+              "passes": 1.4547697368421053,
+              "crash_damage_taken": 5.915329320323326,
+              "crash_contacts": 1.071546052631579,
+              "fire_rate": 0.18448049500726857
+            },
+            "hulls": {
+              "fighter": {
+                "ships": 528,
+                "damage_dealt": 4.024621212121212,
+                "shield_damage_dealt": 12.159090909090908,
+                "survival": 0.0,
+                "shots": 31.09090909090909,
+                "hits": 3.5132575757575757,
+                "hit_rate": 0.11299951267056531,
+                "engagement_rate": 0.8909718725271564,
+                "outside_share": 0.004989569095748507,
+                "engine_duty": 0.35206051793666837,
+                "passes": 1.3693181818181819,
+                "crash_damage_taken": 11.304504284694614,
+                "crash_contacts": 0.9318181818181818,
+                "fire_rate": 0.10946657160353943
+              },
+              "gunship": {
+                "ships": 224,
+                "damage_dealt": 42.89732142857143,
+                "shield_damage_dealt": 65.10714285714286,
+                "survival": 0.13392857142857142,
+                "shots": 257.6205357142857,
+                "hits": 26.357142857142858,
+                "hit_rate": 0.10230994506732285,
+                "engagement_rate": 0.9362991716540753,
+                "outside_share": 0.002351561801362581,
+                "engine_duty": 0.4947735639366167,
+                "passes": 1.2008928571428572,
+                "crash_damage_taken": 2.763870203721808,
+                "crash_contacts": 2.0044642857142856,
+                "fire_rate": 0.3644169925644942
+              },
+              "strafer": {
+                "ships": 464,
+                "damage_dealt": 3.7273706896551726,
+                "shield_damage_dealt": 10.95905172413793,
+                "survival": 0.03017241379310345,
+                "shots": 90.63362068965517,
+                "hits": 5.25,
+                "hit_rate": 0.05792552432586674,
+                "engagement_rate": 0.8398592715231789,
+                "outside_share": 0.0012387653736991486,
+                "engine_duty": 0.41851396860608564,
+                "passes": 1.6745689655172413,
+                "crash_damage_taken": 1.3042139343981096,
+                "crash_contacts": 0.7801724137931034,
+                "fire_rate": 0.09885779416044234
+              }
+            },
+            "nan_matches": 0,
+            "stuck_matches": 0
+          },
+          "side_b": {
+            "win_rate": 0.986328125,
+            "draws": 0,
+            "all_ships": {
+              "ships": 1216,
+              "damage_dealt": 114.1517269736842,
+              "shield_damage_dealt": 49.92845394736842,
+              "survival": 0.977796052631579,
+              "shots": 125.51726973684211,
+              "hits": 41.75328947368421,
+              "hit_rate": 0.3326497585648861,
+              "engagement_rate": 0.911120513431539,
+              "outside_share": 0.0,
+              "engine_duty": 0.4630610341359847,
+              "passes": 1.9276315789473684,
+              "crash_damage_taken": 5.813660700318294,
+              "crash_contacts": 1.3692434210526316,
+              "fire_rate": 0.19443412963650616
+            },
+            "hulls": {
+              "fighter": {
+                "ships": 528,
+                "damage_dealt": 108.35227272727273,
+                "shield_damage_dealt": 43.87310606060606,
+                "survival": 0.9545454545454546,
+                "shots": 44.86931818181818,
+                "hits": 31.71780303030303,
+                "hit_rate": 0.7068929129205184,
+                "engagement_rate": 0.9183364797334814,
+                "outside_share": 0.0,
+                "engine_duty": 0.459932997843413,
+                "passes": 1.5132575757575757,
+                "crash_damage_taken": 12.959934488635826,
+                "crash_contacts": 2.1079545454545454,
+                "fire_rate": 0.14723899933294915
+              },
+              "gunship": {
+                "ships": 224,
+                "damage_dealt": 180.67633928571428,
+                "shield_damage_dealt": 84.97767857142857,
+                "survival": 1.0,
+                "shots": 308.0357142857143,
+                "hits": 61.857142857142854,
+                "hit_rate": 0.20081159420289854,
+                "engagement_rate": 0.9233488022598084,
+                "outside_share": 0.0,
+                "engine_duty": 0.5014193340986582,
+                "passes": 1.6383928571428572,
+                "crash_damage_taken": 0.22073427504385887,
+                "crash_contacts": 0.7053571428571429,
+                "fire_rate": 0.4109608857338423
+              },
+              "strafer": {
+                "ships": 464,
+                "damage_dealt": 88.63577586206897,
+                "shield_damage_dealt": 39.89870689655172,
+                "survival": 0.9935344827586207,
+                "shots": 129.17672413793105,
+                "hits": 43.4676724137931,
+                "hit_rate": 0.3364977143047816,
+                "engagement_rate": 0.8974840231437614,
+                "outside_share": 0.0,
+                "engine_duty": 0.44367107415384693,
+                "passes": 2.538793103448276,
+                "crash_damage_taken": 0.3817274223653118,
+                "crash_contacts": 0.8491379310344828,
+                "fire_rate": 0.11124758549698777
+              }
+            },
+            "nan_matches": 0,
+            "stuck_matches": 0
+          },
+          "schema": "rlf.eval.fleet/1"
+        }
+      },
+      "wall_s": 249.4634627760388
+    },
+    {
+      "round": 1,
+      "source": "on_policy",
+      "collect": {
+        "env_steps": 9382,
+        "rows": 2000000,
+        "holdout_rows": 114579,
+        "noise_rate": 0.0,
+        "changed_rate": 0.9637215,
+        "fire_rate": 0.0415395,
+        "wall_s": 38.99159168906044
+      },
+      "aggregate_rows": 5000000,
+      "train": {
+        "config": {
+          "epochs": 2,
+          "batch_size": 4096,
+          "lr": 0.0003,
+          "lr_final": 3e-05,
+          "label_smoothing": 0.02,
+          "fire_pos_weight": 1.0,
+          "throttle_change_weight": 1.0,
+          "seed": 1
+        },
+        "epoch_loss": [
+          0.5001134640485668,
+          0.4594510216313104
+        ],
+        "steps": 2306,
+        "wall_s": 79.80886325601023
+      },
+      "holdout_agreement_collector": {
+        "throttle": 0.532279853023445,
+        "fire": 0.8993446908516378,
+        "fire_recall": 0.1875812743823147,
+        "fire_precision": 0.06065065433331582,
+        "power": 0.535857356060011,
+        "exact_row": 0.054102409691130136
+      },
+      "holdout_agreement": {
+        "throttle": 0.7044671464171286,
+        "fire": 0.9610115262233684,
+        "fire_recall": 0.07428478543563069,
+        "fire_precision": 0.12620822977078155,
+        "power": 0.5999703261505163,
+        "exact_row": 0.14744412152314124
+      },
+      "beta": 0.0,
+      "checkpoint": "lab/runs/2026-10-30-fleet-pilot/dagger_fresh/bc_dagger_r1.pt",
+      "duel": {
+        "sample": {
+          "summary": {
+            "win_rate": 0.00390625,
+            "draw_rate": 0.0078125,
+            "hit_rate": 0.12636052658857677,
+            "engagement_rate": 0.9367127442300781,
+            "outside_share": 0.0,
+            "main_engine_duty": 0.2868992984392854,
+            "fire_rate": 0.07546587462761342,
+            "shots": 37.68359375,
+            "kill_rate": 1.0,
+            "script_hit_rate": 0.4799858619775559,
+            "script_engagement_rate": 0.9366142249879487,
+            "script_main_engine_duty": 0.36341571869643124
+          },
+          "markdown": "| policy:bc_dagger_r1.pt | script | 256 | 0.004 | 0.008 | 0.992 | 926 (628\u20131208) | 1.000 | 1.42 | 37.7 | 4.8 | 0.126 | 14.3 | 0.937 | 0.0000 | 0.287 | 0.075 | 41.0 | 0 |",
+          "wall_s": 5.095724315964617,
+          "result": {
+            "a": "policy:bc_dagger_r1.pt",
+            "b": "script",
+            "config": {
+              "n": 256,
+              "seed": 100000,
+              "reaction_ticks": 2,
+              "arena_radius": 450.0,
+              "time_limit_s": 90.0,
+              "fleets": [
+                [
+                  "fighter"
+                ],
+                [
+                  "fighter"
+                ]
+              ],
+              "sim_version": 3
+            },
+            "match": {
+              "length_median": 926.0,
+              "length_p10": 627.5,
+              "length_p90": 1208.0,
+              "kill_rate": 1.0,
+              "time_limit_rate": 0.0,
+              "draw_rate": 0.0078125,
+              "a_win_rate_team0": 0.0078125,
+              "a_win_rate_team1": 0.0,
+              "crashes_per_match": 1.48046875,
+              "crash_hp_share": 0.29594046268011415
+            },
+            "side_a": {
+              "wins": 0,
+              "draws": 2,
+              "losses": 254,
+              "win_rate": 0.00390625,
+              "passes": 1.421875,
+              "shots": 37.68359375,
+              "hits": 4.76171875,
+              "hit_rate": 0.12636052658857677,
+              "damage_dealt": 14.27734375,
+              "shield_damage_dealt": 0.0,
+              "engagement_rate": 0.9367127442300781,
+              "outside_share": 0.0,
+              "main_engine_duty": 0.2868992984392854,
+              "fire_rate": 0.07546587462761342,
+              "shots_per_s": 1.268418607505062,
+              "mean_speed": 41.02502335391097,
+              "nan_matches": 0,
+              "stuck_matches": 0,
+              "nan_or_stuck": 0
+            },
+            "side_b": {
+              "wins": 254,
+              "draws": 2,
+              "losses": 0,
+              "win_rate": 0.99609375,
+              "passes": 1.421875,
+              "shots": 44.20703125,
+              "hits": 21.21875,
+              "hit_rate": 0.4799858619775559,
+              "damage_dealt": 66.826171875,
+              "shield_damage_dealt": 0.0,
+              "engagement_rate": 0.9366142249879487,
+              "outside_share": 7.011700775669399e-05,
+              "main_engine_duty": 0.36341571869643124,
+              "fire_rate": 0.13953269941229615,
+              "shots_per_s": 1.4878390814671985,
+              "mean_speed": 39.36372963657207,
+              "nan_matches": 0,
+              "stuck_matches": 0,
+              "nan_or_stuck": 0
+            },
+            "schema": "rlf.eval.duel/2"
+          }
+        }
+      },
+      "fleet": {
+        "summary": {
+          "win_rate": 0.04296875,
+          "draw_rate": 0.0,
+          "time_limit_rate": 0.060546875,
+          "by_class": {
+            "1v1": 0.21875,
+            "2v2": 0.010416666666666666,
+            "3v3": 0.0,
+            "2v3": 0.0,
+            "draft": 0.0,
+            "4v4": 0.0
+          },
+          "hull_damage": {
+            "fighter": 3.7073863636363638,
+            "gunship": 42.95982142857143,
+            "strafer": 3.439655172413793
+          },
+          "hull_survival": {
+            "fighter": 0.0,
+            "gunship": 0.14732142857142858,
+            "strafer": 0.0
+          },
+          "hull_hit_rate": {
+            "fighter": 0.18287902270033732,
+            "gunship": 0.13175779097532603,
+            "strafer": 0.08151922186197313
+          },
+          "script_hull_damage": {
+            "fighter": 102.84564393939394,
+            "gunship": 175.84375,
+            "strafer": 92.23706896551724
+          },
+          "engine_duty": 0.38379184284564877,
+          "outside_share": 0.001384190383754446
+        },
+        "markdown": "**policy:bc_dagger_r1.pt** vs **script**: win 0.043, draws 0.000, time limit 0.061, median 898 ticks (n = 512)\n\n| class | rosters | n | win | draw | time limit | median ticks |\n|---|---|---|---|---|---|---|\n| 1v1 | 3 | 96 | 0.219 | 0.000 | 0.312 | 998 |\n| 2v2 | 3 | 96 | 0.010 | 0.000 | 0.010 | 737 |\n| 3v3 | 3 | 96 | 0.000 | 0.000 | 0.000 | 1018 |\n| 2v3 | 2 | 64 | 0.000 | 0.000 | 0.000 | 783 |\n| draft | 3 | 96 | 0.000 | 0.000 | 0.000 | 897 |\n| 4v4 | 2 | 64 | 0.000 | 0.000 | 0.000 | 873 |\n\n| side | hull | ships | dmg | shield dmg | survival | hit rate | shots | engage | outside | engine | passes | crash dmg | fire |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n| a | fighter | 528 | 3.7 | 13.5 | 0.00 | 0.183 | 20.8 | 0.90 | 0.0000 | 0.30 | 1.06 | 13.5 | 0.060 |\n| a | gunship | 224 | 43.0 | 38.6 | 0.15 | 0.132 | 145.8 | 0.94 | 0.0040 | 0.49 | 1.02 | 2.5 | 0.166 |\n| a | strafer | 464 | 3.4 | 8.8 | 0.00 | 0.082 | 55.8 | 0.86 | 0.0000 | 0.36 | 1.05 | 1.7 | 0.076 |\n| a | all | 1216 | 10.8 | 16.3 | 0.03 | 0.121 | 57.2 | 0.90 | 0.0014 | 0.38 | 1.05 | 7.0 | 0.102 |\n| b | fighter | 528 | 102.8 | 45.2 | 0.97 | 0.757 | 40.8 | 0.92 | 0.0000 | 0.49 | 1.30 | 16.4 | 0.142 |\n| b | gunship | 224 | 175.8 | 80.5 | 1.00 | 0.246 | 250.1 | 0.92 | 0.0000 | 0.50 | 1.43 | 0.3 | 0.392 |\n| b | strafer | 464 | 92.2 | 42.3 | 1.00 | 0.361 | 125.7 | 0.91 | 0.0000 | 0.44 | 1.81 | 0.1 | 0.124 |\n| b | all | 1216 | 112.2 | 50.6 | 0.99 | 0.376 | 111.7 | 0.92 | 0.0000 | 0.47 | 1.52 | 7.2 | 0.193 |",
+        "wall_s": 20.424224919988774,
+        "result": {
+          "a": "policy:bc_dagger_r1.pt",
+          "b": "script",
+          "config": {
+            "suite": "fleet_v1",
+            "n_per_roster": 32,
+            "seed": 200000,
+            "reaction_ticks": 2,
+            "time_limit_s": 90.0,
+            "arena_radius": 0.0,
+            "sim_version": 3
+          },
+          "match": {
+            "n": 512,
+            "length_median": 898.5,
+            "length_p10": 599.2,
+            "length_p90": 1597.9000000000008,
+            "draw_rate": 0.0,
+            "time_limit_rate": 0.060546875
+          },
+          "classes": {
+            "1v1": {
+              "klass": "1v1",
+              "rosters": 3,
+              "n": 96,
+              "win_rate": 0.21875,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.3125,
+              "length_median": 997.5
+            },
+            "2v2": {
+              "klass": "2v2",
+              "rosters": 3,
+              "n": 96,
+              "win_rate": 0.010416666666666666,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.010416666666666666,
+              "length_median": 737.0
+            },
+            "3v3": {
+              "klass": "3v3",
+              "rosters": 3,
+              "n": 96,
+              "win_rate": 0.0,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 1018.5
+            },
+            "2v3": {
+              "klass": "2v3",
+              "rosters": 2,
+              "n": 64,
+              "win_rate": 0.0,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 783.0
+            },
+            "draft": {
+              "klass": "draft",
+              "rosters": 3,
+              "n": 96,
+              "win_rate": 0.0,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 897.0
+            },
+            "4v4": {
+              "klass": "4v4",
+              "rosters": 2,
+              "n": 64,
+              "win_rate": 0.0,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 873.0
+            }
+          },
+          "rosters": [
+            {
+              "name": "1v1 F v F",
+              "klass": "1v1",
+              "label": "F v F",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 989.5
+            },
+            {
+              "name": "1v1 S v S",
+              "klass": "1v1",
+              "label": "S v S",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 680.0
+            },
+            {
+              "name": "1v1 G v G",
+              "klass": "1v1",
+              "label": "G v G",
+              "n": 32,
+              "wins": 21,
+              "draws": 0,
+              "losses": 11,
+              "win_rate": 0.65625,
+              "team0_win_rate": 0.40625,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.9375,
+              "length_median": 2700.0
+            },
+            {
+              "name": "2v2 FS v FS",
+              "klass": "2v2",
+              "label": "FS v FS",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 737.0
+            },
+            {
+              "name": "2v2 FG v SS",
+              "klass": "2v2",
+              "label": "FG v SS",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.03125,
+              "length_median": 1041.5
+            },
+            {
+              "name": "2v2 SG v FF",
+              "klass": "2v2",
+              "label": "SG v FF",
+              "n": 32,
+              "wins": 1,
+              "draws": 0,
+              "losses": 31,
+              "win_rate": 0.03125,
+              "team0_win_rate": 0.53125,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 918.5
+            },
+            {
+              "name": "3v3 FSG v FSG",
+              "klass": "3v3",
+              "label": "FSG v FSG",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 1094.0
+            },
+            {
+              "name": "3v3 FFS v SSF",
+              "klass": "3v3",
+              "label": "FFS v SSF",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 761.5
+            },
+            {
+              "name": "3v3 FFG v SSG",
+              "klass": "3v3",
+              "label": "FFG v SSG",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 1171.0
+            },
+            {
+              "name": "2v3 FG v FFS",
+              "klass": "2v3",
+              "label": "FG v FFS",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 898.0
+            },
+            {
+              "name": "2v3 SS v FFF",
+              "klass": "2v3",
+              "label": "SS v FFF",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 602.0
+            },
+            {
+              "name": "draft G v FFF",
+              "klass": "draft",
+              "label": "G v FFF",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 719.0
+            },
+            {
+              "name": "draft G v SSS",
+              "klass": "draft",
+              "label": "G v SSS",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 1039.5
+            },
+            {
+              "name": "draft GF v FFSS",
+              "klass": "draft",
+              "label": "GF v FFSS",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 868.0
+            },
+            {
+              "name": "4v4 FFSS v FFSS",
+              "klass": "4v4",
+              "label": "FFSS v FFSS",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 734.0
+            },
+            {
+              "name": "4v4 FSGF v SSFG",
+              "klass": "4v4",
+              "label": "FSGF v SSFG",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 1013.5
+            }
+          ],
+          "side_a": {
+            "win_rate": 0.04296875,
+            "draws": 0,
+            "all_ships": {
+              "ships": 1216,
+              "damage_dealt": 10.8359375,
+              "shield_damage_dealt": 16.319901315789473,
+              "survival": 0.027138157894736843,
+              "shots": 57.18996710526316,
+              "hits": 6.925986842105263,
+              "hit_rate": 0.12110492788634371,
+              "engagement_rate": 0.9025685074362044,
+              "outside_share": 0.001384190383754446,
+              "engine_duty": 0.38379184284564877,
+              "passes": 1.050986842105263,
+              "crash_damage_taken": 6.966414353792579,
+              "crash_contacts": 1.4407894736842106,
+              "fire_rate": 0.10168594140271194
+            },
+            "hulls": {
+              "fighter": {
+                "ships": 528,
+                "damage_dealt": 3.7073863636363638,
+                "shield_damage_dealt": 13.513257575757576,
+                "survival": 0.0,
+                "shots": 20.77462121212121,
+                "hits": 3.7992424242424243,
+                "hit_rate": 0.18287902270033732,
+                "engagement_rate": 0.9012468374369518,
+                "outside_share": 0.0,
+                "engine_duty": 0.3019469526182147,
+                "passes": 1.0625,
+                "crash_damage_taken": 13.465370965153642,
+                "crash_contacts": 1.5984848484848484,
+                "fire_rate": 0.05974630942207477
+              },
+              "gunship": {
+                "ships": 224,
+                "damage_dealt": 42.95982142857143,
+                "shield_damage_dealt": 38.607142857142854,
+                "survival": 0.14732142857142858,
+                "shots": 145.83035714285714,
+                "hits": 19.214285714285715,
+                "hit_rate": 0.13175779097532603,
+                "engagement_rate": 0.9375799139834942,
+                "outside_share": 0.004027322890099896,
+                "engine_duty": 0.49279604819840056,
+                "passes": 1.0223214285714286,
+                "crash_damage_taken": 2.495054350352661,
+                "crash_contacts": 1.3571428571428572,
+                "fire_rate": 0.16629458869206504
+              },
+              "strafer": {
+                "ships": 464,
+                "damage_dealt": 3.439655172413793,
+                "shield_damage_dealt": 8.754310344827585,
+                "survival": 0.0,
+                "shots": 55.83620689655172,
+                "hits": 4.551724137931035,
+                "hit_rate": 0.08151922186197313,
+                "engagement_rate": 0.8633327747588155,
+                "outside_share": 0.0,
+                "engine_duty": 0.3571239464454466,
+                "passes": 1.0517241379310345,
+                "crash_damage_taken": 1.7296375218354647,
+                "crash_contacts": 1.3017241379310345,
+                "fire_rate": 0.07641382498369695
+              }
+            },
+            "nan_matches": 0,
+            "stuck_matches": 0
+          },
+          "side_b": {
+            "win_rate": 0.95703125,
+            "draws": 0,
+            "all_ships": {
+              "ships": 1216,
+              "damage_dealt": 112.24465460526316,
+              "shield_damage_dealt": 50.5921052631579,
+              "survival": 0.9860197368421053,
+              "shots": 111.73026315789474,
+              "hits": 42.061677631578945,
+              "hit_rate": 0.3764573396926338,
+              "engagement_rate": 0.9161279265383071,
+              "outside_share": 0.0,
+              "engine_duty": 0.4748762284995349,
+              "passes": 1.5189144736842106,
+              "crash_damage_taken": 7.212168793871331,
+              "crash_contacts": 1.4358552631578947,
+              "fire_rate": 0.19255703186754233
+            },
+            "hulls": {
+              "fighter": {
+                "ships": 528,
+                "damage_dealt": 102.84564393939394,
+                "shield_damage_dealt": 45.17992424242424,
+                "survival": 0.9715909090909091,
+                "shots": 40.78977272727273,
+                "hits": 30.892045454545453,
+                "hit_rate": 0.7573478200306449,
+                "engagement_rate": 0.9228529008679762,
+                "outside_share": 0.0,
+                "engine_duty": 0.4929171561247405,
+                "passes": 1.303030303030303,
+                "crash_damage_taken": 16.4154654287768,
+                "crash_contacts": 2.2518939393939394,
+                "fire_rate": 0.1418653112097842
+              },
+              "gunship": {
+                "ships": 224,
+                "damage_dealt": 175.84375,
+                "shield_damage_dealt": 80.53125,
+                "survival": 0.9955357142857143,
+                "shots": 250.10267857142858,
+                "hits": 61.486607142857146,
+                "hit_rate": 0.24584545633043572,
+                "engagement_rate": 0.9176443830975312,
+                "outside_share": 0.0,
+                "engine_duty": 0.5008496155557821,
+                "passes": 1.4330357142857142,
+                "crash_damage_taken": 0.278322134649248,
+                "crash_contacts": 0.8973214285714286,
+                "fire_rate": 0.3915110126541931
+              },
+              "strafer": {
+                "ships": 464,
+                "damage_dealt": 92.23706896551724,
+                "shield_damage_dealt": 42.297413793103445,
+                "survival": 0.9978448275862069,
+                "shots": 125.65517241379311,
+                "hits": 45.394396551724135,
+                "hit_rate": 0.36126166300768386,
+                "engagement_rate": 0.9087124193112871,
+                "outside_share": 0.0,
+                "engine_duty": 0.4420906714311728,
+                "passes": 1.8060344827586208,
+                "crash_damage_taken": 0.08682618274128642,
+                "crash_contacts": 0.7672413793103449,
+                "fire_rate": 0.12405253336282707
+              }
+            },
+            "nan_matches": 0,
+            "stuck_matches": 0
+          },
+          "schema": "rlf.eval.fleet/1"
+        }
+      },
+      "wall_s": 146.67710220103618
+    },
+    {
+      "round": 2,
+      "source": "on_policy",
+      "collect": {
+        "env_steps": 8984,
+        "rows": 2000000,
+        "holdout_rows": 105278,
+        "noise_rate": 0.0,
+        "changed_rate": 0.9668585,
+        "fire_rate": 0.0548175,
+        "wall_s": 38.816357648931444
+      },
+      "aggregate_rows": 7000000,
+      "train": {
+        "config": {
+          "epochs": 2,
+          "batch_size": 4096,
+          "lr": 0.0003,
+          "lr_final": 3e-05,
+          "label_smoothing": 0.02,
+          "fire_pos_weight": 1.0,
+          "throttle_change_weight": 1.0,
+          "seed": 2
+        },
+        "epoch_loss": [
+          0.492311603741289,
+          0.46291113142377116
+        ],
+        "steps": 3232,
+        "wall_s": 112.12537376408
+      },
+      "holdout_agreement_collector": {
+        "throttle": 0.5971087922882967,
+        "fire": 0.9445720673144627,
+        "fire_recall": 0.08445580572215121,
+        "fire_precision": 0.2073877353935297,
+        "power": 0.6330667375899998,
+        "exact_row": 0.07328216721442277
+      },
+      "holdout_agreement": {
+        "throttle": 0.7277851837096738,
+        "fire": 0.9518553724827489,
+        "fire_recall": 0.07580375577622653,
+        "fire_precision": 0.3336218087408048,
+        "power": 0.6649347442010677,
+        "exact_row": 0.15850415091472103
+      },
+      "beta": 0.0,
+      "checkpoint": "lab/runs/2026-10-30-fleet-pilot/dagger_fresh/bc_dagger_r2.pt",
+      "duel": {
+        "sample": {
+          "summary": {
+            "win_rate": 0.001953125,
+            "draw_rate": 0.00390625,
+            "hit_rate": 0.14239923070758875,
+            "engagement_rate": 0.9454461747868209,
+            "outside_share": 0.00010408743344409304,
+            "main_engine_duty": 0.3103873874641213,
+            "fire_rate": 0.0935264415821716,
+            "shots": 48.74609375,
+            "kill_rate": 1.0,
+            "script_hit_rate": 0.4867980053952424,
+            "script_engagement_rate": 0.9453553443762159,
+            "script_main_engine_duty": 0.3634477361684895
+          },
+          "markdown": "| policy:bc_dagger_r2.pt | script | 256 | 0.002 | 0.004 | 0.996 | 1022 (759\u20131272) | 1.000 | 1.22 | 48.7 | 6.9 | 0.142 | 20.1 | 0.945 | 0.0001 | 0.310 | 0.094 | 44.6 | 0 |",
+          "wall_s": 5.6872844729805365,
+          "result": {
+            "a": "policy:bc_dagger_r2.pt",
+            "b": "script",
+            "config": {
+              "n": 256,
+              "seed": 100000,
+              "reaction_ticks": 2,
+              "arena_radius": 450.0,
+              "time_limit_s": 90.0,
+              "fleets": [
+                [
+                  "fighter"
+                ],
+                [
+                  "fighter"
+                ]
+              ],
+              "sim_version": 3
+            },
+            "match": {
+              "length_median": 1021.5,
+              "length_p10": 759.0,
+              "length_p90": 1272.5,
+              "kill_rate": 1.0,
+              "time_limit_rate": 0.0,
+              "draw_rate": 0.00390625,
+              "a_win_rate_team0": 0.00390625,
+              "a_win_rate_team1": 0.0,
+              "crashes_per_match": 1.234375,
+              "crash_hp_share": 0.1846456148779278
+            },
+            "side_a": {
+              "wins": 0,
+              "draws": 1,
+              "losses": 255,
+              "win_rate": 0.001953125,
+              "passes": 1.22265625,
+              "shots": 48.74609375,
+              "hits": 6.94140625,
+              "hit_rate": 0.14239923070758875,
+              "damage_dealt": 20.146484375,
+              "shield_damage_dealt": 0.0,
+              "engagement_rate": 0.9454461747868209,
+              "outside_share": 0.00010408743344409304,
+              "main_engine_duty": 0.3103873874641213,
+              "fire_rate": 0.0935264415821716,
+              "shots_per_s": 1.4987389407101965,
+              "mean_speed": 44.634055658973736,
+              "nan_matches": 0,
+              "stuck_matches": 0,
+              "nan_or_stuck": 0
+            },
+            "side_b": {
+              "wins": 255,
+              "draws": 1,
+              "losses": 0,
+              "win_rate": 0.998046875,
+              "passes": 1.22265625,
+              "shots": 47.78515625,
+              "hits": 23.26171875,
+              "hit_rate": 0.4867980053952424,
+              "damage_dealt": 72.099609375,
+              "shield_damage_dealt": 0.0,
+              "engagement_rate": 0.9453553443762159,
+              "outside_share": 0.0,
+              "main_engine_duty": 0.3634477361684895,
+              "fire_rate": 0.13722747404223387,
+              "shots_per_s": 1.4690529754137078,
+              "mean_speed": 38.187402684574764,
+              "nan_matches": 0,
+              "stuck_matches": 0,
+              "nan_or_stuck": 0
+            },
+            "schema": "rlf.eval.duel/2"
+          }
+        }
+      },
+      "fleet": {
+        "summary": {
+          "win_rate": 0.095703125,
+          "draw_rate": 0.0,
+          "time_limit_rate": 0.001953125,
+          "by_class": {
+            "1v1": 0.3333333333333333,
+            "2v2": 0.17708333333333334,
+            "3v3": 0.0,
+            "2v3": 0.0,
+            "draft": 0.0,
+            "4v4": 0.0
+          },
+          "hull_damage": {
+            "fighter": 7.24905303030303,
+            "gunship": 89.9375,
+            "strafer": 5.663793103448276
+          },
+          "hull_survival": {
+            "fighter": 0.0,
+            "gunship": 0.22321428571428573,
+            "strafer": 0.0
+          },
+          "hull_hit_rate": {
+            "fighter": 0.2167577413479053,
+            "gunship": 0.22571098396234393,
+            "strafer": 0.10719327731092437
+          },
+          "script_hull_damage": {
+            "fighter": 101.19791666666667,
+            "gunship": 154.50669642857142,
+            "strafer": 86.04633620689656
+          },
+          "engine_duty": 0.40122429853589703,
+          "outside_share": 0.0066946568196980015
+        },
+        "markdown": "**policy:bc_dagger_r2.pt** vs **script**: win 0.096, draws 0.000, time limit 0.002, median 896 ticks (n = 512)\n\n| class | rosters | n | win | draw | time limit | median ticks |\n|---|---|---|---|---|---|---|\n| 1v1 | 3 | 96 | 0.333 | 0.000 | 0.000 | 912 |\n| 2v2 | 3 | 96 | 0.177 | 0.000 | 0.000 | 774 |\n| 3v3 | 3 | 96 | 0.000 | 0.000 | 0.010 | 1003 |\n| 2v3 | 2 | 64 | 0.000 | 0.000 | 0.000 | 784 |\n| draft | 3 | 96 | 0.000 | 0.000 | 0.000 | 880 |\n| 4v4 | 2 | 64 | 0.000 | 0.000 | 0.000 | 831 |\n\n| side | hull | ships | dmg | shield dmg | survival | hit rate | shots | engage | outside | engine | passes | crash dmg | fire |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n| a | fighter | 528 | 7.2 | 18.4 | 0.00 | 0.217 | 26.0 | 0.90 | 0.0004 | 0.32 | 1.04 | 14.3 | 0.075 |\n| a | gunship | 224 | 89.9 | 55.6 | 0.22 | 0.226 | 158.4 | 0.94 | 0.0192 | 0.55 | 1.04 | 1.6 | 0.183 |\n| a | strafer | 464 | 5.7 | 12.7 | 0.00 | 0.107 | 64.1 | 0.86 | 0.0000 | 0.32 | 1.03 | 1.5 | 0.090 |\n| a | all | 1216 | 21.9 | 23.1 | 0.04 | 0.179 | 64.9 | 0.90 | 0.0067 | 0.40 | 1.04 | 7.1 | 0.117 |\n| b | fighter | 528 | 101.2 | 45.2 | 0.92 | 0.769 | 39.9 | 0.92 | 0.0000 | 0.52 | 1.23 | 14.5 | 0.140 |\n| b | gunship | 224 | 154.5 | 85.2 | 0.86 | 0.254 | 229.3 | 0.92 | 0.0000 | 0.49 | 1.38 | 0.6 | 0.369 |\n| b | strafer | 464 | 86.0 | 43.2 | 0.93 | 0.358 | 124.6 | 0.91 | 0.0000 | 0.43 | 1.80 | 0.4 | 0.118 |\n| b | all | 1216 | 105.2 | 51.8 | 0.91 | 0.383 | 107.1 | 0.92 | 0.0000 | 0.48 | 1.47 | 6.6 | 0.182 |",
+        "wall_s": 20.643562634009868,
+        "result": {
+          "a": "policy:bc_dagger_r2.pt",
+          "b": "script",
+          "config": {
+            "suite": "fleet_v1",
+            "n_per_roster": 32,
+            "seed": 200000,
+            "reaction_ticks": 2,
+            "time_limit_s": 90.0,
+            "arena_radius": 0.0,
+            "sim_version": 3
+          },
+          "match": {
+            "n": 512,
+            "length_median": 896.0,
+            "length_p10": 604.0,
+            "length_p90": 1683.3000000000006,
+            "draw_rate": 0.0,
+            "time_limit_rate": 0.001953125
+          },
+          "classes": {
+            "1v1": {
+              "klass": "1v1",
+              "rosters": 3,
+              "n": 96,
+              "win_rate": 0.3333333333333333,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 912.0
+            },
+            "2v2": {
+              "klass": "2v2",
+              "rosters": 3,
+              "n": 96,
+              "win_rate": 0.17708333333333334,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 774.0
+            },
+            "3v3": {
+              "klass": "3v3",
+              "rosters": 3,
+              "n": 96,
+              "win_rate": 0.0,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.010416666666666666,
+              "length_median": 1003.0
+            },
+            "2v3": {
+              "klass": "2v3",
+              "rosters": 2,
+              "n": 64,
+              "win_rate": 0.0,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 784.0
+            },
+            "draft": {
+              "klass": "draft",
+              "rosters": 3,
+              "n": 96,
+              "win_rate": 0.0,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 880.5
+            },
+            "4v4": {
+              "klass": "4v4",
+              "rosters": 2,
+              "n": 64,
+              "win_rate": 0.0,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 831.0
+            }
+          },
+          "rosters": [
+            {
+              "name": "1v1 F v F",
+              "klass": "1v1",
+              "label": "F v F",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 912.0
+            },
+            {
+              "name": "1v1 S v S",
+              "klass": "1v1",
+              "label": "S v S",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 686.0
+            },
+            {
+              "name": "1v1 G v G",
+              "klass": "1v1",
+              "label": "G v G",
+              "n": 32,
+              "wins": 32,
+              "draws": 0,
+              "losses": 0,
+              "win_rate": 1.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 2197.5
+            },
+            {
+              "name": "2v2 FS v FS",
+              "klass": "2v2",
+              "label": "FS v FS",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 774.0
+            },
+            {
+              "name": "2v2 FG v SS",
+              "klass": "2v2",
+              "label": "FG v SS",
+              "n": 32,
+              "wins": 14,
+              "draws": 0,
+              "losses": 18,
+              "win_rate": 0.4375,
+              "team0_win_rate": 0.9375,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 863.5
+            },
+            {
+              "name": "2v2 SG v FF",
+              "klass": "2v2",
+              "label": "SG v FF",
+              "n": 32,
+              "wins": 3,
+              "draws": 0,
+              "losses": 29,
+              "win_rate": 0.09375,
+              "team0_win_rate": 0.59375,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 934.0
+            },
+            {
+              "name": "3v3 FSG v FSG",
+              "klass": "3v3",
+              "label": "FSG v FSG",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 1088.0
+            },
+            {
+              "name": "3v3 FFS v SSF",
+              "klass": "3v3",
+              "label": "FFS v SSF",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 770.0
+            },
+            {
+              "name": "3v3 FFG v SSG",
+              "klass": "3v3",
+              "label": "FFG v SSG",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.03125,
+              "length_median": 1239.0
+            },
+            {
+              "name": "2v3 FG v FFS",
+              "klass": "2v3",
+              "label": "FG v FFS",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 959.5
+            },
+            {
+              "name": "2v3 SS v FFF",
+              "klass": "2v3",
+              "label": "SS v FFF",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 614.0
+            },
+            {
+              "name": "draft G v FFF",
+              "klass": "draft",
+              "label": "G v FFF",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 744.5
+            },
+            {
+              "name": "draft G v SSS",
+              "klass": "draft",
+              "label": "G v SSS",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 1291.5
+            },
+            {
+              "name": "draft GF v FFSS",
+              "klass": "draft",
+              "label": "GF v FFSS",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 849.0
+            },
+            {
+              "name": "4v4 FFSS v FFSS",
+              "klass": "4v4",
+              "label": "FFSS v FFSS",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 730.0
+            },
+            {
+              "name": "4v4 FSGF v SSFG",
+              "klass": "4v4",
+              "label": "FSGF v SSFG",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 1034.5
+            }
+          ],
+          "side_a": {
+            "win_rate": 0.095703125,
+            "draws": 0,
+            "all_ships": {
+              "ships": 1216,
+              "damage_dealt": 21.87623355263158,
+              "shield_damage_dealt": 23.09950657894737,
+              "survival": 0.04111842105263158,
+              "shots": 64.92927631578948,
+              "hits": 11.654605263157896,
+              "hit_rate": 0.17949692225853028,
+              "engagement_rate": 0.9031631374139866,
+              "outside_share": 0.0066946568196980015,
+              "engine_duty": 0.40122429853589703,
+              "passes": 1.0386513157894737,
+              "crash_damage_taken": 7.0874604307737785,
+              "crash_contacts": 1.328125,
+              "fire_rate": 0.11690899617463127
+            },
+            "hulls": {
+              "fighter": {
+                "ships": 528,
+                "damage_dealt": 7.24905303030303,
+                "shield_damage_dealt": 18.428030303030305,
+                "survival": 0.0,
+                "shots": 25.994318181818183,
+                "hits": 5.634469696969697,
+                "hit_rate": 0.2167577413479053,
+                "engagement_rate": 0.9032532460237213,
+                "outside_share": 0.0003530903429791195,
+                "engine_duty": 0.32354095578839387,
+                "passes": 1.0416666666666667,
+                "crash_damage_taken": 14.315294020752521,
+                "crash_contacts": 1.509469696969697,
+                "fire_rate": 0.07514460436180392
+              },
+              "gunship": {
+                "ships": 224,
+                "damage_dealt": 89.9375,
+                "shield_damage_dealt": 55.60267857142857,
+                "survival": 0.22321428571428573,
+                "shots": 158.38839285714286,
+                "hits": 35.75,
+                "hit_rate": 0.22571098396234393,
+                "engagement_rate": 0.9369180457969309,
+                "outside_share": 0.01915617068148077,
+                "engine_duty": 0.5520585936317735,
+                "passes": 1.0401785714285714,
+                "crash_damage_taken": 1.6437974709894547,
+                "crash_contacts": 1.1428571428571428,
+                "fire_rate": 0.18332859293379858
+              },
+              "strafer": {
+                "ships": 464,
+                "damage_dealt": 5.663793103448276,
+                "shield_damage_dealt": 12.724137931034482,
+                "survival": 0.0,
+                "shots": 64.11637931034483,
+                "hits": 6.872844827586207,
+                "hit_rate": 0.10719327731092437,
+                "engagement_rate": 0.8634290303151978,
+                "outside_share": 0.0,
+                "engine_duty": 0.32134912230737045,
+                "passes": 1.0344827586206897,
+                "crash_damage_taken": 1.4906594986248836,
+                "crash_contacts": 1.2112068965517242,
+                "fire_rate": 0.08975978196744468
+              }
+            },
+            "nan_matches": 0,
+            "stuck_matches": 0
+          },
+          "side_b": {
+            "win_rate": 0.904296875,
+            "draws": 0,
+            "all_ships": {
+              "ships": 1216,
+              "damage_dealt": 105.23643092105263,
+              "shield_damage_dealt": 51.801809210526315,
+              "survival": 0.9136513157894737,
+              "shots": 107.078125,
+              "hits": 41.041940789473685,
+              "hit_rate": 0.3832896848863732,
+              "engagement_rate": 0.9165065691482454,
+              "outside_share": 0.0,
+              "engine_duty": 0.47990712224651605,
+              "passes": 1.472861842105263,
+              "crash_damage_taken": 6.558722099415065,
+              "crash_contacts": 1.4580592105263157,
+              "fire_rate": 0.18176461398897698
+            },
+            "hulls": {
+              "fighter": {
+                "ships": 528,
+                "damage_dealt": 101.19791666666667,
+                "shield_damage_dealt": 45.15151515151515,
+                "survival": 0.9204545454545454,
+                "shots": 39.85037878787879,
+                "hits": 30.65719696969697,
+                "hit_rate": 0.7693075424171855,
+                "engagement_rate": 0.9236343935550956,
+                "outside_share": 0.0,
+                "engine_duty": 0.5230022426727756,
+                "passes": 1.2272727272727273,
+                "crash_damage_taken": 14.488951370854547,
+                "crash_contacts": 2.0359848484848486,
+                "fire_rate": 0.13955952132262975
+              },
+              "gunship": {
+                "ships": 224,
+                "damage_dealt": 154.50669642857142,
+                "shield_damage_dealt": 85.22321428571429,
+                "survival": 0.8571428571428571,
+                "shots": 229.26785714285714,
+                "hits": 58.16517857142857,
+                "hit_rate": 0.2536996650829504,
+                "engagement_rate": 0.9166042718321539,
+                "outside_share": 0.0,
+                "engine_duty": 0.49286954091223956,
+                "passes": 1.3794642857142858,
+                "crash_damage_taken": 0.6450808145924449,
+                "crash_contacts": 1.0892857142857142,
+                "fire_rate": 0.3685153814048268
+              },
+              "strafer": {
+                "ships": 464,
+                "damage_dealt": 86.04633620689656,
+                "shield_damage_dealt": 43.234913793103445,
+                "survival": 0.9331896551724138,
+                "shots": 124.59051724137932,
+                "hits": 44.5926724137931,
+                "hit_rate": 0.357913855734302,
+                "engagement_rate": 0.9100261349421768,
+                "outside_share": 0.0,
+                "engine_duty": 0.433993381074463,
+                "passes": 1.7974137931034482,
+                "crash_damage_taken": 0.38952941079485065,
+                "crash_contacts": 0.978448275862069,
+                "fire_rate": 0.1177907949790795
+              }
+            },
+            "nan_matches": 0,
+            "stuck_matches": 0
+          },
+          "schema": "rlf.eval.fleet/1"
+        }
+      },
+      "wall_s": 180.24820510891732
+    },
+    {
+      "round": 3,
+      "source": "on_policy",
+      "collect": {
+        "env_steps": 9290,
+        "rows": 2000000,
+        "holdout_rows": 117394,
+        "noise_rate": 0.0,
+        "changed_rate": 0.946282,
+        "fire_rate": 0.093365,
+        "wall_s": 38.416904259007424
+      },
+      "aggregate_rows": 9000000,
+      "train": {
+        "config": {
+          "epochs": 2,
+          "batch_size": 4096,
+          "lr": 0.0003,
+          "lr_final": 3e-05,
+          "label_smoothing": 0.02,
+          "fire_pos_weight": 1.0,
+          "throttle_change_weight": 1.0,
+          "seed": 3
+        },
+        "epoch_loss": [
+          0.46827290551186623,
+          0.4454872171337066
+        ],
+        "steps": 4152,
+        "wall_s": 143.1992448529927
+      },
+      "holdout_agreement_collector": {
+        "throttle": 0.7032605144579576,
+        "fire": 0.9273434844955779,
+        "fire_recall": 0.07808878587983598,
+        "fire_precision": 0.3943577430972389,
+        "power": 0.6568393614665144,
+        "exact_row": 0.1480484522207268
+      },
+      "holdout_agreement": {
+        "throttle": 0.7779450653089152,
+        "fire": 0.9288230564558242,
+        "fire_recall": 0.0812384857669222,
+        "fire_precision": 0.44368711457319054,
+        "power": 0.6659710036288056,
+        "exact_row": 0.21046220420123687
+      },
+      "beta": 0.0,
+      "checkpoint": "lab/runs/2026-10-30-fleet-pilot/dagger_fresh/bc_dagger_r3.pt",
+      "duel": {
+        "sample": {
+          "summary": {
+            "win_rate": 0.0078125,
+            "draw_rate": 0.015625,
+            "hit_rate": 0.15899880810488676,
+            "engagement_rate": 0.9428328925032569,
+            "outside_share": 0.0003868777387390944,
+            "main_engine_duty": 0.31039174288837174,
+            "fire_rate": 0.09269728430008604,
+            "shots": 49.16015625,
+            "kill_rate": 1.0,
+            "script_hit_rate": 0.4887422680412371,
+            "script_engagement_rate": 0.9427435717274428,
+            "script_main_engine_duty": 0.3535648566703898
+          },
+          "markdown": "| policy:bc_dagger_r3.pt | script | 256 | 0.008 | 0.016 | 0.984 | 1026 (774\u20131305) | 1.000 | 1.30 | 49.2 | 7.8 | 0.159 | 22.7 | 0.943 | 0.0004 | 0.310 | 0.093 | 46.3 | 0 |",
+          "wall_s": 6.061341719934717,
+          "result": {
+            "a": "policy:bc_dagger_r3.pt",
+            "b": "script",
+            "config": {
+              "n": 256,
+              "seed": 100000,
+              "reaction_ticks": 2,
+              "arena_radius": 450.0,
+              "time_limit_s": 90.0,
+              "fleets": [
+                [
+                  "fighter"
+                ],
+                [
+                  "fighter"
+                ]
+              ],
+              "sim_version": 3
+            },
+            "match": {
+              "length_median": 1026.5,
+              "length_p10": 773.5,
+              "length_p90": 1305.0,
+              "kill_rate": 1.0,
+              "time_limit_rate": 0.0,
+              "draw_rate": 0.015625,
+              "a_win_rate_team0": 0.01171875,
+              "a_win_rate_team1": 0.00390625,
+              "crashes_per_match": 1.41796875,
+              "crash_hp_share": 0.2012878961837265
+            },
+            "side_a": {
+              "wins": 0,
+              "draws": 4,
+              "losses": 252,
+              "win_rate": 0.0078125,
+              "passes": 1.3046875,
+              "shots": 49.16015625,
+              "hits": 7.81640625,
+              "hit_rate": 0.15899880810488676,
+              "damage_dealt": 22.685546875,
+              "shield_damage_dealt": 0.0,
+              "engagement_rate": 0.9428328925032569,
+              "outside_share": 0.0003868777387390944,
+              "main_engine_duty": 0.31039174288837174,
+              "fire_rate": 0.09269728430008604,
+              "shots_per_s": 1.490466227152501,
+              "mean_speed": 46.28792846878945,
+              "nan_matches": 0,
+              "stuck_matches": 0,
+              "nan_or_stuck": 0
+            },
+            "side_b": {
+              "wins": 252,
+              "draws": 4,
+              "losses": 0,
+              "win_rate": 0.9921875,
+              "passes": 1.3046875,
+              "shots": 47.36328125,
+              "hits": 23.1484375,
+              "hit_rate": 0.4887422680412371,
+              "damage_dealt": 71.50390625,
+              "shield_damage_dealt": 0.0,
+              "engagement_rate": 0.9427435717274428,
+              "outside_share": 0.0,
+              "main_engine_duty": 0.3535648566703898,
+              "fire_rate": 0.13294951070656064,
+              "shots_per_s": 1.4358514846013561,
+              "mean_speed": 38.1924551151549,
+              "nan_matches": 0,
+              "stuck_matches": 0,
+              "nan_or_stuck": 0
+            },
+            "schema": "rlf.eval.duel/2"
+          }
+        }
+      },
+      "fleet": {
+        "summary": {
+          "win_rate": 0.16796875,
+          "draw_rate": 0.0,
+          "time_limit_rate": 0.0234375,
+          "by_class": {
+            "1v1": 0.3333333333333333,
+            "2v2": 0.2708333333333333,
+            "3v3": 0.13541666666666666,
+            "2v3": 0.03125,
+            "draft": 0.13541666666666666,
+            "4v4": 0.0
+          },
+          "hull_damage": {
+            "fighter": 9.701704545454545,
+            "gunship": 159.33482142857142,
+            "strafer": 8.143318965517242
+          },
+          "hull_survival": {
+            "fighter": 0.017045454545454544,
+            "gunship": 0.40625,
+            "strafer": 0.0021551724137931034
+          },
+          "hull_hit_rate": {
+            "fighter": 0.25076623014767346,
+            "gunship": 0.2855551509179324,
+            "strafer": 0.13203082747431044
+          },
+          "script_hull_damage": {
+            "fighter": 94.45075757575758,
+            "gunship": 166.17410714285714,
+            "strafer": 73.50969827586206
+          },
+          "engine_duty": 0.40815314943075953,
+          "outside_share": 0.0004187207052812579
+        },
+        "markdown": "**policy:bc_dagger_r3.pt** vs **script**: win 0.168, draws 0.000, time limit 0.023, median 921 ticks (n = 512)\n\n| class | rosters | n | win | draw | time limit | median ticks |\n|---|---|---|---|---|---|---|\n| 1v1 | 3 | 96 | 0.333 | 0.000 | 0.000 | 1049 |\n| 2v2 | 3 | 96 | 0.271 | 0.000 | 0.000 | 776 |\n| 3v3 | 3 | 96 | 0.135 | 0.000 | 0.115 | 1090 |\n| 2v3 | 2 | 64 | 0.031 | 0.000 | 0.000 | 890 |\n| draft | 3 | 96 | 0.135 | 0.000 | 0.000 | 928 |\n| 4v4 | 2 | 64 | 0.000 | 0.000 | 0.016 | 892 |\n\n| side | hull | ships | dmg | shield dmg | survival | hit rate | shots | engage | outside | engine | passes | crash dmg | fire |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n| a | fighter | 528 | 9.7 | 21.7 | 0.02 | 0.251 | 27.2 | 0.91 | 0.0001 | 0.35 | 1.06 | 14.2 | 0.077 |\n| a | gunship | 224 | 159.3 | 81.5 | 0.41 | 0.286 | 208.4 | 0.94 | 0.0011 | 0.55 | 1.10 | 1.9 | 0.244 |\n| a | strafer | 464 | 8.1 | 14.8 | 0.00 | 0.132 | 63.8 | 0.86 | 0.0000 | 0.31 | 1.03 | 1.9 | 0.091 |\n| a | all | 1216 | 36.7 | 30.1 | 0.08 | 0.230 | 74.5 | 0.91 | 0.0004 | 0.41 | 1.06 | 7.2 | 0.140 |\n| b | fighter | 528 | 94.5 | 44.9 | 0.80 | 0.768 | 38.2 | 0.92 | 0.0000 | 0.50 | 1.27 | 14.8 | 0.136 |\n| b | gunship | 224 | 166.2 | 93.7 | 0.83 | 0.241 | 261.4 | 0.92 | 0.0000 | 0.52 | 1.47 | 0.9 | 0.369 |\n| b | strafer | 464 | 73.5 | 37.5 | 0.74 | 0.344 | 113.5 | 0.90 | 0.0000 | 0.43 | 1.62 | 0.6 | 0.121 |\n| b | all | 1216 | 99.7 | 51.1 | 0.79 | 0.363 | 108.1 | 0.91 | 0.0000 | 0.48 | 1.44 | 6.8 | 0.191 |",
+        "wall_s": 21.145058706984855,
+        "result": {
+          "a": "policy:bc_dagger_r3.pt",
+          "b": "script",
+          "config": {
+            "suite": "fleet_v1",
+            "n_per_roster": 32,
+            "seed": 200000,
+            "reaction_ticks": 2,
+            "time_limit_s": 90.0,
+            "arena_radius": 0.0,
+            "sim_version": 3
+          },
+          "match": {
+            "n": 512,
+            "length_median": 921.0,
+            "length_p10": 589.1,
+            "length_p90": 1856.7,
+            "draw_rate": 0.0,
+            "time_limit_rate": 0.0234375
+          },
+          "classes": {
+            "1v1": {
+              "klass": "1v1",
+              "rosters": 3,
+              "n": 96,
+              "win_rate": 0.3333333333333333,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 1049.0
+            },
+            "2v2": {
+              "klass": "2v2",
+              "rosters": 3,
+              "n": 96,
+              "win_rate": 0.2708333333333333,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 775.5
+            },
+            "3v3": {
+              "klass": "3v3",
+              "rosters": 3,
+              "n": 96,
+              "win_rate": 0.13541666666666666,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.11458333333333333,
+              "length_median": 1090.0
+            },
+            "2v3": {
+              "klass": "2v3",
+              "rosters": 2,
+              "n": 64,
+              "win_rate": 0.03125,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 889.5
+            },
+            "draft": {
+              "klass": "draft",
+              "rosters": 3,
+              "n": 96,
+              "win_rate": 0.13541666666666666,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 928.0
+            },
+            "4v4": {
+              "klass": "4v4",
+              "rosters": 2,
+              "n": 64,
+              "win_rate": 0.0,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.015625,
+              "length_median": 892.5
+            }
+          },
+          "rosters": [
+            {
+              "name": "1v1 F v F",
+              "klass": "1v1",
+              "label": "F v F",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 1049.0
+            },
+            {
+              "name": "1v1 S v S",
+              "klass": "1v1",
+              "label": "S v S",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 688.0
+            },
+            {
+              "name": "1v1 G v G",
+              "klass": "1v1",
+              "label": "G v G",
+              "n": 32,
+              "wins": 32,
+              "draws": 0,
+              "losses": 0,
+              "win_rate": 1.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 1957.0
+            },
+            {
+              "name": "2v2 FS v FS",
+              "klass": "2v2",
+              "label": "FS v FS",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 797.0
+            },
+            {
+              "name": "2v2 FG v SS",
+              "klass": "2v2",
+              "label": "FG v SS",
+              "n": 32,
+              "wins": 16,
+              "draws": 0,
+              "losses": 16,
+              "win_rate": 0.5,
+              "team0_win_rate": 1.0,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 658.0
+            },
+            {
+              "name": "2v2 SG v FF",
+              "klass": "2v2",
+              "label": "SG v FF",
+              "n": 32,
+              "wins": 10,
+              "draws": 0,
+              "losses": 22,
+              "win_rate": 0.3125,
+              "team0_win_rate": 0.8125,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 834.5
+            },
+            {
+              "name": "3v3 FSG v FSG",
+              "klass": "3v3",
+              "label": "FSG v FSG",
+              "n": 32,
+              "wins": 1,
+              "draws": 0,
+              "losses": 31,
+              "win_rate": 0.03125,
+              "team0_win_rate": 0.53125,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0625,
+              "length_median": 1172.0
+            },
+            {
+              "name": "3v3 FFS v SSF",
+              "klass": "3v3",
+              "label": "FFS v SSF",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 719.5
+            },
+            {
+              "name": "3v3 FFG v SSG",
+              "klass": "3v3",
+              "label": "FFG v SSG",
+              "n": 32,
+              "wins": 12,
+              "draws": 0,
+              "losses": 20,
+              "win_rate": 0.375,
+              "team0_win_rate": 0.6875,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.28125,
+              "length_median": 2198.5
+            },
+            {
+              "name": "2v3 FG v FFS",
+              "klass": "2v3",
+              "label": "FG v FFS",
+              "n": 32,
+              "wins": 2,
+              "draws": 0,
+              "losses": 30,
+              "win_rate": 0.0625,
+              "team0_win_rate": 0.5625,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 920.5
+            },
+            {
+              "name": "2v3 SS v FFF",
+              "klass": "2v3",
+              "label": "SS v FFF",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 623.5
+            },
+            {
+              "name": "draft G v FFF",
+              "klass": "draft",
+              "label": "G v FFF",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 714.5
+            },
+            {
+              "name": "draft G v SSS",
+              "klass": "draft",
+              "label": "G v SSS",
+              "n": 32,
+              "wins": 13,
+              "draws": 0,
+              "losses": 19,
+              "win_rate": 0.40625,
+              "team0_win_rate": 0.90625,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 1347.5
+            },
+            {
+              "name": "draft GF v FFSS",
+              "klass": "draft",
+              "label": "GF v FFSS",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 864.0
+            },
+            {
+              "name": "4v4 FFSS v FFSS",
+              "klass": "4v4",
+              "label": "FFSS v FFSS",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.0,
+              "length_median": 730.0
+            },
+            {
+              "name": "4v4 FSGF v SSFG",
+              "klass": "4v4",
+              "label": "FSGF v SSFG",
+              "n": 32,
+              "wins": 0,
+              "draws": 0,
+              "losses": 32,
+              "win_rate": 0.0,
+              "team0_win_rate": 0.5,
+              "draw_rate": 0.0,
+              "time_limit_rate": 0.03125,
+              "length_median": 1100.0
+            }
+          ],
+          "side_a": {
+            "win_rate": 0.16796875,
+            "draws": 0,
+            "all_ships": {
+              "ships": 1216,
+              "damage_dealt": 36.671052631578945,
+              "shield_damage_dealt": 30.082236842105264,
+              "survival": 0.08305921052631579,
+              "shots": 74.52384868421052,
+              "hits": 17.13486842105263,
+              "hit_rate": 0.2299246311561338,
+              "engagement_rate": 0.905862204278502,
+              "outside_share": 0.0004187207052812579,
+              "engine_duty": 0.40815314943075953,
+              "passes": 1.0567434210526316,
+              "crash_damage_taken": 7.226306997387589,
+              "crash_contacts": 1.370888157894737,
+              "fire_rate": 0.13996782456762064
+            },
+            "hulls": {
+              "fighter": {
+                "ships": 528,
+                "damage_dealt": 9.701704545454545,
+                "shield_damage_dealt": 21.723484848484848,
+                "survival": 0.017045454545454544,
+                "shots": 27.189393939393938,
+                "hits": 6.818181818181818,
+                "hit_rate": 0.25076623014767346,
+                "engagement_rate": 0.9052767558763234,
+                "outside_share": 0.00010609053266808329,
+                "engine_duty": 0.34740124484143353,
+                "passes": 1.0625,
+                "crash_damage_taken": 14.173904610796793,
+                "crash_contacts": 1.5795454545454546,
+                "fire_rate": 0.07650405013875625
+              },
+              "gunship": {
+                "ships": 224,
+                "damage_dealt": 159.33482142857142,
+                "shield_damage_dealt": 81.53571428571429,
+                "survival": 0.40625,
+                "shots": 208.39732142857142,
+                "hits": 59.50892857142857,
+                "hit_rate": 0.2855551509179324,
+                "engagement_rate": 0.9409174958175575,
+                "outside_share": 0.0010827063745968387,
+                "engine_duty": 0.5474705778497051,
+                "passes": 1.1026785714285714,
+                "crash_damage_taken": 1.909025828613348,
+                "crash_contacts": 1.4241071428571428,
+                "fire_rate": 0.2437022276417928
+              },
+              "strafer": {
+                "ships": 464,
+                "damage_dealt": 8.143318965517242,
+                "shield_damage_dealt": 14.754310344827585,
+                "survival": 0.0021551724137931034,
+                "shots": 63.758620689655174,
+                "hits": 8.418103448275861,
+                "hit_rate": 0.13203082747431044,
+                "engagement_rate": 0.8630972867259719,
+                "outside_share": 0.0,
+                "engine_duty": 0.3140112226528574,
+                "passes": 1.0280172413793103,
+                "crash_damage_taken": 1.8873833808474363,
+                "crash_contacts": 1.1077586206896552,
+                "fire_rate": 0.09112434466660241
+              }
+            },
+            "nan_matches": 0,
+            "stuck_matches": 0
+          },
+          "side_b": {
+            "win_rate": 0.83203125,
+            "draws": 0,
+            "all_ships": {
+              "ships": 1216,
+              "damage_dealt": 99.67228618421052,
+              "shield_damage_dealt": 51.061677631578945,
+              "survival": 0.7861842105263158,
+              "shots": 108.05263157894737,
+              "hits": 39.21628289473684,
+              "hit_rate": 0.36293686069167075,
+              "engagement_rate": 0.9140274275874792,
+              "outside_share": 0.0,
+              "engine_duty": 0.4773252564510869,
+              "passes": 1.4424342105263157,
+              "crash_damage_taken": 6.803106487151774,
+              "crash_contacts": 1.3824013157894737,
+              "fire_rate": 0.19143704705605757
+            },
+            "hulls": {
+              "fighter": {
+                "ships": 528,
+                "damage_dealt": 94.45075757575758,
+                "shield_damage_dealt": 44.86742424242424,
+                "survival": 0.8049242424242424,
+                "shots": 38.183712121212125,
+                "hits": 29.331439393939394,
+                "hit_rate": 0.768166261594167,
+                "engagement_rate": 0.9195982528834151,
+                "outside_share": 0.0,
+                "engine_duty": 0.49930193182072397,
+                "passes": 1.268939393939394,
+                "crash_damage_taken": 14.764352681344077,
+                "crash_contacts": 2.081439393939394,
+                "fire_rate": 0.13578907878920896
+              },
+              "gunship": {
+                "ships": 224,
+                "damage_dealt": 166.17410714285714,
+                "shield_damage_dealt": 93.72767857142857,
+                "survival": 0.8303571428571429,
+                "shots": 261.41517857142856,
+                "hits": 62.955357142857146,
+                "hit_rate": 0.24082517888553034,
+                "engagement_rate": 0.9237949917892407,
+                "outside_share": 0.0,
+                "engine_duty": 0.5163351782266213,
+                "passes": 1.4732142857142858,
+                "crash_damage_taken": 0.8538412187878147,
+                "crash_contacts": 1.0580357142857142,
+                "fire_rate": 0.3685753301256157
+              },
+              "strafer": {
+                "ships": 464,
+                "damage_dealt": 73.50969827586206,
+                "shield_damage_dealt": 37.51293103448276,
+                "survival": 0.7435344827586207,
+                "shots": 113.52155172413794,
+                "hits": 39.00431034482759,
+                "hit_rate": 0.34358507043323083,
+                "engagement_rate": 0.9016435605367414,
+                "outside_share": 0.0,
+                "engine_duty": 0.42813646641555425,
+                "passes": 1.625,
+                "crash_damage_taken": 0.6158164646948582,
+                "crash_contacts": 0.7435344827586207,
+                "fire_rate": 0.12136944653471847
+              }
+            },
+            "nan_matches": 0,
+            "stuck_matches": 0
+          },
+          "schema": "rlf.eval.fleet/1"
+        }
+      },
+      "wall_s": 212.32271233398933
+    }
+  ]
+}

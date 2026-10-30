@@ -41,6 +41,25 @@ def candidates(eval_dir: Path) -> list[str]:
     return [n for n in names if all((eval_dir / f"{n}{s}").is_file() for s in SUFFIXES)]
 
 
+HULLS = ("fighter", "strafer", "gunship")
+
+
+def duty_table(reports: list[fleet_gates.GateReport]) -> str:
+    """G3's engine duty per hull, the gate the PPO checkpoints come closest to failing."""
+    lines = [
+        "| candidate | " + " | ".join(f"{h} engine duty" for h in HULLS) + " |",
+        "|---" * (len(HULLS) + 1) + "|",
+    ]
+    for r in reports:
+        by = {c.name: c for c in r.checks}
+        cells = []
+        for h in HULLS:
+            c = by[f"{h} engine duty"]
+            cells.append(f"{c.value:.3f}" + ("" if c.passed else " ✗"))
+        lines.append(f"| {r.candidate} | " + " | ".join(cells) + " |")
+    return "\n".join(lines)
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--run", type=Path, default=Path(__file__).resolve().parent)
@@ -66,7 +85,7 @@ def main() -> int:
             )
         )
     table = fleet_gates.markdown(reports)
-    lines = [table, ""]
+    lines = [table, "", duty_table(reports), ""]
     for r in reports:
         failed = fleet_gates.failures(r)
         lines.append(

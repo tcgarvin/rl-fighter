@@ -1,0 +1,1333 @@
+{
+ "pick": null,
+ "candidates": [
+  {
+   "candidate": "fresh_200",
+   "passed": false,
+   "gates": {
+    "G1": false,
+    "G2": false,
+    "G3": true,
+    "G4": false
+   },
+   "checks": [
+    {
+     "gate": "G1",
+     "name": "win vs script, all rosters",
+     "value": 0.3330078125,
+     "bound": ">= 0.6",
+     "passed": false
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 1v1",
+     "value": 0.3619791666666667,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 2v2",
+     "value": 0.3489583333333333,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 3v3",
+     "value": 0.5338541666666666,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 2v3",
+     "value": 0.234375,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, draft",
+     "value": 0.2916666666666667,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 4v4",
+     "value": 0.125,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "G2",
+     "name": "fighter damage / script's",
+     "value": 0.5833122797686323,
+     "bound": ">= 0.9",
+     "passed": false
+    },
+    {
+     "gate": "G2",
+     "name": "fighter survival - script's",
+     "value": -0.3087121212121212,
+     "bound": ">= 0.0",
+     "passed": false
+    },
+    {
+     "gate": "G2",
+     "name": "strafer damage / script's",
+     "value": 0.4642389674332325,
+     "bound": ">= 0.9",
+     "passed": false
+    },
+    {
+     "gate": "G2",
+     "name": "strafer survival - script's",
+     "value": -0.31734913793103453,
+     "bound": ">= 0.0",
+     "passed": false
+    },
+    {
+     "gate": "G2",
+     "name": "gunship damage / script's",
+     "value": 1.1908827130469783,
+     "bound": ">= 0.9",
+     "passed": true
+    },
+    {
+     "gate": "G2",
+     "name": "gunship survival - script's",
+     "value": 0.046875,
+     "bound": ">= 0.0",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "fighter engine duty",
+     "value": 0.3481750465888368,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "strafer engine duty",
+     "value": 0.30367004877904064,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "gunship engine duty",
+     "value": 0.5361494914902455,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "outside-arena share",
+     "value": 0.0008972397552803217,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "draw rate",
+     "value": 0.00390625,
+     "bound": "<= 0.05",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "NaN or stuck matches (share)",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "time-limit rate - script's",
+     "value": -0.1142578125,
+     "bound": "<= 0.15",
+     "passed": true
+    },
+    {
+     "gate": "G4",
+     "name": "duel win vs v3 champion",
+     "value": 0.025390625,
+     "bound": ">= 0.35",
+     "passed": false
+    },
+    {
+     "gate": "G4",
+     "name": "duel win vs script",
+     "value": 0.037109375,
+     "bound": ">= 0.8",
+     "passed": false
+    }
+   ]
+  },
+  {
+   "candidate": "fresh_400",
+   "passed": false,
+   "gates": {
+    "G1": true,
+    "G2": true,
+    "G3": true,
+    "G4": false
+   },
+   "checks": [
+    {
+     "gate": "G1",
+     "name": "win vs script, all rosters",
+     "value": 0.8486328125,
+     "bound": ">= 0.6",
+     "passed": true
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 1v1",
+     "value": 0.9947916666666666,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 2v2",
+     "value": 0.625,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 3v3",
+     "value": 0.953125,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 2v3",
+     "value": 0.6171875,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, draft",
+     "value": 0.953125,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 4v4",
+     "value": 0.8828125,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "G2",
+     "name": "fighter damage / script's",
+     "value": 1.1993085566119275,
+     "bound": ">= 0.9",
+     "passed": true
+    },
+    {
+     "gate": "G2",
+     "name": "fighter survival - script's",
+     "value": 0.10416666666666669,
+     "bound": ">= 0.0",
+     "passed": true
+    },
+    {
+     "gate": "G2",
+     "name": "strafer damage / script's",
+     "value": 1.4194845834452985,
+     "bound": ">= 0.9",
+     "passed": true
+    },
+    {
+     "gate": "G2",
+     "name": "strafer survival - script's",
+     "value": 0.26454741379310337,
+     "bound": ">= 0.0",
+     "passed": true
+    },
+    {
+     "gate": "G2",
+     "name": "gunship damage / script's",
+     "value": 0.9843032237745688,
+     "bound": ">= 0.9",
+     "passed": true
+    },
+    {
+     "gate": "G2",
+     "name": "gunship survival - script's",
+     "value": 0.3415178571428571,
+     "bound": ">= 0.0",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "fighter engine duty",
+     "value": 0.15076054127276406,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "strafer engine duty",
+     "value": 0.2505451451911724,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "gunship engine duty",
+     "value": 0.5151409506735146,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "outside-arena share",
+     "value": 0.008431477445242226,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "draw rate",
+     "value": 0.0,
+     "bound": "<= 0.05",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "NaN or stuck matches (share)",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "time-limit rate - script's",
+     "value": -0.1201171875,
+     "bound": "<= 0.15",
+     "passed": true
+    },
+    {
+     "gate": "G4",
+     "name": "duel win vs v3 champion",
+     "value": 0.0498046875,
+     "bound": ">= 0.35",
+     "passed": false
+    },
+    {
+     "gate": "G4",
+     "name": "duel win vs script",
+     "value": 0.98828125,
+     "bound": ">= 0.8",
+     "passed": true
+    }
+   ]
+  },
+  {
+   "candidate": "fresh_600",
+   "passed": false,
+   "gates": {
+    "G1": true,
+    "G2": true,
+    "G3": false,
+    "G4": false
+   },
+   "checks": [
+    {
+     "gate": "G1",
+     "name": "win vs script, all rosters",
+     "value": 0.865234375,
+     "bound": ">= 0.6",
+     "passed": true
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 1v1",
+     "value": 1.0,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 2v2",
+     "value": 0.7552083333333334,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 3v3",
+     "value": 0.9322916666666666,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 2v3",
+     "value": 0.6171875,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, draft",
+     "value": 0.9739583333333334,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 4v4",
+     "value": 0.8125,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "G2",
+     "name": "fighter damage / script's",
+     "value": 1.352250515258294,
+     "bound": ">= 0.9",
+     "passed": true
+    },
+    {
+     "gate": "G2",
+     "name": "fighter survival - script's",
+     "value": 0.20833333333333337,
+     "bound": ">= 0.0",
+     "passed": true
+    },
+    {
+     "gate": "G2",
+     "name": "strafer damage / script's",
+     "value": 1.4385374860223816,
+     "bound": ">= 0.9",
+     "passed": true
+    },
+    {
+     "gate": "G2",
+     "name": "strafer survival - script's",
+     "value": 0.2979525862068965,
+     "bound": ">= 0.0",
+     "passed": true
+    },
+    {
+     "gate": "G2",
+     "name": "gunship damage / script's",
+     "value": 0.9559137320236226,
+     "bound": ">= 0.9",
+     "passed": true
+    },
+    {
+     "gate": "G2",
+     "name": "gunship survival - script's",
+     "value": 0.3415178571428571,
+     "bound": ">= 0.0",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "fighter engine duty",
+     "value": 0.11294660069491273,
+     "bound": "in [0.15, 0.95]",
+     "passed": false
+    },
+    {
+     "gate": "G3",
+     "name": "strafer engine duty",
+     "value": 0.3441674472532932,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "gunship engine duty",
+     "value": 0.3955848057772495,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "outside-arena share",
+     "value": 0.016685460961741568,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "draw rate",
+     "value": 0.0,
+     "bound": "<= 0.05",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "NaN or stuck matches (share)",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "time-limit rate - script's",
+     "value": -0.1181640625,
+     "bound": "<= 0.15",
+     "passed": true
+    },
+    {
+     "gate": "G4",
+     "name": "duel win vs v3 champion",
+     "value": 0.25,
+     "bound": ">= 0.35",
+     "passed": false
+    },
+    {
+     "gate": "G4",
+     "name": "duel win vs script",
+     "value": 0.998046875,
+     "bound": ">= 0.8",
+     "passed": true
+    }
+   ]
+  },
+  {
+   "candidate": "fresh_dagger",
+   "passed": false,
+   "gates": {
+    "G1": false,
+    "G2": false,
+    "G3": true,
+    "G4": false
+   },
+   "checks": [
+    {
+     "gate": "G1",
+     "name": "win vs script, all rosters",
+     "value": 0.1591796875,
+     "bound": ">= 0.6",
+     "passed": false
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 1v1",
+     "value": 0.3333333333333333,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 2v2",
+     "value": 0.265625,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 3v3",
+     "value": 0.09375,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 2v3",
+     "value": 0.0234375,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, draft",
+     "value": 0.140625,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 4v4",
+     "value": 0.0,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "G2",
+     "name": "fighter damage / script's",
+     "value": 0.35189149657602553,
+     "bound": ">= 0.9",
+     "passed": false
+    },
+    {
+     "gate": "G2",
+     "name": "fighter survival - script's",
+     "value": -0.3475378787878788,
+     "bound": ">= 0.0",
+     "passed": false
+    },
+    {
+     "gate": "G2",
+     "name": "strafer damage / script's",
+     "value": 0.2381699505040611,
+     "bound": ">= 0.9",
+     "passed": false
+    },
+    {
+     "gate": "G2",
+     "name": "strafer survival - script's",
+     "value": -0.34536637931034486,
+     "bound": ">= 0.0",
+     "passed": false
+    },
+    {
+     "gate": "G2",
+     "name": "gunship damage / script's",
+     "value": 0.8124940598985849,
+     "bound": ">= 0.9",
+     "passed": false
+    },
+    {
+     "gate": "G2",
+     "name": "gunship survival - script's",
+     "value": -0.25223214285714285,
+     "bound": ">= 0.0",
+     "passed": false
+    },
+    {
+     "gate": "G3",
+     "name": "fighter engine duty",
+     "value": 0.3436125418301902,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "strafer engine duty",
+     "value": 0.31180553516756904,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "gunship engine duty",
+     "value": 0.5448177977852247,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "outside-arena share",
+     "value": 0.0006737248990688645,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "draw rate",
+     "value": 0.0,
+     "bound": "<= 0.05",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "NaN or stuck matches (share)",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "time-limit rate - script's",
+     "value": -0.0966796875,
+     "bound": "<= 0.15",
+     "passed": true
+    },
+    {
+     "gate": "G4",
+     "name": "duel win vs v3 champion",
+     "value": 0.025390625,
+     "bound": ">= 0.35",
+     "passed": false
+    },
+    {
+     "gate": "G4",
+     "name": "duel win vs script",
+     "value": 0.005859375,
+     "bound": ">= 0.8",
+     "passed": false
+    }
+   ]
+  },
+  {
+   "candidate": "warm_200",
+   "passed": false,
+   "gates": {
+    "G1": false,
+    "G2": false,
+    "G3": true,
+    "G4": false
+   },
+   "checks": [
+    {
+     "gate": "G1",
+     "name": "win vs script, all rosters",
+     "value": 0.427734375,
+     "bound": ">= 0.6",
+     "passed": false
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 1v1",
+     "value": 0.71875,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 2v2",
+     "value": 0.3958333333333333,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 3v3",
+     "value": 0.484375,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 2v3",
+     "value": 0.1640625,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, draft",
+     "value": 0.4635416666666667,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 4v4",
+     "value": 0.1640625,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "G2",
+     "name": "fighter damage / script's",
+     "value": 0.6076723622099595,
+     "bound": ">= 0.9",
+     "passed": false
+    },
+    {
+     "gate": "G2",
+     "name": "fighter survival - script's",
+     "value": -0.30303030303030304,
+     "bound": ">= 0.0",
+     "passed": false
+    },
+    {
+     "gate": "G2",
+     "name": "strafer damage / script's",
+     "value": 0.7331466761439976,
+     "bound": ">= 0.9",
+     "passed": false
+    },
+    {
+     "gate": "G2",
+     "name": "strafer survival - script's",
+     "value": -0.15355603448275865,
+     "bound": ">= 0.0",
+     "passed": false
+    },
+    {
+     "gate": "G2",
+     "name": "gunship damage / script's",
+     "value": 1.1461833334265115,
+     "bound": ">= 0.9",
+     "passed": true
+    },
+    {
+     "gate": "G2",
+     "name": "gunship survival - script's",
+     "value": 0.0200892857142857,
+     "bound": ">= 0.0",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "fighter engine duty",
+     "value": 0.3499344693576007,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "strafer engine duty",
+     "value": 0.2375221571996583,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "gunship engine duty",
+     "value": 0.5302845853122208,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "outside-arena share",
+     "value": 0.0004910661872516859,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "draw rate",
+     "value": 0.001953125,
+     "bound": "<= 0.05",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "NaN or stuck matches (share)",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "time-limit rate - script's",
+     "value": -0.099609375,
+     "bound": "<= 0.15",
+     "passed": true
+    },
+    {
+     "gate": "G4",
+     "name": "duel win vs v3 champion",
+     "value": 0.009765625,
+     "bound": ">= 0.35",
+     "passed": false
+    },
+    {
+     "gate": "G4",
+     "name": "duel win vs script",
+     "value": 0.1279296875,
+     "bound": ">= 0.8",
+     "passed": false
+    }
+   ]
+  },
+  {
+   "candidate": "warm_400",
+   "passed": false,
+   "gates": {
+    "G1": true,
+    "G2": true,
+    "G3": false,
+    "G4": true
+   },
+   "checks": [
+    {
+     "gate": "G1",
+     "name": "win vs script, all rosters",
+     "value": 0.888671875,
+     "bound": ">= 0.6",
+     "passed": true
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 1v1",
+     "value": 1.0,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 2v2",
+     "value": 0.7604166666666666,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 3v3",
+     "value": 0.9635416666666666,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 2v3",
+     "value": 0.7421875,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, draft",
+     "value": 0.8958333333333334,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 4v4",
+     "value": 0.9375,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "G2",
+     "name": "fighter damage / script's",
+     "value": 1.3797486869224118,
+     "bound": ">= 0.9",
+     "passed": true
+    },
+    {
+     "gate": "G2",
+     "name": "fighter survival - script's",
+     "value": 0.2320075757575758,
+     "bound": ">= 0.0",
+     "passed": true
+    },
+    {
+     "gate": "G2",
+     "name": "strafer damage / script's",
+     "value": 1.46504511845219,
+     "bound": ">= 0.9",
+     "passed": true
+    },
+    {
+     "gate": "G2",
+     "name": "strafer survival - script's",
+     "value": 0.30441810344827586,
+     "bound": ">= 0.0",
+     "passed": true
+    },
+    {
+     "gate": "G2",
+     "name": "gunship damage / script's",
+     "value": 0.9243860031643271,
+     "bound": ">= 0.9",
+     "passed": true
+    },
+    {
+     "gate": "G2",
+     "name": "gunship survival - script's",
+     "value": 0.2991071428571428,
+     "bound": ">= 0.0",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "fighter engine duty",
+     "value": 0.13033966265129215,
+     "bound": "in [0.15, 0.95]",
+     "passed": false
+    },
+    {
+     "gate": "G3",
+     "name": "strafer engine duty",
+     "value": 0.22442379025745274,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "gunship engine duty",
+     "value": 0.4422656555406457,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "outside-arena share",
+     "value": 0.00536754489289917,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "draw rate",
+     "value": 0.0,
+     "bound": "<= 0.05",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "NaN or stuck matches (share)",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "time-limit rate - script's",
+     "value": -0.1201171875,
+     "bound": "<= 0.15",
+     "passed": true
+    },
+    {
+     "gate": "G4",
+     "name": "duel win vs v3 champion",
+     "value": 0.453125,
+     "bound": ">= 0.35",
+     "passed": true
+    },
+    {
+     "gate": "G4",
+     "name": "duel win vs script",
+     "value": 1.0,
+     "bound": ">= 0.8",
+     "passed": true
+    }
+   ]
+  },
+  {
+   "candidate": "warm_600",
+   "passed": false,
+   "gates": {
+    "G1": true,
+    "G2": false,
+    "G3": false,
+    "G4": false
+   },
+   "checks": [
+    {
+     "gate": "G1",
+     "name": "win vs script, all rosters",
+     "value": 0.89794921875,
+     "bound": ">= 0.6",
+     "passed": true
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 1v1",
+     "value": 1.0,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 2v2",
+     "value": 0.7630208333333334,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 3v3",
+     "value": 0.9583333333333334,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 2v3",
+     "value": 0.6796875,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, draft",
+     "value": 0.96875,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 4v4",
+     "value": 0.96875,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "G2",
+     "name": "fighter damage / script's",
+     "value": 1.5693105511601624,
+     "bound": ">= 0.9",
+     "passed": true
+    },
+    {
+     "gate": "G2",
+     "name": "fighter survival - script's",
+     "value": 0.36742424242424243,
+     "bound": ">= 0.0",
+     "passed": true
+    },
+    {
+     "gate": "G2",
+     "name": "strafer damage / script's",
+     "value": 1.3487166595875626,
+     "bound": ">= 0.9",
+     "passed": true
+    },
+    {
+     "gate": "G2",
+     "name": "strafer survival - script's",
+     "value": 0.287176724137931,
+     "bound": ">= 0.0",
+     "passed": true
+    },
+    {
+     "gate": "G2",
+     "name": "gunship damage / script's",
+     "value": 0.877752246988951,
+     "bound": ">= 0.9",
+     "passed": false
+    },
+    {
+     "gate": "G2",
+     "name": "gunship survival - script's",
+     "value": 0.3370535714285714,
+     "bound": ">= 0.0",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "fighter engine duty",
+     "value": 0.12389666708150755,
+     "bound": "in [0.15, 0.95]",
+     "passed": false
+    },
+    {
+     "gate": "G3",
+     "name": "strafer engine duty",
+     "value": 0.2218340923067527,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "gunship engine duty",
+     "value": 0.4481881515549802,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "outside-arena share",
+     "value": 0.0066831798338647655,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "draw rate",
+     "value": 0.0009765625,
+     "bound": "<= 0.05",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "NaN or stuck matches (share)",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "time-limit rate - script's",
+     "value": -0.12109375,
+     "bound": "<= 0.15",
+     "passed": true
+    },
+    {
+     "gate": "G4",
+     "name": "duel win vs v3 champion",
+     "value": 0.291015625,
+     "bound": ">= 0.35",
+     "passed": false
+    },
+    {
+     "gate": "G4",
+     "name": "duel win vs script",
+     "value": 0.998046875,
+     "bound": ">= 0.8",
+     "passed": true
+    }
+   ]
+  },
+  {
+   "candidate": "warm_dagger",
+   "passed": false,
+   "gates": {
+    "G1": false,
+    "G2": false,
+    "G3": true,
+    "G4": false
+   },
+   "checks": [
+    {
+     "gate": "G1",
+     "name": "win vs script, all rosters",
+     "value": 0.1123046875,
+     "bound": ">= 0.6",
+     "passed": false
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 1v1",
+     "value": 0.3385416666666667,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 2v2",
+     "value": 0.21875,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 3v3",
+     "value": 0.015625,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 2v3",
+     "value": 0.0234375,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, draft",
+     "value": 0.010416666666666666,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "G1",
+     "name": "win vs script, 4v4",
+     "value": 0.0,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "G2",
+     "name": "fighter damage / script's",
+     "value": 0.3893624094142677,
+     "bound": ">= 0.9",
+     "passed": false
+    },
+    {
+     "gate": "G2",
+     "name": "fighter survival - script's",
+     "value": -0.3626893939393939,
+     "bound": ">= 0.0",
+     "passed": false
+    },
+    {
+     "gate": "G2",
+     "name": "strafer damage / script's",
+     "value": 0.34052512504009086,
+     "bound": ">= 0.9",
+     "passed": false
+    },
+    {
+     "gate": "G2",
+     "name": "strafer survival - script's",
+     "value": -0.3399784482758621,
+     "bound": ">= 0.0",
+     "passed": false
+    },
+    {
+     "gate": "G2",
+     "name": "gunship damage / script's",
+     "value": 0.6154336413800043,
+     "bound": ">= 0.9",
+     "passed": false
+    },
+    {
+     "gate": "G2",
+     "name": "gunship survival - script's",
+     "value": -0.39508928571428575,
+     "bound": ">= 0.0",
+     "passed": false
+    },
+    {
+     "gate": "G3",
+     "name": "fighter engine duty",
+     "value": 0.345463689188163,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "strafer engine duty",
+     "value": 0.32356349029925946,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "gunship engine duty",
+     "value": 0.5281610603405648,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "outside-arena share",
+     "value": 0.001464324196443688,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "draw rate",
+     "value": 0.001953125,
+     "bound": "<= 0.05",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "NaN or stuck matches (share)",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "time-limit rate - script's",
+     "value": -0.10546875,
+     "bound": "<= 0.15",
+     "passed": true
+    },
+    {
+     "gate": "G4",
+     "name": "duel win vs v3 champion",
+     "value": 0.0146484375,
+     "bound": ">= 0.35",
+     "passed": false
+    },
+    {
+     "gate": "G4",
+     "name": "duel win vs script",
+     "value": 0.0322265625,
+     "bound": ">= 0.8",
+     "passed": false
+    }
+   ]
+  }
+ ]
+}

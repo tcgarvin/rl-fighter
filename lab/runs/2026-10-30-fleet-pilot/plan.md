@@ -6,7 +6,7 @@
 | Branch | `m2-site` (WP-T worktree) |
 | Question | Can the spike's masked multi-head MLP, one network for every ship, fly fighters, strafers and gunships in mixed skirmishes of 1–4 ships a side, beat the scripted pilots, and leave no hull behind? |
 | Scenario | rosters from `fleet_v1` (1–4 a side, mixed hulls, uneven sides, budget drafts), arena 450 m, 90 s limit, `reaction_ticks` 2, `SIM_VERSION` 3 |
-| Status | **planned**; pipeline smoke-tested (`SMOKE=1 run.sh`), baselines measured (`eval/`), not trained |
+| Status | **done**: nothing promoted (no candidate passes G1–G4); see `results.md` |
 | Ships | the promoted pilot replaces the fighter-only duel pilot on the live page, where it flies every ship (M2 §1) |
 
 ## 1. Why, and what would count

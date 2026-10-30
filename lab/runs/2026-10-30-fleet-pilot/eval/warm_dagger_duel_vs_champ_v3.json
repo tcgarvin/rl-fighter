@@ -1,0 +1,75 @@
+{
+ "a": "policy:best.pt",
+ "b": "policy:ppo_bc_600.pt",
+ "config": {
+  "n": 512,
+  "seed": 100000,
+  "reaction_ticks": 2,
+  "arena_radius": 450.0,
+  "time_limit_s": 90.0,
+  "fleets": [
+   [
+    "fighter"
+   ],
+   [
+    "fighter"
+   ]
+  ],
+  "sim_version": 3
+ },
+ "match": {
+  "length_median": 325.0,
+  "length_p10": 239.0,
+  "length_p90": 397.90000000000003,
+  "kill_rate": 1.0,
+  "time_limit_rate": 0.0,
+  "draw_rate": 0.029296875,
+  "a_win_rate_team0": 0.017578125,
+  "a_win_rate_team1": 0.01171875,
+  "crashes_per_match": 0.73046875,
+  "crash_hp_share": 0.3196205418224424
+ },
+ "side_a": {
+  "wins": 0,
+  "draws": 15,
+  "losses": 497,
+  "win_rate": 0.0146484375,
+  "passes": 1.0,
+  "shots": 11.353515625,
+  "hits": 2.767578125,
+  "hit_rate": 0.24376397729227595,
+  "damage_dealt": 8.1640625,
+  "shield_damage_dealt": 0.0,
+  "engagement_rate": 0.809051993651099,
+  "outside_share": 0.0,
+  "main_engine_duty": 0.2874549616540085,
+  "fire_rate": 0.08299528319187799,
+  "shots_per_s": 1.198251990902657,
+  "mean_speed": 48.66192029419333,
+  "nan_matches": 0,
+  "stuck_matches": 0,
+  "nan_or_stuck": 0
+ },
+ "side_b": {
+  "wins": 497,
+  "draws": 15,
+  "losses": 0,
+  "win_rate": 0.9853515625,
+  "passes": 1.0,
+  "shots": 33.99609375,
+  "hits": 24.1953125,
+  "hit_rate": 0.7117086062277376,
+  "damage_dealt": 70.3466796875,
+  "shield_damage_dealt": 0.0,
+  "engagement_rate": 0.8077587981066063,
+  "outside_share": 0.0,
+  "main_engine_duty": 0.7608389887610949,
+  "fire_rate": 0.6597023887985706,
+  "shots_per_s": 3.58221856349043,
+  "mean_speed": 41.912472111979305,
+  "nan_matches": 0,
+  "stuck_matches": 0,
+  "nan_or_stuck": 0
+ },
+ "schema": "rlf.eval.duel/2"
+}
