@@ -75,6 +75,10 @@ Order: S first (by the lead), then L, P, T in parallel worktrees; I last.
 
 ## 5. Open
 
-- **Weight store:** Git LFS vs a GCS bucket. Waiting on the user (2026-10-29): the
-  gcloud agent identity is Owner on `hex-general` only, and git-lfs is not installed.
-  `tools/champion.py` keeps the store behind one interface so the choice is a backend.
+- ~~**Weight store:**~~ Decided 2026-10-29: the user's public bucket
+  `gs://storage.tcgarvin.com` (project `tcgarvin-com`), served at
+  https://storage.tcgarvin.com through a proxied Cloudflare CNAME to
+  `c.storage.googleapis.com`. Champion weights go under
+  `rl-fighter/champions/<id>/<sha256>.pt` (content-addressed, cached as immutable);
+  `tools/champion.py` uploads, registers and fetches them. First champion:
+  `2026-10-29-v3-fighter`.

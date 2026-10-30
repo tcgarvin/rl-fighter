@@ -2,9 +2,9 @@
 # Deploy the static site in dist/ to production at rl-fighter.tcgarvin.com.
 # dist/ is assembled by scripts/build_site.sh (live page at /, story demo at /story/).
 #
-# Usage: scripts/deploy.sh [<checkpoint.pt> <run-id> [eval.json]]
-#   With a checkpoint, rebuilds dist/ first (scripts/build_site.sh); without one,
-#   deploys the dist/ already built.
+# Usage: scripts/deploy.sh [--build | <checkpoint.pt> <run-id> [eval.json]]
+#   --build rebuilds dist/ from the current champion first; a checkpoint rebuilds it
+#   from that (scripts/build_site.sh); neither deploys the dist/ already built.
 # Needs NETLIFY_AUTH_TOKEN in the environment or in the repo's gitignored .env.
 set -euo pipefail
 
@@ -24,12 +24,14 @@ if [[ -z "${NETLIFY_AUTH_TOKEN:-}" ]]; then
 fi
 
 cd "$REPO_ROOT"
-if [[ $# -ge 1 ]]; then
+if [[ "${1:-}" == "--build" ]]; then
+    scripts/build_site.sh
+elif [[ $# -ge 1 ]]; then
     scripts/build_site.sh "$@"
 fi
 for required in index.html _redirects story/index.html bundle/manifest.json bundle/catalogue.json bundle/pkg/sim_wasm_bg.wasm bundle/policy/manifest.json bundle/policy/weights.bin; do
     if [[ ! -f "$DIST/$required" ]]; then
-        echo "Error: $DIST/$required is missing; run scripts/build_site.sh <checkpoint.pt> <run-id> first" >&2
+        echo "Error: $DIST/$required is missing; run scripts/build_site.sh first" >&2
         exit 1
     fi
 done

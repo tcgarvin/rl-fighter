@@ -49,7 +49,16 @@ scripts/build_bundle.sh <checkpoint.pt> <run-id> [eval.json]
 cd web && npm install && npm run build && npx vite preview --port 4173
 
 # Build the website into dist/: live page at /, story demo at /story/ (bundle + web build)
+scripts/build_site.sh            # from the current champion (lab/champions)
 scripts/build_site.sh lab/runs/<run>/<arm>/checkpoints/ppo_bc_<N>.pt <run-id> [eval.json]
+
+# Champion registry: lab/champions/<id>/champion.json (rlf.champion/1) is committed; the
+# weights live in gs://storage.tcgarvin.com/rl-fighter/champions/<id>/<sha256>.pt, served
+# at https://storage.tcgarvin.com (upload uses gcloud --configuration=tcgarvin-com; fetch
+# is plain HTTPS into ~/.cache/rl-fighter/weights, sha256-checked)
+uv run python -m tools.champion promote --id YYYY-MM-DD-name --name "..." --run <run-id> \
+    --checkpoint <ckpt.pt> --hulls fighter,strafer,gunship --eval-json <eval.json> [--parent <id>]
+uv run python -m tools.champion list | fetch [<id>] | env [<id>]
 
 # Parity of the browser policy with torch; the headless live-match smoke test
 uv run python -m pytest tests/test_web_policy.py -v
@@ -67,7 +76,7 @@ PYTHONPATH=. uv run python tools/fleet_survey.py --n-per-roster 128
 nohup lab/runs/2026-10-30-fleet-pilot/run.sh > lab/runs/2026-10-30-fleet-pilot/run.out 2>&1 &
 
 # Deploy dist/ (rl-fighter.tcgarvin.com); needs NETLIFY_AUTH_TOKEN in .env
-scripts/deploy.sh            # or: scripts/deploy.sh <checkpoint.pt> <run-id> to rebuild first
+scripts/deploy.sh            # or --build (current champion) / <checkpoint.pt> <run-id> to rebuild first
 
 # Data for /notebook/ (from lab/runs) and /hulls/ (from assets/) into web/public/{notebook,hulls}/data/
 scripts/build_pages_data.sh  # = cd web && npm run data

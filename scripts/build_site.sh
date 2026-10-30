@@ -5,7 +5,9 @@
 #   /story/   prototypes/story/ (the scripted story demo: where the match is going)
 #   /duel/    redirects to /?fleets=duel (web/public/_redirects)
 #
-# Usage: scripts/build_site.sh <checkpoint.pt> <run-id> [eval.json]
+# Usage: scripts/build_site.sh                 the current champion (lab/champions;
+#                                              weights fetched by tools/champion.py)
+#        scripts/build_site.sh <checkpoint.pt> <run-id> [eval.json]
 #   (the arguments of scripts/build_bundle.sh, which runs first; its env applies)
 set -euo pipefail
 
@@ -13,12 +15,21 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 DIST="$REPO_ROOT/dist"
 
-if [[ $# -lt 2 || $# -gt 3 ]]; then
-    echo "usage: scripts/build_site.sh <checkpoint.pt> <run-id> [eval.json]" >&2
+if [[ $# -eq 1 || $# -gt 3 ]]; then
+    echo "usage: scripts/build_site.sh [<checkpoint.pt> <run-id> [eval.json]]" >&2
     exit 2
 fi
 
 step() { printf '\n==> %s\n' "$*"; }
+
+if [[ $# -eq 0 ]]; then
+    step "current champion (lab/champions)"
+    CHAMPION_ENV="$("${PYTHON:-$REPO_ROOT/.venv/bin/python}" -m tools.champion env)"
+    eval "$CHAMPION_ENV"
+    export RLF_CHAMPION_ID RLF_CHAMPION_NAME RLF_CHAMPION_HULLS
+    echo "$RLF_CHAMPION_ID ($RLF_CHAMPION_HULLS): $CHAMPION_CHECKPOINT"
+    set -- "$CHAMPION_CHECKPOINT" "$CHAMPION_RUN" "$CHAMPION_EVAL_JSON"
+fi
 
 scripts/build_bundle.sh "$@"
 

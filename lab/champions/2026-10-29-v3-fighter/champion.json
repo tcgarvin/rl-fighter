@@ -1,0 +1,33 @@
+{
+  "schema": "rlf.champion/1",
+  "id": "2026-10-29-v3-fighter",
+  "name": "v3 pilot \u00b7 update 600",
+  "run": "2026-10-29-collision-damage",
+  "checkpoint": "lab/runs/2026-10-29-collision-damage/arm_a_rl/checkpoints/ppo_bc_600.pt",
+  "sim_version": 3,
+  "hulls": [
+    "fighter"
+  ],
+  "promoted": "2026-10-29",
+  "parent": "",
+  "eval_json": "lab/runs/2026-10-29-collision-damage/eval/a_600_vs_script.json",
+  "eval": {
+    "file": "lab/runs/2026-10-29-collision-damage/eval/a_600_vs_script.json",
+    "a": "policy:ppo_bc_600.pt",
+    "b": "script",
+    "n": 512,
+    "sim_version": 3,
+    "wins": 512,
+    "draws": 0,
+    "losses": 0,
+    "win_rate": 1.0,
+    "hit_rate": 0.7636537656278041,
+    "length_median_ticks": 307.0
+  },
+  "weights": {
+    "sha256": "4037c574998870d4f45c1f79f911be9c358c5e06549067ba5189c57a5582811c",
+    "bytes": 4163765,
+    "url": "https://storage.tcgarvin.com/rl-fighter/champions/2026-10-29-v3-fighter/4037c574998870d4f45c1f79f911be9c358c5e06549067ba5189c57a5582811c.pt",
+    "key": "rl-fighter/champions/2026-10-29-v3-fighter/4037c574998870d4f45c1f79f911be9c358c5e06549067ba5189c57a5582811c.pt"
+  }
+}
