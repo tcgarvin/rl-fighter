@@ -62,7 +62,7 @@ await page.waitForFunction(() => window.rlfLive?.stats().matches >= 1, null, { t
 async function sample() {
   await cdp.send("HeapProfiler.collectGarbage");
   const heap = await cdp.send("Runtime.getHeapUsage");
-  const s = await page.evaluate(() => ({ ...window.rlfLive.stats(), dom: document.getElementsByTagName("*").length }));
+  const s = await page.evaluate(() => ({ ...window.rlfLive.stats(), dom: document.getElementsByTagName("*").length - document.querySelectorAll("#tags *, #cmdlog *, #mission *").length }));
   return { t: Date.now() - start, heap: heap.usedSize, ...s };
 }
 
@@ -125,7 +125,8 @@ const last = afterWarmup.at(-1);
 const peak = Math.max(...afterWarmup.map((s) => s.heap));
 const growth = (last.heap - first.heap) / first.heap;
 const gpuGrew = ["geometries", "textures", "programs"].filter((k) => afterWarmup.some((s) => s.gpu[k] > first.gpu[k]));
-// The DOM's size follows the fleet size (two markers a ship), so compare peaks.
+// Per-ship markers (#tags), the mission panel and the command log (capped at 90 lines)
+// vary with the mission and roster, so they are left out; the rest is compared by peaks.
 const halfway = Math.floor(afterWarmup.length / 2);
 const domPeak = (list) => Math.max(...list.map((s) => s.dom));
 const domGrew = domPeak(afterWarmup.slice(halfway)) > domPeak(afterWarmup.slice(0, Math.max(1, halfway)));

@@ -55,7 +55,7 @@ export class CommandLog {
     this.line(-1, `── MATCH ${String(number).padStart(2, "0")} · ${MISSION_TITLES[m.mission as MissionName].toUpperCase()} ──`, "cl-sep");
     if (m.convoy) {
       const c = m.convoy;
-      this.line(0, `${this.who(0)} › convoy under way · ${c.total} freighters → jump point ${fmtPoint(c.jumpX, c.jumpY)}`, "", 0);
+      this.line(0, `${this.who(0)} › convoy under way · ${c.total} freighters → jump point{ ${fmtPoint(c.jumpX, c.jumpY)}}`, "", 0);
     }
     for (const team of [0, 1] as const) {
       const t = m.teams[team];
@@ -89,12 +89,12 @@ export class CommandLog {
         const team = e.a;
         const kind = ORDER_KINDS[e.extra] ?? "none";
         const sq = m.squads.find((s) => s.team === team && s.index === e.b);
-        const size = sq && sq.members > 0 ? ` ×${sq.members}` : "";
+        const size = sq && sq.members > 0 ? `{ ×${sq.members}}` : "";
         const head = `${this.who(team)} › squad ${e.b + 1}${size}`;
         const target = e.f5 >= 0 ? (m.labels[e.f5] ?? `ship ${e.f5}`) : "";
         if (kind === "attack") return [team, `${head} · attack → ${target}`];
         if (kind === "guard") return [team, `${head} · guard → ${target}`];
-        if (kind === "hold") return [team, `${head} · hold ${fmtPoint(e.x, e.y)} r${Math.round(e.f6)}`];
+        if (kind === "hold") return [team, `${head} · hold{ ${fmtPoint(e.x, e.y)} r${Math.round(e.f6)}}`];
         return [team, `${head} · stand down`];
       }
       case "jumpCharge": {
@@ -125,7 +125,12 @@ export class CommandLog {
     const row = document.createElement("div");
     row.className = `cl-line ${team >= 0 ? TEAM_CLASSES[team] : ""} ${cls}`;
     const t = tick === undefined ? "" : `<span class="cl-t">T+${String(Math.floor(tick / SIM_HZ)).padStart(3, "0")}</span> `;
-    row.innerHTML = t + escapeHtml(text).replace(/^([A-Z]+(?: [A-Z]+)?) ›/, '<b>$1</b> ›');
+    // "{…}" marks detail shown only in the open panel; the team and layer lead in bold.
+    row.innerHTML =
+      t +
+      escapeHtml(text)
+        .replace(/^([A-Z]+(?: [A-Z]+)?) ›/, "<b>$1</b> ›")
+        .replace(/\{([^}]*)\}/g, '<span class="cl-d">$1</span>');
     this.list.append(row);
     while (this.list.childElementCount > MAX_LINES) this.list.firstElementChild!.remove();
     if (this.open) this.list.scrollTop = this.list.scrollHeight;

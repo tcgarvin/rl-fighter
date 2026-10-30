@@ -63,6 +63,14 @@ export class Hud {
   readonly commandsBtn = el<HTMLButtonElement>("commands-toggle");
   private markers: Array<{ tag: HTMLElement; pip: HTMLElement; text: string }> = [];
   private missionHtml = "";
+  private readonly jumpEl = (() => {
+    const node = document.createElement("div");
+    node.className = "jump-label";
+    node.textContent = "JUMP POINT";
+    node.hidden = true;
+    el("hud").append(node);
+    return node;
+  })();
   private nextPerf = 0;
   private clock = 0;
   private fps = 60;
@@ -74,7 +82,14 @@ export class Hud {
 
   setCommands(on: boolean): void {
     this.commandsBtn.setAttribute("aria-pressed", String(on));
+    this.commandsBtn.textContent = on ? "Hide commands" : "Show commands";
     document.body.classList.toggle("commands", on);
+  }
+
+  /** The convoy's "JUMP POINT" label under its marker (CSS px), or hidden (null). */
+  placeJumpLabel(at: { x: number; y: number } | null): void {
+    this.jumpEl.hidden = at === null;
+    if (at) this.jumpEl.style.transform = `translate(${Math.round(at.x)}px, ${Math.round(at.y)}px)`;
   }
 
   /**
@@ -267,12 +282,13 @@ function missionPanel(match: LiveMatch): string {
   }
   const c = match.convoy;
   if (match.mission === "convoy_escort" && c) {
+    // Each side's score against its own threshold: Azure escorts n through, Ember kills n.
     const left = convoyDistance(match);
-    const parts = [`${c.escaped} through`, `${c.destroyed} lost`];
-    if (left !== null && !match.over) parts.push(left > 0 ? `${Math.round(left)} m to go` : "at the jump point");
+    const dist = left === null || match.over ? "" : ` · ${left > 0 ? `${Math.round(left)} m to the jump` : "at the jump point"}`;
     return (
-      `<div class="mrow"><span class="mlabel">${teamSpan(0, "CONVOY")}</span><span class="pips">${convoyPips(match)}</span><span class="mnote">${parts.join(" · ")}</span></div>` +
-      `<div class="mrow msub">${teamSpan(0, `${TEAM_NAMES[0]} needs ${c.toEscape} through`)} · ${teamSpan(1, `${TEAM_NAMES[1]} needs ${c.toDestroy} kill${c.toDestroy === 1 ? "" : "s"}`)}</div>`
+      `<div class="mrow"><span class="mlabel">${teamSpan(0, "CONVOY")}</span><span class="pips">${convoyPips(match)}</span>` +
+      `<span class="mval">${teamSpan(0, `${c.escaped}/${c.toEscape} through`)}</span></div>` +
+      `<div class="mrow msub">${teamSpan(1, `${TEAM_NAMES[1]} ${c.destroyed}/${c.toDestroy} kills`)}${dist}</div>`
     );
   }
   return "";

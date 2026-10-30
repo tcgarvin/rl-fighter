@@ -6,7 +6,7 @@
 // Fleets of more than MAX_CARDS show one card per hull with a count.
 
 import { TEAM_CLASSES, TEAM_NAMES } from "./teams.ts";
-import { MISSION_TITLES, type MissionName } from "./missions.ts";
+import { MISSION_TITLES, type Brief, type MissionName } from "./missions.ts";
 import { matchupLine, type Roster } from "./roster.ts";
 import type { HullInfo } from "./sim.ts";
 
@@ -25,8 +25,8 @@ const FADE_OUT = 0.35;
 export interface MusterOptions {
   number: number;
   mission: MissionName;
-  /** The mission brief (HTML), missions.ts missionBrief(). */
-  brief: string;
+  /** The objective and brief (HTML), missions.ts missionBrief(). */
+  brief: Brief;
   roster: Roster;
   info: Record<string, HullInfo>;
   thumbnails: Record<string, [string, string]>;
@@ -77,8 +77,8 @@ export class Muster {
       "div",
       "m-head",
       `<div class="kicker">Match ${String(o.number).padStart(2, "0")} · ${MISSION_TITLES[o.mission]}</div>` +
-        `<div class="m-brief">${o.brief}</div>` +
-        `<div class="m-matchup">${matchupLine(o.roster, o.info)}</div>` +
+        `<div class="m-matchup">${o.brief.headline ?? matchupLine(o.roster, o.info)}</div>` +
+        `<div class="m-brief">${o.brief.brief}</div>` +
         (o.roster.budget !== null ? `<div class="m-budget">${o.roster.budget} credits a side</div>` : ""),
     );
     const sides = el("div", "m-sides");

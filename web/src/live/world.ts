@@ -301,6 +301,7 @@ export class World {
     this.views = [];
     this.beams = [];
     this.quickJumps = [];
+    this.effects.drawOrders([]);
     this.match = match;
     for (const [i, ship] of match.ships.entries()) {
       const name = match.hullNames[i]!;
@@ -457,7 +458,8 @@ export class World {
       // Projectiles are at the current tick and ships between the previous and current
       // one, so back the shots up by a tick to keep them on the muzzles.
       this.effects.updateProjectiles(m.projectiles, this.beams, alpha - 1);
-      if (this.showOrders) this.updateOrders(m);
+      // The jump point is part of the convoy mission, always shown; the rest is the commands layer.
+      if (this.showOrders || m.convoy) this.updateOrders(m, this.showOrders);
     }
     this.cam.update(bounds, dt);
     this.environment.update(dt, { centerX: this.cam.x, centerY: this.cam.y, extent: this.cam.extent });
@@ -512,9 +514,9 @@ export class World {
   }
 
   /** Rebuild the order overlay from the sim's squads, waypoints and convoy, at the drawn positions. */
-  private updateOrders(m: LiveMatch): void {
+  private updateOrders(m: LiveMatch, commands: boolean): void {
     this.orders.length = 0;
-    for (const sq of m.squads) {
+    for (const sq of commands ? m.squads : []) {
       if (sq.order === "none" || sq.members === 0) continue;
       let sx = 0;
       let sy = 0;
@@ -543,7 +545,7 @@ export class World {
     }
     // Capital ships' waypoints: where the carrier is headed (the convoy's is the jump point).
     for (const [i, s] of m.ships.entries()) {
-      if (s.role !== "carrier" || !s.hasWaypoint || !m.active(s)) continue;
+      if (!commands || s.role !== "carrier" || !s.hasWaypoint || !m.active(s)) continue;
       const d = this.views[i]!.drawn;
       if (Math.hypot(s.waypointX - d.x, s.waypointY - d.y) < WAYPOINT_MIN_DIST) continue;
       const o = this.nextOrder();
@@ -562,7 +564,7 @@ export class World {
       }
       const o = this.nextOrder();
       Object.assign(o, { kind: "jump", team: 0, x2: c.jumpX, y2: c.jumpY, radius: c.jumpRadius, progress: c.total ? c.escaped / c.total : 0 });
-      if (n > 0) {
+      if (n > 0 && commands) {
         o.x1 = sx / n;
         o.y1 = sy / n;
       }

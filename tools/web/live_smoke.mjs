@@ -75,7 +75,8 @@ for (let i = 0; i < Number(nArg); i++) {
   }
   const roster = missionRoster(mission, parseRosterMode(mission === "deathmatch" ? mode : null), rules, bundle.catalogue.info, mulberry32(seed ^ 0x5bd1e995));
   const match = new LiveMatch({ ...bundle, settings: manifest.match, fleets: roster.fleets, seed, mission });
-  const brief = stripTags(missionBrief(mission, match.convoy));
+  const b = missionBrief(mission, match.convoy);
+  const brief = stripTags(`${b.headline ? `${b.headline} ` : ""}${b.brief}`);
   let simTotal = 0;
   let nnTotal = 0;
   let nnWorst = 0;

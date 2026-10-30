@@ -124,20 +124,28 @@ export function missionRoster(mission: MissionName, mode: RosterMode, rules: Ros
   return { fleets: [[...convoy, ...escorts], attackers], budget: null };
 }
 
+/** The muster's objective-first headline and the brief under it (HTML). */
+export interface Brief {
+  /** The objective; null for deathmatch, whose headline is the matchup. */
+  headline: string | null;
+  brief: string;
+}
+
 /**
- * The mission brief under the muster's title (HTML). `convoy` is the sim's convoy view
- * at tick 0, so the numbers are the sim's thresholds, not ours.
+ * The mission brief at the muster. `convoy` is the sim's convoy view at tick 0, so the
+ * numbers are the sim's thresholds, not ours.
  */
-export function missionBrief(mission: MissionName, convoy: ConvoyState | null): string {
+export function missionBrief(mission: MissionName, convoy: ConvoyState | null): Brief {
   if (mission === "carrier_battle") {
-    return "Each carrier launches its wing from its bays. Lose your carrier, lose the match.";
+    return { headline: "Destroy the enemy carrier.", brief: "Each carrier launches its wing from its bays. Lose yours and you lose the match." };
   }
   if (mission === "convoy_escort" && convoy) {
-    const n = convoy.total;
-    return (
-      `${n} freighters must reach the jump point. ${teamSpan(0, TEAM_WORDS[0])} escorts, ${teamSpan(1, TEAM_WORDS[1])} intercepts: ` +
-      `${convoy.toDestroy} kill${convoy.toDestroy === 1 ? "" : "s"} stop${convoy.toDestroy === 1 ? "s" : ""} the convoy.`
-    );
+    return {
+      headline: "Get the convoy to the jump point, or stop it.",
+      brief:
+        `${convoy.total} freighters are under way. ${teamSpan(0, TEAM_WORDS[0])} escorts: ${convoy.toEscape} through wins. ` +
+        `${teamSpan(1, TEAM_WORDS[1])} intercepts: ${convoy.toDestroy} kill${convoy.toDestroy === 1 ? "" : "s"} stop${convoy.toDestroy === 1 ? "s" : ""} them.`,
+    };
   }
-  return "Last side flying wins.";
+  return { headline: null, brief: "The last side flying wins." };
 }

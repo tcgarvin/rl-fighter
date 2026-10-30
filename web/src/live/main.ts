@@ -164,10 +164,12 @@ function startMatch(): void {
   cmdlog.newMatch(matchNumber, next);
   const brief = missionBrief(mission, next.convoy);
   muster.show({ number: matchNumber, mission, brief, roster, info: bundle.catalogue.info, thumbnails, duration: MUSTER_SECONDS });
+  document.body.classList.add("mustering");
 }
 
 function beginBattle(): void {
   muster.hide();
+  document.body.classList.remove("mustering");
   phase = "battle";
   phaseTime = 0;
   accumulator = 0;
@@ -215,6 +217,17 @@ function statusLine(m: LiveMatch): string {
   return `MATCH ${matchNumber} · ${text}`;
 }
 
+// The ring's near edge sits about sin(pitch) × its radius below its centre on screen.
+const JUMP_LABEL_DROP = 0.85;
+
+/** The convoy's jump point gets a DOM label, which reads over any backdrop. */
+function placeJumpLabel(): void {
+  const c = match?.convoy;
+  if (!c || phase === "muster") return hud.placeJumpLabel(null);
+  const p = world.pointOnScreen(c.jumpX, c.jumpY, window.innerWidth, window.innerHeight);
+  hud.placeJumpLabel({ x: p.x, y: p.y + c.jumpRadius * p.pxPerMetre * JUMP_LABEL_DROP + 4 });
+}
+
 function frame(now: number): void {
   const realDt = Math.min(0.1, (now - lastTime) / 1000);
   frameMs += (realDt * 1000 - frameMs) * 0.05;
@@ -245,6 +258,7 @@ function frame(now: number): void {
     layout();
   }
   world.frame(dt, alpha, phase === "result");
+  placeJumpLabel();
   if (match) {
     hud.updateMission(match);
     hud.updateMarkers(match, showDetails, (i) => world.shipOnScreen(i, window.innerWidth, window.innerHeight), thrusterCounts);

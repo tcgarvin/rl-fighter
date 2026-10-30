@@ -269,12 +269,44 @@ body.details #meta-details {
   pointer-events: auto;
   cursor: pointer;
   font-family: var(--mono);
-  font-size: 9px;
-  line-height: 1.45;
+  font-size: 10px;
+  line-height: 1.5;
   color: var(--fg-soft);
-  opacity: 0.55;
+  opacity: 0.72;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
+}
+
+/* Collapsed: just who did what; times and counts wait for the open panel. */
+#cmdlog:not(.open) .cl-t,
+#cmdlog:not(.open) .cl-d {
+  display: none;
+}
+
+/* The convoy's jump point, labelled in the DOM so it reads over any backdrop. */
+.jump-label {
+  position: absolute;
+  top: 0;
+  left: -60px;
+  width: 120px;
+  text-align: center;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--team-a);
+  opacity: 0.8;
+  text-shadow: 0 0 6px var(--bg), 0 0 2px var(--bg), 0 0 12px var(--bg);
+  white-space: nowrap;
+  will-change: transform;
+}
+
+.jump-label[hidden] {
+  display: none;
+}
+
+/* The muster stands alone: no caption or controls showing through its scrim. */
+body.mustering #bottom {
+  visibility: hidden;
 }
 
 body.commands #cmdlog {
@@ -285,7 +317,7 @@ body.commands #cmdlog {
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  height: calc(4 * 1.45em);
+  height: calc(3 * 1.5em);
   overflow: hidden;
   -webkit-mask-image: linear-gradient(transparent, #000 45%);
   mask-image: linear-gradient(transparent, #000 45%);
