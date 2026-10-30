@@ -50,6 +50,8 @@ scripts/check.sh
 scripts/build_bundle.sh <checkpoint.pt> <run-id> [eval.json]
 # Web client (web/: Vite + TS). npm run build typechecks; preview serves web/dist
 cd web && npm install && npm run build && npx vite preview --port 4173
+# List / stop stray vite servers of this repo and its worktrees (never other projects')
+scripts/kill_stale_vite.sh [PID... | --older-than MIN]
 
 # Build the website into dist/: live page at /, story demo at /story/ (bundle + web build)
 scripts/build_site.sh            # from the current champion (lab/champions)

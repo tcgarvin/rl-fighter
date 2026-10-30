@@ -528,6 +528,28 @@ impl MissionStateView {
     }
 }
 
+/// One default roster of a mission (`mission::default_rosters`), for the bindings.
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct MissionRosterView {
+    pub name: &'static str,
+    pub mission: &'static str,
+    /// Hull names per team, slot order.
+    pub fleets: [Vec<&'static str>; 2],
+}
+
+/// The default rosters of mission `kind` (empty for deathmatch, whose rosters are
+/// budget drafts).
+pub fn mission_rosters(kind: MissionKind) -> Vec<MissionRosterView> {
+    crate::mission::default_rosters(kind)
+        .iter()
+        .map(|r| MissionRosterView {
+            name: r.name,
+            mission: kind.name(),
+            fleets: [r.fleets[0].to_vec(), r.fleets[1].to_vec()],
+        })
+        .collect()
+}
+
 /// JSON text of `view` (the views above always serialise).
 pub fn to_json<T: Serialize>(view: &T) -> String {
     serde_json::to_string(view).expect("views serialise")

@@ -5,10 +5,10 @@
 # forward, +y port. WP-S2 may retune the numbers with the mission survey.
 name: carrier
 role: carrier          # flown by the scripted capital-ship pilot (SIM_SPEC §11)
-hp: 1500
+hp: 1000
 mass: 600.0
 inertia: 90000.0
-speed_cap: 10.0
+speed_cap: 8.0
 static: false
 shield: {hp: 260, regen_rate: 15, regen_delay: 5, radius: 24}
 impact:                # v3 collision damage: a capital ship shrugs off rams
@@ -19,13 +19,13 @@ collision:
   - {pos: [0.0, 0.0], r: 8.5}
   - {pos: [-13.0, 0.0], r: 7.5}
 thrusters:
-  - {id: thruster.main.l, pos: [-19.5, 4.5], dir: [1, 0], max_force: 7000}
-  - {id: thruster.main.c, pos: [-20, 0], dir: [1, 0], max_force: 7000}
-  - {id: thruster.main.r, pos: [-19.5, -4.5], dir: [1, 0], max_force: 7000}
-  - {id: thruster.rcs.fl, pos: [15, 8], dir: [0, -1], max_force: 3500}
-  - {id: thruster.rcs.fr, pos: [15, -8], dir: [0, 1], max_force: 3500}
-  - {id: thruster.rcs.rl, pos: [-14, 8.5], dir: [0, -1], max_force: 3500}
-  - {id: thruster.rcs.rr, pos: [-14, -8.5], dir: [0, 1], max_force: 3500}
+  - {id: thruster.main.l, pos: [-19.5, 4.5], dir: [1, 0], max_force: 300}
+  - {id: thruster.main.c, pos: [-20, 0], dir: [1, 0], max_force: 300}
+  - {id: thruster.main.r, pos: [-19.5, -4.5], dir: [1, 0], max_force: 300}
+  - {id: thruster.rcs.fl, pos: [15, 8], dir: [0, -1], max_force: 450}
+  - {id: thruster.rcs.fr, pos: [15, -8], dir: [0, 1], max_force: 450}
+  - {id: thruster.rcs.rl, pos: [-14, 8.5], dir: [0, -1], max_force: 450}
+  - {id: thruster.rcs.rr, pos: [-14, -8.5], dir: [0, 1], max_force: 450}
 turrets:
   - {id: turret.flak.fore, pos: [12, 0], rest_deg: 0, arc_deg: 270, slew_deg_s: 90, weapon: flak}
   - {id: turret.flak.port, pos: [-6, 7], rest_deg: 90, arc_deg: 200, slew_deg_s: 90, weapon: flak}

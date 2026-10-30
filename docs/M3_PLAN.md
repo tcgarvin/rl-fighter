@@ -176,6 +176,55 @@ launch streaks, the under-way opening, jump charge and jump-out, the mission rot
 HUD and result reasons, and the commands toggle and log. The WASM API note is
 SIM_SPEC §10.2.
 
+#### WP-S2, the commander, the carrier pilot and the mission survey (`m3-sim2`)
+
+What it decided; SIM_SPEC §0.2 ("WP-S2"), §5.9, §10.3 and §11 have the detail, and
+`lab/runs/2026-10-30-mission-survey/` the numbers.
+
+- **Still SIM_VERSION 4.** Stage A's sim had not shipped, so WP-S2 regenerated the v4
+  golden traces instead of bumping: the missions' (their play changed) and the
+  deathmatch ones (only the hashed command state and `Order` events changed). The
+  `v3_compat_*` replays pass untouched, so pilot v1's deathmatch is still bit-identical
+  to v3.
+- **The scripted commander** (`scripted/commander.rs`) is stateless and uses the
+  command state as its memory and hysteresis: orders change only for a clearly better
+  one, squad membership only when a squad is the wrong size, and unchanged commands
+  are not sent, so each `Order` event is a real change (tested: at most one order
+  change per squad per three slow ticks). Carrier battle: paced launches (3 in space
+  + 1 per 30 s, at most one per 12 s; scramble per bay when threatened; empty the
+  hangar in the last 60 s), a **guard** squad (⅓ of the wing, ½ when threatened) and
+  a **strike** squad (the enemy carrier, or the nearest enemy strike craft while the
+  carrier's escort outnumbers it); carrier waypoint: patrol its own side, retreat from
+  threats, close to 170 m (flak range) when winning or in the last 60 s, the enemy
+  carrier itself when its wing is spent. Convoy: defenders **guard** the most threatened transport
+  and **intercept** the enemy nearest the convoy; attackers send **two waves** at the
+  transport scoring highest on progress + damage, wave 2 staging ahead of the convoy
+  until wave 1 is halved or 30 s. Deathmatch: two squads (nearest, most damaged).
+- **Scripted strike craft follow orders** (`scripted/orders.rs`: attack with
+  self-defence, guard and hold with station keeping), except under a *scripted*
+  deathmatch commander, whose orders are only shown. Decision: that keeps the default
+  deathmatch (fleet pilot v1's eval opponent and training teacher) and the v3 traces
+  unchanged, while an external commander's orders are followed in every mission, as
+  stage B's random-order training needs.
+- **Carrier pilot.** Hull retune without moving a mount: mains 7000 → 300 N, RCS 3500
+  → 450 N, cap 10 → 8 m/s (≈ 1.5 m/s² and 0.15 rad/s², a 90° turn in ≈ 20 s), hp 1500
+  → 1000. It brakes on drag only (no flip-and-burn: at its turn rate a flip takes
+  longer than coasting down). A turn-rate profile plus an RCS on/off hysteresis band
+  replaced the PD, so it no longer chatters holding heading (tested: ≤ 3 burns and
+  ≥ 15 ticks between them after a knock). Its flak tracks the nearest enemy strike
+  craft before any capital ship.
+- **Balance** (live configuration: pilot v1 on every strike craft, scripts on the
+  capital ships). Freighter hp 500 → 400 and cap 14 → 10.5 m/s (the route takes
+  ≈ 68 s instead of 54: with the old numbers the convoy got through 95 % of the time);
+  arena (450 m), route, clocks (150 s, 120 s) and `jump_in` (2) unchanged. Default
+  rosters (`mission::default_rosters`, SIM_SPEC §10.3; PyO3 `rlf_sim.mission_rosters`,
+  WASM `missionRostersJson`): carrier + 8, 6 or 9 strike craft a side; 4 freighters +
+  3 escorts v 6, 3 + 4 v 5, 5 + 4 v 8.
+- **Left open.** The script-vs-script convoy is lopsided per roster (the scripted
+  escorts lose the 4-freighter roster every time and win the 3-freighter one), which
+  matters only when the scripts teach stage B; carrier launches are front-loaded
+  (median ≈ 28 s, p90 ≈ 60 s) because pilot v1's dogfights burn through a wing fast.
+
 ### Stage B: orders reach the pilots (the feudal layer)
 
 1. **Order block in the pilot obs:** order kind (none, attack, guard, hold) and the
