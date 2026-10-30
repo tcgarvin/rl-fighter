@@ -49,6 +49,7 @@ from spacefight.rl.spike_policy import (
     SpikeActor,
     param_count,
 )
+from spacefight.env.rosters import MAX_FLEET_SHIPS, MAX_PER_SIDE
 from tools.champion import CHAMPIONS_DIR, Champion, find_champion
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -101,7 +102,11 @@ def obs_facts() -> dict[str, str]:
         "obs.dim": str(rlf_sim.OBS_DIM),
         "sim.version": str(rlf_sim.SIM_VERSION),
         "sim.max_ships": str(rlf_sim.MAX_SHIPS),
-        "sim.max_ships_a_side": str(rlf_sim.MAX_SHIPS // 2),
+        "sim.max_others": str(rlf_sim.MAX_SHIPS - 1),
+        "sim.near_ships": str(rlf_sim.N_NEAR_SHIPS),
+        # Strike-craft fleets (training rosters, live drafts): two full sides.
+        "fleet.max_ships": str(MAX_FLEET_SHIPS),
+        "fleet.max_per_side": str(MAX_PER_SIDE),
         "sim.max_reaction_ticks": str(rlf_sim.MAX_REACTION_TICKS),
         "sim.tick_hz": str(TICK_HZ),
     }
@@ -141,8 +146,8 @@ def network_facts() -> dict[str, str]:
         "actor.params": _n(total),
         "actor.params_k": str(round(total / 1000)),
         "actor.kb": str(round(total * 4 / 1000)),
-        # Eight ships, every tick: multiply-adds per second in the browser, millions.
-        "browser.mmacs": str(round(weights_only * rlf_sim.MAX_SHIPS * TICK_HZ / 1e6)),
+        # A full fleet, every tick: multiply-adds per second in the browser, millions.
+        "browser.mmacs": str(round(weights_only * MAX_FLEET_SHIPS * TICK_HZ / 1e6)),
         "critic.context": str(CONTEXT_DIM),
         "critic.mix_hidden": str(HIDDEN // 2),
         "critic.mix_in": str(HIDDEN + 2 * CONTEXT_DIM + 2),
@@ -212,6 +217,7 @@ def champion_facts(repo: Path, champions_dir: Path) -> dict[str, str]:
         "champion.run": champion.run,
         "champion.update": update.group(1),
         "champion.hulls": ", ".join(champion.hulls),
+        "champion.sim_version": str(champion.sim_version),
         "champion.duel_wins": f"{duel['wins']} of {duel['n']}",
         "train.critic": str(config["critic"]),
         "train.rosters": str(config["rosters"]),
