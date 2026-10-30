@@ -39,6 +39,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TypeVar
 
 import numpy as np
 import torch
@@ -297,13 +298,24 @@ def _hold_row(device: torch.device) -> torch.Tensor:
     return torch.tensor(HOLD_ROW, dtype=torch.int64, device=device)
 
 
+ObsT = TypeVar("ObsT", np.ndarray, torch.Tensor)
+
+
+def policy_obs(obs: np.ndarray, obs_dim: int = OBS_DIM) -> np.ndarray:
+    """``fit_obs`` for a numpy obs, by default to a SIM_VERSION 3/4 pilot's 385."""
+    return fit_obs(obs, obs_dim)
+
+
 def _check_obs(obs: torch.Tensor, obs_dim: int) -> None:
     if obs.dim() != 2 or obs.shape[1] != obs_dim:
         raise ValueError(f"obs must be [B, {obs_dim}], got {tuple(obs.shape)}")
 
 
-def fit_obs(obs: torch.Tensor, obs_dim: int) -> torch.Tensor:
-    """``obs[..., :obs_dim]``: what a net of width ``obs_dim`` sees of a wider obs.
+def fit_obs(obs: ObsT, obs_dim: int) -> ObsT:
+    """``obs[..., :obs_dim]`` (a view): what a net of width ``obs_dim`` sees of a
+    wider obs, for numpy arrays and torch tensors alike. The one place obs are cut
+    to a net's width: PPO, the snapshot pool, the KL anchor, BC and ``act_numpy``
+    all key it by the net's (the checkpoint's) ``obs_dim``.
 
     The sim keeps every older pilot's obs as a prefix of the newer one
     (``PILOT_OBS_DIMS``), so a narrow net flies a wider sim on the prefix.

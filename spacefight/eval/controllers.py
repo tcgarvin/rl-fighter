@@ -27,7 +27,6 @@ from spacefight.env.rust_env import (
     ACTION_LAYOUT,
     ACTION_WIDTH,
     OBS_LAYOUT,
-    ORDERS_SUPPORTED,
     RustVecEnv,
 )
 
@@ -131,8 +130,7 @@ class Policy:
 
     Raises:
         FileNotFoundError: ``path`` does not exist.
-        ValueError: ``path`` is not a spike-policy checkpoint, or ``blank_orders``
-            on a sim without an order block.
+        ValueError: ``path`` is not a spike-policy checkpoint.
     """
 
     def __init__(
@@ -140,8 +138,6 @@ class Policy:
     ) -> None:
         if not path.is_file():
             raise FileNotFoundError(f"policy checkpoint not found: {path}")
-        if blank_orders and not ORDERS_SUPPORTED:
-            raise ValueError("blank_orders needs a sim with an order block (v5)")
         from spacefight.rl import spike_policy
 
         self.path = path

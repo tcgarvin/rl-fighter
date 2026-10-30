@@ -232,6 +232,11 @@ impl MatchCore {
     }
 
     /// Ship `ship`'s observation, `OBS_DIM` floats (SIM_SPEC §7.2).
+    /// v5: the last step's order reward per ship.
+    pub fn order_rewards(&self) -> Vec<f32> {
+        self.m.order_rewards().to_vec()
+    }
+
     pub fn obs(&self, ship: u32) -> Result<Vec<f32>, String> {
         let slot = self.check_ship(ship)?;
         let mut out = vec![0.0; OBS_DIM];

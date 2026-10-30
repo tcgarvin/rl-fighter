@@ -21,6 +21,7 @@ pub mod commander;
 pub mod fighter;
 pub mod gunship;
 pub mod orders;
+pub mod random_commander;
 pub mod strafer;
 
 use crate::DT;

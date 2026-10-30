@@ -37,6 +37,8 @@ export interface WasmMatch {
   team_state(team: number): Float32Array;
   hangar_hulls(team: number): Uint16Array;
   convoy(): Float32Array;
+  /** v5: the last step's order reward per ship (SIM_SPEC §8). */
+  order_rewards?(): Float32Array;
 }
 
 export interface SimModule {
@@ -47,6 +49,8 @@ export interface SimModule {
   /** v4: sim versions whose pilots fly in this build. */
   pilot_compat_versions(): Uint32Array;
   pilot_compatible(version: number): boolean;
+  /** v5: JSON {version: obs width} of the obs prefix a pilot of that sim version reads. */
+  pilotObsDimsJson?(): string;
   arenaRadiusForMission(mission: string, nShips: number): number;
   /** WP-S2: JSON [{name, mission, fleets}] of the mission's default rosters (first = default; deathmatch "[]"). */
   missionRostersJson?(mission: string): string;
@@ -75,6 +79,9 @@ export interface SimLayout {
   simVersion: number;
   /** Sim versions whose pilots this build flies (v4; just simVersion before). */
   pilotCompat: number[];
+  /** v5: per pilot-compatible sim version, the obs prefix width its pilots read
+   * (sim::PILOT_OBS_DIMS: 385 for v3/v4, 403 for v5). Older wasm: OBS_DIM for all. */
+  pilotObsDims: Record<number, number>;
   obsDim: number;
   actionWidth: number;
   shipStride: number;
@@ -87,10 +94,17 @@ export interface SimLayout {
 
 /** Read the module's static constants once. */
 export function simLayout(sim: SimModule): SimLayout {
+  const pilotCompat = typeof sim.pilot_compat_versions === "function" ? Array.from(sim.pilot_compat_versions()) : [sim.sim_version()];
+  const obsDim = sim.OBS_DIM();
+  const pilotObsDims: Record<number, number> =
+    typeof sim.pilotObsDimsJson === "function"
+      ? (JSON.parse(sim.pilotObsDimsJson()) as Record<number, number>)
+      : Object.fromEntries(pilotCompat.map((v) => [v, obsDim]));
   return {
     simVersion: sim.sim_version(),
-    pilotCompat: typeof sim.pilot_compat_versions === "function" ? Array.from(sim.pilot_compat_versions()) : [sim.sim_version()],
-    obsDim: sim.OBS_DIM(),
+    pilotCompat,
+    pilotObsDims,
+    obsDim,
     actionWidth: sim.ACTION_WIDTH(),
     shipStride: sim.SHIP_STRIDE(),
     throttleOffset: sim.SHIP_THROTTLE_OFFSET(),
@@ -99,6 +113,19 @@ export function simLayout(sim: SimModule): SimLayout {
     projectileStride: sim.PROJECTILE_STRIDE(),
     eventStride: sim.EVENT_STRIDE(),
   };
+}
+
+/**
+ * The obs width a pilot trained under sim `version` reads: the first that many floats of
+ * `WasmMatch.obs` (SIM_VERSION 5 appends the order block after the 385 a v3/v4 pilot
+ * knows). Throws for a version this wasm does not fly.
+ */
+export function pilotObsDim(layout: SimLayout, version: number): number {
+  const dim = layout.pilotObsDims[version];
+  if (dim === undefined || !Number.isInteger(dim) || dim < 1 || dim > layout.obsDim) {
+    throw new Error(`no obs width for a sim_version ${version} pilot in this wasm (it flies ${layout.pilotCompat.join(", ")})`);
+  }
+  return dim;
 }
 
 /** `{ hulls: [[name, yaml]], weapons: yaml, info }`, from tools/build_bundle.py. */

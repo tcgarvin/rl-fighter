@@ -13,7 +13,9 @@
 //! a launch that cannot happen and a waypoint for the wrong ship are refused; squad
 //! members and orders that are not valid are sanitised (dropped, or the order
 //! replaced by `Order::None`). Every command's outcome is reported in
-//! `Match.command_results`. Pilots do not see orders in stage A.
+//! `Match.command_results`. Pilots do not see orders in stage A; from v5 every
+//! ship's own order is in its obs (`order` module, SIM_SPEC §7.2) and pays the order
+//! reward (§8).
 
 use crate::actions::ShipAction;
 use crate::data::{Catalogue, HullId};
@@ -54,6 +56,10 @@ pub enum CommanderMode {
     Scripted,
     /// The caller submits commands (`Match::submit_command`) before a slow-tick step.
     External,
+    /// v5: the scripted commander's logistics with random squads and orders, drawn
+    /// from the commander's own rng streams (`scripted::random_commander`), for
+    /// training pilots to follow any order.
+    Random,
 }
 
 impl CommanderMode {
@@ -61,6 +67,7 @@ impl CommanderMode {
         match self {
             CommanderMode::Scripted => "scripted",
             CommanderMode::External => "external",
+            CommanderMode::Random => "random",
         }
     }
 
@@ -68,6 +75,7 @@ impl CommanderMode {
         match name {
             "scripted" => Some(CommanderMode::Scripted),
             "external" => Some(CommanderMode::External),
+            "random" => Some(CommanderMode::Random),
             _ => None,
         }
     }
@@ -376,6 +384,13 @@ impl Match {
             batches[t] = match self.cfg.commanders[t] {
                 CommanderMode::External => inbox,
                 CommanderMode::Scripted => scripted::commander::commands(self, cat, team),
+                CommanderMode::Random => {
+                    // Its own streams (cloned out and back: `commands` reads the match).
+                    let mut st = self.random_commander.clone();
+                    let cmds = scripted::random_commander::commands(self, cat, team, &mut st);
+                    self.random_commander = st;
+                    cmds
+                }
             };
         }
         for (team, batch) in batches.into_iter().enumerate() {

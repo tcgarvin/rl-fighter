@@ -56,7 +56,7 @@ import rlf_sim
 from numpy.typing import NDArray
 
 from spacefight.env.rosters import CARRIER_BATTLE, CONVOY_ESCORT, RANDOM, SCRIPTED
-from spacefight.env.rust_env import OBS_LAYOUT, OBS_SLOTS, ORDERS_SUPPORTED
+from spacefight.env.rust_env import OBS_LAYOUT, OBS_SLOTS
 from spacefight.eval import features as F
 from spacefight.eval.controllers import Controller, idle_actions, make_controller
 from spacefight.eval.fleet import hull_names_by_id
@@ -577,10 +577,8 @@ def run_scenario(
     """Play one mission under one commander mode; the tracker of side ``a``.
 
     Raises:
-        RuntimeError: The sim has no order block, or a match did not end in time.
+        RuntimeError: A match did not end in time.
     """
-    if not ORDERS_SUPPORTED:
-        raise RuntimeError("the order-following eval needs SIM_VERSION >= 5")
     me: MissionEnv = build_mission_env(
         mission,
         cfg.n_per_scenario,

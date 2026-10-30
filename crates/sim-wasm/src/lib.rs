@@ -32,6 +32,54 @@ pub fn pilot_compatible(version: u32) -> bool {
     sim::pilot_compatible(version)
 }
 
+/// v5: the obs width a pilot trained under sim `version` consumes (`obs[:width]`,
+/// `sim::PILOT_OBS_DIMS`: 385 for v3 and v4 pilots, 403 for v5); throws for a version
+/// that does not fly in this build. The live page feeds a policy only that prefix.
+#[wasm_bindgen(js_name = pilotObsDim)]
+pub fn pilot_obs_dim(version: u32) -> Result<usize, JsError> {
+    sim::pilot_obs_dim(version).ok_or_else(|| {
+        JsError::new(&format!(
+            "a sim_version {version} pilot does not fly in this build (SIM_VERSION {})",
+            sim::SIM_VERSION
+        ))
+    })
+}
+
+/// v5: `sim::PILOT_OBS_DIMS` as JSON, `{"3": 385, "4": 385, "5": 403}`.
+#[wasm_bindgen(js_name = pilotObsDimsJson)]
+pub fn pilot_obs_dims_json() -> String {
+    let body: Vec<String> = sim::PILOT_OBS_DIMS
+        .iter()
+        .map(|(v, d)| format!("\"{v}\":{d}"))
+        .collect();
+    format!("{{{}}}", body.join(","))
+}
+
+/// v5: the obs layout as JSON, `{"blocks": [[name, offset, width], ...], "slots":
+/// [[name, records], ...]}` (`sim::obs::OBS_LAYOUT` / `OBS_SLOTS`, in order).
+#[wasm_bindgen(js_name = obsLayoutJson)]
+pub fn obs_layout_json() -> String {
+    let blocks: Vec<String> = sim::obs::OBS_LAYOUT
+        .iter()
+        .map(|(n, o, w)| format!("[\"{n}\",{o},{w}]"))
+        .collect();
+    let slots: Vec<String> = sim::obs::OBS_SLOTS
+        .iter()
+        .map(|(n, k)| format!("[\"{n}\",{k}]"))
+        .collect();
+    format!(
+        "{{\"blocks\":[{}],\"slots\":[{}]}}",
+        blocks.join(","),
+        slots.join(",")
+    )
+}
+
+/// v5: ship slots a training env pads its rosters to (`sim::setup::MAX_TRAIN_SHIPS`).
+#[wasm_bindgen(js_name = MAX_TRAIN_SHIPS)]
+pub fn max_train_ships() -> usize {
+    sim::setup::MAX_TRAIN_SHIPS
+}
+
 fn mission_kind(name: &str) -> Result<sim::mission::MissionKind, JsError> {
     sim::mission::MissionKind::from_name(name)
         .ok_or_else(|| JsError::new(&format!("unknown mission {name:?}")))
@@ -340,9 +388,15 @@ impl WasmMatch {
         self.core.head_valid(ship).map_err(js_err)
     }
 
-    /// Ship `ship`'s observation (`OBS_DIM` floats, a copy).
+    /// Ship `ship`'s observation (`OBS_DIM` floats, a copy; v5: a v3/v4 pilot reads
+    /// the first `pilotObsDim(version)`).
     pub fn obs(&self, ship: u32) -> Result<Vec<f32>, JsError> {
         self.core.obs(ship).map_err(js_err)
+    }
+
+    /// v5: the last step's order reward per ship (SIM_SPEC §8), ship order.
+    pub fn order_rewards(&self) -> Vec<f32> {
+        self.core.order_rewards()
     }
 
     pub fn tick(&self) -> u32 {

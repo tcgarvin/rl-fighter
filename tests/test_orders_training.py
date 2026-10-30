@@ -336,12 +336,7 @@ def test_convoys_cannot_swap_sides_and_classes_name_the_learner_side() -> None:
 
 
 def test_orders_env_pads_mission_rosters_to_twelve_slots() -> None:
-    """On SIM_VERSION 4 (one clock and commanders per env) mission rosters run
-    with per_roster_clock off; on v5 each roster brings its own."""
-    dist = OrdersDistribution(
-        random_commander_p=0.0 if not rust_env.ORDERS_SUPPORTED else 0.5
-    )
-    sampler = make_sampler(dist, 0)
+    sampler = make_sampler(OrdersDistribution(), 0)
     env = rust_env.RustVecEnv(
         ASSETS,
         12,
@@ -349,24 +344,14 @@ def test_orders_env_pads_mission_rosters_to_twelve_slots() -> None:
         0,
         n_threads=THREADS,
         roster_sampler=sampler,
-        per_roster_clock=rust_env.ORDERS_SUPPORTED,
     )
-    assert env.n_ships == MAX_TRAIN_SHIPS
+    assert env.n_ships == MAX_TRAIN_SHIPS == rust_env.MAX_TRAIN_SHIPS
     for i, roster in enumerate(env.rosters):
         n = roster.n_ships
         assert (env.team[i, :n] >= 0).all() and (env.team[i, n:] == -1).all()
-
-
-@pytest.mark.skipif(rust_env.ORDERS_SUPPORTED, reason="v4 refusals")
-def test_v4_refuses_per_roster_commanders_and_clocks() -> None:
-    env = rust_env.RustVecEnv(ASSETS, 2, [["fighter"], ["fighter"]], 0, max_ships=12)
-    carrier = Roster.of(["carrier", "fighter"], ["carrier", "fighter"], CARRIER_BATTLE)
-    with pytest.raises(ValueError, match="clock"):
-        env.set_next_roster(0, carrier)
-    with pytest.raises(ValueError, match="commanders"):
-        env.set_next_roster(
-            0, Roster.of(["fighter"], ["fighter"], commanders=(RANDOM, SCRIPTED))
-        )
+    # Each roster's own commanders and clock reach the sim: run every env to its
+    # end on scripts and check the clock of the ones that timed out.
+    assert {c for r in env.rosters for c in r.commanders} == {RANDOM, SCRIPTED}
 
 
 # ------------------------------------------------------------------ the trainer
@@ -386,10 +371,8 @@ def _orders_config(tmp_path: Path, init: str, **overrides: object) -> PPOConfig:
         "learner_side": "random",
         "beta_start": 0.0,
         "critic_warmup_updates": 0,
+        "obs_dim": ORDER_OBS_DIM,
     }
-    if not rust_env.ORDERS_SUPPORTED:
-        base["roster_overrides"] = {"random_commander_p": 0.0}
-        base["per_roster_clock"] = False
     base.update(overrides)
     return PPOConfig.preset(init, **base)
 
@@ -425,10 +408,7 @@ def test_learner_and_snapshot_rows_never_include_capital_ships(
         pool_seed=[str(v1_like)],
         pool_seed_p=1.0,
         opponent_bands=[[0, 0.0, 0.5, 0.5]],
-        roster_overrides={
-            **({} if rust_env.ORDERS_SUPPORTED else {"random_commander_p": 0.0}),
-            "mission_weights": [0.0, 0.5, 0.5],
-        },
+        roster_overrides={"mission_weights": [0.0, 0.5, 0.5]},
         n_updates=1,
     )
     trainer = SpikeTrainer(cfg, tmp_path / "run")
@@ -481,7 +461,7 @@ def test_orders_ppo_logs_both_reward_parts_and_the_anchor(
         kl_anchor=str(v1_like),
         kl_anchor_coeff=0.1,
         n_updates=2,
-        order_reward_weight=0.3 if rust_env.ORDERS_SUPPORTED else 0.0,
+        order_reward_weight=0.3,
     )
     trainer = SpikeTrainer(cfg, tmp_path / "run")
     rows = [trainer.run_update() for _ in range(2)]
@@ -490,15 +470,7 @@ def test_orders_ppo_logs_both_reward_parts_and_the_anchor(
         assert last[key] is not None, key
     total = float(last["reward_team"]) + float(last["reward_order_weighted"])  # type: ignore[arg-type]
     assert last["reward_mean"] == pytest.approx(total, abs=1e-6)
-    if not rust_env.ORDERS_SUPPORTED:
-        assert last["has_order_share"] == 0.0 and last["kl_anchor_share"] == 1.0
-
-
-def test_order_reward_needs_an_order_sim(tmp_path: Path, v1_like: Path) -> None:
-    if rust_env.ORDERS_SUPPORTED:
-        pytest.skip("v5 has order rewards")
-    with pytest.raises(ValueError, match="SIM_VERSION"):
-        SpikeTrainer(
-            _orders_config(tmp_path, str(v1_like), order_reward_weight=1.0),
-            tmp_path / "run",
-        )
+    assert 0.0 < float(last["has_order_share"]) < 1.0  # type: ignore[arg-type]
+    assert float(last["kl_anchor_share"]) == pytest.approx(  # type: ignore[arg-type]
+        1.0 - float(last["has_order_share"]), abs=0.05  # type: ignore[arg-type]
+    )

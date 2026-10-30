@@ -45,6 +45,7 @@ from spacefight.eval.orders import (
 from spacefight.rl.spike_policy import (
     OBS_DIM,
     ORDER_OBS_DIM,
+    PILOT_OBS_DIMS,
     SpikeActor,
     SpikeCritic,
     save_policy,
@@ -411,6 +412,7 @@ def test_export_flies_a_v1_width_pilot_in_an_order_sim(tmp_path: Path) -> None:
         wasm_sim_version=5,
         wasm_obs_dim=ORDER_OBS_DIM,
         wasm_pilot_compat=[3, 4, 5],
+        wasm_pilot_obs_dims=PILOT_OBS_DIMS,
     )
     assert manifest["obs_dim"] == OBS_DIM and manifest["sim_obs_dim"] == ORDER_OBS_DIM
     assert manifest["layers"][0]["in"] == OBS_DIM
@@ -446,12 +448,7 @@ def test_export_takes_a_403_wide_pilot_and_refuses_mismatches(tmp_path: Path) ->
         )
 
 
-def test_mission_env_takes_roster_commanders_on_v5_only() -> None:
-    from spacefight.env import rust_env
-
-    if rust_env.ORDERS_SUPPORTED:
-        me = build_mission_env(CARRIER_BATTLE, 6, 0, "random", n_threads=2)
-        assert isinstance(me.env, RustVecEnv)
-    else:
-        with pytest.raises(ValueError):
-            build_mission_env(CARRIER_BATTLE, 6, 0, "random", n_threads=2)
+def test_mission_env_plays_the_random_commander() -> None:
+    me = build_mission_env(CARRIER_BATTLE, 6, 0, "random", n_threads=2)
+    assert isinstance(me.env, RustVecEnv)
+    assert all(r.commanders == ("random", "random") for r in me.env.rosters)

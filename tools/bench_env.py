@@ -6,6 +6,13 @@ drawn with numpy into a bank before timing and copied into `env.actions` each st
 so the timed loop measures the env plus the per-step Python call and copy, not the
 random number generator.
 
+SIM_VERSION 5 adds the stage B training shapes (M3 plan, "Stage B decisions"): carrier
+battle and convoy escort rosters padded to ``MAX_TRAIN_SHIPS`` = 12 slots, one team
+under the random commander and one under the script, and a 4v4 deathmatch padded to
+12. They also call ``scripted_actions()`` every step before the random actions go in,
+as the trainer does for its script labels, so their steps/s is the sim side of a
+stage B rollout step.
+
     uv run maturin develop -m crates/sim-py/Cargo.toml --release
     uv run python tools/bench_env.py [--assert-floors]
 """
@@ -32,6 +39,20 @@ class Scenario:
     n_threads: int
     target: float
     floor: float
+    # SIM_VERSION 5 training shapes (module docstring).
+    mission: str | None = None
+    max_ships: int | None = None
+    labels: bool = False
+
+
+# Stage B training rosters (M3 plan): carrier + 5 strike craft a side (2 jump in, 3
+# docked); convoy of 4 freighters + 3 escorts against 5. Both fill 12 slots.
+CARRIER_SIDE = ["carrier", "fighter", "strafer", "fighter", "gunship", "fighter"]
+CONVOY_TRAIN = [
+    ["freighter"] * 4 + ["fighter", "strafer", "fighter"],
+    ["fighter", "fighter", "strafer", "gunship", "fighter"],
+]
+TRAIN_SLOTS = 12
 
 
 SCENARIOS = [
@@ -56,7 +77,48 @@ SCENARIOS = [
         2000,
         1000,
     ),
+    # SIM_VERSION 5, measured 2026-10-30 (see SIM_SPEC §13).
+    Scenario(
+        "4v4 mixed @12 +labels",
+        [
+            ["fighter", "strafer", "gunship", "fighter"],
+            ["fighter", "strafer", "gunship", "fighter"],
+        ],
+        16,
+        1200,
+        600,
+        max_ships=TRAIN_SLOTS,
+        labels=True,
+    ),
+    Scenario(
+        "carrier @12 +labels",
+        [CARRIER_SIDE, CARRIER_SIDE],
+        16,
+        600,
+        300,
+        mission="carrier_battle",
+        max_ships=TRAIN_SLOTS,
+        labels=True,
+    ),
+    Scenario(
+        "convoy @12 +labels",
+        CONVOY_TRAIN,
+        16,
+        600,
+        300,
+        mission="convoy_escort",
+        max_ships=TRAIN_SLOTS,
+        labels=True,
+    ),
 ]
+
+
+def commanders_for(scenario: Scenario) -> list[str] | None:
+    """Random v scripted (the stage B mix) where the sim has a random commander."""
+    if scenario.max_ships is None:
+        return None
+    modes = list(getattr(rlf_sim, "COMMANDER_MODES", []))
+    return ["random", "scripted"] if "random" in modes else None
 
 
 @dataclass(frozen=True)
@@ -68,8 +130,17 @@ class Result:
 
 
 def run(scenario: Scenario, n_envs: int, warmup: int, steps: int, seed: int) -> Result:
+    kwargs: dict[str, object] = {}
+    if scenario.mission is not None:
+        kwargs["mission"] = scenario.mission
+        kwargs["time_limit_s"] = rlf_sim.mission_time_limit_s(scenario.mission)
+    if scenario.max_ships is not None:
+        kwargs["max_ships"] = scenario.max_ships
+    commanders = commanders_for(scenario)
+    if commanders is not None:
+        kwargs["commanders"] = commanders
     env = rlf_sim.VecEnv(
-        ASSETS, n_envs, scenario.fleets, seed, n_threads=scenario.n_threads
+        ASSETS, n_envs, scenario.fleets, seed, n_threads=scenario.n_threads, **kwargs
     )
     rng = np.random.default_rng(seed)
     bank = (rng.random((ACTION_BANK, *env.actions.shape)) * ACTION_HIGHS).astype(
@@ -77,11 +148,15 @@ def run(scenario: Scenario, n_envs: int, warmup: int, steps: int, seed: int) -> 
     )
     actions = env.actions
     for k in range(warmup):
+        if scenario.labels:
+            env.scripted_actions()
         np.copyto(actions, bank[k % ACTION_BANK])
         env.step()
     episodes_before = int(env.episode_count.sum())
     start = time.perf_counter()
     for k in range(steps):
+        if scenario.labels:
+            env.scripted_actions()
         np.copyto(actions, bank[k % ACTION_BANK])
         env.step()
     elapsed = time.perf_counter() - start
@@ -101,6 +176,11 @@ def main() -> int:
     parser.add_argument("--steps", type=int, default=2000)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument(
+        "--only",
+        default=None,
+        help="comma-separated scenario names to run (default: all)",
+    )
+    parser.add_argument(
         "--assert-floors",
         action="store_true",
         help="exit non-zero if any scenario is below its SIM_SPEC §13 floor",
@@ -112,12 +192,15 @@ def main() -> int:
         f"warmup={args.warmup}  steps={args.steps}"
     )
     header = (
-        f"{'scenario':<22}{'threads':>8}{'steps/s':>11}{'match-ticks/s':>15}"
+        f"{'scenario':<24}{'threads':>8}{'steps/s':>11}{'match-ticks/s':>15}"
         f"{'target':>9}{'floor':>8}{'episodes':>10}  status"
     )
     print(header)
     failed = []
+    only = set(args.only.split(",")) if args.only else None
     for scenario in SCENARIOS:
+        if only is not None and scenario.name not in only:
+            continue
         r = run(scenario, args.n_envs, args.warmup, args.steps, args.seed)
         if r.steps_per_s < scenario.floor:
             status = "BELOW FLOOR"
@@ -127,7 +210,7 @@ def main() -> int:
         else:
             status = "ok"
         print(
-            f"{scenario.name:<22}{scenario.n_threads:>8}{r.steps_per_s:>11,.0f}"
+            f"{scenario.name:<24}{scenario.n_threads:>8}{r.steps_per_s:>11,.0f}"
             f"{r.match_ticks_per_s:>15,.0f}{scenario.target:>9,.0f}"
             f"{scenario.floor:>8,.0f}{r.episodes:>10}  {status}"
         )

@@ -22,7 +22,8 @@
 //! deathmatch flown under the scripted commander: there the commander's orders are
 //! advisory (the command overlay shows them), so the default deathmatch, the fleet
 //! pilot's training and eval opponent and the v3 golden traces, is unchanged. An
-//! external commander's orders are followed in every mission (stage B trains on them).
+//! external or (v5) random commander's orders are followed in every mission (stage B
+//! trains on them).
 
 use super::Manoeuvre;
 use crate::command::{CommanderMode, Order};

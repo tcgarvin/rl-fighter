@@ -89,7 +89,7 @@ def _observations(rng: np.random.Generator, n: int) -> np.ndarray:
     for _ in range(120):
         env.scripted_actions()
         env.step()
-        real.append(np.asarray(env.obs).reshape(-1, OBS_DIM).copy())
+        real.append(np.asarray(env.obs)[..., :OBS_DIM].reshape(-1, OBS_DIM).copy())
     picked = np.concatenate(real)[:: max(1, len(real) * 4 // (n // 2))][: n // 2]
     obs[: len(picked)] = picked
     return obs
@@ -210,3 +210,28 @@ def test_export_refuses_an_obs_dim_mismatch(tmp_path: Path) -> None:
     _random_checkpoint(ckpt, seed=3)
     with pytest.raises(ExportError, match="obs_dim"):
         export(ckpt, tmp_path / "out", wasm_sim_version=2, wasm_obs_dim=OBS_DIM + 1)
+
+
+def test_export_reads_the_pilot_obs_width_of_its_version(tmp_path: Path) -> None:
+    """SIM_VERSION 5: a v3/v4-shaped (385-input) pilot exports into a 403-wide wasm,
+    since it reads the obs prefix of its own version (PILOT_OBS_DIMS)."""
+    ckpt = tmp_path / "ckpt.pt"
+    _random_checkpoint(ckpt, 4)  # stamped sim_version 2
+    dims = {2: OBS_DIM, 3: OBS_DIM, 4: OBS_DIM, 5: OBS_DIM + 18}
+    manifest = export(
+        ckpt,
+        tmp_path / "out",
+        wasm_sim_version=5,
+        wasm_obs_dim=OBS_DIM + 18,
+        wasm_pilot_compat=[2, 3, 4, 5],
+        wasm_pilot_obs_dims=dims,
+    )
+    assert (manifest["sim_version"], manifest["obs_dim"]) == (2, OBS_DIM)
+    with pytest.raises(ExportError, match="obs_dim"):
+        export(
+            ckpt,
+            tmp_path / "out2",
+            wasm_sim_version=5,
+            wasm_obs_dim=OBS_DIM + 18,
+            wasm_pilot_compat=[2, 3, 4, 5],
+        )

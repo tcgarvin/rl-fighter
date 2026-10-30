@@ -45,6 +45,7 @@ import torch
 from numpy.typing import NDArray
 
 from spacefight.env.rosters import (
+    RosterDistribution,
     RosterSampler,
     hull_names_by_id,
     resolve_distribution,
@@ -59,6 +60,7 @@ from spacefight.rl.spike_policy import (
     FIRE_NONE,
     HEAD_GROUPS,
     OBS_DIM,
+    policy_obs,
     THROTTLE_HOLD,
     HeadMasks,
     SpikeActor,
@@ -238,7 +240,10 @@ def make_env(
             n_threads=n_threads,
             reaction_ticks=reaction_ticks,
         )
-    sampler = RosterSampler(resolve_distribution(rosters), seed)
+    distribution = resolve_distribution(rosters)
+    if not isinstance(distribution, RosterDistribution):
+        raise ValueError(f"BC collects fleet rosters only, not {rosters!r}")
+    sampler = RosterSampler(distribution, seed)
     return RustVecEnv(
         assets_dir,
         n_envs,
@@ -318,7 +323,7 @@ def collect(
             labels[real], head_valid, dart_p, rng
         )
         rows = slice(filled, filled + keep.size)
-        out["obs"][rows] = env.obs.reshape(-1, OBS_DIM)[keep]
+        out["obs"][rows] = policy_obs(env.obs).reshape(-1, OBS_DIM)[keep]
         out["labels"][rows] = labels[keep]
         out["executed"][rows] = executed[keep]
         out["noised"][rows] = noised[keep]
@@ -744,7 +749,7 @@ def collect_on_policy(
         learner_slot = (env.team == learner_team[:, None]).reshape(-1)
         labels = env.scripted_actions().reshape(-1, ACTION_WIDTH).copy()
         learn = np.flatnonzero(learner_slot & env.act_mask.reshape(-1))
-        obs = env.obs.reshape(-1, OBS_DIM)[learn]
+        obs = policy_obs(env.obs).reshape(-1, OBS_DIM)[learn]
         policy = act_numpy(
             actor,
             obs,
