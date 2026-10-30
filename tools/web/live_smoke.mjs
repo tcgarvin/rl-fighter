@@ -41,7 +41,7 @@ const modes = (flags.modes ?? "draft,carrier_battle,convoy_escort,2v2,3v3,4v4").
 const { mulberry32 } = await importRepo("web/src/live/policy.js");
 const { LiveMatch } = await importRepo("web/src/live/match.ts");
 const { parseRosterMode, matchupLine } = await importRepo("web/src/live/roster.ts");
-const { availableMissions, missionRoster, parseMission, missionBrief, MISSION_TITLES } = await importRepo("web/src/live/missions.ts");
+const { availableMissions, defaultRosters, missionRoster, parseMission, missionBrief, MISSION_TITLES } = await importRepo("web/src/live/missions.ts");
 const { assembleBundle, parseManifest } = await importRepo("web/src/live/bundle.ts");
 const { TICK_BUDGET_MS } = await importRepo("web/src/live/sim.ts");
 
@@ -53,6 +53,7 @@ const bundle = assembleBundle(manifest, sim, policyManifest, weights, readJson("
 const rules = flags.hulls ? { ...manifest.roster, hulls: flags.hulls.split(",") } : manifest.roster;
 // Node has no renderer: every catalogue hull counts as drawable here.
 const available = availableMissions(bundle.layout.simVersion, bundle.catalogue.info, () => true);
+const rosters = defaultRosters(sim);
 
 const wasmKiB = fs.statSync(path.join(bundleDir, "pkg/sim_wasm_bg.wasm")).size / 1024;
 console.log(
@@ -73,7 +74,7 @@ for (let i = 0; i < Number(nArg); i++) {
     failed = true;
     continue;
   }
-  const roster = missionRoster(mission, parseRosterMode(mission === "deathmatch" ? mode : null), rules, bundle.catalogue.info, mulberry32(seed ^ 0x5bd1e995));
+  const roster = missionRoster(mission, parseRosterMode(mission === "deathmatch" ? mode : null), rules, bundle.catalogue.info, mulberry32(seed ^ 0x5bd1e995), rosters);
   const match = new LiveMatch({ ...bundle, settings: manifest.match, fleets: roster.fleets, seed, mission });
   const b = missionBrief(mission, match.convoy);
   const brief = stripTags(`${b.headline ? `${b.headline} ` : ""}${b.brief}`);
@@ -93,7 +94,7 @@ for (let i = 0; i < Number(nArg); i++) {
     peakPresent = Math.max(peakPresent, match.ships.filter((s) => match.active(s)).length);
     if (match.ships.some((s) => !Number.isFinite(s.x) || !Number.isFinite(s.y) || !Number.isFinite(s.hp))) nonFinite = true;
   }
-  const label = `match ${i} seed ${seed} ${mission === "deathmatch" ? mode : mission} [${roster.fleets.map((f) => f.join("+")).join(" vs ")}]`;
+  const label = `match ${i} seed ${seed} ${mission === "deathmatch" ? mode : `${mission} (${roster.name ?? "drafted"})`} [${roster.fleets.map((f) => f.join("+")).join(" vs ")}]`;
   const fail = (why) => {
     console.error(`live smoke: FAIL ${label}: ${why}`);
     failed = true;

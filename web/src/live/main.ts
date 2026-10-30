@@ -22,7 +22,7 @@ import { fetchManifest, loadBundle, type Bundle, type BundleManifest } from "./b
 import { CommandLog } from "./cmdlog.ts";
 import { Hud, type Tally } from "./hud.ts";
 import { LiveMatch } from "./match.ts";
-import { MISSION_TAGS, availableMissions, missionBrief, missionFor, missionRoster, parseMission, type MissionName } from "./missions.ts";
+import { MISSION_TAGS, availableMissions, defaultRosters, missionBrief, missionFor, missionRoster, parseMission, type DefaultRosters, type MissionName } from "./missions.ts";
 import { Muster } from "./muster.ts";
 import { parseRosterMode, type Roster } from "./roster.ts";
 import { SIM_DT, SIM_HZ } from "./sim.ts";
@@ -68,6 +68,7 @@ const cmdlog = new CommandLog(document.getElementById("cmdlog")!, (hull) => (wor
 
 let bundle: Bundle;
 let missions: MissionName[] = ["deathmatch"];
+let rosters: DefaultRosters = {};
 let pending: Bundle | null = null;
 let failedBundleId: string | null = null;
 let checking = false;
@@ -105,6 +106,7 @@ function applyBundle(b: Bundle): void {
   bundle = b;
   world.setCatalogue(b.catalogue.info);
   missions = availableMissions(b.layout.simVersion, b.catalogue.info, (h) => Boolean(hullSpec(h)));
+  rosters = defaultRosters(b.sim);
   const missing = b.catalogue.hulls.map(([name]) => name).filter((n) => !thumbnails[n] && hullSpec(n));
   if (missing.length) Object.assign(thumbnails, world.thumbnails(missing));
 }
@@ -114,6 +116,7 @@ async function loadDrawable(manifest: BundleManifest): Promise<Bundle> {
   const b = await loadBundle(bundleBase, manifest);
   const missing = b.manifest.roster.hulls.filter((h) => !hullSpec(h));
   if (missing.length) throw new Error(`bundle ${b.manifest.bundle_id} rosters hulls this page has no model for: ${missing.join(", ")}`);
+  defaultRosters(b.sim); // throws here, on a pending bundle, rather than at the next match
   return b;
 }
 
@@ -147,7 +150,7 @@ function startMatch(): void {
   const seed = nextSeed;
   nextSeed = (nextSeed + 1) % 1_000_000_000;
   const mission = missionFor(seed, missions, pinnedMission);
-  roster = missionRoster(mission, rosterMode, bundle.manifest.roster, bundle.catalogue.info, mulberry32(seed ^ ROSTER_SALT));
+  roster = missionRoster(mission, rosterMode, bundle.manifest.roster, bundle.catalogue.info, mulberry32(seed ^ ROSTER_SALT), rosters);
   const next = new LiveMatch({ ...bundle, settings: bundle.manifest.match, fleets: roster.fleets, seed, mission });
   world.setArena(next.arenaRadius);
   world.beginMatch(next);

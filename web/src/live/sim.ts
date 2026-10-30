@@ -48,6 +48,8 @@ export interface SimModule {
   pilot_compat_versions(): Uint32Array;
   pilot_compatible(version: number): boolean;
   arenaRadiusForMission(mission: string, nShips: number): number;
+  /** WP-S2: JSON [{name, mission, fleets}] of the mission's default rosters (first = default; deathmatch "[]"). */
+  missionRostersJson?(mission: string): string;
   missionTimeLimitTicks(mission: string): number;
   MAX_SHIPS(): number;
   COMMAND_TICKS(): number;

@@ -3,10 +3,11 @@
 // (assets/hulls/<name>/hull.yaml) is the source of truth for gameplay numbers and
 // mounts; the live page overlays them from the bundle catalogue (web/src/live/world.ts
 // mergeSpec), so these copies matter only where no bundle is loaded (the hull
-// turntable, the M3 art preview). Aligned with the YAML on 2026-10-30 for the
-// freighter (hp 900 -> 500, mass 260 -> 300, inertia 16000 -> 40000, shield 200/10 ->
-// 80/6, mains 3300 -> 3000 N, radius 13.5 -> 12, its collision bound) and the
-// fighter's hp (60 -> 80); the carrier's and the strike craft's mounts already match.
+// turntable, the M3 art preview). Aligned with the YAML on 2026-10-30, after WP-S2's
+// retune: freighter hp 900 -> 400, cap 14 -> 10.5, mass 260 -> 300, inertia 16000 ->
+// 40000, shield 200/10 -> 80/6, mains 3300 -> 3000 N, radius 13.5 -> 12 (its collision
+// bound); carrier hp 1500 -> 1000, cap 10 -> 8, mains 7000 -> 300 N, RCS 3500 -> 450 N;
+// fighter hp 60 -> 80. The strike craft's mounts already matched.
 // Weapon numbers in WEAPONS below are v1's; the sim's are assets/weapons.yaml.
 // Body frame: +x forward, +y port (left). Units: metres, kg, seconds.
 // Style modules convert mounts with mountToLocal() into three.js local space
@@ -102,19 +103,19 @@ export const HULLS = {
     length: 40,
     beam: 18,
     radius: 15,
-    hp: 1500,
+    hp: 1000,
     mass: 600,
     inertia: 90000,
-    speedCap: 10,
+    speedCap: 8,
     shield: { hp: 260, regenRate: 15, regenDelay: 5, radius: 24 },
     thrusters: [
-      { id: "thruster.main.l", pos: [-19.5, 4.5], dir: [1, 0], force: 7000, size: 2.6 },
-      { id: "thruster.main.c", pos: [-20, 0], dir: [1, 0], force: 7000, size: 2.6 },
-      { id: "thruster.main.r", pos: [-19.5, -4.5], dir: [1, 0], force: 7000, size: 2.6 },
-      { id: "thruster.rcs.fl", pos: [15, 8], dir: [0, -1], force: 3500, size: 1.1 },
-      { id: "thruster.rcs.fr", pos: [15, -8], dir: [0, 1], force: 3500, size: 1.1 },
-      { id: "thruster.rcs.rl", pos: [-14, 8.5], dir: [0, -1], force: 3500, size: 1.1 },
-      { id: "thruster.rcs.rr", pos: [-14, -8.5], dir: [0, 1], force: 3500, size: 1.1 },
+      { id: "thruster.main.l", pos: [-19.5, 4.5], dir: [1, 0], force: 300, size: 2.6 },
+      { id: "thruster.main.c", pos: [-20, 0], dir: [1, 0], force: 300, size: 2.6 },
+      { id: "thruster.main.r", pos: [-19.5, -4.5], dir: [1, 0], force: 300, size: 2.6 },
+      { id: "thruster.rcs.fl", pos: [15, 8], dir: [0, -1], force: 450, size: 1.1 },
+      { id: "thruster.rcs.fr", pos: [15, -8], dir: [0, 1], force: 450, size: 1.1 },
+      { id: "thruster.rcs.rl", pos: [-14, 8.5], dir: [0, -1], force: 450, size: 1.1 },
+      { id: "thruster.rcs.rr", pos: [-14, -8.5], dir: [0, 1], force: 450, size: 1.1 },
     ],
     turrets: [
       { id: "turret.flak.fore", pos: [12, 0], height: 2.2, rest: 0, arc: 270, slew: 90, weapon: "flak" },
@@ -135,10 +136,10 @@ export const HULLS = {
     length: 26,
     beam: 9,
     radius: 12,
-    hp: 500,
+    hp: 400,
     mass: 300,
     inertia: 40000,
-    speedCap: 14,
+    speedCap: 10.5,
     shield: { hp: 80, regenRate: 6, regenDelay: 5, radius: 15 },
     collision: [
       { pos: [8, 0], r: 4 },

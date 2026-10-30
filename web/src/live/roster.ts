@@ -21,6 +21,8 @@ export interface Roster {
   fleets: Fleets;
   /** Credits each side could spend; null for a fixed-size roster. */
   budget: number | null;
+  /** The sim's name for a mission roster ("wing of 8"), if it is one. */
+  name?: string;
 }
 
 const MAX_PER_SIDE = 4;

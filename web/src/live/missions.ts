@@ -4,13 +4,14 @@
 //
 // Mission *parameters* (arena, clock, convoy route, jump radius, hangar sizes, win
 // thresholds) are never set here: the page passes only the mission's name, and the
-// sim fills in its defaults (LiveMatch reads them back from the sim's views). Roster
-// choices are all in MISSION_ROSTERS and missionRoster() below; that is the one place
-// to swap in WP-S2's per-mission default rosters once the sim exposes them.
+// sim fills in its defaults (LiveMatch reads them back from the sim's views). Mission
+// rosters are the sim's too (`missionRostersJson`, balanced by the mission survey);
+// missionRoster() picks one, and only an older wasm without them falls back to the
+// drafts in FALLBACK_ROSTERS.
 
 import type { Rng } from "./policy.js";
 import { chooseRoster, draftSide, draftableHulls, type Roster, type RosterMode, type RosterRules } from "./roster.ts";
-import { ROLE_CARRIER, ROLE_TRANSPORT, type ConvoyState, type HullInfo } from "./sim.ts";
+import { ROLE_CARRIER, ROLE_TRANSPORT, type ConvoyState, type HullInfo, type SimModule } from "./sim.ts";
 import { TEAM_WORDS, teamSpan } from "./teams.ts";
 
 /** The sim's mission kind names (SIM_SPEC §10.3), in rotation order. */
@@ -42,13 +43,64 @@ const ALIASES: Record<string, MissionName> = {
   escort: "convoy_escort",
 };
 
+/** One of the sim's default rosters for a mission (sim::spec::MissionRosterView). */
+export interface MissionRosterSpec {
+  name: string;
+  fleets: [string[], string[]];
+}
+
+/** The sim's default rosters per mission; the first of each list is the default. */
+export type DefaultRosters = Partial<Record<MissionName, MissionRosterSpec[]>>;
+
+function isFleet(x: unknown): x is string[] {
+  return Array.isArray(x) && x.length > 0 && x.every((h) => typeof h === "string");
+}
+
 /**
- * Strike craft per side for each mission, as [min, max] (uniform draw), plus a little
- * budget headroom so a wing can include one heavier hull. Total ships stay well under
- * the sim's 20 (MAX_SHIPS): 2 carriers + 2 × 7, or 5 freighters + 4 + 7.
- * WP-S2: replace these (or missionRoster) with the sim's default rosters.
+ * Read the sim's default rosters (`missionRostersJson`), checked at the boundary. A
+ * wasm without the call (before WP-S2) gives none, and the page drafts its own.
  */
-export const MISSION_ROSTERS = {
+export function defaultRosters(sim: Pick<SimModule, "missionRostersJson">): DefaultRosters {
+  const out: DefaultRosters = {};
+  if (typeof sim.missionRostersJson !== "function") return out;
+  for (const mission of MISSIONS) {
+    const raw: unknown = JSON.parse(sim.missionRostersJson(mission));
+    if (!Array.isArray(raw)) throw new Error(`missionRostersJson(${mission}) is not an array`);
+    out[mission] = raw.map((r: unknown, i) => {
+      const rec = r as { name?: unknown; fleets?: unknown };
+      const fleets = rec.fleets;
+      if (typeof rec.name !== "string" || !Array.isArray(fleets) || fleets.length !== 2 || !isFleet(fleets[0]) || !isFleet(fleets[1])) {
+        throw new Error(`missionRostersJson(${mission})[${i}] is not {name, fleets: [[...], [...]]}`);
+      }
+      return { name: rec.name, fleets: [fleets[0], fleets[1]] };
+    });
+  }
+  return out;
+}
+
+// The page plays the sim's default roster this often and the alternatives otherwise.
+const DEFAULT_ROSTER_SHARE = 0.5;
+
+/**
+ * Pick one of the sim's rosters for a match and keep it flyable: a strike craft the
+ * champion is not certified for (an older champion's replay) is swapped for one it is.
+ */
+function fromSim(list: MissionRosterSpec[], rules: RosterRules, info: Record<string, HullInfo>, rng: Rng): Roster {
+  const r = rng() < DEFAULT_ROSTER_SHARE || list.length === 1 ? list[0]! : list[1 + Math.floor(rng() * (list.length - 1))]!;
+  const flyable = draftableHulls(rules, info);
+  const swap = (hull: string): string => {
+    const role = info[hull]?.role;
+    if (!info[hull]) throw new Error(`the sim's roster ${r.name} names hull ${hull}, which is not in the catalogue`);
+    return role === ROLE_CARRIER || role === ROLE_TRANSPORT || flyable.includes(hull) ? hull : flyable[0]!;
+  };
+  return { fleets: [r.fleets[0].map(swap), r.fleets[1].map(swap)], budget: null, name: r.name };
+}
+
+/**
+ * Fallback drafts for a wasm without default rosters: strike craft per side as
+ * [min, max] (uniform), plus budget headroom for one heavier hull.
+ */
+export const FALLBACK_ROSTERS = {
   carrier_battle: { wing: [5, 7] as [number, number] },
   convoy_escort: {
     freighters: [3, 5] as [number, number],
@@ -98,18 +150,27 @@ function between([lo, hi]: [number, number], rng: Rng): number {
 function wing(n: number, rules: RosterRules, info: Record<string, HullInfo>, rng: Rng): string[] {
   const hulls = draftableHulls(rules, info);
   const cheapest = Math.min(...hulls.map((h) => info[h]!.cost));
-  return draftSide(hulls, info, cheapest * (n + MISSION_ROSTERS.headroomShips), n, n, rng);
+  return draftSide(hulls, info, cheapest * (n + FALLBACK_ROSTERS.headroomShips), n, n, rng);
 }
 
 /**
  * Both sides' fleets for one match of `mission`. Deathmatch drafts as before (`mode`:
- * ?fleets=). Carrier battle: a carrier and a mirrored wing a side (the sim jumps the
- * first few in and docks the rest). Convoy: team 0 is the freighters and their escort,
- * team 1 the larger strike force that jumps in.
+ * ?fleets=). The carrier battle and the convoy take one of the sim's default rosters
+ * (`rosters`, from defaultRosters()): a carrier and its wing a side (the sim jumps the
+ * first few in and docks the rest); the freighters and their escort against raiders.
  */
-export function missionRoster(mission: MissionName, mode: RosterMode, rules: RosterRules, info: Record<string, HullInfo>, rng: Rng): Roster {
+export function missionRoster(
+  mission: MissionName,
+  mode: RosterMode,
+  rules: RosterRules,
+  info: Record<string, HullInfo>,
+  rng: Rng,
+  rosters: DefaultRosters = {},
+): Roster {
   if (mission === "deathmatch") return chooseRoster(mode, rules, info, rng);
-  const R = MISSION_ROSTERS;
+  const list = rosters[mission];
+  if (list && list.length > 0) return fromSim(list, rules, info, rng);
+  const R = FALLBACK_ROSTERS;
   if (mission === "carrier_battle") {
     const carrier = hullWithRole(info, ROLE_CARRIER);
     if (!carrier) throw new Error("carrier battle: no carrier-role hull in the catalogue");
