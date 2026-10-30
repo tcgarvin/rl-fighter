@@ -105,6 +105,77 @@ Pilot v1's obs has no order inputs; carriers and transports are just large ships
 it. In stage A the commander's orders steer only the scripted capital ships and the
 launches, but they are logged and drawn, so the layer is visible from day one.
 
+#### WP-S1, the stage A sim (landed on `m3-sim`, SIM_VERSION 4)
+
+What it decided; `docs/SIM_SPEC.md` §0.2, §5.9, §5.10 and §10.3 have the detail.
+
+- **Ship cap 8 → 20, obs unchanged.** `OBS_DIM` stays 385: a pilot sees the nearest
+  7 present ships (`N_NEAR_SHIPS`, no longer `MAX_SHIPS − 1`). Training rosters pad
+  to `MAX_FLEET_SHIPS = 8`, so training buffers and throughput are unchanged (4v4
+  bench 2,215 steps/s before and after).
+- **Pilot v1 keeps flying.** Deathmatch with up to 8 ships is bit-identical to v3:
+  `v3_compat_*` replays the four v3 golden traces (kept under
+  `crates/sim/tests/golden/v3/`) tick for tick. `PILOT_COMPAT_VERSIONS = [3, 4]` is
+  exported to Python and WASM; the bundle (manifest `sim_version` = the wasm's,
+  `pilot_sim_version` = the policy's), `export_policy`, the live page and
+  `tools/champion.py watchable` accept a pilot whose version is in it. A v4 bundle of
+  fleet pilot v1 passes the headless live smoke.
+- **Hulls.** `carrier` (role `carrier`; story-demo numbers, collision circles
+  along the spine, impact 0.5, two bays) and **`freighter`** (role `transport`).
+  The user's change of 2026-10-30: the transport is a sitting duck, so the hull
+  is named `freighter` (role `transport` stays the mission category, so a later
+  "medical frigate" is just another transport-role hull). It is unarmed, with two
+  mains and 300 N heading-hold RCS (not 1400). Its inertia is raised to 40,000 so
+  that it barely turns, about 0.14 rad/s² of yaw authority. The art agent has the
+  same spec. Hull ids shift (carrier sorts first); nothing keys on raw ids.
+- **Missions** in `MatchConfig.mission`, with end reasons `eliminated`,
+  `time_limit`, `carrier_destroyed`, `convoy_through`, `convoy_destroyed`:
+  - *Deathmatch*: as v3.
+  - *Carrier battle*: one carrier per team, present at tick 0 at `0.72 R`, under way at
+    0.4 × its cap toward a hold point 60 m ahead; the first `jump_in` (default 2) of the
+    other ships jump in, the rest start docked. Losing the carrier loses (docked ships
+    die with it); time limit (default 150 s) → the higher carrier hull fraction, then
+    team value, then draw.
+  - *Convoy escort*: team 0's transports (1–8) start present, in two files, pointed at
+    the jump point and moving at their cruise speed (0.8 × cap), with the escorts in
+    pairs 45 m either side; team 1 jumps in. The route is straight, `(0, −0.55 R)` →
+    `(0, +0.75 R)` (bottom to top on a phone; the attackers hit its flank), jump radius
+    40 m, charge 2 s. Attackers win at `ceil(n/2)` destroyed; defenders once enough
+    escaped that this cannot happen, or if every attacker is dead; at the time limit
+    (default 120 s) the convoy has failed and the attackers win.
+  - **Arena**: 450 m for every mission (`arena_radius_for_mission`), so pilot v1's
+    obs scale is the one it trained on; both layouts fit. WP-S2 may change it there.
+- **Commander layer.** Every 60 ticks: squads (at most 4 per team, a member bitmask
+  over 20 slots, strike craft only) with orders `none / attack / guard / hold`,
+  waypoints for carriers and transports, and launches (one reserve, from a chosen or
+  the longest-ready bay; 30 m/s out of the bay mouth plus the carrier's velocity,
+  0.5 s control lock, 1.5 s bay cooldown). It is all hashed. Invalid members and orders
+  are sanitised; impossible launches and waypoints are refused, never panic, with every
+  outcome reported. `CommanderMode::Scripted` (default) runs
+  `scripted::commander::commands` inside `step`; `External` takes the caller's queued
+  commands. The commander observation is a typed struct (`CommanderObs`).
+- **Events** 8–12: `Launch`, `Order` (once per change per slow tick), `JumpCharge`,
+  `JumpOut`, `MatchEnd`.
+- **Scripts.** The **transport script is final**: it cruises the mains at 0.8 × cap
+  toward the waypoint and holds heading with the RCS. It never evades and never reacts,
+  and it cuts the mains within 25 m of the point. The carrier script is a first cut: it
+  turns to the waypoint and burns while facing it below an approach speed that it can
+  coast down from on drag (no reverse thrust). Capital ships fire their mains only for
+  thrust, never to turn. Its flak uses the shared turret aim. The **stub commander**
+  keeps 6 strike craft in space (one launch per bay per slow tick) and gives one squad
+  of every strike craft an order to attack the nearest enemy capital ship, else the
+  nearest enemy. It points transports at the jump point. Once its wing is spent, it
+  sends the carrier at the enemy carrier, so a battle of attrition ends in a kill
+  rather than at the clock.
+
+Left for **WP-S2**: the real commander script (guard and strike squads, launch
+timing, convoy waves), the carrier pilot's refinement (its RCS chatters while it
+holds heading), the mission survey (arena, route length, clocks, `jump_in`, hangar
+sizes), and any hull retune. Left for the **web**: rendering carrier and freighter,
+launch streaks, the under-way opening, jump charge and jump-out, the mission rotation,
+HUD and result reasons, and the commands toggle and log. The WASM API note is
+SIM_SPEC §10.2.
+
 ### Stage B: orders reach the pilots (the feudal layer)
 
 1. **Order block in the pilot obs:** order kind (none, attack, guard, hold) and the

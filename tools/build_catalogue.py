@@ -35,6 +35,15 @@ DESIGN_ROLES: dict[str, tuple[str, str]] = {
         "Lateral thruster pairs plus a weak main engine",
     ),
     "gunship": ("Anchor, anti-fighter", "Slow hull with independent turrets"),
+    # SIM_VERSION 4 capital ships, flown by scripts rather than the learned pilot.
+    "carrier": (
+        "Carrier; launches its wing from two bays",
+        "Three mains and four RCS, flak turrets for point defence; flown by a script",
+    ),
+    "freighter": (
+        "Convoy transport; flies straight to the jump point",
+        "Two mains and weak heading-hold RCS, unarmed; flown by a script",
+    ),
 }
 WEAPON_NAMES = {"gauss": "gauss gun"}
 WEAPON_KINDS = {

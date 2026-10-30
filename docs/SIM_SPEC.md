@@ -1,8 +1,9 @@
 # RL Fighter — M1 Simulation Spec (Rust core + Python bindings)
 
 Status: implementation spec for milestone M1, written 2026-10-28; revised the same
-day to **SIM_VERSION 2** (§0) after M1 landed, and to **SIM_VERSION 3** (§0.1,
-collision damage) on 2026-10-29. `docs/DESIGN.md` is the source of
+day to **SIM_VERSION 2** (§0) after M1 landed, to **SIM_VERSION 3** (§0.1,
+collision damage) on 2026-10-29, and to **SIM_VERSION 4** (§0.2: missions, carriers,
+convoys, the commander layer; M3 stage A, WP-S1) on 2026-10-30. `docs/DESIGN.md` is the source of
 truth for direction; this file pins the decisions implementers need. When the two
 disagree, fix this file and note it in the lab journal.
 
@@ -57,6 +58,26 @@ every step's events, hits, rewards and obs.
 | 4 | Event `Collision { a, b, pos, normal, closing }`, kind code 7 (appended after `Arrival`, so codes 0–6 are unchanged) | Renderer spark at the impact; eval crash counts | §9 |
 | 5 | Scripted fighter deconflicts (no sim rule change; the scripted golden traces regenerate again): predicts closest approach and sidesteps on RCS / breaks away from a pass that would come within 11 m, stops burning above 40 m/s meeting a target head-on, extends to 0.6 × gun range (was 1.2) | The v2 script rammed through every merge (10.8 contacts per duel); under v3 that made script-vs-script duels 60 % draws, mostly mutual crash kills, ~8 s long. The script is the BC teacher and baseline opponent, so it has to fly passes that miss | §11 |
 
+### 0.2 v4 changes (SIM_VERSION 3 → 4, M3 stage A / WP-S1)
+
+| # | change | why | sections |
+|---|---|---|---|
+| 1 | `MAX_SHIPS` 8 → 20 (docked reserves count). `obs::N_NEAR_SHIPS` is now its own const, **7**: `OBS_DIM` stays 385 and the obs layout is unchanged (a pilot sees the nearest 7 present ships). `MAX_BAYS = 4`, validation rule 13 | carrier wings and convoys need ~16–20 ships; pilot v1 must keep flying | §3, §4.4, §7.2 |
+| 2 | Hulls `carrier` (role `carrier`, two bays) and `freighter` (role `transport`: unarmed, weak heading-hold RCS). Hull ids shift: carrier 0, fighter 1, freighter 2, gunship 3, strafer 4 (nothing keys on raw ids; obs is feature-based) | M3 missions | §4.1 |
+| 3 | Missions in `MatchConfig.mission`: `Deathmatch` (default, the v3 match), `CarrierBattle`, `ConvoyEscort`; per-mission setup, termination, winner, time-limit tiebreak and `EndReason` | M3 plan §1 | §5.8, §5.10 |
+| 4 | Hangars and launches: docked reserves (`Attach::Docked`, `parent` = carrier, `Match.reserves`), launched from bays with a cooldown | carrier battle | §5.9 |
+| 5 | The commander layer: a slow tick every `COMMAND_TICKS = 60` (stage 1b), squads with orders, capital-ship waypoints, launches; `CommanderMode::{Scripted, External}` per team; a coarse `CommanderObs`. Squads, orders and waypoints are hashed state | DESIGN §7 "Hierarchy" | §5 stage 1b, §5.9 |
+| 6 | Convoy jump-out (stage 12b): charge inside the jump radius, then leave the field and count as escaped (`JumpState`) | convoy escort | §5.10 |
+| 7 | Events `Launch` (8), `Order` (9), `JumpCharge` (10), `JumpOut` (11), `MatchEnd` (12), appended so codes 0–7 are unchanged | the web log, lines and result | §9 |
+| 8 | Scripted capital-ship pilots (`carrier`, `transport`) and a stub scripted commander | missions playable end to end | §11 |
+| 9 | State hash appends reserves, mission state and command state after `winner` | determinism | §12 |
+| 10 | `PILOT_COMPAT_VERSIONS = [3, 4]`: pilots trained under v3 fly in v4. Deathmatch with ≤ 8 ships is **bit-identical to v3**, proven by `tests/determinism.rs::v3_compat_*`, which replay the four v3 golden traces (kept verbatim in `tests/golden/v3/`) with the v3 hash (v3 hull ids, no v4 state) and the aux digest without event kinds ≥ 8 | pilot v1 is the live champion | §10, §12 |
+
+Bindings: PyO3 and WASM gain mission selection, end reasons, external commands, the
+commander and mission views, and a shared JSON spec (§10.1–10.3). Bundles and the
+champion registry accept a pilot whose `sim_version` is in `PILOT_COMPAT_VERSIONS`
+(bundle manifest `sim_version` = the wasm's, `pilot_sim_version` = the policy's).
+
 ---
 
 ## 1. Conventions
@@ -80,7 +101,7 @@ every step's events, hits, rewards and obs.
 Cargo.toml                 # [workspace] members = crates/*; resolver = "2"
 crates/sim/                # no I/O by default; `fs` feature adds directory loading
   Cargo.toml               # deps: libm, serde, serde-saphyr, rand_core, rand_pcg
-  src/lib.rs               # re-exports; pub const SIM_VERSION: u32 = 2
+  src/lib.rs               # re-exports; SIM_VERSION (4), PILOT_COMPAT_VERSIONS (v4)
   src/math.rs              # Vec2, wrap_angle, rot, clamp, cross
   src/rng.rs               # Pcg32 wrapper: uniform(), range(lo,hi), split(seed,i,k)
   src/hash.rs              # FNV-1a 64 over f32/int bit patterns (StateHasher)
@@ -101,18 +122,23 @@ crates/sim/                # no I/O by default; `fs` feature adds directory load
   src/arena.rs             # boundary push + drain
   src/arrival.rs           # schedule_arrivals, process_arrivals
   src/setup.rs             # MatchConfig, Fleet, Match::new
+  src/mission.rs           # v4: Mission, EndReason, JumpState, MissionState, setup, rules, termination
+  src/command.rs           # v4: squads, orders, waypoints, launches, commands, CommanderObs
+  src/spec.rs              # v4: JSON specs and views shared by the bindings (§10.3)
   src/step.rs              # Match::step (order in §5), termination, winner
   src/events.rs            # Event enum, EventBuf, flat encoding
   src/obs.rs               # obs layout consts + write_obs (§7)
   src/reward.rs            # per-ship reward + HitRecord accumulation (§8)
   src/scripted/mod.rs      # allocate_thrusters, act(match, ship) dispatch
   src/scripted/fighter.rs  # fighter controller (§11)
+  src/scripted/capital.rs  # v4: carrier and transport pilots (§11)
+  src/scripted/commander.rs # v4: the scripted (stub) commander (§5.9)
   tests/                   # integration tests per work package (§12)
   tests/golden/            # determinism hash traces (§9)
 crates/sim-py/             # pyo3 0.30 + numpy 0.30 + rayon; maturin; module `rlf_sim`
   src/lib.rs               # #[pymodule]; VecEnv class; Catalogue loading; bench
 crates/sim-wasm/           # wasm-bindgen; WasmMatch wrapper (one match)
-assets/hulls/<name>/hull.yaml   # fighter, strafer, gunship
+assets/hulls/<name>/hull.yaml   # carrier, fighter, freighter, gunship, strafer (v4)
 assets/weapons.yaml
 spacefight/env/rust_env.py # thin Python wrapper over rlf_sim.VecEnv (WP10)
 tools/bench_env.py         # throughput benchmark (WP9)
@@ -137,6 +163,8 @@ pub struct MatchConfig {
     pub time_limit_ticks: u32,                       // default 2700 (90 s)
     pub reaction_ticks: u8,                          // default 2; ≤ MAX_REACTION_TICKS (v2, §5 stage 3)
     pub fleets: [Vec<HullId>; 2],                    // team 0, team 1; ≤ MAX_SHIPS total
+    pub mission: Mission,                            // v4; default Mission::Deathmatch (§5.10)
+    pub commanders: [CommanderMode; 2],              // v4; default [Scripted; 2] (§5.9)
 }
 pub struct Match { /* §3 */ }
 impl Match {
@@ -165,7 +193,8 @@ rewards are written into flat batched numpy buffers by the bindings (§10), whic
 where SoA matters.
 
 ```rust
-pub const MAX_SHIPS: usize = 8;      // per match (both teams)
+pub const MAX_SHIPS: usize = 20;     // per match (both teams, docked reserves included; v4, was 8)
+pub const MAX_BAYS: usize = 4;       // v4: bays per hull (rule 13)
 pub const MAX_THRUSTERS: usize = 8;  // carrier has 7
 pub const MAX_TURRETS: usize = 6;    // station has 6
 pub const MAX_PROJECTILES: usize = 256; // pool per match, oldest overwritten
@@ -185,7 +214,8 @@ pub struct Ship {
     pub power: [f32; 3], pub power_target: [f32; 3],        // shields, engines, weapons
     pub reaction_ticks: u8,                                 // v2: effective delay d (hull override or cfg)
     pub queue: [ShipAction; MAX_REACTION_TICKS],            // v2: FIFO, queue[0] applies next; slots ≥ d are IDLE
-    // Reserved for M5+ (always NONE / None in M1; included in the hash):
+    // v4: a docked reserve has attach = Docked and parent = its carrier; launch clears
+    // both (Mounted and Tethered stay reserved). Included in the hash:
     pub parent: ShipIdx, pub attach: Attach,                // Attach::{None, Docked, Mounted, Tethered}
 }
 pub struct Projectile {
@@ -204,7 +234,12 @@ pub struct Match {
     pub applied: [ShipAction; MAX_SHIPS],  // v2: the action stages 5–7 use this tick (dequeued + sanitised), not hashed
     pub events: EventBuf, pub hits: Vec<HitRecord>, pub rewards: [f32; MAX_SHIPS],
     pub shots_fired: [u16; MAX_SHIPS], pub outside_arena: [bool; MAX_SHIPS], pub dropped_hits: u32,
-    pub reserves: [Vec<ShipIdx>; 2],       // reserved for bays (empty in M1)
+    pub reserves: [Vec<ShipIdx>; 2],       // v4: docked slots per team, launch order (hashed)
+    pub mission: MissionState,             // v4: end_reason, carrier[2], bay_ready[2][MAX_BAYS],
+                                           //     transports bitmask, jump[MAX_SHIPS] (hashed)
+    pub command: CommandState,             // v4: squads[2][MAX_SQUADS], waypoints[MAX_SHIPS] (hashed)
+    pub inbox: [Vec<Command>; 2],          // v4: External commands for the next slow tick (input, not hashed)
+    pub command_results: [Vec<CommandOutcome>; 2], // v4: last slow tick's outcomes (output, not hashed)
 }
 ```
 
@@ -215,7 +250,7 @@ not hashed; `queue` and `thrust_level` are state and are hashed (§12).
 
 - `HullDef.static: bool` — skip integration; infinite mass in collisions. Parsed and
   honoured in M1 (tested with a synthetic hull), no shipped static hull.
-- `HullDef.bays: Vec<BayDef>` — parsed, validated, unused. `Match.reserves` exists.
+- `HullDef.bays: Vec<BayDef>` — v4: used for launches (§5.9).
 - `Ship.parent / attach` — hit tests and collisions must skip pairs where one is the
   other's parent (`same_entity(a,b)` helper in `damage.rs`, used by every hit path).
   Ships with `attach != None` are `present == false` in M1 semantics.
@@ -260,13 +295,27 @@ bays: []                 # [{id, pos, dir}], parsed, unused in M1
 ```
 
 M1 hull values (from `prototypes/story/hulls.js`; collision circles are new; v2
-changes in bold):
+changes in bold; v4 capital ships at the end):
 
 | hull | role | hp | mass | inertia | speed_cap | shield (hp/regen/delay/radius) | armour (v2) | impact (v3) | collision circles (pos, r) |
 |---|---|---|---|---|---|---|---|---|---|
 | fighter | fighter | **80** | 10 | 55 | 60 | none | **nose 0.5 / flank 1.0 / engine 1.5** (arcs as above) | nose (±45°) 1.5 / else 1.0 | (2.0,0) 2.4; (-2.2,0) 2.6 |
 | strafer | skirmisher | 70 | 11 | 75 | 50 | 40 / 8 / 3 / 7.5 | uniform (absent) | nose (±45°) 1.5 / else 1.0 | (0,0) 3.2; (0,3.6) 2.4; (0,-3.6) 2.4 |
 | gunship | anchor | 320 | 60 | 2200 | 24 | 140 / 12 / 4 / 11 | uniform (absent) | 0.75 all round | (4.5,0) 3.6; (0,0) 4.6; (-4.5,0) 3.8 |
+| carrier (v4) | carrier | 1500 | 600 | 90000 | 10 | 260 / 15 / 5 / 24 | uniform | 0.5 all round | (13,0) 6.5; (0,0) 8.5; (-13,0) 7.5 |
+| freighter (v4) | transport | 500 | 300 | **40000** | 14 | 80 / 6 / 5 / 15 | uniform | 0.75 all round | (8,0) 4; (0,0) 4.5; (-8,0) 4.2 |
+
+v4 mounts (the contract with the art agent's models; body frame): **carrier** mains
+`thruster.main.l/c/r` at (−19.5, 4.5) / (−20, 0) / (−19.5, −4.5), dir +x, 7000 N; RCS
+`thruster.rcs.fl/fr/rl/rr` at (15, ±8) / (−14, ±8.5), dir ∓y, 3500 N; flak turrets
+`turret.flak.fore` (12, 0) rest 0 arc 270, `turret.flak.port` (−6, 7) rest 90 arc 200,
+`turret.flak.starboard` (−6, −7) rest −90 arc 200, all slew 90; bays `bay.port` (4, 9)
+dir (0.5, 0.87) and `bay.starboard` (4, −9) dir (0.5, −0.87); cost 120. **freighter**
+(user, 2026-10-30: a sitting duck, never evades): mains `thruster.main.l/r` at
+(−13, ±2), dir +x, 3000 N; RCS `thruster.rcs.fl/fr/rl/rr` at (9, ±4.2) / (−9, ±4.4),
+**300 N** (heading hold only; its script turns with the RCS alone, ≈ 0.14 rad/s² of
+yaw); no turrets, no bays; cost 40. Role `transport` is the mission category, so
+another transport-role hull (a medical frigate) needs no sim change.
 
 Thrusters and turrets are copied verbatim from `hulls.js` (`force` → `max_force`,
 `rest/arc/slew` → `rest_deg/arc_deg/slew_deg_s`; drop `size`/`height`, they are
@@ -343,6 +392,7 @@ machines). Parsing uses `serde-saphyr` (`serde_saphyr::from_str`; pure Rust, mai
     cover 360° exactly with no gap or overlap, in order); every `mult` finite and
     `> 0`. A single arc `[-180, 180]` with `mult: 1` is valid and equals absent.
 12. (v3) `impact`, if given and non-empty: the same rules as 11.
+13. (v4) at most `MAX_BAYS = 4` bays (bay ids share rule 4's uniqueness and `dir` checks).
 
 `Match::new` additionally rejects `cfg.reaction_ticks > MAX_REACTION_TICKS`
 (`SetupError::ReactionTooLong`).
@@ -356,6 +406,10 @@ Each stage loops over ships in slot order and over projectiles in pool order.
 
 1. **Clear** `events`, `hits`, `rewards`; `tick += 1`. If `phase == Over` return (the
    VecEnv never calls step on a finished match; WASM may, for an outro).
+1b. **Commanders** (v4, §5.9): if `tick % COMMAND_TICKS == 0`, sanitise squads and
+   waypoints, gather both teams' commands (scripted or the inbox), apply team 0's then
+   team 1's (launches happen here, so a launched ship is active for the rest of the
+   step and earns from it), and emit `Order` for every squad whose order changed.
 2. **Arrivals** (§5.6): ships with `!present && alive && tick >= arrive_tick` become
    present with `vel = heading_dir * arrival_speed`, `control_lock_until = tick + 21`
    (0.7 s), emit `Arrival`.
@@ -405,7 +459,10 @@ Each stage loops over ships in slot order and over projectiles in pool order.
 12. **Deaths**: any ship with `hp <= 0 && alive` → `alive=false, present=false, hp=0`,
     `thrust_level` all 0, `queue` all `IDLE`, emit `Death`. (Damage never flips
     `alive` directly; this stage does, so simultaneous kills are symmetric.)
-13. **Termination** (§5.8) and terminal rewards.
+12b. **Mission rules** (v4, §5.10): a carrier battle kills the docked reserves of a
+    carrier that died this step (no `Death` events) and empties its hangar; a convoy
+    escort starts and completes transport jump charges (`JumpCharge`, `JumpOut`).
+13. **Termination** (§5.8, per mission in v4) and terminal rewards; emits `MatchEnd`.
 14. `rewards` finalised (§8).
 
 ### 5.1 Physics
@@ -604,10 +661,126 @@ penalty in §8.
 
 ### 5.8 Termination
 
-`alive_t = count(alive && team == t)` (pending arrivals count as alive).
-- `alive_0 == 0 || alive_1 == 0` → Over; winner = surviving team, or -1 if both 0.
-- `tick >= time_limit_ticks` → Over; `value_t = Σ_alive (hp + 0.5*shield)`;
-  winner = higher value, or -1 if `|v0 - v1| < 1e-3`.
+`alive_t = count(in_match && team == t)` where `in_match = alive && !jumped out`
+(pending arrivals and docked reserves count; v4 adds the jump-out exception).
+Deathmatch (and v3):
+- `alive_0 == 0 || alive_1 == 0` → Over; winner = surviving team, or -1 if both 0;
+  reason `Eliminated`.
+- `tick >= time_limit_ticks` → Over; `value_t = Σ_in_match (hp + 0.5*shield)`;
+  winner = higher value, or -1 if `|v0 - v1| < 1e-3`; reason `TimeLimit`.
+
+v4 missions (§5.10) have their own rules. Every end sets `Match.mission.end_reason`
+(`EndReason`: 0 `NotOver`, 1 `Eliminated`, 2 `TimeLimit`, 3 `CarrierDestroyed`,
+4 `ConvoyThrough`, 5 `ConvoyDestroyed`) and emits `MatchEnd { winner, reason }`.
+
+### 5.9 Hangars, launches and the commander layer (v4)
+
+**Hangars.** In a carrier battle the ships that do not jump in start docked:
+`attach = Docked`, `parent` = the carrier, `present = false`, at the carrier's
+position; `Match.reserves[team]` lists them in launch order (fleet order). Docked
+ships are alive (they count for elimination) but never arrive, are never hit and
+have zero obs; they die with their carrier (stage 12b).
+
+**Launch** (`Match::launch(cat, team, hull, bay)`, also the `Launch` command): needs
+the team's carrier (`NoCarrier`), active (`CarrierLost`), a reserve (`HangarEmpty`),
+of the requested hull if any (`NoReserveOfHull`, first such in the hangar), and a
+bay: the requested one (`NoSuchBay`, `BayBusy` if `tick < bay_ready`) or else the
+ready bay with the smallest `bay_ready` (ties: lower index). The ship becomes present
+with `attach = None, parent = NONE`, at `mouth + dir · (bound_radius + 1)` (mouth =
+the bay mount in world, dir = bay dir rotated by the carrier's heading, so it clears
+the carrier's circles), heading `atan2(dir)`, `vel = carrier.vel + dir · 30`,
+`omega = 0`, `control_lock_until = tick + LAUNCH_LOCK_TICKS (15)`, `arrive_tick =
+tick`; the bay's `bay_ready = tick + BAY_COOLDOWN_TICKS (45)`; emit `Launch`.
+Refusals change nothing.
+
+**Slow tick** (stage 1b, every `COMMAND_TICKS = 60` ticks, first at tick 60;
+`Match::command_due()` says whether the next step is one):
+1. Clear `command_results`; per team drop squad members that are no longer in the
+   match and replace orders that are no longer valid by `Order::None`; unset the
+   waypoints of ships no longer in the match.
+2. Gather each team's commands: `Scripted` → `scripted::commander::commands(m, cat,
+   team)` (both teams read the same state, before either applies); `External` → the
+   team's inbox (`Match::submit_command`, then cleared). A `Scripted` team's inbox is
+   discarded.
+3. Apply team 0's, then team 1's, in order, recording a `CommandOutcome` for each
+   (`Applied`, `Sanitized`, `Launched { ship, bay }`, `Refused(Refusal)`).
+4. Emit one `Order` per squad whose order differs from the start of the tick.
+
+No commands means the previous orders stand.
+
+**Commands.** `Launch { hull: Option<HullId>, bay: Option<u8> }`; `Waypoint { ship,
+waypoint: Unset | At(pos) }` for the team's own carriers and transports in the match
+(else `NotOwnShip` / `ShipLost` / `NotCapital`; non-finite → `BadPoint`; clamped into
+`0.95 R`); `Squad { squad, members: u32 bitmask, order }` (`NoSuchSquad` past
+`MAX_SQUADS = 4`): members are restricted to own strike craft in the match (bits for
+other slots, capital ships, dead or departed ships are dropped) and removed from the
+team's other squads; the order is sanitised: `Attack { target }` needs an active enemy,
+`Guard { ward }` an own ship in the match, `Hold { point, radius }` finite (point
+clamped into `0.95 R`, radius into `[10, R]`), else `Order::None`. Any drop makes the
+outcome `Sanitized`.
+
+**State** (hashed): `CommandState { squads: [[Squad { members, order }; 4]; 2],
+waypoints: [Waypoint; MAX_SHIPS] }`. Setup sets the carriers' and transports' first
+waypoints. Pilots do not see orders in stage A (stage B adds an obs block).
+
+**Commander observation** (`Match::commander_obs(cat, team) -> CommanderObs`): tick,
+ticks left, mission kind; own ships by hull id `in_space` (active), `arriving`,
+`reserves` (docked); `enemy_visible` (active enemies by hull); own and enemy carrier
+`CapitalStatus` (slot, hull, alive, hp/max, shield/max, pos, vel, heading; the enemy
+one only while active); own bays ready; `ConvoyStatus`; own active transports; own
+squads. A learned commander will flatten it.
+
+**Scripted commander** (`scripted/commander.rs`, a **stub** WP-S2 replaces): launch
+one reserve per bay per slow tick while fewer than `STUB_WING_IN_SPACE = 6` of the
+team's strike craft are on the field or on the way; transports' waypoint = the jump
+point; one squad (0) of every own strike craft in the match ordered to attack the
+enemy capital ship nearest the team's anchor (its carrier, else its lead transport,
+else the centroid of its active ships), else the nearest enemy, else no order; when a
+carrier's wing is spent (none in space, arriving or docked), its waypoint becomes the
+enemy carrier's position (a flak duel, so attrition still ends in a kill).
+
+### 5.10 Missions (v4)
+
+`MatchConfig.mission`: `Deathmatch` | `CarrierBattle { jump_in: [u8; 2] }` |
+`ConvoyEscort { start, jump_point, jump_radius, charge_ticks, start_speed_frac }`.
+`Match::new` validates the roster against the mission (`SetupError::Mission`).
+Arena: `mission::arena_radius_for_mission(kind, n)` = 450 m for all three (DESIGN §6).
+Default time limits (`MissionKind::default_time_limit_ticks`; callers pass them in
+`time_limit_ticks`): 90 s, 150 s, 120 s.
+
+**Deathmatch**: v3 (§5.6, §5.8).
+
+**Carrier battle.** Each team has exactly one `carrier`-role ship and no transports.
+Setup draws, per team in order: `y = range(−40, 40)`; the carrier is present at
+`(side · 0.72 R, y)` heading 0 / π, `vel` 0.4 × its speed cap forward, waypoint 60 m
+ahead. Of the team's other ships (fleet order) the first `min(jump_in[team], wing)`
+jump in (§5.6 schedule over those ships only; default `jump_in` 2), the rest dock.
+Then the jump-in schedule is drawn for both teams (teams with no jump-in ships draw
+nothing). Stage 12b: when a carrier dies its docked reserves die (`alive = false, hp
+= 0`, no event) and the hangar empties. Termination: a dead carrier loses
+(`CarrierDestroyed`; both → draw). Time limit: the higher carrier hull fraction
+`hp/max_hp` if they differ by ≥ 1e-3, else the team value, else draw (`TimeLimit`).
+
+**Convoy escort.** Team 0 fields 1–`MAX_CONVOY` (8) `transport`-role ships (the
+convoy; slots in `MissionState.transports`) and any escorts; team 1 none. Standard
+layout (`ConvoyEscort::standard(R)`): `start = (0, −0.55 R)`, `jump_point = (0,
++0.75 R)`, `jump_radius = 40`, `charge_ticks = 60`, `start_speed_frac = 0.8`. With
+`fwd` the unit route direction and `port = perp(fwd)`: transport `i` at `start − fwd ·
+32 i + port · (±12)` (even `i` to port), heading and velocity straight at the jump
+point; escort `j` at `start + fwd · (20 − 40 ⌊j/2⌋) + port · (±45)` (even `j` to port)
+with heading `fwd`; all at `start_speed_frac` × the slowest transport's cap, present at
+tick 0 with no control lock. No rng draws for team 0; then team 1's jump-in schedule.
+Stage 12b, for each active transport: `Idle` inside the jump radius →
+`Charging { until: tick + charge_ticks }` (`JumpCharge`); `Charging` at `tick >= until`
+→ `Departed`: `present = false`, levels 0, queue IDLE, waypoint unset (`JumpOut`). A
+departed ship stays `alive` but is out of the match (not counted for elimination or
+team value, never arrives again, zero obs, earns nothing). Termination with `n`
+transports, `to_destroy = ceil(n / 2)`, `to_escape = n − to_destroy + 1`, in order:
+destroyed ≥ `to_destroy` → team 1 (`ConvoyDestroyed`); escaped ≥ `to_escape` → team 0
+(`ConvoyThrough`); no team 1 ship in the match → team 0 (`Eliminated`); time limit →
+team 1 (`TimeLimit`: the convoy failed to get through). `Match::convoy_status()`
+reports total, en route, charging, escaped, destroyed, both thresholds and the mean
+route progress of the transports not destroyed (escaped = 1).
 
 ## 6. Weapons
 
@@ -693,7 +866,7 @@ entities/slots are all-zero with `present = 0`. Blocks (offset: width — featur
          thrust_level
 77:  60  turrets, 6 slots × 10: present, pos.x/L, pos.y/L, sin(angle), cos(angle),
          cooldown/interval, kind one-hot[4] (bullet, beam, flak, torpedo)
-137: 84  all other active ships, 7 slots (MAX_SHIPS − 1) sorted by distance (allies and
+137: 84  all other active ships, 7 slots (N_NEAR_SHIPS; v4: no longer MAX_SHIPS − 1) sorted by distance (allies and
          enemies), × 12: present, is_enemy, rel_pos.x/R, rel_pos.y/R, rel_vel.x/VS,
          rel_vel.y/VS, sin(rel_heading), cos(rel_heading), hp/max_hp, shield/max_shield,
          bound_radius/L, dist/R
@@ -795,8 +968,22 @@ pub enum Event {
     Death     { ship: u8, pos: Vec2 },
     Arrival   { ship: u8, pos: Vec2, heading: f32 },
     Collision { a: u8, b: u8, pos: Vec2, normal: Vec2, closing: f32 }, // v3: damaging contacts only
+    // v4:
+    Launch    { ship: u8, carrier: u8, bay: u8, pos: Vec2, dir: Vec2 },   // pos = bay mouth (world)
+    Order     { team: u8, squad: u8, kind: u8, target: u8, point: Vec2, radius: f32 },
+    JumpCharge{ ship: u8, pos: Vec2, until: u32 },
+    JumpOut   { ship: u8, pos: Vec2, heading: f32 },
+    MatchEnd  { winner: i8, reason: EndReason },
 }
 ```
+
+v4 flat encodings (kinds 8–12): `Launch` = `[8, ship, carrier, mouth.x, mouth.y,
+dir.x, dir.y, bay]`; `Order` = `[9, team, squad, point.x, point.y, target (−1 none),
+radius, kind]` (kind 0 none, 1 attack, 2 guard, 3 hold; point = the hold point, or the
+target's position when the order was given), emitted once per changed squad per slow
+tick; `JumpCharge` = `[10, ship, 0, x, y, 0, 0, until]`; `JumpOut` = `[11, ship, 0, x,
+y, 0, 0, heading]`; `MatchEnd` = `[12, winner (−1 draw), reason, 0, 0, 0, 0, 0]`,
+emitted on the step the match ends (every mission, deathmatch too).
 
 `EventBuf` is a `Vec<Event>` with capacity `MAX_EVENTS`, cleared each step. Flat
 encoding for FFI: `[f32; 8]` per event = `[kind, a, b, x, y, nx_or_x2, ny_or_y2, extra]`
@@ -841,7 +1028,26 @@ rlf_sim.OBS_LAYOUT, rlf_sim.OBS_SLOTS, rlf_sim.ACTION_LAYOUT, rlf_sim.SIM_VERSIO
 rlf_sim.OBS_DIM, rlf_sim.ACTION_WIDTH, rlf_sim.MAX_SHIPS, rlf_sim.MAX_HITS, rlf_sim.HIT_FIELDS,
 rlf_sim.HIT_DAMAGE_SCALE, rlf_sim.MAX_REACTION_TICKS
 rlf_sim.arena_radius_for(n_ships) -> float      # the shared arena rule (sim::setup::arena_radius_for)
+# v4:
+VecEnv(..., mission=None | "carrier_battle" | {"kind": ..., ...},   # §10.3 spec; default deathmatch
+       commanders=None | ["scripted" | "external", ...])            # default both scripted
+env.set_next_roster(i, fleets, arena_radius, mission=None)
+env.end_reason [N] i8          # EndReason code of a match that ended this step (0 running)
+env.command_due() -> bool[N]   # the next step is a slow tick
+env.submit_command(i, team, command | [commands])   # queued for the next slow tick (§10.3)
+env.command_results(i, team) -> list[dict]          # {"command", "outcome", "ship"/"bay" | "reason"}
+env.commander_obs(i, team) -> dict                  # CommanderObs with hull names
+env.mission_state(i) -> dict                        # carriers, hangars, bays, squads, convoy, ships
+env.render_state(i): + "mission", "end_reason"; ships + "role", "docked", "escaped"
+rlf_sim.PILOT_COMPAT_VERSIONS, N_NEAR_SHIPS, COMMAND_TICKS, MAX_SQUADS, MISSIONS, END_REASONS,
+rlf_sim.EVENT_KINDS (name -> code), arena_radius_for_mission(mission, n), mission_time_limit_s(mission),
+rlf_sim.pilot_compatible(version)
 ```
+
+Training is unchanged by default: deathmatch, scripted commanders (they set squad
+state no pilot reads yet). `RustVecEnv` with a roster sampler pads to
+`rosters.MAX_FLEET_SHIPS = 8`, not `MAX_SHIPS`, and rosters draw fighter, strafer and
+gunship only.
 
 `act_mask` is written with the obs after each step/reset and follows the §7.1
 definition for the action the caller is about to write. `spacefight/env/rust_env.py`
@@ -892,10 +1098,72 @@ class WasmMatch {
 arenaRadiusFor(n_ships: number): number;  // the shared arena rule (§10.1)
 ```
 
+v4 additions (add, don't break: the ships view stays stride 29):
+
+```ts
+// config_json gains "mission": "carrier_battle" | {kind, ...} (§10.3) and
+// "commanders": ["scripted", "external"]; both optional.
+ship_ext_ptr(): number; ship_ext_len(): number;  // SHIP_EXT_STRIDE = 10 per ship, ship order:
+    // [role (0 strike/other, 1 carrier, 2 transport), docked, parent (-1), jump (0 idle,
+    //  1 charging, 2 departed), charge_until, has_waypoint, waypoint.x, waypoint.y,
+    //  squad (-1), squad order kind]
+mission_kind(): number;     // 0 deathmatch, 1 carrier battle, 2 convoy escort
+end_reason(): number;       // EndReason code (§5.8)
+command_due(): boolean;
+submit_commands(team, json): void;   // one command object or an array (§10.3); throws on bad JSON/hulls
+command_results_json(team): string;  // JSON array of outcomes of the last slow tick
+commander_obs_json(team): string; mission_state_json(): string;  // the §10.3 views
+squads(): Float32Array;     // SQUAD_STRIDE = 9 per squad, team 0's 4 then team 1's:
+    // [team, index, n_members, members_mask, order_kind, target (-1), point.x, point.y, radius]
+    // (point = hold point or the target's current position: draw a line to it)
+team_state(team): Float32Array;  // TEAM_STRIDE = 8: [carrier_slot (-1), hp, max_hp, shield,
+                                 //  max_shield, hangar_count, bays, bays_ready]
+hangar_hulls(team): Uint16Array; // docked reserves' hull ids, launch order
+convoy(): Float32Array;     // CONVOY_STRIDE = 14 (empty unless convoy): [total, en_route, charging,
+    // escaped, destroyed, to_destroy, to_escape, progress, start.x, start.y, jump.x, jump.y,
+    // jump_radius, charge_ticks]
+// module: pilot_compat_versions(): Uint32Array; pilot_compatible(v); arenaRadiusForMission(m, n);
+// missionTimeLimitTicks(m); MAX_SHIPS(); COMMAND_TICKS(); MAX_SQUADS(); SHIP_EXT_STRIDE();
+// SQUAD_STRIDE(); TEAM_STRIDE(); CONVOY_STRIDE()
+```
+
+Web notes: hull ids in the ships view follow the catalogue the page passes (sorted by
+name; v4: carrier 0, fighter 1, freighter 2, gunship 3, strafer 4), so map them by
+name. Ships with `docked = 1` or `jump = 2` are not on the field (`present = 0`); a
+launch is a `Launch` event (mouth and direction for the streak) and the ship's
+`present` flipping to 1 that step; `JumpCharge` → `JumpOut` brackets the jump effect.
+The policy flies strike craft only (role 0); capital ships take `scripted_action`.
+`bundle.ts` checks `manifest.sim_version` against the wasm and the pilot's
+`pilot_sim_version` against `pilot_compat_versions()`.
+
 `config_json` is `MatchConfig` serialised with serde
 (`{"seed":..,"arena_radius":..,"time_limit_ticks":..,"reaction_ticks":2,"fleets":[["fighter"],["fighter"]]}`
 with hull names resolved on the WASM side; `arena_radius`, `time_limit_ticks` and
 (v2) `reaction_ticks` default when absent).
+
+### 10.3 The shared JSON spec (v4, `sim::spec`)
+
+Both bindings parse missions and commands with the same serde structs (PyO3 passes
+`json.dumps` of a dict); unknown fields are errors.
+
+```jsonc
+// mission: a kind name, or
+{"kind": "deathmatch"}
+{"kind": "carrier_battle", "jump_in": [2, 2]}                    // optional
+{"kind": "convoy_escort", "start": [x, y], "jump_point": [x, y], // all optional:
+ "jump_radius": 40, "charge_ticks": 60, "start_speed_frac": 0.8} // ConvoyEscort::standard(R)
+// commands (one or an array):
+{"kind": "launch", "hull": "fighter" | null, "bay": 0 | null}
+{"kind": "waypoint", "ship": 0, "pos": [x, y] | null}            // null unsets
+{"kind": "squad", "squad": 0, "members": [1, 2, 3],
+ "order": {"kind": "none"} | {"kind": "attack", "target": 9} | {"kind": "guard", "ward": 0}
+        | {"kind": "hold", "point": [x, y], "radius": 50}}
+```
+
+Views (serde-serialised): `CommanderObsView` (counts keyed by hull name),
+`MissionStateView` (mission, end reason, tick, command_due, carriers, hangars, bay
+cooldowns, squads with member lists and orders, convoy, per-ship role / docked /
+parent / jump / waypoint / squad), `OutcomeView`.
 
 ## 11. Scripted controller (Rust, `scripted/`)
 
@@ -966,6 +1234,21 @@ Fighter (`role == "fighter"`), per tick (all quantities predicted as above):
 7. Power: `3` (weapons) if `dist < range`, `2` (engines) if `dist > 1.5 range`, else 0;
    `1` (shields) if `tick - last_hit_tick < 36 && shield/max < 0.3` (shielded hulls).
 
+**Capital ships (v4, `scripted/capital.rs`).** Both fly their waypoint
+(`Match.command.waypoints`) with a softer PD (`torque = clamp(4·err − 8·omega, ±1)`),
+and allocate the mains (thrusters with `dir.x > 0.5`) from the force request alone and
+every other thruster from the torque request alone, so they never turn on an off-axis
+main (that would add thrust a carrier cannot take back, and yaw a transport must not
+have). *Carrier* (first cut; WP-S2 refines): outside `ARRIVE_RADIUS = 25` m it turns
+to the waypoint and burns the mains while within 0.6 rad of it and slower than
+`min(cap, 0.08 · (dist − 25))` (it has no reverse thrust and stops on drag, which
+coasts ≈ 10 v); inside, or without a waypoint, it holds heading and coasts; the
+fighters' arena turn-back; shared power rules (§11 item 7) against the nearest enemy;
+flak by the shared turret aim. *Transport* (final, user 2026-10-30): points at its
+waypoint, mains on while its forward speed is below `TRANSPORT_CRUISE_FRAC = 0.8` ×
+cap, heading held with the RCS; within 25 m of the point it cuts the mains and holds
+heading. It never evades or reacts to threats; balanced power; no guns.
+
 Roles as shipped: `fighter` (fighter), `skirmisher` (strafer: orbit at 120 m,
 `orbit_sign = +1 if slot even else -1`) and `anchor` (gunship: standoff 170 m,
 broadside), ported from sim.js in `fighter.rs` / `strafer.rs` / `gunship.rs`; a hull
@@ -992,8 +1275,18 @@ draws 0.016, median 1492 ticks, hit rate 0.46, 4.9 passes per match
   `attach`), each projectile pool slot (v2: `decision_tick` after `fire_tick`),
   `proj_next`, `phase`, `winner`. Implemented in-crate (`hash.rs`), no `std::hash`.
   `pending`, `applied`, events, hits and rewards are outputs and are not hashed.
+  v4 appends, after `winner`: per team the reserve count (`u64`) then slots; the
+  mission state (end reason, carrier slots, `bay_ready` per team, transports bitmask,
+  per-slot jump state as `(code, until)`); the command state (per team, per squad:
+  members `u32`, order `(kind, target, point, radius)`; per slot: waypoint `(0|1,
+  pos)`). `inbox` and `command_results` are not hashed. The v3 hash is reproducible
+  from v4 state (`tests/determinism.rs::v3_state_hash`: v3 hull ids, no v4 fields).
 - Native test (`crates/sim/tests/determinism.rs`): four golden scenarios, embedded
   with `include_str!` so the same binary runs under wasmtime:
+  v4 adds `carrier_battle_s23` (two carriers with six-ship wings, stub commanders, to
+  a carrier kill) and `convoy_escort_s29` (four freighters and three escorts against
+  six attackers, to `convoy_through`), sampled every 300 ticks, with a `reason` line,
+  and the `v3_compat_*` replays of `tests/golden/v3/` (§0.2 item 10). The v3 scenarios:
   `duel_fighter_s7` (1v1 fighter, seed 7), `2v2_mixed_s11` (fighter+strafer vs
   gunship+fighter), `3v3_mixed_s13`, all 3000 ticks with the scripted controller
   on both sides, sampled at ticks `{1, 30, 300, 1000, 3000}` (those reached before
@@ -1029,6 +1322,7 @@ threads, N = 256, 2000 steps after 100 warm-up), reported as batched env steps/s
 | 2v2 (fighter+strafer each side) | ≥ 4,000 steps/s | 2,000 |
 | single-thread 1v1 | ≥ 600 steps/s | 300 |
 | WASM single match 2v2 (wasmtime, no obs) | ≥ 20,000 ticks/s | 10,000 |
+| 4v4 mixed (v4: the largest training roster) | ≥ 2,000 steps/s | 1,000 |
 
 Budget reasoning: one 2-ship tick with ~20 projectiles and a 385-float obs is ~3–5 µs
 (the v2 obs is 1.9× v1's but mostly zero-filled slots; the threat sort is over ≤ 256
@@ -1039,7 +1333,9 @@ unchanged for v2. Measured at WP14 (SIM_VERSION 2, this laptop, idle, load < 1):
 same run inside `RLF_BENCH=1 scripts/check.sh` right after the builds (load ~7) gave
 6,623 / 3,735 / 2,175, still above every floor. The WASM row is not benchmarked yet. At the
 target, the 4-hour nightly budget is sim-bound at >2 × 10^10 match-ticks; policy
-inference will dominate.
+inference will dominate. v4 (`MAX_SHIPS` 20, this laptop, idle): 1v1 12,598, 2v2 7,384,
+single-thread 2,731, 4v4 2,215 steps/s; before the cap change 11,473 / 7,303 / 2,849 /
+2,210 (no regression).
 
 ## 14. Work packages
 
