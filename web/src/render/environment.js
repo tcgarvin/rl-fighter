@@ -78,7 +78,7 @@ export function createEnvironment({ THREE: T, scene, camera, renderer }) {
     const mesh=new T.Mesh(quad,material);mesh.renderOrder=-20+i;backdrop.add(mesh);bodies.push({target,material,mesh});
   }
   // Static temperature-varied sky points, with a soft galactic concentration.
-  const starCount=4200, starGeo=new T.BufferGeometry();
+  const starCount=15000, starGeo=new T.BufferGeometry();
   const sp=new Float32Array(starCount*3), sc=new Float32Array(starCount*3), ss=new Float32Array(starCount);
   starGeo.setAttribute('position',new T.BufferAttribute(sp,3));starGeo.setAttribute('color',new T.BufferAttribute(sc,3));starGeo.setAttribute('size',new T.BufferAttribute(ss,1));
   const starMat=new T.ShaderMaterial({transparent:true,depthWrite:false,depthTest:true,vertexColors:true,
@@ -94,9 +94,9 @@ export function createEnvironment({ THREE: T, scene, camera, renderer }) {
   const dust=new T.Points(dg,dm);dust.frustumCulled=false;foreground.add(dust);
   const palettes=[['#342b25','#b4a082','#518bad'],['#102936','#547c64','#4c9bb2'],['#263b4b','#a8bac0','#7bafd2'],['#15171d','#52413b','#b45324'],['#2e2333','#8c718c','#776695'],['#1c3438','#73a19a','#6bb3bb'],['#3c2521','#b37a51','#a8926e'],['#272c38','#778396','#7d94bd'],['#263044','#b89ba9','#8cadd6'],['#193b47','#78c5d0','#a6dcf0'],['#453325','#d6b978','#c1aa83'],['#302b48','#a799ce','#829bce']];
   let side=1, radius=1700;
-  let layoutAspect=0, panX=0, panY=0;
+  let layoutAspect=0, layoutZoom=0;
   function newMatch(seed){
-    layoutAspect=0;panX=panY=0;
+    layoutAspect=0;
     const rng=random(seed), range=(a,b)=>a+(b-a)*rng();
     side=rng()<.5?-1:1;
     rng(); // Preserve the established seed sequence for the celestial paintings.
@@ -125,26 +125,27 @@ export function createEnvironment({ THREE: T, scene, camera, renderer }) {
     for(let i=0;i<dustCount;i++)orig.set([range(-1800,1800),range(-60,40),range(-1800,1800)],i*3);
     starGeo.attributes.position.needsUpdate=true;starGeo.attributes.color.needsUpdate=true;starGeo.attributes.size.needsUpdate=true;
   }
-  // Everything celestial shares this one camera-space transform. Projection
-  // coefficients account for the harness's HUD view offset as well as resize.
+  // Everything celestial shares this one camera-space transform, built from the fixed
+  // camera's own projection (`view.projection`, before the harness's digital zoom and
+  // pan), so the painting is cropped and scaled with the ships, never re-fitted to the
+  // screen. Without one, the camera's projection (HUD view offset included) is used.
+  // `view.layoutZoom` (default 1) is the zoom the scenery is composed for: the bodies
+  // are laid out in the centre 1/layoutZoom of the frame, so a typical crop of the
+  // action shows them as a fitted view would; stars cover the whole frame.
   const right=new T.Vector3(), up=new T.Vector3(), forward=new T.Vector3();
   function update(dt,view){
-    const depth=10000, projection=camera.projectionMatrix.elements;
+    const depth=10000, projection=(view.projection ?? camera.projectionMatrix).elements;
     const half=depth/projection[5], aspect=projection[5]/projection[0];
     right.setFromMatrixColumn(camera.matrixWorld,0);
     up.setFromMatrixColumn(camera.matrixWorld,1);
     forward.setFromMatrixColumn(camera.matrixWorld,2).negate();
-    const ease=1-Math.exp(-Math.min(dt,.1)*3);
-    // Bounded to four percent of the viewport in either direction. Zoom never
-    // changes the painting's size or the positions of its constituent objects.
-    panX+=(Math.tanh(-view.centerX/650)*.08-panX)*ease;
-    panY+=(Math.tanh(view.centerY/650)*.08-panY)*ease;
     backdrop.position.copy(camera.position).addScaledVector(forward,depth)
-      .addScaledVector(right,depth*projection[8]/projection[0]+panX*half*aspect)
-      .addScaledVector(up,depth*projection[9]/projection[5]+panY*half);
+      .addScaledVector(right,depth*projection[8]/projection[0])
+      .addScaledVector(up,depth*projection[9]/projection[5]);
     backdrop.quaternion.copy(camera.quaternion);backdrop.scale.setScalar(half);
-    if(aspect!==layoutAspect){
-      layoutAspect=aspect;
+    const k=view.layoutZoom ?? 1;
+    if(aspect!==layoutAspect || k!==layoutZoom){
+      layoutAspect=aspect;layoutZoom=k;
       sky.scale.set(2.4*aspect,2.4,1);sky.position.z=-.02;
       stars.scale.set(aspect,1,1);stars.position.z=-.01;
       const portrait=aspect<1, short=Math.min(aspect,1);
@@ -157,11 +158,11 @@ export function createEnvironment({ THREE: T, scene, camera, renderer }) {
         // harness turns the camera in portrait so the fleets face off along the
         // screen's long axis; scenery then hangs mostly off the side edges.
         if(portrait){
-          b.mesh.position.set(sign*(aspect-silhouette*.28),d.dx*.9,0);
+          b.mesh.position.set(sign*(aspect-silhouette*.28)/k,d.dx*.9/k,0);
         }else{
-          b.mesh.position.set(sign*(aspect-silhouette*.40),d.dx*short,0);
+          b.mesh.position.set(sign*(aspect-silhouette*.40)/k,d.dx*short/k,0);
         }
-        b.mesh.scale.setScalar(r*3.7);
+        b.mesh.scale.setScalar(r*3.7/k);
       }
     }
     dm.uniforms.pixelRatio.value=renderer.getPixelRatio();

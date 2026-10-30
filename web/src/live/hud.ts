@@ -1,8 +1,7 @@
 // The DOM layer over the canvas: the running tally, match status, the perf readout
 // (sim + inference ms per tick against the 33 ms budget), the mission panel (carrier
 // hull per side, or the convoy's progress), the caption, the result banner with the
-// reason the match ended, a faint team ring round any hull drawn too small to read
-// and, behind the "Technical details" toggle, per-ship numbers next to each hull.
+// reason the match ended and, behind the "Technical details" toggle, per-ship numbers next to each hull.
 // The "Show commands" toggle's state lives on <body class="commands">.
 
 import { JUMP_CHARGING, JUMP_DEPARTED, SIM_HZ, TICK_BUDGET_MS } from "./sim.ts";
@@ -14,10 +13,6 @@ export { TEAM_CLASSES, TEAM_NAMES };
 const PERF_INTERVAL = 0.25;
 const TAG_OFFSET = 16;
 const TAG_GAP = 2;
-// Pips fade in as a hull's drawn length drops from PIP_FADE_PX to PIP_FADE_PX - PIP_FADE_SPAN.
-const PIP_FADE_PX = 22;
-const PIP_FADE_SPAN = 10;
-const PIP_MAX_ALPHA = 0.7;
 
 /** A ship's screen position and drawn length, CSS px. */
 export interface ShipOnScreen {
@@ -61,7 +56,7 @@ export class Hud {
   private readonly tagsEl = el("tags");
   readonly detailsBtn = el<HTMLButtonElement>("details-toggle");
   readonly commandsBtn = el<HTMLButtonElement>("commands-toggle");
-  private markers: Array<{ tag: HTMLElement; pip: HTMLElement; text: string }> = [];
+  private markers: Array<{ tag: HTMLElement; text: string }> = [];
   private missionHtml = "";
   private readonly jumpEl = (() => {
     const node = document.createElement("div");
@@ -157,27 +152,22 @@ export class Hud {
     this.perfEl.textContent = `tick ${tick.toFixed(1)} / ${TICK_BUDGET_MS.toFixed(0)} ms\n${free.toFixed(0)}% free · ${this.fps.toFixed(0)} fps${split}`;
   }
 
-  /** One (hidden) tag and pip per ship of a new match. */
+  /** One (hidden) tag per ship of a new match. */
   resetMarkers(n: number): void {
     for (const m of this.markers) {
       m.tag.remove();
-      m.pip.remove();
     }
     this.markers = Array.from({ length: n }, () => {
       const tag = document.createElement("div");
       tag.className = "tag";
       tag.hidden = true;
-      const pip = document.createElement("div");
-      pip.className = "pip";
-      pip.hidden = true;
-      this.tagsEl.append(pip, tag);
-      return { tag, pip, text: "" };
+      this.tagsEl.append(tag);
+      return { tag, text: "" };
     });
   }
 
   /**
-   * Place the pips (a faint team ring round a hull drawn too small to read) and, with
-   * details on, the per-ship tags. `onScreen(i)` is ship i's screen position and drawn
+   * With details on, place the per-ship tags. `onScreen(i)` is ship i's screen position and drawn
    * length (CSS px), or null; `thrusters[i]` its hull's thruster count.
    */
   updateMarkers(match: LiveMatch, details: boolean, onScreen: (i: number) => ShipOnScreen | null, thrusters: number[]): void {
@@ -186,14 +176,7 @@ export class Hud {
     match.ships.forEach((ship, i) => {
       const marker = this.markers[i];
       if (!marker) return;
-      const at = ship.alive && ship.present ? onScreen(i) : null;
-      const pipAlpha = at ? Math.min(PIP_MAX_ALPHA, Math.max(0, (PIP_FADE_PX - at.sizePx) / PIP_FADE_SPAN)) : 0;
-      marker.pip.hidden = pipAlpha <= 0.02;
-      if (at && !marker.pip.hidden) {
-        marker.pip.className = `pip ${TEAM_CLASSES[ship.team]}`;
-        marker.pip.style.opacity = pipAlpha.toFixed(2);
-        marker.pip.style.transform = `translate(${Math.round(at.x)}px, ${Math.round(at.y)}px)`;
-      }
+      const at = details && ship.alive && ship.present ? onScreen(i) : null;
       if (!details || !at) {
         marker.tag.hidden = true;
         return;

@@ -2,8 +2,9 @@
 // one hull model per ship, drawn by interpolating between sim ticks. Ships jump in as
 // in the duel (a ~55 ms streak and a landing flash) or launch from a carrier's bay;
 // freighters spool their jump drive and leave as a streak; damage shows as smoke,
-// flame and arcing on the hull (no health bars), and a destroyed ship's wreck drifts
-// and burns for a few seconds before it breaks up. Behind "show commands" the
+// flame and arcing on the hull (no health bars). A destroyed ship either burns for up
+// to two seconds and goes up in a major explosion or becomes a hulk: it coasts on,
+// tumbling and smouldering, sunk below the battle plane so the living fly over it. Behind "show commands" the
 // commanders' squad orders, carrier waypoints and the jump point are drawn faintly.
 
 import * as THREE from "three";
@@ -13,23 +14,33 @@ import { createEffects, jumpOutOffset, JUMP_OUT_DURATION } from "../render/effec
 import { createEnvironment } from "../render/environment.js";
 import { renderHullThumbnails } from "../render/thumbs.js";
 import { HULLS } from "../render/hulls.js";
-import { FitCamera, emptyBounds, type Bounds } from "./camera.ts";
+import { FitCamera, TYPICAL_ZOOM, emptyBounds, growBounds, type Bounds } from "./camera.ts";
 import type { LiveMatch } from "./match.ts";
 import { JUMP_DEPARTED, SIM_HZ, type HullInfo, type ShipState, type SimEvent } from "./sim.ts";
 
 // Jump-in streak, as in the story and the duel.
 const JUMP_DISTANCE = 900;
 const JUMP_DURATION = 0.055;
-const DEATH_RADIUS_SCALE = 2.5;
+// The burst at the kill itself; a major explosion, if one comes, is the big one.
+const DEATH_RADIUS_SCALE = 1.8;
 // Largest crash flash radius, metres (a 100 m/s head-on reaches it).
 const COLLISION_FLASH_MAX = 4;
-// A wreck burns this long, then breaks up; long enough to outlast the result banner's
-// first beats when the last ship of a side goes.
-const WRECK_BURN = 3.2;
-// Wreck drift decays at this rate (1/s), so it coasts rather than flies on.
+// Chance a destroyed ship blows up (else it's a hulk), and the latest it does, seconds.
+const MAJOR_CHANCE = 0.45;
+const MAJOR_DELAY_MAX = 2;
+// A major explosion's radius against the hull's collision radius.
+const MAJOR_RADIUS_SCALE = 2.6;
+// Drift decays at this rate (1/s): a doomed wreck slows hard, a hulk coasts on.
 const WRECK_DRAG = 0.7;
-// The hp fraction a wreck burns at: below the flame and arcing thresholds.
+const HULK_DRAG = 0.12;
+// A hulk sinks this far below the plane (metres, plus its own radius), easing at HULK_SINK_RATE.
+const HULK_DEPTH = 6;
+const HULK_SINK_RATE = 0.8;
+// The hp fraction a wreck burns at (below the flame and arcing thresholds); a hulk's
+// fire dies down to smoke over HULK_SMOULDER seconds.
 const WRECK_HP = 0.12;
+const HULK_HP = 0.35;
+const HULK_SMOULDER = 6;
 const BEAM_TTL = 0.06;
 // Weapon ids are assets/weapons.yaml file order (SIM_SPEC §4.2); `Fire` carries one.
 const WEAPON_NAMES = ["gauss", "laser", "flak", "torpedo"];
@@ -115,7 +126,7 @@ interface Effects {
 
 interface Environment {
   newMatch(seed: number): void;
-  update(dt: number, view: { centerX: number; centerY: number; extent: number }): void;
+  update(dt: number, view: { centerX: number; centerY: number; extent: number; projection?: THREE.Matrix4; layoutZoom?: number }): void;
 }
 
 interface Treatment {
@@ -142,7 +153,20 @@ interface Wreck {
   vy: number;
   heading: number;
   omega: number;
+  /** Tumble rate about the hull's long axis, rad/s. */
+  roll: number;
   age: number;
+  /** Seconds after death of the major explosion; Infinity for a hulk. */
+  blowAt: number;
+  gone: boolean;
+}
+
+/** A hash of (seed, ship, salt) to [0, 1): a match's wreck fates replay with its seed. */
+function fate(seed: number, ship: number, salt: number): number {
+  let h = Math.imul(seed ^ 0x9e3779b9, 0x85ebca6b) ^ Math.imul(ship + 1, 0xc2b2ae35) ^ Math.imul(salt + 7, 0x27d4eb2f);
+  h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d);
+  h = Math.imul(h ^ (h >>> 12), 0x297a2d39);
+  return ((h ^ (h >>> 15)) >>> 0) / 4294967296;
 }
 
 interface ShipView {
@@ -194,7 +218,7 @@ export function mergeSpec(base: HullSpec, info: HullInfo | undefined): HullSpec 
 
 function drift(w: Wreck, dt: number): void {
   w.age += dt;
-  const drag = Math.exp(-WRECK_DRAG * dt);
+  const drag = Math.exp(-(w.blowAt === Infinity ? HULK_DRAG : WRECK_DRAG) * dt);
   w.vx *= drag;
   w.vy *= drag;
   w.x += w.vx * dt;
@@ -328,6 +352,15 @@ export class World {
     const c = match.convoy;
     if (c) this.cam.setAxis(c.jumpX - c.startX, c.jumpY - c.startY);
     else this.cam.setAxis(1, 0);
+    // The fixed camera holds the whole arena (and the convoy's road) at zoom 1.
+    const stage = emptyBounds();
+    const r = match.arenaRadius;
+    for (const [x, y] of [[-r, -r], [-r, r], [r, -r], [r, r]] as const) growBounds(stage, x, y);
+    if (c) {
+      this.cam.grow(stage, c.startX, c.startY);
+      this.cam.grow(stage, c.jumpX, c.jumpY);
+    }
+    this.cam.setStage(stage);
     this.environment.newMatch(match.seed);
     this.cam.snap();
   }
@@ -359,7 +392,20 @@ export class World {
       if (e.kind === "death" && ship && view) {
         view.charge?.cancel();
         view.charge = null;
-        view.wreck = { x: e.x, y: e.y, vx: ship.vx, vy: ship.vy, heading: ship.heading, omega: ship.omega * 0.5 + 0.4, age: 0 };
+        const major = fate(m.seed, e.a, 0) < MAJOR_CHANCE;
+        const spin = fate(m.seed, e.a, 1) - 0.5;
+        view.wreck = {
+          x: e.x,
+          y: e.y,
+          vx: ship.vx,
+          vy: ship.vy,
+          heading: ship.heading,
+          omega: ship.omega * 0.5 + spin * 0.8,
+          roll: 0.15 + 0.3 * fate(m.seed, e.a, 2),
+          age: 0,
+          blowAt: major ? MAJOR_DELAY_MAX * fate(m.seed, e.a, 3) : Infinity,
+          gone: false,
+        };
         if (!quiet) fx.explosion({ x: e.x, y: e.y, radius: view.hull.radius * DEATH_RADIUS_SCALE, team: ship.team, kind: "death" });
         continue;
       }
@@ -432,9 +478,14 @@ export class World {
     this.quickJumps = ships.map(({ i }, k) => ({ at: this.elapsed + QUICK_JUMP_DELAY + k * QUICK_JUMP_GAP, ship: i }));
   }
 
-  /** Age the wrecks without drawing (a fast-forward), so old ones have burnt out. */
+  /** Age the wrecks without drawing (a fast-forward): due explosions pass silently. */
   advanceWrecks(dt: number): void {
-    for (const v of this.views) if (v.wreck && v.wreck.age <= WRECK_BURN) drift(v.wreck, dt);
+    for (const v of this.views) {
+      const w = v.wreck;
+      if (!w || w.gone) continue;
+      drift(w, dt);
+      if (w.age >= w.blowAt) w.gone = true;
+    }
   }
 
   /** No streaks for ships that arrived during a fast-forward. */
@@ -462,7 +513,7 @@ export class World {
       if (this.showOrders || m.convoy) this.updateOrders(m, this.showOrders);
     }
     this.cam.update(bounds, dt);
-    this.environment.update(dt, { centerX: this.cam.x, centerY: this.cam.y, extent: this.cam.extent });
+    this.environment.update(dt, { centerX: this.cam.x, centerY: this.cam.y, extent: this.cam.extent, projection: this.cam.baseProjection, layoutZoom: TYPICAL_ZOOM });
     this.effects.update(dt);
     treatment.render(this.renderer, this.scene, this.cam.camera, dt);
   }
@@ -629,23 +680,31 @@ export class World {
   private drawWreck(v: ShipView, dt: number, bounds: Bounds | null, team: number): void {
     const w = v.wreck!;
     const obj = v.model.object;
-    if (w.age > WRECK_BURN) {
+    if (w.gone) {
       obj.visible = false;
+      v.damage.update(1, false, dt);
       return;
     }
     drift(w, dt);
+    if (w.age >= w.blowAt) {
+      w.gone = true;
+      obj.visible = false;
+      v.damage.update(1, false, dt);
+      this.effects.explosion({ x: w.x, y: w.y, radius: v.hull.radius * MAJOR_RADIUS_SCALE, team, kind: "major" });
+      return;
+    }
+    const hulk = w.blowAt === Infinity;
+    // A hulk eases down below the plane; a doomed wreck stays on it until it goes.
+    const depth = hulk ? (HULK_DEPTH + v.hull.radius) * (1 - Math.exp(-HULK_SINK_RATE * w.age)) : 0;
     obj.visible = true;
-    obj.position.set(w.x, -w.age * 0.6, -w.y);
-    // A slow tumble: the wreck rolls as it spins.
-    obj.rotation.set(w.age * 0.35, w.heading, 0);
+    obj.position.set(w.x, -depth, -w.y);
+    obj.rotation.set(w.age * w.roll, w.heading, 0);
     obj.updateMatrixWorld();
     v.model.setThrottles([], dt);
-    v.damage.update(WRECK_HP, true, dt);
-    if (bounds) this.cam.grow(bounds, w.x, w.y);
-    if (w.age > WRECK_BURN) {
-      obj.visible = false;
-      this.effects.explosion({ x: w.x, y: w.y, radius: v.hull.radius * 1.2, team, kind: "death" });
-    }
+    const hp = hulk ? WRECK_HP + (HULK_HP - WRECK_HP) * Math.min(1, w.age / HULK_SMOULDER) : WRECK_HP;
+    v.damage.update(hp, true, dt);
+    // Only a wreck still to blow is worth holding in the shot.
+    if (bounds && !hulk) this.cam.grow(bounds, w.x, w.y);
   }
 
   /** Screen position and drawn length (CSS px) of ship `i`, or null when it isn't on show. */
@@ -660,7 +719,8 @@ export class World {
     this.tagPos.set(x, 0, -y);
     const cam = this.cam.camera;
     const depth = this.tagPos.distanceTo(cam.position);
-    const pxPerMetre = height / (2 * depth * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2));
+    // The projection's y scale carries the digital zoom as well as the field of view.
+    const pxPerMetre = (height * cam.projectionMatrix.elements[5]!) / (2 * depth);
     this.tagPos.project(cam);
     return { x: ((this.tagPos.x + 1) / 2) * width, y: ((1 - this.tagPos.y) / 2) * height, pxPerMetre };
   }
@@ -669,7 +729,8 @@ export class World {
     const cam = this.cam.camera;
     this.tagPos.setFromMatrixPosition(matrix);
     const depth = this.tagPos.distanceTo(cam.position);
-    const pxPerMetre = height / (2 * depth * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2));
+    // The projection's y scale carries the digital zoom as well as the field of view.
+    const pxPerMetre = (height * cam.projectionMatrix.elements[5]!) / (2 * depth);
     this.tagPos.project(cam);
     return { x: ((this.tagPos.x + 1) / 2) * width, y: ((1 - this.tagPos.y) / 2) * height, sizePx: length * pxPerMetre };
   }

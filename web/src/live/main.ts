@@ -329,6 +329,7 @@ if (params.has("debug")) {
       tickMs: match ? match.timing.sim + match.timing.nn : 0,
       bundle: bundle?.manifest.bundle_id,
       gpu: world.gpuStats(),
+      zoom: world.cam.zoomLevel,
     }),
     pause: (on = true) => {
       paused = on;

@@ -12,7 +12,7 @@ import * as hullgeo from "../render/hullgeo.js";
 import { createEffects, jumpOutOffset, JUMP_OUT_DURATION } from "../render/effects.js";
 import { createEnvironment } from "../render/environment.js";
 import { HULLS } from "../render/hulls.js";
-import { FitCamera, emptyBounds, growBounds } from "../live/camera.ts";
+import { FitCamera, TYPICAL_ZOOM, emptyBounds, growBounds } from "../live/camera.ts";
 
 interface Vec2Spec {
   pos: [number, number];
@@ -361,7 +361,7 @@ function advance(dt: number): void {
   if (current.orders) fx.drawOrders(current.orders(time));
   cam.update(bounds, dt);
   if (closeSpan > 0) closeUp(bounds);
-  environment.update(dt, { centerX: cam.x, centerY: cam.y, extent: cam.extent });
+  environment.update(dt, { centerX: cam.x, centerY: cam.y, extent: cam.extent, projection: cam.baseProjection, layoutZoom: TYPICAL_ZOOM });
   fx.update(dt);
 }
 

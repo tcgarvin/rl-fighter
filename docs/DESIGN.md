@@ -331,8 +331,11 @@ the next run.
 - **Stack:** Vite + TypeScript + three.js, with the sim and policy inference in WASM.
   The sim and inference run in a Web Worker. The main thread renders by interpolating
   between sim ticks.
-- **Camera (v1):** a fixed top-down/oblique view that frames all the live ships, with
-  smoothed zoom and pan. A director camera is future work.
+- **Camera (v2):** a fixed oblique camera, placed once per match to take in the whole
+  arena, with a smoothed *digital* zoom and pan that frames all the live ships: the
+  rendered image is scaled and cropped (after the projection), and the camera never
+  moves. Perspective and parallax never change, so a ship by a planet stays by it as
+  the view zooms in, and the planet grows with it. A director camera is future work.
 - **Visuals:** per-thruster exhaust driven by the throttle actions; turret meshes
   follow the sim's turret angles; projectiles, hits and explosions. Optionally, the
   commander's orders as lines and markers.
@@ -343,14 +346,17 @@ the next run.
 - **Perf readout:** a small debug figure in the upper right shows the tick budget's
   headroom (sim + inference time per tick against the 33 ms of a 30 Hz tick), so
   phone performance stays visible as the pilot net grows.
-- **Shields** are invisible until they deflect a hit; then a brief, local ripple shows
-  at the impact point.
+- **Shields** are invisible until they deflect a hit; then the struck patch of the
+  bubble lights up and shimmers as it dissipates the impact.
+- **Destroyed ships** either go up in a major explosion within two seconds of the kill
+  or become hulks: they coast on, tumbling and smouldering, sunk a little below the
+  battle plane so the living fly over them. They stay until the match ends.
 - **Scenery** has two layers. (1) A rigid **backdrop**: the starfield, nebulae and
   large painted bodies (planets, rings, moons). Its parts never move relative to each
-  other. The layer is anchored to the screen, and the whole of it shifts slightly as
-  the camera moves; per-object parallax between planets and stars looked wrong.
-  Bodies sit at the screen edges or corners, preferring the viewport's long axis,
-  rarely behind the battle. (2) World-space **foreground dust** that the ships and
+  other. It is fixed to the camera's whole-arena frame, so the digital zoom and pan
+  scale and crop it with the ships; per-object parallax between planets and stars
+  looked wrong. Bodies are composed for a typical fight's zoom (about 2.5×): at the
+  edges of that crop, preferring the viewport's long axis. (2) World-space **foreground dust** that the ships and
   camera visibly move against. Scenery is generated procedurally from the match
   seed, with enough variety that it never feels like a rotation.
 - **Pages:**
