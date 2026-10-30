@@ -1,5 +1,7 @@
-// Canonical, texture-free fleet kit. Geometry caches are bounded to the twelve
-// role/team combinations; returned scene graphs are recycled between matches.
+// Canonical, texture-free fleet kit. A spec's look is `model` when it names one, else
+// its role, so one role can have several looks (the transport role's freighter today,
+// a medical frigate later). Geometry caches are bounded to the look/team combinations
+// (seven looks x two teams = fourteen); returned scene graphs are recycled between matches.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mountToLocal } from './hulls.js';
@@ -179,6 +181,33 @@ function carrier(b,h) {
   return [[-17,2,4.5],[-17,2,-4.5],[-10.6,3.2,0],[-6,1.6,5],[-6,1.6,-5],[2,1.65,0],[13.5,1.9,5.5],[13.5,1.9,-5.5],[18,1.7,2],[18,1.7,-2]];
 }
 
+function freighter(b) {
+  // A narrow load-bearing spine leaves daylight between three blunt freight boxes.
+  b.panel('machinery',-.5,0,24.6,2.1,-.65,1.05,.12);
+  for (const x of [-5,0,5]) {
+    b.panel('machinery',x,0,3.9,2.6,-.25,.8,.1);
+    b.add('trim',plate(clipped(x,0,3.8,8,.22),.45,1.55,.14));
+    // Broad painted end bands repeat at phone scale; the pale roofs stay simple.
+    b.panel('paint',x+1.35,0,.75,8.05,2.09,.13,.04);
+  }
+  // The cab has a flat face and a wide windshield, rather than a pointed prow.
+  b.panel('machinery',9.45,0,4.6,8.1,-.6,1.05,.13);
+  b.panel('paint',9.4,0,4.4,7.8,.6,.98,.14);
+  b.panel('paint',9.15,0,3.9,6.8,1.75,.32,.1);
+  b.panel('machinery',11.35,0,.45,5.6,1.7,.32,.05);
+  b.panel('glow',11.42,0,.2,4.8,2.06,.04,.02);
+  // A single square engineering block, with room inside for the automatic nozzles.
+  b.panel('machinery',-9.9,0,5.8,8.4,-.8,1.45,.16);
+  b.panel('paint',-10.2,0,5.1,7.7,.82,.62,.12);
+  for (const s of [-1,1]) {
+    b.panel('trim',-10.3,s*2,3.2,1.5,1.53,.12,.06);
+    for (const x of [-11.3,-10.5,-9.7])
+      b.panel('machinery',x,s*2,.28,1.1,1.7,.06,.025);
+  }
+  return [[-11,1.8,2],[-11,1.8,-2],[-5,2.15,2.6],[-5,2.15,-2.6],
+    [0,2.4,0],[5,2.15,2.6],[5,2.15,-2.6],[9.2,2.2,0]];
+}
+
 function radial(r,a) { return [Math.cos(a)*r,Math.sin(a)*r]; }
 function ringSector(inner,outer,a,half) {
   return [radial(inner,a-half),radial(outer,a-half),radial(outer,a),radial(outer,a+half),radial(inner,a+half),radial(inner,a)];
@@ -207,7 +236,10 @@ function station(b,h) {
   return [[0,2.85,0],[5,2.2,2],[-5,2.2,-2],[0,2.15,19],[0,2.15,-19],[18.5,2.15,0],[-18.5,2.15,0],[12.5,2.15,12.5],[-12.5,2.15,12.5],[12.5,2.15,-12.5]];
 }
 
-const BUILDERS={fighter,skirmisher:strafer,anchor:gunship,bomber,carrier,station};
+// Keyed by look (spec.model ?? spec.role). `transport` is the role's default look.
+const BUILDERS={fighter,skirmisher:strafer,anchor:gunship,bomber,carrier,freighter,transport:freighter,station};
+/** The look a spec is built with: its explicit model, else its role. */
+function look(h) { return h.model ?? h.role; }
 // Dimensions are explicit per role; capital-ship weapons cannot inherit darts.
 const TURRETS={
   fighter:{r:.46,base:.5,len:1.45}, skirmisher:{r:.46,base:.5,len:1.45},
@@ -222,17 +254,22 @@ function insignia(b,team,x,z,y,scale) {
   if (!team) b.add('marking',plate([[x+.65*scale,z],[x,z+.65*scale],[x-.65*scale,z],[x,z-.65*scale]],top,.04,.015));
   else for (const s of [-1,1]) b.panel('marking',x,z+s*.38*scale,1.25*scale,.5*scale,top,.04,.015);
 }
-function largeMarkings(b,role,team) {
+function largeMarkings(b,kind,team) {
   const stripe=(x,z,y,span,scale)=>{
     for (let i=0;i<(team?2:1);i++) b.panel('marking',x+(team?(i-.5)*.68*scale:0),z,(team?.27:.85)*scale,span,y,.045,.015);
   };
-  if (role==='bomber') {
+  if (kind==='bomber') {
     stripe(-2.8,0,1.06,6.1,1.2);
     insignia(b,team,-1.4,0,1.56,.95);
-  } else if (role==='carrier') {
+  } else if (kind==='carrier') {
     // Split across the aft deck; stripes never bridge an open launch bay.
     for (const s of [-1,1]) stripe(-12.7,s*5.7,1.91,4.1,2.8);
     insignia(b,team,-10.6,0,3.12,2.35);
+  } else if (kind==='freighter' || kind==='transport') {
+    // Cab roof: 1.75 + .32 + .1*.65 = 2.135; aft casing: .82 + .62 + .12*.65 = 1.518.
+    stripe(10.55,0,2.15,5.8,1);
+    stripe(-8.15,0,1.53,6.6,.9);
+    insignia(b,team,8.8,0,2.15,1.2);
   } else {
     for (const s of [-1,1]) stripe(0,s*17.2,1.99,6.6,3);
     insignia(b,team,0,0,2.72,3.6);
@@ -241,7 +278,9 @@ function largeMarkings(b,role,team) {
 
 function createKit(h,team) {
   const b=batch(), heavy=h.role==='anchor', ray=h.role==='skirmisher';
-  const damage=BUILDERS[h.role](b,h,team);
+  const build=BUILDERS[look(h)];
+  if (!build) throw new Error(`hullgeo: no builder for look "${look(h)}" (role ${h.role})`);
+  const damage=build(b,h,team);
   const capital=h.role==='carrier'||h.role==='station';
   const legacy=h.role==='fighter'||heavy||ray;
   // Raised, high-contrast fleet insignia. The split square has a real gap.
@@ -255,7 +294,7 @@ function createKit(h,team) {
     b.panel('machinery',ex,0,1.75,1.65,ey,.06,.08);
     if (!team) b.add('marking',plate([[ex+.65,0],[ex,.65],[ex-.65,0],[ex,-.65]],ey+.08,.04,.015));
     else for (const s of [-1,1]) b.panel('marking',ex,s*.38,1.25,.5,ey+.08,.04,.015);
-  } else largeMarkings(b,h.role,team);
+  } else largeMarkings(b,look(h),team);
 
   for (const t of h.thrusters) {
     // +X rotated about +Y becomes (cos a,0,-sin a).
@@ -268,7 +307,12 @@ function createKit(h,team) {
     const throat=cylinder(s*.26,s*.26,s*.025);
     throat.translate(s*.025,0,0); b.add('glow',throat,x,0,z,a);
   }
+  // Unarmed hulls (the freighter) have no turret kit at all.
+  if (!h.turrets.length) {
+    return {body:b.finish(),turret:[],tip:0,muzzleHeight:0,damagePoints:damage.map(p=>new THREE.Vector3(...p))};
+  }
   const weapon=TURRETS[h.role];
+  if (!weapon) throw new Error(`hullgeo: no turret dimensions for role ${h.role}`);
   for (const t of h.turrets) {
     const r=weapon.base;
     const g=new THREE.CylinderGeometry(r,r*1.12,.23,12);
@@ -300,7 +344,7 @@ const plume=new THREE.ConeGeometry(.55,1,8,1);
 plume.rotateZ(-Math.PI/2); plume.translate(.5,0,0);
 
 export function buildHull(hull,team,mats) {
-  const key=`${hull.role}:${team?1:0}`;
+  const key=`${look(hull)}:${team?1:0}`;
   let pool=pools.get(key);
   if (!pool) pools.set(key,pool=[]);
   let model=pool.pop();
@@ -315,7 +359,7 @@ export function buildHull(hull,team,mats) {
   }
   let kit=kits.get(key);
   if (!kit) kits.set(key,kit=createKit(hull,team));
-  const object=new THREE.Group();object.name=`hull.${hull.role}`;
+  const object=new THREE.Group();object.name=`hull.${look(hull)}`;
   function meshes(parent,entries) {
     for (const [slot,g] of entries) {
       const m=new THREE.Mesh(g,mats[slot]);m.userData.slot=slot;parent.add(m);

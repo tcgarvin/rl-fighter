@@ -118,6 +118,34 @@ export const HULLS = {
       { id: "bay.starboard", pos: [4, -9], dir: [0.5, -0.87] },
     ],
   },
+  // Civilian convoy hauler, the transport role's freighter look: unarmed, slow, flown
+  // straight to the jump point. The four RCS are small heading-hold puffers.
+  freighter: {
+    role: "transport",
+    model: "freighter",
+    length: 26,
+    beam: 9,
+    radius: 13.5,
+    hp: 900,
+    mass: 260,
+    inertia: 16000,
+    speedCap: 14,
+    shield: { hp: 200, regenRate: 10, regenDelay: 5, radius: 15 },
+    collision: [
+      { pos: [8, 0], r: 4 },
+      { pos: [0, 0], r: 4.5 },
+      { pos: [-8, 0], r: 4.2 },
+    ],
+    thrusters: [
+      { id: "thruster.main.l", pos: [-13, 2], dir: [1, 0], force: 3300, size: 1.75 },
+      { id: "thruster.main.r", pos: [-13, -2], dir: [1, 0], force: 3300, size: 1.75 },
+      { id: "thruster.rcs.fl", pos: [9, 4.2], dir: [0, -1], force: 300, size: 0.3 },
+      { id: "thruster.rcs.fr", pos: [9, -4.2], dir: [0, 1], force: 300, size: 0.3 },
+      { id: "thruster.rcs.rl", pos: [-9, 4.4], dir: [0, -1], force: 300, size: 0.3 },
+      { id: "thruster.rcs.rr", pos: [-9, -4.4], dir: [0, 1], force: 300, size: 0.3 },
+    ],
+    turrets: [],
+  },
   station: {
     role: "station",
     length: 44,
