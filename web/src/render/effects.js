@@ -15,8 +15,16 @@
 // Fire-and-forget events:
 //   fx.muzzle({x, y, angle, team, weapon})
 //   fx.hit({x, y, team})                     team = shooter (-1: neutral)
-//   fx.shieldHit({x, y, nx, ny, team, depleted, radius})  team = shooter
-//   fx.explosion({x, y, radius, team, kind})  kind 'death' | 'flak' | 'collision'
+//   fx.shieldHit({x, y, nx, ny, team, depleted, radius, object?})  team = shooter. A
+//       patch of the bubble (radius round the ship centre, x - nx*radius, y - ny*radius)
+//       lights up round the impact: field cells, uneven ripples, a ragged ~0.7 s decay.
+//       depleted: the whole bubble strobes and shatters outward (1 s). Pass the hull's
+//       THREE.Object3D as `object` so the response rides with a moving ship; at most
+//       SHIELD_LAYERS responses per shield are live, and quick repeats feed the last.
+//   fx.explosion({x, y, radius, team, kind})  kind 'death' | 'flak' | 'collision' | 'major'
+//       'major' is a destroyed hull blowing up big (radius ~2.5 collision radii): flash,
+//       shockwave to ~2.9 radius, fireball with secondary pops, debris, embers and hot
+//       smoke that lingers ~4 s.
 //   fx.arrival({x, y, heading, team, size, duration})  jump-in streak; size = hull length
 //   fx.bayLaunch({x, y, heading, team, size, speed})   ship leaving a carrier bay: x, y is
 //       the bay mouth, heading/speed the launch velocity (m/s), size the launched hull's
@@ -50,6 +58,143 @@ export function jumpOutOffset(age, duration = JUMP_OUT_DURATION) {
   return JUMP_OUT_DISTANCE * t * t * t;
 }
 
+// Shield responses: one pooled, instanced dome (a sphere flattened to 0.75 in height)
+// per live response, lit only where and while it is struck. Per instance: tint (rgb,
+// peak strength), hit (impact direction in the unit sphere's frame, age s), mode
+// (depleted 0/1, seed, radius m, life s). The fragment shader does all of the look.
+const SHIELD_CAP = 48;
+// Live responses per shield: a gunship under sustained fire reuses its oldest layer
+// instead of stacking more additive shells over the hull.
+const SHIELD_LAYERS = 3;
+// Peak strength of a fresh response, and the most a shield's live responses may sum to.
+const SHIELD_STRENGTH = .85, SHIELD_BUDGET = 1.15;
+const SHIELD_LIFE = .7, SHIELD_DEPLETED_LIFE = 1.0, SHIELD_FLATTEN = .75;
+const SHIELD_VERTEX = `
+  attribute vec4 tint; attribute vec4 hit; attribute vec4 mode;
+  varying vec4 vTint; varying vec4 vHit; varying vec4 vMode;
+  varying vec3 vSphere; varying vec3 vNormal; varying vec3 vView;
+  void main(){
+    vTint=tint; vHit=hit; vMode=mode;
+    vec3 n=normalize(vec3(position.x,position.y/${SHIELD_FLATTEN},position.z)); vSphere=n;
+    // A collapsing shield swells as it lets go.
+    float u=clamp(hit.w/max(mode.w,.001),0.,1.);
+    float grow=mode.x>.5?1.+.05*u*u:1.;
+    vec4 world=modelMatrix*instanceMatrix*vec4(position*grow,1.);
+    vNormal=normalize(mat3(modelMatrix*instanceMatrix)*vec3(n.x,n.y/${SHIELD_FLATTEN},n.z));
+    vView=normalize(cameraPosition-world.xyz);
+    gl_Position=projectionMatrix*viewMatrix*world;
+  }`;
+const SHIELD_FRAGMENT = `
+  uniform float time;
+  varying vec4 vTint; varying vec4 vHit; varying vec4 vMode;
+  varying vec3 vSphere; varying vec3 vNormal; varying vec3 vView;
+  float hash(vec3 p){ p=fract(p*vec3(.1031,.1030,.0973)); p+=dot(p,p.yxz+33.33); return fract((p.x+p.y)*p.z); }
+  float vnoise(vec3 p){
+    vec3 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
+    return mix(mix(mix(hash(i),hash(i+vec3(1,0,0)),f.x),mix(hash(i+vec3(0,1,0)),hash(i+vec3(1,1,0)),f.x),f.y),
+               mix(mix(hash(i+vec3(0,0,1)),hash(i+vec3(1,0,1)),f.x),mix(hash(i+vec3(0,1,1)),hash(i+vec3(1,1,1)),f.x),f.y),f.z);
+  }
+  // Cells of the field (3D Voronoi on the sphere): x = distance to the cell border,
+  // y = the cell's own random value.
+  vec2 cells(vec3 p){
+    vec3 i=floor(p), f=fract(p); float d1=8., d2=8.; vec3 id=vec3(0);
+    for(int z=-1;z<=1;z++) for(int y=-1;y<=1;y++) for(int x=-1;x<=1;x++){
+      vec3 g=vec3(x,y,z), o=vec3(hash(i+g),hash(i+g+19.1),hash(i+g+47.7));
+      vec3 r=g+o-f; float d=dot(r,r);
+      if(d<d1){ d2=d1; d1=d; id=i+g; } else if(d<d2) d2=d;
+    }
+    return vec2(sqrt(d2)-sqrt(d1), hash(id+3.7));
+  }
+  void main(){
+    float age=vHit.w, life=vMode.w, u=clamp(age/life,0.,1.), seed=vMode.y, radius=vMode.z;
+    bool depleted=vMode.x>.5;
+    vec3 n=normalize(vSphere), impact=normalize(vHit.xyz);
+    float theta=acos(clamp(dot(n,impact),-1.,1.));
+    // Stationary, low-frequency warp: wave fronts run unevenly over the surface.
+    float warped=theta+(vnoise(n*2.6+seed)-.5)*.34;
+    // Cells about 2.6 m across, never fewer than a few over the bubble.
+    float scale=clamp(radius/2.6,3.,10.);
+    vec2 cell=cells(n*scale+seed*7.);
+    // Hairline cell borders, antialiased; once the cells shrink toward a few pixels
+    // (a small ship on a phone) the lines melt into a faint even shimmer.
+    float aa=fwidth(cell.x), w=.04;
+    float edge=1.-smoothstep(w-aa*.5,w+aa*.5+.001,cell.x);
+    edge=mix(edge,.14,clamp(aa/w-1.,0.,1.));
+    // Each cell breathes on its own, smoothly (no stepped strobing under sustained fire).
+    float flicker=.6+.4*vnoise(vec3(cell.y*31.,time*7.,seed));
+    float facing=abs(dot(normalize(vNormal),normalize(vView)));
+    float rim=pow(1.-facing,3.);
+    // Refraction-like glints: a fast, short-lived noise band across the struck patch.
+    float glint=pow(vnoise(n*7.+vec3(0.,time*9.,seed)),3.)*exp(-age*7.);
+    float a, white, lift=0.;
+    if(!depleted){
+      float width=mix(.3,.6,smoothstep(0.,.2,age));
+      float spot=exp(-pow(warped/width,2.));
+      float halo=exp(-pow(warped/(width*1.35),2.));
+      float front=exp(-pow((warped-age*3.)/.13,2.))*.55+exp(-pow((warped-max(0.,age-.08)*2.4)/.1,2.))*.25*step(.08,age);
+      front*=exp(-theta*.9);
+      // Fast attack, then a ragged decay: noise blobs eat the patch as it fades.
+      float env=smoothstep(0.,.02,age)*exp(-age/.24);
+      float ragged=smoothstep(u-.25,u+.1,vnoise(n*5.+seed+vec3(0.,time*.8,0.)));
+      // A few cells flare at a time; the outline is broken by slow gaps, so the patch
+      // reads as energy on a dome, not a lit surface or a HUD arc.
+      // A few cells at a time light a soft node at their heart, each on its own clock.
+      float k=time*6.+cell.y*5.;
+      float lit=step(.93,hash(vec3(floor(cell.y*97.),floor(k),seed)))*sin(3.1416*fract(k))*smoothstep(.12,.4,cell.x);
+      float gaps=smoothstep(.3,.6,vnoise(n*3.+seed+vec3(time*.5)));
+      float body=(spot*(.02+.3*edge*flicker+.6*lit)+halo*rim*.12*gaps)*ragged;
+      lift=spot*(.35*lit+.2*edge);
+      // Only a patch of the dome answers: nothing past ~70 degrees from the impact.
+      a=1.4*env*(body+front*(.1+.4*edge)+glint*spot*1.25)*(1.-smoothstep(.65,1.25,theta));
+      white=exp(-pow(theta/.15,2.))*exp(-age/.07);
+      a+=white*1.2;
+    } else {
+      // The whole bubble: a hard flash with two unequal dropouts, then the cells
+      // shatter from the impact outward, each flaring as it goes.
+      float strobe=1.-.85*step(.05,age)*step(age,.08)-.6*step(.12,age)*step(age,.15);
+      float d=smoothstep(.08,.65,u)*1.15;
+      float key=.6*cell.y+.4*theta/3.1416;
+      float alive=smoothstep(d,d+.06,key);
+      float dying=exp(-pow((key-d)/.05,2.))*step(.001,d);
+      float env=smoothstep(0.,.02,age);
+      float front=exp(-pow((warped-age*5.)/.12,2.));
+      float body=.05+.6*edge*flicker+.9*rim;
+      a=env*strobe*(body*alive+dying*(.25+edge)*1.2+front*(.15+.6*edge)*exp(-age*3.))*.7;
+      white=exp(-pow(theta/.25,2.))*exp(-age/.06);
+      a+=white*1.2;
+    }
+    // The far side of the bubble (seen through it) stays faint.
+    if(!gl_FrontFacing) a*=.3;
+    a*=vTint.a;
+    // Contrast: the dim cell network drops away (an orange field at low light reads as
+    // brown crust), the bright cells, fronts and glints keep their strength.
+    a=a*a/(a+.08);
+    if(a<.003) discard;
+    // Bright structure runs hotter (toward white) than the field's own colour.
+    vec3 col=mix(vTint.rgb,vec3(.9,.98,1.),clamp(white+glint*.5+lift,0.,1.));
+    gl_FragColor=vec4(col,min(a,1.4));
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+  }`;
+function shieldBatch(T, scene, cap) {
+  const geo = new T.SphereGeometry(1, 40, 20);
+  geo.scale(1, SHIELD_FLATTEN, 1);
+  const attr = (name) => {
+    const a = new T.InstancedBufferAttribute(new Float32Array(cap * 4), 4).setUsage(T.DynamicDrawUsage);
+    geo.setAttribute(name, a); return a;
+  };
+  const rgba = attr('tint'), hit = attr('hit'), mode = attr('mode');
+  const mat = new T.ShaderMaterial({
+    uniforms: { time: { value: 0 } },
+    transparent: true, depthWrite: false, side: T.DoubleSide, blending: T.AdditiveBlending,
+    vertexShader: SHIELD_VERTEX, fragmentShader: SHIELD_FRAGMENT,
+  });
+  const mesh = new T.InstancedMesh(geo, mat, cap);
+  mesh.instanceMatrix.setUsage(T.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0;
+  mesh.renderOrder = 2; scene.add(mesh);
+  return { mesh, rgba, hit, mode, n: 0, cap };
+}
+
 export function createEffects({ THREE: T, scene, renderer, palette }) {
   const team = palette.team.map(c => new T.Color(c));
   const shot = palette.projectile.map(c => new T.Color(c));
@@ -60,15 +205,18 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
   const smokeColor = new T.Color(0x887b6b), shell = new T.Color(0x26333c);
   const transform = new T.Object3D(), point = new T.Vector3(), end = new T.Vector3();
   const resources = [];
-  function batch(geo, cap, billboard = false, smoke = false, additive = true, flame = false, trace = 0, ringWidth = 0) {
+  // opts (billboards): minPx keeps a sprite at least that many CSS pixels across; fire
+  // gives it a turbulent, animated edge (the instance's z scale carries a seed).
+  function batch(geo, cap, billboard = false, smoke = false, additive = true, flame = false, trace = 0, ringWidth = 0, ringMin = .022, opts = {}) {
+    const { minPx = 0, fire = false } = opts;
     const rgba = new T.InstancedBufferAttribute(new Float32Array(cap * 4), 4).setUsage(T.DynamicDrawUsage);
     geo.setAttribute('tint', rgba);
     const mat = new T.ShaderMaterial({
-      uniforms: { viewportHeight: { value: 720 } },
+      uniforms: { viewportHeight: { value: 720 }, time: { value: 0 } },
       transparent: true, depthWrite: false, side: T.DoubleSide,
       blending: additive ? T.AdditiveBlending : T.NormalBlending,
-      vertexShader: `uniform float viewportHeight; attribute vec4 tint; varying vec4 vTint; varying vec2 vUv;
-        void main(){ vTint=tint; vUv=uv;
+      vertexShader: `uniform float viewportHeight; attribute vec4 tint; varying vec4 vTint; varying vec2 vUv; varying float vSeed;
+        void main(){ vTint=tint; vUv=uv; vSeed=length(instanceMatrix[2].xyz);
         ${trace ? `vec4 center=modelViewMatrix*instanceMatrix*vec4(0.,0.,0.,1.);
         vec3 axis=(modelViewMatrix*vec4(instanceMatrix[0].xyz,0.)).xyz;
         vec2 along=axis.xy/max(length(axis.xy),.0001);
@@ -82,34 +230,44 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
         vec4 center=modelViewMatrix*instanceMatrix*vec4(0.,0.,0.,1.);
         vec4 edge=modelViewMatrix*instanceMatrix*vec4(rim,1.);
         float pixelWorld=2.*max(1.,-center.z)/(projectionMatrix[1][1]*viewportHeight);
-        float inset=max(.022,pixelWorld*${ringWidth}/max(length(edge.xy-center.xy),.0001));
+        float inset=max(${ringMin},pixelWorld*${ringWidth}/max(length(edge.xy-center.xy),.0001));
         float radial=radius<.99?max(0.,1.-inset):1.;
         gl_Position=projectionMatrix*modelViewMatrix*instanceMatrix*vec4(rim*radial,1.);` : billboard ? `vec4 center=modelViewMatrix*instanceMatrix*vec4(0.,0.,0.,1.);
         vec2 size=vec2(length(instanceMatrix[0].xyz),length(instanceMatrix[1].xyz));
+        ${minPx ? `size=max(size,vec2(2.*max(1.,-center.z)/(projectionMatrix[1][1]*viewportHeight)*${minPx.toFixed(2)}));` : ''}
         center.xy+=position.xy*size; gl_Position=projectionMatrix*center;` :
         'gl_Position=projectionMatrix*modelViewMatrix*instanceMatrix*vec4(position,1.);'} }`,
-      fragmentShader: `varying vec4 vTint; varying vec2 vUv;
-        void main(){float a=vTint.a;
+      fragmentShader: `uniform float time; varying vec4 vTint; varying vec2 vUv; varying float vSeed;
+        ${fire ? `float h2(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+        float n2(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
+          return mix(mix(h2(i),h2(i+vec2(1,0)),f.x),mix(h2(i+vec2(0,1)),h2(i+vec2(1,1)),f.x),f.y); }` : ''}
+        void main(){float a=vTint.a; vec3 col=vTint.rgb;
         ${trace ? `float crossSection=abs(vUv.y*2.-1.);
           ${trace === 1 ? `float taper=mix(.08,1.,vUv.x);
           a*=exp(-4.*crossSection*crossSection/(taper*taper))*pow(vUv.x,.7);
           a*=smoothstep(0.,.12,vUv.x)*smoothstep(1.,.83,vUv.x);` :
           `a*=exp(-5.*crossSection*crossSection)*smoothstep(0.,.14,vUv.x)*smoothstep(1.,.86,vUv.x);`}` : ''}
-        ${billboard ? `vec2 p=vUv*2.-1.; float r=dot(p,p);
+        ${fire ? `vec2 p=vUv*2.-1.; float t=time*1.5+vSeed*7.;
+          // Two noise octaves push the edge in and out by about 18%, and roll slowly.
+          float n=n2(p*3.+vec2(vSeed*3.1,t))*.65+n2(p*8.+vec2(-t*1.3,vSeed))*.35;
+          float rd=length(p)*(1.+(n-.5)*.36);
+          if(rd>1.) discard;
+          a*=smoothstep(1.,.5,rd)*(.65+.5*n);
+          col*=1.+.6*smoothstep(.65,0.,rd)*n;` : billboard ? `vec2 p=vUv*2.-1.; float r=dot(p,p);
           ${smoke ? `float cloud=0.78+0.12*sin(p.x*13.+sin(p.y*9.))+0.10*cos(p.y*17.+p.x*6.);
           a*=smoothstep(1.,0.1,r)*cloud;` : 'a*=max(0.,exp(-r*5.)-0.0067);'}
           ${flame ? `float taper=max(.16,.62-p.y*.40);
           a*=smoothstep(1.,.05,abs(p.x)/taper);
           a*=smoothstep(-1.,-.5,p.y)*smoothstep(1.,.35,p.y);` : ''}
           if(r>1.) discard;` : ''}
-        gl_FragColor=vec4(vTint.rgb,a);
+        gl_FragColor=vec4(col,a);
         ${trace ? '' : '#include <tonemapping_fragment>'}
         #include <colorspace_fragment>
         }`,
     });
     const mesh = new T.InstancedMesh(geo, mat, cap);
     mesh.instanceMatrix.setUsage(T.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0;
-    mesh.renderOrder = smoke ? 1 : 2; scene.add(mesh);
+    mesh.renderOrder = smoke || fire ? 1 : 2; scene.add(mesh);
     const b = { mesh, rgba, n: 0, cap };
     resources.push(b); return b;
   }
@@ -120,10 +278,6 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
   const ringGeo = new T.RingGeometry(.89, 1, 48, 1, 0, Math.PI * 1.86);
   ringGeo.rotateX(-Math.PI / 2);
   const rings = batch(ringGeo, 160);
-  // A curved sliver on the actual shield radius, oriented toward the hit normal.
-  const arcGeo = new T.RingGeometry(.92, 1, 28, 1, -.62, 1.24);
-  arcGeo.rotateX(-Math.PI / 2);
-  const ripples = batch(arcGeo, 160);
   // Closed hairline rings for the jump drive: energy, not a HUD arc with a gap.
   const thinGeo = new T.RingGeometry(.978, 1, 64, 1);
   thinGeo.rotateX(-Math.PI / 2);
@@ -139,6 +293,20 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
   // keep a minimum pixel width, so they read on a phone at any zoom.
   const trails = batch(new T.PlaneGeometry(1, 1), 256, false, false, true, false, 1);
   const lines = batch(new T.PlaneGeometry(1, 1), 1024, false, false, true, false, 2);
+  // Major explosions' shockwave: a closed ring with a CSS-pixel floor on its width.
+  const shockGeo = new T.RingGeometry(.9, 1, 96, 1);
+  shockGeo.rotateX(-Math.PI / 2);
+  const shocks = batch(shockGeo, 32, false, false, true, false, 0, 1.6, .007);
+  // Major explosions: turbulent fire clouds (normal blending), hot points that keep a
+  // pixel floor so they read on a phone, and the collapsing shield's flat fragments.
+  const fires = batch(new T.PlaneGeometry(1, 1), 256, true, false, false, false, 0, 0, .022, { fire: true });
+  const embers = batch(new T.PlaneGeometry(1, 1), 512, true, false, true, false, 0, 0, .022, { minPx: 3.5 });
+  const emberHalos = batch(new T.PlaneGeometry(1, 1), 512, true, false, true, false, 0, 0, .022, { minPx: 8 });
+  const shardGeo = new T.IcosahedronGeometry(1, 0);
+  shardGeo.scale(1, .18, .7);
+  const shards = batch(shardGeo, 128);
+  const shieldFx = shieldBatch(T, scene, SHIELD_CAP);
+  resources.push(shieldFx);
 
   function put(b, x, y, z, sx, sy, sz, angle, c, opacity, tumble = 0) {
     if (b.n >= b.cap) return;
@@ -159,7 +327,7 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
       Math.atan2(-dz,dx), c, opacity);
   }
   const particles = Array.from({ length: 3200 }, () => ({ life: 0, max: 1, x: 0, y: 0, z: 0,
-    vx: 0, vy: 0, vz: 0, size: 1, kind: 0, color: white, angle: 0 }));
+    vx: 0, vy: 0, vz: 0, size: 1, kind: 0, color: white, angle: 0, wait: 0, hot: false }));
   const waves = Array.from({ length: 160 }, () => ({ life: 0, max: 1, x: 0, z: 0,
     radius: 1, angle: 0, color: white, kind: 0 }));
   // Arrivals and departures share one pool (`out` marks a departure).
@@ -170,13 +338,102 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
   const charges = Array.from({ length: 16 }, () => ({ active: false, age: 0, duration: 2,
     object: null, x: 0, z: 0, heading: 0, size: 1, color: white, fade: 1, cancelled: false,
     phase: 0, sparkClock: 0, gen: 0 }));
-  let pc = 0, wc = 0, jc = 0, lc = 0, cc = 0, clock = 0, orders = [];
-  // kind: glow, smoke, shell fragment, spark, tapered flame.
-  function particle(x, y, z, size, life, color, kind = 0, vx = 0, vy = 0, vz = 0) {
+  const shields = Array.from({ length: SHIELD_CAP }, () => ({ age: 0, max: 0, object: null,
+    x: 0, z: 0, dx: 1, dz: 0, radius: 1, color: white, depleted: false, seed: 0, strength: 1, born: 0 }));
+  let pc = 0, wc = 0, jc = 0, lc = 0, cc = 0, sc = 0, clock = 0, orders = [];
+  // kind: 0 glow, 1 smoke, 2 shell fragment, 3 spark, 4 tapered flame, 5 damage smoke,
+  // 6 ember (a flickering hot point), 7 explosion smoke (`hot`: with a glowing pocket),
+  // 8 fire cloud (yellow, red, then soot), 9 shield fragment. `wait` delays the
+  // particle (s): it is invisible and still until then.
+  function particle(x, y, z, size, life, color, kind = 0, vx = 0, vy = 0, vz = 0, wait = 0) {
     const p = particles[pc++]; if (pc === particles.length) pc = 0;
     p.x=x; p.y=y; p.z=z; p.size=size; p.life=p.max=life; p.color=color; p.kind=kind;
-    p.vx=vx; p.vy=vy; p.vz=vz; p.angle=Math.random()*6.283;
+    p.vx=vx; p.vy=vy; p.vz=vz; p.angle=Math.random()*6.283; p.wait=wait; p.hot=false;
   }
+  const scratch = new T.Color();
+  const goldWhite = new T.Color(0xfff3cf), orange = new T.Color(0xff952f), deepFire = new T.Color(0xff5218);
+  const emberColor = new T.Color(0xffab4a), emberHot = new T.Color(0xffab4a).multiplyScalar(2), soot = new T.Color(0x3a3029), hotSmoke = new T.Color(0xb4501e);
+  const fireLight = new T.Color(0xff7a2a).multiplyScalar(.2), shockColor = new T.Color(0xffd9a0);
+  // Fireball puffs are additive and overlap: dimmed so their sum stays fire, not white.
+  const puffA = orange.clone().multiplyScalar(.3), puffB = deepFire.clone().multiplyScalar(.35);
+  const flameCore = new T.Color(0xffc561);
+  const shocksLive = Array.from({ length: 32 }, () => ({ life: 0, max: 1, wait: 0, x: 0, z: 0, radius: 1, color: white, alpha: 1 }));
+  let shc = 0;
+  function shock(x, z, radius, life, color, alpha, wait) {
+    const s=shocksLive[shc++]; if(shc===shocksLive.length)shc=0;
+    s.x=x; s.z=z; s.radius=radius; s.life=s.max=life; s.wait=wait; s.color=color; s.alpha=alpha;
+  }
+  // A destroyed ship blowing up big (R = the event radius, ~2.5 collision radii): core
+  // flash, a shockwave out to ~2.4 R, a turbulent fireball with secondary detonations,
+  // debris and embers, and smoke with hot pockets that lingers for a few seconds.
+  function majorExplosion(e) {
+    const R=e.radius, x=e.x, z=-e.y, c=team[e.team] || white;
+    particle(x,2.4,z,R*1.4,.16,goldWhite);
+    particle(x,2.3,z,R*2.6,.4,puffA);
+    particle(x,2.2,z,R*.9,.12,white);
+    // Light thrown on the surroundings, and a faint team-coloured breath of the reactor.
+    particle(x,.6,z,R*4.5,.7,fireLight);
+    particle(x,.8,z,R*2.4,.35,c);
+    shock(x,z,R*2.4,.65,shockColor,.55,.02);
+    shock(x,z,R*1.8,.45,orange,.12,.06);
+    // Fireball: turbulent fire clouds rolling outward, staggered over the first 0.15 s,
+    // and a few additive puffs inside them for heat.
+    particle(x,1.65,z,R*.9,.55,soot,8,0,R*.1,0,.03);
+    for(let j=0;j<9;j++) {
+      const a=j*2.399+Math.random()*.6, d=R*(.15+.45*Math.random()), v=R*(.35+.5*Math.random());
+      particle(x+Math.cos(a)*d,1.7+j*.02,z+Math.sin(a)*d,R*(.35+.35*Math.random()),1+.7*Math.random(),
+        soot,8,Math.cos(a)*v,R*.1,Math.sin(a)*v,j*.017);
+      // Four lobes keep burning through the middle of the blast.
+      particles[(pc+particles.length-1)%particles.length].hot=j<4;
+    }
+    for(let j=0;j<4;j++) {
+      const a=j*1.7+Math.random(), d=R*.3*Math.random(), v=R*.4;
+      particle(x+Math.cos(a)*d,2.6,z+Math.sin(a)*d,R*(.8+.4*Math.random()),.5+.3*Math.random(),
+        j%2?puffA:puffB,0,Math.cos(a)*v,0,Math.sin(a)*v,j*.03);
+    }
+    // Secondary detonations through the first second, some out at the hull's edge: a
+    // compact white core, then an orange lobe and a few sparks, each at its own height.
+    const pops=Math.min(7,3+Math.floor(R/12));
+    for(let j=0;j<pops;j++) {
+      const at=.18+j*(.67/pops)+Math.random()*.08, a=Math.random()*TAU, d=R*(j%2?.65+.35*Math.random():.25+.4*Math.random());
+      const px=x+Math.cos(a)*d, pz=z+Math.sin(a)*d, py=2.2+R*(.05+.1*Math.random()), s=R*(.4+.2*Math.random());
+      particle(px,py+.2,pz,R*(.12+.08*Math.random()),.05+.03*Math.random(),white,0,0,0,0,at);
+      particle(px,py,pz,s,.25+.15*Math.random(),puffA,0,0,0,0,at);
+      particle(px,py-.3,pz,s*.7,.45+.2*Math.random(),soot,8,0,R*.1,0,at+.03);
+      for(let k=0;k<3;k++) {
+        const b=Math.random()*TAU, v=R*(.8+Math.random());
+        particle(px,py,pz,Math.max(.8,R*.04),.3+.25*Math.random(),emberColor,3,Math.cos(b)*v,1,Math.sin(b)*v,at);
+      }
+    }
+    // Debris: dark tumbling chips (four of them big), each lit by a brief amber glow
+    // moving with it.
+    for(let j=0;j<14;j++) {
+      const big=j<4, a=j*2.399+Math.random()*.4, v=R*(big?1.1+.7*Math.random():.7+.9*Math.random());
+      const life=1.2+1.2*Math.random(), vx=Math.cos(a)*v, vz=Math.sin(a)*v;
+      const s=big ? Math.min(4,Math.max(.8,R*(.045+.025*Math.random()))) : Math.min(2.2,Math.max(.5,R*(.02+.025*Math.random())));
+      particle(x,1.4,z,s,life,j%2?shell:smokeColor,2,vx,R*.15,vz);
+      particle(x,1.6,z,s*2.2,.2+.15*Math.random(),emberColor,0,vx,0,vz);
+    }
+    // Fast sparks out of the core.
+    for(let j=0;j<22;j++) {
+      const a=Math.random()*TAU, v=R*(1.4+1.8*Math.random());
+      particle(x,1.8,z,Math.max(.8,R*.035),.35+.45*Math.random(),j%4?emberColor:goldWhite,3,Math.cos(a)*v,2,Math.sin(a)*v,Math.random()*.05);
+    }
+    // Embers that drift out slowly; a third of them start late and last 3-4 s.
+    for(let j=0;j<18;j++) {
+      const late=j%3===0, a=Math.random()*TAU, d=R*.6*Math.random(), v=R*(.08+.25*Math.random());
+      particle(x+Math.cos(a)*d,1.6,z+Math.sin(a)*d,Math.max(.4,R*(.02+.02*Math.random())),late?3+Math.random():1.5+1.5*Math.random(),
+        emberHot,6,Math.cos(a)*v,.5,Math.sin(a)*v,late?.4+.5*Math.random():.1+.3*Math.random());
+    }
+    // Smoke: soot that rises and spreads; four puffs carry a hot pocket for a while.
+    for(let j=0;j<12;j++) {
+      const a=j*2.399+Math.random()*.5, d=R*.5*Math.random(), v=R*(.1+.15*Math.random());
+      particle(x+Math.cos(a)*d,1,z+Math.sin(a)*d,R*(.45+.25*Math.random()),2.5+1.5*Math.random(),
+        soot,7,Math.cos(a)*v,R*.25,Math.sin(a)*v,.12+.55*Math.random());
+      particles[(pc+particles.length-1)%particles.length].hot=j<4;
+    }
+  }
+
   function wave(x, z, radius, life, color, kind=0, angle=0) {
     const p=waves[wc++]; if(wc===waves.length)wc=0;
     p.model=null; p.x=x; p.z=z; p.radius=radius; p.life=p.max=life; p.color=color; p.kind=kind; p.angle=angle;
@@ -189,6 +446,7 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
     }
   }
   function explosion(e) {
+    if (e.kind==='major') { majorExplosion(e); return; }
     const death=e.kind==='death', r=e.radius, c=(death?team:pellet)[e.team] || white;
     particle(e.x,1.5,-e.y,r*(death?4:1.8),death?1.05:.3,c);
     particle(e.x,2,-e.y,r*1.5,death?.28:.14,white);
@@ -296,6 +554,20 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
       segment(lines,p.x+p.dx*(start+end)*.5,2.45,p.z+p.dz*(start+end)*.5,p.x+p.dx*end,2.45,p.z+p.dz*end,.75,white,.65*fade);
     }
   }
+  function updateShields(dt) {
+    for(const s of shields) {
+      if(s.age>=s.max) continue;
+      s.age+=dt; if(s.age>=s.max) { s.object=null; continue; }
+      // A hull object carries its bubble; without one the response stays where it was.
+      if(s.object) { point.setFromMatrixPosition(s.object.matrixWorld); s.x=point.x; s.z=point.z; }
+      const b=shieldFx; if(b.n>=b.cap) break;
+      const i=b.n;
+      put(b,s.x,1.2,s.z,s.radius,s.radius,s.radius,0,s.color,s.strength);
+      const h=b.hit.array, m=b.mode.array, j=i*4;
+      h[j]=s.dx; h[j+1]=0; h[j+2]=s.dz; h[j+3]=s.age;
+      m[j]=s.depleted?1:0; m[j+1]=s.seed; m[j+2]=s.radius; m[j+3]=s.max;
+    }
+  }
   function updateCharges(dt) {
     for(const c of charges) {
       if(!c.active) continue;
@@ -382,15 +654,58 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
     },
     shieldHit(e) {
       // The event team is the shooter; the defending shield belongs to the other team.
-      const c=shield[e.team===0?1:0] || white, a=Math.atan2(e.ny,e.nx), r=e.radius;
-      const cx=e.x-e.nx*r, cz=-e.y+e.ny*r;
-      wave(cx,cz,r,.55,c,1,a);
-      particle(e.x,1.8,-e.y,Math.max(9,r*.65),.25,c);
-      particle(e.x,2,-e.y,4,.12,white);
+      const c=shield[e.team===0?1:0] || white, r=e.radius, object=e.object || null;
+      const nl=Math.hypot(e.nx,e.ny) || 1, nx=e.nx/nl, ny=e.ny/nl;
+      const cx=e.x-nx*r, cz=-e.y+ny*r;
+      // Responses already live on this shield (same hull object, or same centre).
+      let count=0, total=0, oldest=null, latest=null;
+      for(const s of shields) {
+        if(s.age>=s.max) continue;
+        const same=object ? s.object===object : s.object===null && Math.hypot(s.x-cx,s.z-cz)<r*.15 && Math.abs(s.radius-r)<.01;
+        if(!same) continue;
+        if(e.depleted) { s.age=s.max; continue; }
+        count++; total+=s.strength;
+        if(!oldest || s.born<oldest.born) oldest=s;
+        if(!latest || s.born>latest.born) latest=s;
+      }
+      // A hit landing right after another, close by, feeds that response instead of
+      // starting a new one: sustained fire glows a little harder without restarting
+      // the flash, and the shield's summed strength stays within SHIELD_BUDGET.
+      if(latest && clock-latest.born<.16 && latest.dx*nx-latest.dz*ny>.85) {
+        latest.strength=Math.min(SHIELD_BUDGET-(total-latest.strength),latest.strength+.2);
+        return;
+      }
+      if(!e.depleted) {
+        const others=total-(count>=SHIELD_LAYERS?oldest.strength:0), room=SHIELD_BUDGET-SHIELD_STRENGTH;
+        if(others>room) for(const q of shields) {
+          if(q.age<q.max && q!==oldest && (object ? q.object===object : q.object===null && Math.hypot(q.x-cx,q.z-cz)<r*.15)) q.strength*=room/others;
+        }
+      }
+      let s=null;
+      if(count>=SHIELD_LAYERS) s=oldest;
+      else {
+        // Prefer a free slot; past capacity the round-robin slot is reused.
+        for(let i=0;i<shields.length && !s;i++) { const q=shields[(sc+i)%shields.length]; if(q.age>=q.max) { s=q; sc=(sc+i+1)%shields.length; } }
+        if(!s) { s=shields[sc++]; if(sc===shields.length)sc=0; }
+      }
+      s.age=0; s.max=e.depleted?SHIELD_DEPLETED_LIFE:SHIELD_LIFE; s.object=object; s.x=cx; s.z=cz;
+      s.dx=nx; s.dz=-ny; s.radius=r; s.color=c; s.depleted=!!e.depleted;
+      // One field pattern per hull, so repeated hits light up the same cells.
+      s.seed=object ? (object.id*12.9898)%50 : Math.random()*50;
+      s.strength=e.depleted?1:SHIELD_STRENGTH; s.born=clock;
+      // A pinpoint at the impact, so the strike reads even when the dome is a few pixels.
+      particle(e.x,1.8,-e.y,Math.max(3,r*.3),.09,white);
       if(e.depleted) {
-        wave(cx,cz,r,.6,c,2,a);
-        particle(cx,1,cz,r*2.4,.22,c);
-        sparks(cx,cz,12,r,c);
+        particle(cx,1.2,cz,r*2.6,.3,c);
+        // The field breaks into flat glowing fragments that fly off the bubble's
+        // surface, mostly from the struck side, plus a few sparks.
+        for(let j=0;j<18;j++) {
+          const a=Math.atan2(-ny,nx)+(Math.random()-.5)*(j<11?2.2:6.28), up=Math.random()*.7;
+          const ox=Math.cos(a)*Math.cos(up), oz=Math.sin(a)*Math.cos(up), oy=Math.sin(up)*SHIELD_FLATTEN;
+          const v=r*(.8+.6*Math.random()), wait=.1+Math.random()*.3;
+          particle(cx+ox*r,1.2+oy*r,cz+oz*r,r*(.06+.06*Math.random()),.25+.3*Math.random(),c,9,ox*v,oy*v,oz*v,wait);
+          if(j%3===0) particle(cx+ox*r,1.2+oy*r,cz+oz*r,Math.max(.8,r*.05),.4+.3*Math.random(),white,3,ox*v*1.3,oy*v,oz*v*1.3,wait);
+        }
       }
     },
     explosion,
@@ -481,19 +796,34 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
     },
     update(dt) {
       dt=Math.max(0,Math.min(dt,.1));
-      glow.n=flames.n=smoke.n=chips.n=rings.n=ripples.n=bolts.n=trails.n=lines.n=thin.n=chargeRings.n=0;
+      fires.n=embers.n=emberHalos.n=shards.n=glow.n=flames.n=smoke.n=chips.n=rings.n=bolts.n=trails.n=lines.n=thin.n=chargeRings.n=shocks.n=shieldFx.n=0;
       clock+=dt;
       const height=Math.max(1,renderer.domElement.clientHeight || renderer.domElement.height);
       trails.mesh.material.uniforms.viewportHeight.value=height;
       lines.mesh.material.uniforms.viewportHeight.value=height;
       chargeRings.mesh.material.uniforms.viewportHeight.value=height;
+      shocks.mesh.material.uniforms.viewportHeight.value=height;
+      embers.mesh.material.uniforms.viewportHeight.value=height;
+      emberHalos.mesh.material.uniforms.viewportHeight.value=height;
+      fires.mesh.material.uniforms.time.value=clock;
+      shieldFx.mesh.material.uniforms.time.value=clock;
       for(const o of orders) order(o);
+      updateShields(dt);
+      for(const s of shocksLive) {
+        if(s.life<=0)continue;
+        if(s.wait>0) { s.wait-=dt; continue; }
+        s.life-=dt; if(s.life<=0)continue;
+        // Cubic ease-out: the front leaves fast and slows as it thins.
+        const t=1-s.life/s.max, r=s.radius*(.1+.9*(1-(1-t)**3));
+        put(shocks,s.x,1.1,s.z,r,1,r,0,s.color,s.alpha*(1-t)**2);
+      }
       for(const p of launches) if(p.life>0) p.life-=dt;
       updateLaunches();
       // Charges run before the particle pass so their sparks are drawn this frame.
       updateCharges(dt);
       for(const p of particles) {
         if(p.life<=0)continue;
+        if(p.wait>0) { p.wait-=dt; continue; }
         p.life-=dt; if(p.life<=0)continue;
         const t=1-p.life/p.max, fade=1-t;
         p.x+=p.vx*dt;p.y+=p.vy*dt;p.z+=p.vz*dt;
@@ -504,6 +834,32 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
           // Damage trail: faint over the hull so a slow ship stays visible, fuller once it has drifted off.
           const size=p.size*(1+t*2.6);
           put(smoke,p.x,p.y,p.z,size,size,1,0,p.color,.38*(.25+.75*Math.min(1,t*4))*Math.min(1,(1-t)*3));
+        } else if(p.kind===7) {
+          // Hot smoke: lit orange from within, cooling to soot as it rises and spreads.
+          const size=p.size*(1+t*1.6), heat=Math.max(0,1-t*1.8);
+          p.vx*=1-dt*.6; p.vz*=1-dt*.6;
+          scratch.copy(p.color).lerp(hotSmoke,p.hot?heat*heat:heat*heat*.4);
+          put(smoke,p.x,p.y,p.z,size,size,1,0,scratch,.28*Math.min(1,t*8)*(1-t)**1.3);
+          // A hot pocket: a smaller glow inside some puffs, off-centre.
+          if(p.hot && heat>0) put(glow,p.x+Math.cos(p.angle)*size*.15,p.y+.5,p.z+Math.sin(p.angle)*size*.15,size*.55,size*.55,1,0,emberColor,heat*(.12+.1*Math.sin(clock*5+p.angle)**2));
+        } else if(p.kind===8) {
+          // Fire cloud: yellow-orange, reddening, then soot; it billows out and slows.
+          p.vx*=1-dt*1.5; p.vz*=1-dt*1.5;
+          const size=p.size*(.55+1.5*(1-(1-t)**2)), aspect=.7+.6*p.angle/6.283;
+          const cool=p.hot?(t-.65)*2.8:(t-.3)*2.2;
+          scratch.copy(flameCore).lerp(deepFire,Math.min(1,t*(p.hot?2:3.5))).lerp(p.color,Math.max(0,Math.min(1,cool)));
+          put(fires,p.x,p.y,p.z,size*aspect,size/aspect,1+p.angle,0,scratch,.7*Math.min(1,t*14)*(1-t)**.7);
+        } else if(p.kind===6) {
+          // Ember: a hot point that slows, flickers and dims.
+          p.vx*=1-dt*.9; p.vz*=1-dt*.9;
+          const flick=.65+.35*Math.sin(clock*31+p.angle*7)*Math.sin(clock*17+p.angle);
+          const size=p.size*(1-t*.5);
+          put(embers,p.x,p.y,p.z,size,size,1,0,p.color,fade**1.2*flick);
+          put(emberHalos,p.x,p.y,p.z,size*2.5,size*2.5,1,0,p.color,.18*fade**1.2*flick);
+        } else if(p.kind===9) {
+          // A fragment of a collapsed shield: flat, tumbling, shrinking.
+          const size=p.size*(1-t*.6);
+          put(shards,p.x,p.y,p.z,size,size,size,p.angle+t*4,p.color,fade*fade*.8,t*3+p.angle);
         } else if(p.kind===2) {
           p.vy-=dt*7;
           const size=p.size*(1-t*.65);
@@ -531,12 +887,6 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
             segment(bolts,x,y,z,ex,ey,ez,w.width*2.8,w.color,fade*.3);
             segment(bolts,x,y,z,ex,ey,ez,w.width,white,fade);x=ex;y=ey;z=ez;
           }
-        } else if(w.kind===1) {
-          // Concentric wave fronts spread tangentially over just the struck shield sector.
-          for(let j=0;j<2;j++) {
-            const r=w.radius*(1+t*.18-j*.10);
-            put(ripples,w.x,1.1+j*.15,w.z,r,1,r,w.angle,j?white:w.color,fade*fade*(j?.65:1));
-          }
         } else if(w.kind===4) {
           const r=w.radius*(1-.92*t*t*(3-2*t));
           put(thin,w.x,1.3,w.z,r,1,r,0,w.color,fade**1.5*.75);
@@ -561,8 +911,11 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
           particle(p.x,2,p.z,p.size*2,.18,white);
         }
       }
-      finish(glow);finish(flames);finish(smoke);finish(chips);finish(rings);finish(ripples);finish(bolts);
-      finish(trails);finish(lines);finish(thin);finish(chargeRings);
+      finish(glow);finish(flames);finish(smoke);finish(chips);finish(rings);finish(bolts);
+      finish(trails);finish(lines);finish(thin);finish(chargeRings);finish(shocks);
+      finish(fires);finish(embers);finish(emberHalos);finish(shards);
+      finish(shieldFx);
+      if(shieldFx.n) { shieldFx.hit.needsUpdate=true; shieldFx.mode.needsUpdate=true; }
     },
     // Optional lifecycle hook for embeds; normal harness keeps one Effects for its lifetime.
     dispose() {
