@@ -6,12 +6,16 @@ live default rosters, ``a`` flying side ``a``'s strike craft, ``b`` the other si
 and the scripts the capital ships (the env layout of ``spacefight.eval.missions``).
 Only side ``a``'s strike craft are measured. It needs SIM_VERSION 5: the metrics
 come from the obs order block (SIM_SPEC §7.2, "Stage B decisions" in
-``docs/M3_PLAN.md``) and the ship state per tick; a ship's order and its target slot
-come from ``mission_state`` after every slow tick (orders change only there).
+``docs/M3_PLAN.md``), which holds the ship's *effective* order (none at once when an
+attack target dies or a ward leaves), and the ship state per tick.
 
-An **order instance** of a ship starts when its order's kind, target or point
-changes to something other than ``none``, and ends at the next change, its death,
-departure or the match end. Per instance, from its first tick:
+An **order instance** follows the sim's (SIM_SPEC §5.9): it starts on a tick where
+the obs shows an order whose kind differs from the last tick's, or whose age
+(feature 14, ticks since the sim's instance started) went back, and ends when the
+effective order becomes none or changes again, or the ship dies, departs or the
+match ends. The target slot of an attack (for the damage share) is the standing
+order's, read from ``mission_state`` when the instance starts. Per instance, from its
+first tick:
 
 - *attack*: **time to close**, ticks until the target is inside the ship's gun range
   (its longest present weapon), for targets nearer than ``CLOSE_FROM_M`` at the
@@ -74,6 +78,9 @@ NO_TARGET = -1
 ORD_HAS, ORD_KIND = 0, slice(1, 4)
 ORD_REL_X, ORD_REL_Y = 4, 5
 ORD_MARGIN, ORD_RADIUS = 8, 9
+ORD_AGE = 14
+# Feature 14 is ticks / 300; an instance restarted when it drops by more than this.
+AGE_RESET = 0.5 / 300.0
 
 
 @dataclass(frozen=True)
@@ -485,26 +492,35 @@ class OrdersResult:
 
 def ship_orders(
     mission_state: Mapping[str, Any], n_slots: int
-) -> tuple[NDArray[np.int64], NDArray[np.int64], list[tuple[Any, ...]]]:
-    """Each slot's order from a ``mission_state`` dict: kind code, target slot
-    (attack target or guard ward, else ``NO_TARGET``) and an identity key (kind,
-    target, point, radius) that changes exactly when the order does."""
+) -> tuple[NDArray[np.int64], NDArray[np.int64]]:
+    """Each slot's standing squad order from a ``mission_state`` dict: kind code and
+    target slot (attack target or guard ward, else ``NO_TARGET``)."""
     kind = np.zeros(n_slots, dtype=np.int64)
     target = np.full(n_slots, NO_TARGET, dtype=np.int64)
-    keys: list[tuple[Any, ...]] = [("none",)] * n_slots
     for team_squads in mission_state["squads"]:
         for squad in team_squads:
             order = squad["order"]
-            name = str(order["kind"])
-            code = KINDS.index(name)
+            code = KINDS.index(str(order["kind"]))
             slot_target = int(order.get("target", order.get("ward", NO_TARGET)))
-            point = tuple(order.get("point", ()))
-            key = (name, slot_target, point, order.get("radius"))
             for member in squad["members"]:
                 kind[member] = code
                 target[member] = slot_target
-                keys[member] = key
-    return kind, target, keys
+    return kind, target
+
+
+def instance_starts(
+    kind: NDArray[np.integer],
+    age: NDArray[np.floating],
+    prev_kind: NDArray[np.integer],
+    prev_age: NDArray[np.floating],
+    is_open: NDArray[np.bool_],
+) -> NDArray[np.bool_]:
+    """Where a new order instance starts this tick (module docstring): an order is
+    shown and its kind changed, its age went back, or no instance is open."""
+    shown = np.asarray(kind) != NONE
+    changed = np.asarray(kind) != np.asarray(prev_kind)
+    restarted = np.asarray(age) < np.asarray(prev_age) - AGE_RESET
+    return shown & (changed | restarted | ~is_open)
 
 
 def _obs_measurements(
@@ -544,6 +560,7 @@ def _obs_measurements(
         "gun_range": np.where(turret_present, ranges, 0.0).max(axis=-1),
         "engine_level": level,
         "obs_kind": kind,
+        "age": block[..., ORD_AGE],
     }
 
 
@@ -581,14 +598,14 @@ def run_scenario(
     strike = (team >= 0) & ~me.capital
     tracker = OrderTracker(a_rows & strike, env.hull_id)
     radius = env.arena_radius.astype(np.float64).copy()
-    keys: list[list[tuple[Any, ...]]] = [[("none",)] * s for _ in range(n)]
+    prev_kind = np.zeros((n, s), dtype=np.int64)
+    prev_age = np.zeros((n, s), dtype=np.float32)
     running = np.ones(n, dtype=bool)
     hull_names = hull_names_by_id(env)
     a.reset(seed)
     b.reset(seed + 1)
     max_steps = int(round(me.time_limit_s * TICK_HZ)) + 2
     for _ in range(max_steps):
-        due = np.asarray(env.raw.command_due()) & running
         decide = running[:, None] & env.act_mask
         actions = idle_actions(n * s).reshape(n, s, -1)
         scripted = decide & me.capital
@@ -601,15 +618,6 @@ def run_scenario(
         _, _, dones, info = env.step(actions)
         dones = dones.copy()
         _record_hits(tracker, info.hits, info.hit_count, running)
-        for i in np.flatnonzero(due & ~dones):
-            kind, target, new_keys = ship_orders(env.raw.mission_state(int(i)), s)
-            changed = np.array([new_keys[k] != keys[i][k] for k in range(s)])
-            keys[i] = new_keys
-            mask = np.zeros((n, s), dtype=bool)
-            mask[i] = changed
-            tracker.begin(
-                mask, np.broadcast_to(kind, (n, s)), np.broadcast_to(target, (n, s))
-            )
         ending = running & dones
         if ending.any():
             stop = np.zeros((n, s), dtype=bool)
@@ -620,6 +628,19 @@ def run_scenario(
             break
         m = _obs_measurements(env.obs, radius)
         live = m["live"] & running[:, None]
+        kind = np.where(live, m["obs_kind"], NONE)
+        tracker.close(tracker.open & live & (kind == NONE))
+        start = (
+            tracker.measured
+            & live
+            & instance_starts(kind, m["age"], prev_kind, prev_age, tracker.open)
+        )
+        if start.any():
+            target = np.full((n, s), NO_TARGET, dtype=np.int64)
+            for i in np.flatnonzero(start.any(axis=1)):
+                target[i] = ship_orders(env.raw.mission_state(int(i)), s)[1]
+            tracker.begin(start, kind, target)
+        prev_kind, prev_age = kind, m["age"].copy()
         tracker.step(
             live,
             m["dist"],

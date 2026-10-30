@@ -38,6 +38,7 @@ from spacefight.eval.orders import (
     OrderTracker,
     Timing,
     censored_median,
+    instance_starts,
     ship_orders,
     summarise,
 )
@@ -178,7 +179,7 @@ def test_ship_orders_reads_squads_from_mission_state() -> None:
         env.scripted_actions()
         env.step()
     state = env.mission_state(0)
-    kind, target, keys = ship_orders(state, 18)
+    kind, target = ship_orders(state, 18)
     for team in state["squads"]:
         for squad in team:
             for m in squad["members"]:
@@ -190,7 +191,20 @@ def test_ship_orders_reads_squads_from_mission_state() -> None:
                     assert target[m] == order.get("target", order.get("ward"))
     transports = [s["slot"] for s in state["ships"] if s["role"] == "transport"]
     assert all(kind[t] == NONE for t in transports)
-    assert len(set(keys)) >= 2
+    assert len(set(kind.tolist())) >= 2
+
+
+def test_instances_start_on_a_new_kind_a_reset_age_or_a_reappearing_order() -> None:
+    prev_kind = np.array([NONE, ATTACK, ATTACK, GUARD, HOLD, HOLD])
+    prev_age = np.array([0.0, 0.5, 1.0, 0.2, 0.3, 0.3])
+    kind = np.array([ATTACK, GUARD, ATTACK, GUARD, NONE, HOLD])
+    age = np.array([0.0, 0.0, 0.0, 0.2 + 1 / 300, 0.0, 0.3 + 1 / 300])
+    is_open = np.array([False, True, True, True, True, False])
+    starts = instance_starts(kind, age, prev_kind, prev_age, is_open)
+    # new order; kind change; same kind but the age went back (a new target, or a
+    # new instance past 300 ticks); a running guard; none; a hold with no instance
+    # open (it was closed when the ship died, or the match began with it)
+    assert starts.tolist() == [True, True, True, False, False, True]
 
 
 def test_orders_result_round_trips_through_json() -> None:
