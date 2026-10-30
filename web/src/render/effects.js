@@ -266,9 +266,11 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
     let start=0, fade=1;
     if(travel===1) { const after=(age-p.max)/(total-p.max); fade=Math.max(0,1-after); start=front*after*after; }
     if(front-start<1) return;
-    const w=p.quick?.42:.65, core=Math.max(p.quick?1.1:1.8,p.size*(p.quick?.07:.1));
-    segment(bolts,p.x+dx*start,1.4,p.z+dz*start,p.x+dx*front,1.4,p.z+dz*front,p.size*w,p.color,.42*fade);
-    segment(bolts,p.x+dx*start,1.5,p.z+dz*start,p.x+dx*front*.92,1.5,p.z+dz*front*.92,core,white,fade);
+    // Soft, tapered profiles (not the arrival's boxes): a box as wide as a 26 m hull
+    // read as a solid beam. Narrow where the ship was, full width far ahead.
+    const w=p.quick?.24:.36, core=Math.max(p.quick?.8:1.2,p.size*(p.quick?.05:.07));
+    segment(trails,p.x+dx*start,1.4,p.z+dz*start,p.x+dx*front,1.4,p.z+dz*front,p.size*w,p.color,.9*fade);
+    segment(lines,p.x+dx*start,1.5,p.z+dz*start,p.x+dx*front,1.5,p.z+dz*front,core,white,fade);
   }
   function updateLaunches() {
     for(const p of launches) {
