@@ -6,7 +6,7 @@
 #   catalogue.json  hull + weapon YAMLs and the muster card info
 #   manifest.json   rlf.bundle/1 (tools/build_bundle.py): bundle id, sim version,
 #                   champion, trained match config, roster rules
-# then plays headless N-ship matches from it (tools/web/live_smoke.mjs).
+# then plays headless matches from it, every mission included (tools/web/live_smoke.mjs).
 #
 # Usage: scripts/build_bundle.sh <checkpoint.pt> <run-id> [eval.json]
 #   checkpoint  spike-policy checkpoint for the champion
@@ -85,7 +85,7 @@ BUNDLE_ARGS=(--bundle "$BUNDLE" --run "$RUN_ID" --assets assets
 [[ -n "${RLF_ROSTER_BUDGET:-}" ]] && BUNDLE_ARGS+=(--budget "$RLF_ROSTER_BUDGET")
 "$PYTHON" -m tools.build_bundle "${BUNDLE_ARGS[@]}"
 
-step "headless smoke: drafted matches from the bundle, every ship flown by the policy"
+step "headless smoke: missions and drafted matches from the bundle (strike craft flown by the policy)"
 node --experimental-strip-types --no-warnings tools/web/live_smoke.mjs "$BUNDLE" "${RLF_SMOKE_MATCHES:-4}"
 
 step "built $BUNDLE ($(du -sh "$BUNDLE" | cut -f1))"

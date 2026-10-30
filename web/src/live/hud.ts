@@ -1,14 +1,16 @@
 // The DOM layer over the canvas: the running tally, match status, the perf readout
-// (sim + inference ms per tick against the 33 ms budget), the caption, the result
-// banner, a faint team ring round any hull drawn too small to read and, behind the
-// "Technical details" toggle, per-ship numbers next to each hull.
+// (sim + inference ms per tick against the 33 ms budget), the mission panel (carrier
+// hull per side, or the convoy's progress), the caption, the result banner with the
+// reason the match ended, a faint team ring round any hull drawn too small to read
+// and, behind the "Technical details" toggle, per-ship numbers next to each hull.
+// The "Show commands" toggle's state lives on <body class="commands">.
 
-import { SIM_HZ, TICK_BUDGET_MS } from "./sim.ts";
-import type { EndReason, LiveMatch } from "./match.ts";
+import { JUMP_CHARGING, JUMP_DEPARTED, SIM_HZ, TICK_BUDGET_MS } from "./sim.ts";
+import type { LiveMatch } from "./match.ts";
 import type { BundleManifest } from "./bundle.ts";
+import { TEAM_CLASSES, TEAM_NAMES, TEAM_WORDS, escapeHtml, teamSpan } from "./teams.ts";
 
-export const TEAM_NAMES = ["AZURE", "EMBER"] as const;
-export const TEAM_CLASSES = ["team-a", "team-b"] as const;
+export { TEAM_CLASSES, TEAM_NAMES };
 const PERF_INTERVAL = 0.25;
 const TAG_OFFSET = 16;
 const TAG_GAP = 2;
@@ -42,14 +44,6 @@ function el<T extends HTMLElement>(id: string): T {
   return node as T;
 }
 
-function teamSpan(team: number, text: string): string {
-  return `<span class="${TEAM_CLASSES[team]}">${text}</span>`;
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-}
-
 function throttleBar(t: Float32Array, n: number): string {
   return Array.from(t.subarray(0, n), (v) => (v > 0.66 ? "█" : v > 0.01 ? "▄" : "·")).join("");
 }
@@ -60,12 +54,23 @@ export class Hud {
   private readonly tallyEl = el("tally");
   private readonly metaEl = el("meta");
   private readonly metaDetailsEl = el("meta-details");
+  private readonly missionEl = el("mission");
   private readonly perfEl = el("perf");
   private readonly bannerEl = el("banner");
   private readonly captionEl = el("caption");
   private readonly tagsEl = el("tags");
   readonly detailsBtn = el<HTMLButtonElement>("details-toggle");
+  readonly commandsBtn = el<HTMLButtonElement>("commands-toggle");
   private markers: Array<{ tag: HTMLElement; pip: HTMLElement; text: string }> = [];
+  private missionHtml = "";
+  private readonly jumpEl = (() => {
+    const node = document.createElement("div");
+    node.className = "jump-label";
+    node.textContent = "JUMP POINT";
+    node.hidden = true;
+    el("hud").append(node);
+    return node;
+  })();
   private nextPerf = 0;
   private clock = 0;
   private fps = 60;
@@ -75,14 +80,31 @@ export class Hud {
     document.body.classList.toggle("details", on);
   }
 
-  /** The caption under the battle; `replay` marks a past champion (?champion=). */
-  setCaption(manifest: BundleManifest, replay = false): void {
+  setCommands(on: boolean): void {
+    this.commandsBtn.setAttribute("aria-pressed", String(on));
+    this.commandsBtn.textContent = on ? "Hide commands" : "Show commands";
+    document.body.classList.toggle("commands", on);
+  }
+
+  /** The convoy's "JUMP POINT" label under its marker (CSS px), or hidden (null). */
+  placeJumpLabel(at: { x: number; y: number } | null): void {
+    this.jumpEl.hidden = at === null;
+    if (at) this.jumpEl.style.transform = `translate(${Math.round(at.x)}px, ${Math.round(at.y)}px)`;
+  }
+
+  /**
+   * The caption under the battle; `replay` marks a past champion (?champion=) and
+   * `capitals` a match with scripted carriers or freighters in it.
+   */
+  setCaption(manifest: BundleManifest, replay = false, capitals = false): void {
     const c = manifest.champion;
     const mixed = manifest.roster.hulls.length > 1 ? " One net flies every hull." : "";
+    const craft = capitals ? "fighter" : "ship";
     const lead = replay
-      ? `A past champion, ${escapeHtml(c.name)}: every ship is flown by it.${mixed} <a href="/">Watch today's pilot&nbsp;→</a> `
-      : `Every ship here is the same neural network, flying by thruster and trigger, trained overnight.${mixed} `;
-    this.captionEl.innerHTML = lead + `<a href="/notebook/#${encodeURIComponent(c.run)}">How this pilot learned&nbsp;→</a>`;
+      ? `A past champion, ${escapeHtml(c.name)}: every ${craft} is flown by it.${mixed} <a href="/">Watch today's pilot&nbsp;→</a> `
+      : `Every ${craft} here is the same neural network, flying by thruster and trigger, trained overnight.${mixed} `;
+    const scripts = capitals ? "Carriers, freighters and both commanders are scripted. " : "";
+    this.captionEl.innerHTML = lead + scripts + `<a href="/notebook/#${encodeURIComponent(c.run)}">How this pilot learned&nbsp;→</a>`;
   }
 
   setTally(t: Tally): void {
@@ -101,25 +123,17 @@ export class Hud {
     this.metaEl.classList.add("error");
   }
 
+  /** The mission panel under the status: carrier hull per side, or the convoy's progress. */
+  updateMission(match: LiveMatch | null): void {
+    const html = match ? missionPanel(match) : "";
+    if (html === this.missionHtml) return;
+    this.missionHtml = html;
+    this.missionEl.innerHTML = html;
+    this.missionEl.hidden = html === "";
+  }
+
   showResult(match: LiveMatch): void {
-    const w = match.winner;
-    const reason: EndReason = match.reason;
-    const secs = `${(match.tick / SIM_HZ).toFixed(0)} s`;
-    let title: string;
-    let sub: string;
-    if (w === -1) {
-      title = "DRAW";
-      sub = reason === "mutual" ? `both fleets destroyed · ${secs}` : "even on hull at the time limit";
-    } else {
-      title = teamSpan(w, `${TEAM_NAMES[w]} WINS`);
-      if (reason === "time") {
-        const [a, b] = match.teamValues().map((v) => Math.round(v));
-        sub = `on hull at the time limit · ${teamSpan(0, String(a))} to ${teamSpan(1, String(b))}`;
-      } else {
-        const left = match.ships.filter((s) => s.alive).length;
-        sub = `last team standing · ${left} ship${left === 1 ? "" : "s"} left · ${secs}`;
-      }
-    }
+    const [title, sub] = resultText(match);
     this.bannerEl.innerHTML = `<div class="title">${title}</div><div class="sub">${sub}</div>`;
     this.bannerEl.classList.add("show");
   }
@@ -127,6 +141,7 @@ export class Hud {
   hideResult(): void {
     this.bannerEl.classList.remove("show");
   }
+
 
   /** Smooth the frame rate and, a few times a second, refresh the perf readout. */
   updatePerf(dt: number, realDt: number, match: LiveMatch | null, details: boolean): void {
@@ -218,5 +233,98 @@ export class Hud {
       `${teamSpan(ship.team, name)} <span class="hp">${Math.ceil(Math.max(0, ship.hp))}/${match.maxHp[i]}${shield}</span>` +
       `<span class="stats">${throttleBar(ship.throttles, thrusters)} S${pct(0)} E${pct(1)} W${pct(2)}</span>`
     );
+  }
+}
+
+function pct(hp: number, max: number): number {
+  return Math.round((100 * Math.max(0, hp)) / Math.max(1, max));
+}
+
+/** Each transport's state, in slot order: escaped, lost, charging or en route. */
+function convoyPips(match: LiveMatch): string {
+  return match.ships
+    .filter((s) => s.role === "transport")
+    .map((s) => {
+      if (!s.alive) return '<i class="cv-lost" title="destroyed">✕</i>';
+      if (s.jump === JUMP_DEPARTED) return '<i class="cv-out" title="through">◆</i>';
+      if (s.jump === JUMP_CHARGING) return '<i class="cv-charge" title="charging">◈</i>';
+      return '<i class="cv-go" title="en route">◇</i>';
+    })
+    .join("");
+}
+
+/** Metres from the freighter nearest the jump point (still en route) to the jump zone. */
+function convoyDistance(match: LiveMatch): number | null {
+  const c = match.convoy;
+  if (!c) return null;
+  let best: number | null = null;
+  for (const s of match.ships) {
+    if (s.role !== "transport" || !match.active(s)) continue;
+    const d = Math.max(0, Math.hypot(c.jumpX - s.x, c.jumpY - s.y) - c.jumpRadius);
+    if (best === null || d < best) best = d;
+  }
+  return best;
+}
+
+function missionPanel(match: LiveMatch): string {
+  if (match.mission === "carrier_battle") {
+    return [0, 1]
+      .map((team) => {
+        const t = match.teams[team]!;
+        const p = t.carrier >= 0 ? pct(t.hp, t.maxHp) : 0;
+        const hangar = t.hangar > 0 ? `${t.hangar} in hangar` : "hangar empty";
+        return (
+          `<div class="mrow ${TEAM_CLASSES[team]}${p === 0 ? " down" : ""}"><span class="mlabel">${TEAM_NAMES[team]} CARRIER</span>` +
+          `<span class="mbar"><i style="width:${p}%"></i></span><span class="mval">${p}%</span><span class="mnote">${hangar}</span></div>`
+        );
+      })
+      .join("");
+  }
+  const c = match.convoy;
+  if (match.mission === "convoy_escort" && c) {
+    // Each side's score against its own threshold: Azure escorts n through, Ember kills n.
+    const left = convoyDistance(match);
+    const dist = left === null || match.over ? "" : ` · ${left > 0 ? `${Math.round(left)} m to the jump` : "at the jump point"}`;
+    return (
+      `<div class="mrow"><span class="mlabel">${teamSpan(0, "CONVOY")}</span><span class="pips">${convoyPips(match)}</span>` +
+      `<span class="mval">${teamSpan(0, `${c.escaped}/${c.toEscape} through`)}</span></div>` +
+      `<div class="mrow msub">${teamSpan(1, `${TEAM_NAMES[1]} ${c.destroyed}/${c.toDestroy} kills`)}${dist}</div>`
+    );
+  }
+  return "";
+}
+
+/** The result banner's title and reason line (HTML). */
+export function resultText(match: LiveMatch): [string, string] {
+  const w = match.winner;
+  const reason = match.reason;
+  const secs = `${(match.tick / SIM_HZ).toFixed(0)} s`;
+  const c = match.convoy;
+  const title = w === -1 ? "DRAW" : teamSpan(w, `${TEAM_NAMES[w]} WINS`);
+  const word = (t: number) => teamSpan(t, TEAM_WORDS[t]!);
+  switch (reason) {
+    case "carrier":
+      return [title, w === -1 ? `Both carriers destroyed · ${secs}` : `${word(1 - w)}'s carrier destroyed · ${secs}`];
+    case "convoy_through":
+      return [title, c ? `Convoy through — ${c.escaped} of ${c.total} escaped · ${secs}` : `Convoy through · ${secs}`];
+    case "convoy_destroyed":
+      return [title, c ? `Convoy destroyed — ${c.destroyed} of ${c.total} lost · ${secs}` : `Convoy destroyed · ${secs}`];
+    case "mutual":
+      return [title, `Both fleets destroyed · ${secs}`];
+    case "eliminated": {
+      if (c && w === 0) return [title, `Every attacker destroyed · ${c.escaped} of ${c.total} through`];
+      const left = match.ships.filter((s) => match.inMatch(s)).length;
+      return [title, `Last team standing · ${left} ship${left === 1 ? "" : "s"} left · ${secs}`];
+    }
+    case "time": {
+      if (c) return [title, `Time limit — the convoy didn't get through · ${c.escaped} of ${c.total} escaped`];
+      if (match.mission === "carrier_battle") {
+        const [a, b] = match.teams.map((t) => pct(t.hp, t.maxHp));
+        if (a !== b) return [title, `Time limit — carriers at ${teamSpan(0, `${a}%`)} and ${teamSpan(1, `${b}%`)}`];
+      }
+      if (w === -1) return [title, "Time limit — even on hull"];
+      const [a, b] = match.teamValues().map((v) => Math.round(v));
+      return [title, `Time limit — ahead on hull · ${teamSpan(0, String(a))} to ${teamSpan(1, String(b))}`];
+    }
   }
 }

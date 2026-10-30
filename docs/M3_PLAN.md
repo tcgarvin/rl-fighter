@@ -225,6 +225,40 @@ What it decided; SIM_SPEC §0.2 ("WP-S2"), §5.9, §10.3 and §11 have the detai
   matters only when the scripts teach stage B; carrier launches are front-loaded
   (median ≈ 28 s, p90 ≈ 60 s) because pilot v1's dogfights burn through a wing fast.
 
+#### WP-W, the live page (`m3-web`)
+
+- **Rotation and rosters** (`web/src/live/missions.ts`): deathmatch → carrier battle →
+  convoy, by match seed; `?mission=deathmatch|carrier|convoy` pins one (`?fleets=`
+  implies deathmatch). Mission rosters are the sim's (`missionRostersJson`): the
+  default half the time, an alternative otherwise; strike craft an older champion
+  cannot fly are swapped for one it can. Mission parameters (arena, clock, route,
+  thresholds) are read back from the sim, never set by the page.
+- **Who flies what.** The policy flies role-0 ships; carriers and freighters take
+  `scripted_action`. The commanders run inside `step`.
+- **Effects.** `Launch` → `fx.bayLaunch` (the launched ship's real length and
+  velocity), `JumpCharge` → `fx.jumpCharge` (cancelled on death), `JumpOut` →
+  `fx.jumpOut` and the hull is pulled out and hidden; when the escort wins a convoy
+  its remaining ships `fx.jumpOutQuick`, staggered, freighters first. Docked ships
+  are not drawn and not framed.
+- **Camera.** It looks along the match's main axis: sim +x as before, or the convoy's
+  route, so the route runs up a phone's long side and left to right on desktop. The
+  convoy's camera looks 110 m down the route ahead of the lead freighter and takes in
+  the jump point once the lead is within 230 m.
+- **The jump point is always marked** in a convoy (ring and a DOM "JUMP POINT" label,
+  which survives a bright backdrop planet); the squad lines, attack/guard/hold
+  markers, carrier waypoints and the line from the convoy to the jump point are behind
+  "Show commands" (localStorage `rlf.live.showCommands`, `?commands=1|0`).
+- **HUD.** Objective-first muster (headline, brief, cards grouped by hull when a side
+  has more than four ships); a mission panel (each carrier's hull and hangar; the
+  convoy's pips, escaped against the sim's `to_escape`, kills against `to_destroy`,
+  metres to the jump); the result line says why ("Ember's carrier destroyed",
+  "Convoy through — 3 of 4 escaped", "Time limit — …"). Command log: three faint
+  lines collapsed, tap for the full log with times and squad sizes.
+- **Renderer numbers.** The bundle catalogue now carries each hull's YAML geometry
+  (`info[hull].geometry`); the live page lays it over `render/hulls.js` (mounts, bays,
+  collision radius, shield radius, hp, cap), and `hulls.js` itself was aligned with
+  the YAML for the hull turntable and the art preview.
+
 ### Stage B: orders reach the pilots (the feudal layer)
 
 1. **Order block in the pilot obs:** order kind (none, attack, guard, hold) and the

@@ -1,19 +1,21 @@
 // The three.js side of the live page: the cinematic treatment, backdrop, effects and
 // one hull model per ship, drawn by interpolating between sim ticks. Ships jump in as
-// in the duel (a ~55 ms streak and a landing flash), damage shows as smoke, flame and
-// arcing on the hull (no health bars), and a destroyed ship's wreck drifts and burns
-// for a few seconds before it breaks up.
+// in the duel (a ~55 ms streak and a landing flash) or launch from a carrier's bay;
+// freighters spool their jump drive and leave as a streak; damage shows as smoke,
+// flame and arcing on the hull (no health bars), and a destroyed ship's wreck drifts
+// and burns for a few seconds before it breaks up. Behind "show commands" the
+// commanders' squad orders, carrier waypoints and the jump point are drawn faintly.
 
 import * as THREE from "three";
 import treatmentModule from "../render/treatments/cinematic.js";
 import * as hullgeo from "../render/hullgeo.js";
-import { createEffects } from "../render/effects.js";
+import { createEffects, jumpOutOffset, JUMP_OUT_DURATION } from "../render/effects.js";
 import { createEnvironment } from "../render/environment.js";
 import { renderHullThumbnails } from "../render/thumbs.js";
 import { HULLS } from "../render/hulls.js";
-import { FitCamera, emptyBounds, growBounds } from "./camera.ts";
+import { FitCamera, emptyBounds, type Bounds } from "./camera.ts";
 import type { LiveMatch } from "./match.ts";
-import type { SimEvent } from "./sim.ts";
+import { JUMP_DEPARTED, SIM_HZ, type HullInfo, type ShipState, type SimEvent } from "./sim.ts";
 
 // Jump-in streak, as in the story and the duel.
 const JUMP_DISTANCE = 900;
@@ -31,15 +33,33 @@ const WRECK_HP = 0.12;
 const BEAM_TTL = 0.06;
 // Weapon ids are assets/weapons.yaml file order (SIM_SPEC §4.2); `Fire` carries one.
 const WEAPON_NAMES = ["gauss", "laser", "flak", "torpedo"];
+// The defenders' jump-out at the end of a convoy the escort won: after a beat, one
+// ship every QUICK_JUMP_GAP seconds, freighters first.
+const QUICK_JUMP_DELAY = 0.7;
+const QUICK_JUMP_GAP = 0.11;
+// The convoy's camera looks this far down the route ahead of the lead freighter, and
+// takes in the jump point itself once the lead is this close to it (metres).
+const CONVOY_LOOKAHEAD = 110;
+const CONVOY_SHOW_JUMP = 230;
+// Order markers: an attack or guard ring this much larger than the target's hull.
+const MARK_PAD = 6;
+const WAYPOINT_MARK = 14;
+const WAYPOINT_MIN_DIST = 30;
 
-/** The render-side hull spec in render/hulls.js (body frame, metres). */
+/** The render-side hull spec (render/hulls.js, overlaid with the sim's YAML mounts). */
 export interface HullSpec {
   role: string;
+  model?: string;
   length: number;
   beam: number;
   radius: number;
-  thrusters: unknown[];
-  shield?: { radius: number };
+  thrusters: Array<{ id: string; pos: [number, number]; dir: [number, number]; force?: number; size: number }>;
+  turrets: Array<{ id: string; pos: [number, number]; height: number; rest: number; arc: number; slew: number; weapon: string }>;
+  bays?: Array<{ id: string; pos: [number, number]; dir: [number, number] }>;
+  collision?: Array<{ pos: [number, number]; r: number }>;
+  shield?: { radius: number; hp?: number };
+  speedCap?: number;
+  hp?: number;
 }
 
 interface HullModel {
@@ -54,6 +74,29 @@ interface DamageFx {
   dispose(): void;
 }
 
+interface Order {
+  kind: "attack" | "guard" | "hold" | "jump";
+  team: number;
+  x2: number;
+  y2: number;
+  radius?: number;
+  x1?: number;
+  y1?: number;
+  progress?: number;
+}
+
+interface Charge {
+  cancel(): void;
+}
+
+interface Departure {
+  x: number;
+  y: number;
+  heading: number;
+  team: number;
+  size: number;
+}
+
 interface Effects {
   updateProjectiles(projectiles: LiveMatch["projectiles"], beams: Beam[], alpha: number): void;
   muzzle(e: { x: number; y: number; angle: number; team: number; weapon: string }): void;
@@ -61,6 +104,11 @@ interface Effects {
   shieldHit(e: { x: number; y: number; nx: number; ny: number; team: number; depleted: boolean; radius: number }): void;
   explosion(e: { x: number; y: number; radius: number; team: number; kind: string }): void;
   arrival(e: { x: number; y: number; heading: number; team: number; size: number; duration: number }): void;
+  bayLaunch(e: { x: number; y: number; heading: number; team: number; size: number; speed: number }): void;
+  jumpCharge(e: { object: THREE.Object3D; team: number; size: number; duration: number }): Charge;
+  jumpOut(e: Departure): void;
+  jumpOutQuick(e: Departure): void;
+  drawOrders(orders: Order[]): void;
   attachDamage(model: HullModel): DamageFx;
   update(dt: number): void;
 }
@@ -105,14 +153,43 @@ interface ShipView {
   wreck: Wreck | null;
   /** Interpolation origin: the ship at the previous tick. */
   prev: { x: number; y: number; heading: number };
+  /** Where it was drawn this frame (sim metres), for the order overlay. */
+  drawn: { x: number; y: number; visible: boolean };
+  charge: Charge | null;
+  /** Jumped out (or quick-jumped at the end): when (world time) and from where. */
+  departAt: number;
+  depart: { x: number; y: number; heading: number };
 }
 
 const treatment = treatmentModule as unknown as Treatment;
-const hullSpecs = HULLS as unknown as Record<string, HullSpec>;
+const baseSpecs = HULLS as unknown as Record<string, HullSpec>;
 
-/** The render spec for a catalogue hull, if the renderer has a model for it. */
+/** The renderer's own spec for a catalogue hull, if it has a model for it. */
 export function hullSpec(name: string): HullSpec | undefined {
-  return hullSpecs[name];
+  return baseSpecs[name];
+}
+
+/**
+ * The renderer's spec with the sim's numbers laid over it: the YAML (bundle catalogue
+ * `geometry`) is the source of truth for every mount and size the sim uses (thruster
+ * and turret positions and order, bays, collision circles and so the hull's radius,
+ * shield radius, hp, speed cap). The renderer keeps only what the YAML has no word for:
+ * the model's look, drawn length and beam, plume sizes and turret heights.
+ */
+export function mergeSpec(base: HullSpec, info: HullInfo | undefined): HullSpec {
+  const g = info?.geometry;
+  if (!g || !info) return base;
+  const thrusters = g.thrusters.map((t, i) => {
+    const b = base.thrusters.find((x) => x.id === t.id) ?? base.thrusters[i];
+    return { id: t.id, pos: t.pos, dir: t.dir, force: t.max_force, size: b?.size ?? Math.max(0.3, Math.sqrt(t.max_force) / 30) };
+  });
+  const turrets = g.turrets.map((t, i) => {
+    const b = base.turrets.find((x) => x.id === t.id) ?? base.turrets[i];
+    return { id: t.id, pos: t.pos, height: b?.height ?? 1, rest: t.rest_deg, arc: t.arc_deg, slew: t.slew_deg_s, weapon: t.weapon };
+  });
+  const bound = g.collision.length ? Math.max(...g.collision.map((c) => Math.hypot(c.pos[0], c.pos[1]) + c.r)) : base.radius;
+  const shield = g.shield_radius > 0 ? { ...(base.shield ?? {}), radius: g.shield_radius, hp: info.shield } : undefined;
+  return { ...base, hp: info.hp, speedCap: g.speed_cap, radius: bound, thrusters, turrets, bays: g.bays, collision: g.collision, shield };
 }
 
 function drift(w: Wreck, dt: number): void {
@@ -135,6 +212,7 @@ export class World {
   private readonly scene = new THREE.Scene();
   private readonly environment: Environment;
   private readonly effects: Effects;
+  private specs: Record<string, HullSpec> = { ...baseSpecs };
   private views: ShipView[] = [];
   private beams: Beam[] = [];
   private match: LiveMatch | null = null;
@@ -143,6 +221,10 @@ export class World {
   private elapsed = 0;
   private size = { width: 0, height: 0 };
   private readonly tagPos = new THREE.Vector3();
+  private quickJumps: Array<{ at: number; ship: number }> = [];
+  private showOrders = false;
+  private readonly orders: Order[] = [];
+  private readonly orderPool: Order[] = [];
 
   constructor(parent: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
@@ -156,9 +238,19 @@ export class World {
     this.effects = createEffects({ ...ctx, palette: treatment.palette }) as unknown as Effects;
   }
 
+  /** Take the bundle's hull numbers (call before the first thumbnails or match). */
+  setCatalogue(info: Record<string, HullInfo>): void {
+    this.specs = Object.fromEntries(Object.entries(baseSpecs).map(([name, spec]) => [name, mergeSpec(spec, info[name])]));
+  }
+
+  /** The spec this world draws `name` with. */
+  spec(name: string): HullSpec | undefined {
+    return this.specs[name];
+  }
+
   /** Card images for every hull the renderer and the catalogue both know: [team0, team1]. */
   thumbnails(names: string[]): Record<string, [string, string]> {
-    const hulls = Object.fromEntries(names.filter((n) => hullSpecs[n]).map((n) => [n, hullSpecs[n]]));
+    const hulls = Object.fromEntries(names.filter((n) => this.specs[n]).map((n) => [n, this.specs[n]]));
     return renderHullThumbnails({ THREE, hullgeo, treatment, hulls }) as Record<string, [string, string]>;
   }
 
@@ -193,18 +285,27 @@ export class World {
     this.ringRadius = radius;
   }
 
+  /** Draw the commander layer (squad orders, waypoints, the jump point) or not. */
+  setShowOrders(on: boolean): void {
+    this.showOrders = on;
+    if (!on) this.effects.drawOrders([]);
+  }
+
   /** Drop the last match's ships and build models for `match`'s (not yet arrived). */
   beginMatch(match: LiveMatch): void {
     for (const v of this.views) {
+      v.charge?.cancel();
       v.damage.dispose();
       v.model.dispose();
     }
     this.views = [];
     this.beams = [];
+    this.quickJumps = [];
+    this.effects.drawOrders([]);
     this.match = match;
     for (const [i, ship] of match.ships.entries()) {
       const name = match.hullNames[i]!;
-      const hull = hullSpecs[name];
+      const hull = this.specs[name];
       if (!hull) throw new Error(`no render model for hull ${name}`);
       const model = hullgeo.buildHull(hull, ship.team, treatment.materials(ship.team)) as unknown as HullModel;
       model.object.visible = false;
@@ -216,8 +317,17 @@ export class World {
         jumpStart: -Infinity,
         wreck: null,
         prev: { x: ship.x, y: ship.y, heading: ship.heading },
+        drawn: { x: ship.x, y: ship.y, visible: false },
+        charge: null,
+        departAt: Infinity,
+        depart: { x: 0, y: 0, heading: 0 },
       });
     }
+    // The convoy's route runs up a phone's long axis; everything else keeps the teams'
+    // approach axis (sim x) there.
+    const c = match.convoy;
+    if (c) this.cam.setAxis(c.jumpX - c.startX, c.jumpY - c.startY);
+    else this.cam.setAxis(1, 0);
     this.environment.newMatch(match.seed);
     this.cam.snap();
   }
@@ -236,7 +346,7 @@ export class World {
 
   /**
    * React to the last step's events. `quiet` (fast-forward) skips the effects but
-   * still starts wrecks, so a fast-forwarded result still shows one burning.
+   * still starts wrecks and departures, so a fast-forwarded frame shows the right ships.
    */
   dispatch(events: SimEvent[], quiet = false): void {
     const m = this.match;
@@ -247,8 +357,27 @@ export class World {
       const ship = m.ships[e.a];
       const view = this.views[e.a];
       if (e.kind === "death" && ship && view) {
+        view.charge?.cancel();
+        view.charge = null;
         view.wreck = { x: e.x, y: e.y, vx: ship.vx, vy: ship.vy, heading: ship.heading, omega: ship.omega * 0.5 + 0.4, age: 0 };
         if (!quiet) fx.explosion({ x: e.x, y: e.y, radius: view.hull.radius * DEATH_RADIUS_SCALE, team: ship.team, kind: "death" });
+        continue;
+      }
+      if (e.kind === "launch" && ship && view) {
+        // Out of the bay at its launch velocity: interpolate from a tick back along it,
+        // not from the hangar (the carrier's centre).
+        view.prev.x = ship.x - ship.vx / SIM_HZ;
+        view.prev.y = ship.y - ship.vy / SIM_HZ;
+        view.prev.heading = ship.heading;
+        const speed = Math.hypot(ship.vx, ship.vy);
+        if (!quiet) fx.bayLaunch({ x: e.x, y: e.y, heading: Math.atan2(ship.vy, ship.vx), team: ship.team, size: view.hull.length, speed });
+        continue;
+      }
+      if (e.kind === "jumpOut" && ship && view) {
+        view.charge = null;
+        view.depart = { x: e.x, y: e.y, heading: e.extra };
+        view.departAt = quiet ? -Infinity : this.elapsed;
+        if (!quiet) fx.jumpOut({ x: e.x, y: e.y, heading: e.extra, team: ship.team, size: view.hull.length });
         continue;
       }
       if (quiet) continue;
@@ -274,6 +403,11 @@ export class World {
           view.jumpStart = this.elapsed;
           fx.arrival({ x: e.x, y: e.y, heading: e.extra, team: ship.team, size: view.hull.length, duration: JUMP_DURATION });
           break;
+        case "jumpCharge":
+          if (!view || !ship) break;
+          view.charge?.cancel();
+          view.charge = fx.jumpCharge({ object: view.model.object, team: ship.team, size: view.hull.length, duration: Math.max(0.2, (e.extra - m.tick) / SIM_HZ) });
+          break;
         case "collision":
           // A teamless (white) flash with the hit's amber sparks, a bit bigger the
           // harder the ships met (extra = closing speed, m/s).
@@ -282,6 +416,20 @@ export class World {
           break;
       }
     }
+  }
+
+  /**
+   * The end of a convoy the escort saw through: every `team` ship still on the field
+   * jumps out too, freighters first, staggered (renderer only; the sim has stopped).
+   */
+  departAll(team: number): void {
+    const m = this.match;
+    if (!m) return;
+    const ships = m.ships
+      .map((s, i) => ({ s, i }))
+      .filter(({ s, i }) => s.team === team && m.active(s) && !this.views[i]!.wreck)
+      .sort((a, b) => Number(b.s.role === "transport") - Number(a.s.role === "transport") || a.i - b.i);
+    this.quickJumps = ships.map(({ i }, k) => ({ at: this.elapsed + QUICK_JUMP_DELAY + k * QUICK_JUMP_GAP, ship: i }));
   }
 
   /** Age the wrecks without drawing (a fast-forward), so old ones have burnt out. */
@@ -303,11 +451,15 @@ export class World {
     const m = this.match;
     const bounds = emptyBounds();
     if (m) {
+      this.runQuickJumps(m);
       for (const [i, v] of this.views.entries()) this.drawShip(m, i, v, dt, alpha, bounds, frameAll);
+      this.frameConvoy(m, bounds);
       for (const b of this.beams) b.ttl -= dt;
       // Projectiles are at the current tick and ships between the previous and current
       // one, so back the shots up by a tick to keep them on the muzzles.
       this.effects.updateProjectiles(m.projectiles, this.beams, alpha - 1);
+      // The jump point is part of the convoy mission, always shown; the rest is the commands layer.
+      if (this.showOrders || m.convoy) this.updateOrders(m, this.showOrders);
     }
     this.cam.update(bounds, dt);
     this.environment.update(dt, { centerX: this.cam.x, centerY: this.cam.y, extent: this.cam.extent });
@@ -315,11 +467,121 @@ export class World {
     treatment.render(this.renderer, this.scene, this.cam.camera, dt);
   }
 
-  private drawShip(m: LiveMatch, i: number, v: ShipView, dt: number, alpha: number, bounds: ReturnType<typeof emptyBounds>, frameAll: boolean): void {
+  private runQuickJumps(m: LiveMatch): void {
+    while (this.quickJumps.length && this.quickJumps[0]!.at <= this.elapsed) {
+      const { ship } = this.quickJumps.shift()!;
+      const v = this.views[ship]!;
+      const s = m.ships[ship]!;
+      if (v.wreck || v.departAt !== Infinity) continue;
+      v.charge?.cancel();
+      v.charge = null;
+      v.depart = { x: v.drawn.x, y: v.drawn.y, heading: s.heading };
+      v.departAt = this.elapsed;
+      this.effects.jumpOutQuick({ x: v.drawn.x, y: v.drawn.y, heading: s.heading, team: s.team, size: v.hull.length });
+    }
+  }
+
+  /** Frame the convoy's road ahead: a point down the route, then the jump point itself. */
+  private frameConvoy(m: LiveMatch, bounds: Bounds): void {
+    const c = m.convoy;
+    if (!c) return;
+    const dx = c.jumpX - c.startX;
+    const dy = c.jumpY - c.startY;
+    const len = Math.hypot(dx, dy) || 1;
+    let lead: ShipState | null = null;
+    let best = -Infinity;
+    for (const s of m.ships) {
+      if (s.role !== "transport" || !m.active(s)) continue;
+      const along = ((s.x - c.startX) * dx + (s.y - c.startY) * dy) / len;
+      if (along > best) (best = along), (lead = s);
+    }
+    if (!lead) return;
+    const left = Math.hypot(c.jumpX - lead.x, c.jumpY - lead.y);
+    const ahead = Math.min(left, CONVOY_LOOKAHEAD);
+    this.cam.grow(bounds, lead.x + (dx / len) * ahead, lead.y + (dy / len) * ahead);
+    if (left < CONVOY_SHOW_JUMP) this.cam.grow(bounds, c.jumpX, c.jumpY);
+  }
+
+  private nextOrder(): Order {
+    const o = this.orderPool[this.orders.length] ?? { kind: "hold", team: 0, x2: 0, y2: 0 };
+    this.orderPool[this.orders.length] = o;
+    this.orders.push(o);
+    delete o.x1;
+    delete o.y1;
+    delete o.progress;
+    o.radius = 0;
+    return o;
+  }
+
+  /** Rebuild the order overlay from the sim's squads, waypoints and convoy, at the drawn positions. */
+  private updateOrders(m: LiveMatch, commands: boolean): void {
+    this.orders.length = 0;
+    for (const sq of commands ? m.squads : []) {
+      if (sq.order === "none" || sq.members === 0) continue;
+      let sx = 0;
+      let sy = 0;
+      let n = 0;
+      for (let i = 0; i < this.views.length; i++) {
+        if (!(sq.mask & (1 << i))) continue;
+        const d = this.views[i]!.drawn;
+        if (!d.visible) continue;
+        sx += d.x;
+        sy += d.y;
+        n += 1;
+      }
+      const target = sq.target >= 0 ? this.views[sq.target] : undefined;
+      const tx = target?.drawn.visible ? target.drawn.x : sq.x;
+      const ty = target?.drawn.visible ? target.drawn.y : sq.y;
+      const o = this.nextOrder();
+      o.kind = sq.order;
+      o.team = sq.team;
+      o.x2 = tx;
+      o.y2 = ty;
+      o.radius = sq.order === "hold" ? sq.radius : (target?.hull.radius ?? 8) + MARK_PAD;
+      if (n > 0) {
+        o.x1 = sx / n;
+        o.y1 = sy / n;
+      }
+    }
+    // Capital ships' waypoints: where the carrier is headed (the convoy's is the jump point).
+    for (const [i, s] of m.ships.entries()) {
+      if (!commands || s.role !== "carrier" || !s.hasWaypoint || !m.active(s)) continue;
+      const d = this.views[i]!.drawn;
+      if (Math.hypot(s.waypointX - d.x, s.waypointY - d.y) < WAYPOINT_MIN_DIST) continue;
+      const o = this.nextOrder();
+      Object.assign(o, { kind: "hold", team: s.team, x2: s.waypointX, y2: s.waypointY, radius: WAYPOINT_MARK, x1: d.x, y1: d.y });
+    }
+    const c = m.convoy;
+    if (c) {
+      let sx = 0;
+      let sy = 0;
+      let n = 0;
+      for (const [i, s] of m.ships.entries()) {
+        if (s.role !== "transport" || !m.active(s)) continue;
+        sx += this.views[i]!.drawn.x;
+        sy += this.views[i]!.drawn.y;
+        n += 1;
+      }
+      const o = this.nextOrder();
+      Object.assign(o, { kind: "jump", team: 0, x2: c.jumpX, y2: c.jumpY, radius: c.jumpRadius, progress: c.total ? c.escaped / c.total : 0 });
+      if (n > 0 && commands) {
+        o.x1 = sx / n;
+        o.y1 = sy / n;
+      }
+    }
+    this.effects.drawOrders(this.orders);
+  }
+
+  private drawShip(m: LiveMatch, i: number, v: ShipView, dt: number, alpha: number, bounds: Bounds, frameAll: boolean): void {
     const ship = m.ships[i]!;
     const obj = v.model.object;
+    v.drawn.visible = false;
     if (v.wreck) {
       this.drawWreck(v, dt, frameAll ? bounds : null, ship.team);
+      return;
+    }
+    if (v.departAt !== Infinity) {
+      this.drawDeparture(v, dt);
       return;
     }
     let x = v.prev.x + (ship.x - v.prev.x) * alpha;
@@ -331,19 +593,40 @@ export class World {
       x -= Math.cos(heading) * back;
       y -= Math.sin(heading) * back;
     }
-    const visible = ship.alive && ship.present;
+    const visible = m.active(ship);
     obj.visible = visible;
     obj.position.set(x, 0, -y);
     obj.rotation.set(0, heading, 0);
     obj.updateMatrixWorld();
+    v.drawn.x = x;
+    v.drawn.y = y;
+    v.drawn.visible = visible;
     v.model.setThrottles(ship.throttles, dt);
     v.model.turrets.forEach((pivot, k) => (pivot.rotation.y = ship.turretAngles[k] ?? 0));
     v.damage.update(Math.max(0, ship.hp) / (m.maxHp[i] ?? 1), visible, dt);
-    // Ships yet to jump in count too, so the empty field is framed where they'll appear.
-    if (ship.alive) growBounds(bounds, ship.x, ship.y);
+    // Ships yet to jump in count too, so the empty field is framed where they'll
+    // appear; ships in a hangar or gone through the jump point do not.
+    if (ship.alive && !ship.docked && ship.jump !== JUMP_DEPARTED) this.cam.grow(bounds, ship.x, ship.y);
   }
 
-  private drawWreck(v: ShipView, dt: number, bounds: ReturnType<typeof emptyBounds> | null, team: number): void {
+  /** A hull leaving through its jump: pulled forward along its heading, then gone. */
+  private drawDeparture(v: ShipView, dt: number): void {
+    const obj = v.model.object;
+    const age = this.elapsed - v.departAt;
+    if (age > JUMP_OUT_DURATION) {
+      obj.visible = false;
+      v.damage.update(1, false, dt);
+      return;
+    }
+    const ahead = jumpOutOffset(age);
+    const d = v.depart;
+    obj.visible = true;
+    obj.position.set(d.x + Math.cos(d.heading) * ahead, 0, -(d.y + Math.sin(d.heading) * ahead));
+    obj.rotation.set(0, d.heading, 0);
+    obj.updateMatrixWorld();
+  }
+
+  private drawWreck(v: ShipView, dt: number, bounds: Bounds | null, team: number): void {
     const w = v.wreck!;
     const obj = v.model.object;
     if (w.age > WRECK_BURN) {
@@ -358,7 +641,7 @@ export class World {
     obj.updateMatrixWorld();
     v.model.setThrottles([], dt);
     v.damage.update(WRECK_HP, true, dt);
-    if (bounds) growBounds(bounds, w.x, w.y);
+    if (bounds) this.cam.grow(bounds, w.x, w.y);
     if (w.age > WRECK_BURN) {
       obj.visible = false;
       this.effects.explosion({ x: w.x, y: w.y, radius: v.hull.radius * 1.2, team, kind: "death" });
@@ -368,13 +651,27 @@ export class World {
   /** Screen position and drawn length (CSS px) of ship `i`, or null when it isn't on show. */
   shipOnScreen(i: number, width: number, height: number): { x: number; y: number; sizePx: number } | null {
     const v = this.views[i];
-    if (!v || !v.model.object.visible || v.wreck) return null;
+    if (!v || !v.model.object.visible || v.wreck || v.departAt !== Infinity) return null;
+    return this.project(v.model.object.matrixWorld, v.hull.length, width, height);
+  }
+
+  /** Screen position (CSS px) of a sim point, and how many px a metre is there. */
+  pointOnScreen(x: number, y: number, width: number, height: number): { x: number; y: number; pxPerMetre: number } {
+    this.tagPos.set(x, 0, -y);
     const cam = this.cam.camera;
-    this.tagPos.setFromMatrixPosition(v.model.object.matrixWorld);
     const depth = this.tagPos.distanceTo(cam.position);
     const pxPerMetre = height / (2 * depth * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2));
     this.tagPos.project(cam);
-    return { x: ((this.tagPos.x + 1) / 2) * width, y: ((1 - this.tagPos.y) / 2) * height, sizePx: v.hull.length * pxPerMetre };
+    return { x: ((this.tagPos.x + 1) / 2) * width, y: ((1 - this.tagPos.y) / 2) * height, pxPerMetre };
+  }
+
+  private project(matrix: THREE.Matrix4, length: number, width: number, height: number): { x: number; y: number; sizePx: number } {
+    const cam = this.cam.camera;
+    this.tagPos.setFromMatrixPosition(matrix);
+    const depth = this.tagPos.distanceTo(cam.position);
+    const pxPerMetre = height / (2 * depth * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2));
+    this.tagPos.project(cam);
+    return { x: ((this.tagPos.x + 1) / 2) * width, y: ((1 - this.tagPos.y) / 2) * height, sizePx: length * pxPerMetre };
   }
 
   /** GPU resource counts, for the soak test. */

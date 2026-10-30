@@ -10,6 +10,8 @@ export interface WasmMatch {
   free(): void;
   step(): void;
   set_action(ship: number, row: Int8Array): void;
+  /** The scripted controller's row for `ship` now (capital ships fly by script). */
+  scripted_action(ship: number): Int8Array;
   head_valid(ship: number): Uint8Array;
   obs(ship: number): Float32Array;
   ships_ptr(): number;
@@ -46,6 +48,8 @@ export interface SimModule {
   pilot_compat_versions(): Uint32Array;
   pilot_compatible(version: number): boolean;
   arenaRadiusForMission(mission: string, nShips: number): number;
+  /** WP-S2: JSON [{name, mission, fleets}] of the mission's default rosters (first = default; deathmatch "[]"). */
+  missionRostersJson?(mission: string): string;
   missionTimeLimitTicks(mission: string): number;
   MAX_SHIPS(): number;
   COMMAND_TICKS(): number;
@@ -109,7 +113,43 @@ export interface HullInfo {
   cost: number;
   hp: number;
   shield: number;
+  /** The sim's mounts (tools/build_bundle.py; absent in older bundles). */
+  geometry?: HullGeometry;
 }
+
+/** A hull YAML's drawable parts, body frame (+x forward, +y port), metres. */
+export interface HullGeometry {
+  speed_cap: number;
+  shield_radius: number;
+  collision: Array<{ pos: [number, number]; r: number }>;
+  thrusters: Array<{ id: string; pos: [number, number]; dir: [number, number]; max_force: number }>;
+  turrets: Array<{ id: string; pos: [number, number]; rest_deg: number; arc_deg: number; slew_deg_s: number; weapon: string }>;
+  bays: Array<{ id: string; pos: [number, number]; dir: [number, number] }>;
+}
+
+/** Hull roles (YAML `role`) of the capital ships, which scripts fly (SIM_SPEC §11). */
+export const ROLE_CARRIER = "carrier";
+export const ROLE_TRANSPORT = "transport";
+
+/** The ship-ext view's role code (SIM_SPEC §10.2). */
+export type ShipRole = "strike" | "carrier" | "transport";
+const SHIP_ROLES: ShipRole[] = ["strike", "carrier", "transport"];
+export function shipRole(code: number): ShipRole {
+  return SHIP_ROLES[code] ?? "strike";
+}
+
+/** Jump drive state (SIM_SPEC §5.10): 0 idle, 1 charging, 2 departed. */
+export const JUMP_IDLE = 0;
+export const JUMP_CHARGING = 1;
+export const JUMP_DEPARTED = 2;
+
+/** Squad order kinds (SIM_SPEC §5.9 and the `Order` event). */
+export const ORDER_KINDS = ["none", "attack", "guard", "hold"] as const;
+export type OrderKind = (typeof ORDER_KINDS)[number];
+
+/** `EndReason` codes (SIM_SPEC §5.8). */
+export const END_REASONS = ["not_over", "eliminated", "time_limit", "carrier_destroyed", "convoy_through", "convoy_destroyed"] as const;
+export type SimEndReason = (typeof END_REASONS)[number];
 
 export interface MatchSettings {
   arena_radius: number;
@@ -144,6 +184,65 @@ export interface ShipState {
   turretAngles: Float32Array;
   /** Shields, engines, weapons shares. */
   power: Float32Array;
+  // v4 (the ship-ext view, SIM_SPEC §10.2).
+  role: ShipRole;
+  /** Waiting in a carrier's hangar: alive, never drawn. */
+  docked: boolean;
+  /** JUMP_IDLE, JUMP_CHARGING or JUMP_DEPARTED. */
+  jump: number;
+  chargeUntil: number;
+  hasWaypoint: boolean;
+  waypointX: number;
+  waypointY: number;
+  /** Squad index in its team, or -1. */
+  squad: number;
+}
+
+/** One squad of the commander layer (the `squads()` view, SQUAD_STRIDE). */
+export interface SquadState {
+  team: number;
+  index: number;
+  members: number;
+  /** Bitmask over ship slots. */
+  mask: number;
+  order: OrderKind;
+  /** Attack target or guard ward slot, or -1. */
+  target: number;
+  /** Hold point, or the target's position. */
+  x: number;
+  y: number;
+  radius: number;
+}
+
+/** A team's carrier and hangar (the `team_state()` view, TEAM_STRIDE). */
+export interface TeamState {
+  carrier: number;
+  hp: number;
+  maxHp: number;
+  shield: number;
+  maxShield: number;
+  hangar: number;
+  bays: number;
+  baysReady: number;
+}
+
+/** The convoy (the `convoy()` view, CONVOY_STRIDE). */
+export interface ConvoyState {
+  total: number;
+  enRoute: number;
+  charging: number;
+  escaped: number;
+  destroyed: number;
+  toDestroy: number;
+  toEscape: number;
+  /** Mean route progress of the transports not destroyed, 0..1 (escaped = 1). */
+  progress: number;
+  startX: number;
+  startY: number;
+  jumpX: number;
+  jumpY: number;
+  jumpRadius: number;
+  chargeTicks: number;
 }
 
 export interface ProjectileState {

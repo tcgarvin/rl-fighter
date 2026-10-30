@@ -5,8 +5,11 @@ policy into ``<bundle>/policy/`` (``tools/export_policy.py``) first; this reads 
 and the hull YAMLs and writes the remaining two files:
 
 - ``catalogue.json``: ``{"hulls": [[name, yaml_text], ...], "weapons": yaml_text,
-  "info": {name: {"role", "cost", "hp", "shield"}}}``. The first two are the
-  ``WasmMatch`` constructor's input; ``info`` is what the muster cards show.
+  "info": {name: {"role", "cost", "hp", "shield", "geometry"}}}``. The first two are
+  the ``WasmMatch`` constructor's input; ``info`` is what the muster cards show, and
+  its ``geometry`` the sim's mounts (thrusters, turrets, bays, collision circles,
+  shield radius, speed cap), which the live page's renderer prefers over its own
+  copies in ``web/src/render/hulls.js``: the YAML is the source of truth.
 - ``manifest.json`` (``rlf.bundle/1``): the bundle id, sim version (the wasm's; the
   policy's own is ``pilot_sim_version``, which must be pilot-compatible), the champion
   (id, name, notebook run, the hulls it is certified to fly, an eval summary), the
@@ -66,6 +69,29 @@ class RosterRules:
     budget: int
 
 
+def _pick(entry: dict[str, Any], keys: Sequence[str]) -> dict[str, Any]:
+    return {k: entry[k] for k in keys if k in entry}
+
+
+def render_geometry(spec: dict[str, Any]) -> dict[str, Any]:
+    """The parts of a hull YAML the renderer draws from (body frame, metres)."""
+    shield = spec.get("shield")
+    return {
+        "speed_cap": float(spec["speed_cap"]),
+        "shield_radius": float(shield["radius"]) if shield else 0.0,
+        "collision": [_pick(c, ("pos", "r")) for c in spec.get("collision") or []],
+        "thrusters": [
+            _pick(t, ("id", "pos", "dir", "max_force"))
+            for t in spec.get("thrusters") or []
+        ],
+        "turrets": [
+            _pick(t, ("id", "pos", "rest_deg", "arc_deg", "slew_deg_s", "weapon"))
+            for t in spec.get("turrets") or []
+        ],
+        "bays": [_pick(b, ("id", "pos", "dir")) for b in spec.get("bays") or []],
+    }
+
+
 def load_catalogue(assets: Path) -> dict[str, Any]:
     """Every ``assets/hulls/*/hull.yaml`` (sorted by name) plus ``weapons.yaml``.
 
@@ -88,6 +114,7 @@ def load_catalogue(assets: Path) -> dict[str, Any]:
                 "cost": int(spec["cost"]),
                 "hp": float(spec["hp"]),
                 "shield": float(shield["hp"]) if shield else 0.0,
+                "geometry": render_geometry(spec),
             }
         except (KeyError, TypeError) as exc:
             raise BundleError(f"{name}/hull.yaml: missing {exc}") from exc

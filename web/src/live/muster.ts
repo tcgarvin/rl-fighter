@@ -1,9 +1,12 @@
-// The muster (DESIGN §6 phase 1): both rosters as cards with the real hull thumbnails,
-// the team colours and a one-line matchup, for a few seconds before the jump-in. A tap
-// anywhere skips it. In portrait EMBER's side is on top, because the camera turns so
-// that team 1 arrives at the top of the screen.
+// The muster (DESIGN §6 phase 1): the mission and its brief, both rosters as cards with
+// the real hull thumbnails, the team colours and a one-line matchup, for a few seconds
+// before the jump-in. A tap anywhere skips it. In portrait EMBER's side is on top,
+// because the camera turns so that team 1 arrives at the top of the screen (in a
+// convoy escort it comes in from the side, and the convoy runs up the screen).
+// Fleets of more than MAX_CARDS show one card per hull with a count.
 
-import { TEAM_CLASSES, TEAM_NAMES } from "./hud.ts";
+import { TEAM_CLASSES, TEAM_NAMES } from "./teams.ts";
+import { MISSION_TITLES, type Brief, type MissionName } from "./missions.ts";
 import { matchupLine, type Roster } from "./roster.ts";
 import type { HullInfo } from "./sim.ts";
 
@@ -12,12 +15,18 @@ const ROLE_LINES: Record<string, string> = {
   fighter: "fast · gun",
   skirmisher: "agile · beam",
   anchor: "slow · 3 turrets",
+  carrier: "launches the wing",
+  transport: "unarmed · cargo",
 };
+const MAX_CARDS = 4;
 // Leaves time for the fade-out before the fleets jump.
 const FADE_OUT = 0.35;
 
 export interface MusterOptions {
   number: number;
+  mission: MissionName;
+  /** The objective and brief (HTML), missions.ts missionBrief(). */
+  brief: Brief;
   roster: Roster;
   info: Record<string, HullInfo>;
   thumbnails: Record<string, [string, string]>;
@@ -29,6 +38,16 @@ function el(tag: string, className: string, html?: string): HTMLElement {
   node.className = className;
   if (html !== undefined) node.innerHTML = html;
   return node;
+}
+
+const CAPITAL_FIRST: Record<string, number> = { carrier: 0, transport: 1 };
+
+/** One [hull, count] per hull kind, capital ships first, then by count. */
+function grouped(fleet: string[], info: Record<string, HullInfo>): Array<[string, number]> {
+  const counts = new Map<string, number>();
+  for (const h of fleet) counts.set(h, (counts.get(h) ?? 0) + 1);
+  const rank = (h: string) => CAPITAL_FIRST[info[h]?.role ?? ""] ?? 2;
+  return [...counts].sort((a, b) => rank(a[0]) - rank(b[0]) || b[1] - a[1] || a[0].localeCompare(b[0]));
 }
 
 export class Muster {
@@ -57,8 +76,9 @@ export class Muster {
     const head = el(
       "div",
       "m-head",
-      `<div class="kicker">Match ${String(o.number).padStart(2, "0")} · Muster</div>` +
-        `<div class="m-matchup">${matchupLine(o.roster)}</div>` +
+      `<div class="kicker">Match ${String(o.number).padStart(2, "0")} · ${MISSION_TITLES[o.mission]}</div>` +
+        `<div class="m-matchup">${o.brief.headline ?? matchupLine(o.roster, o.info)}</div>` +
+        `<div class="m-brief">${o.brief.brief}</div>` +
         (o.roster.budget !== null ? `<div class="m-budget">${o.roster.budget} credits a side</div>` : ""),
     );
     const sides = el("div", "m-sides");
@@ -70,8 +90,9 @@ export class Muster {
         el("div", "m-side-head", `<span class="m-team">${team === 0 ? "▲" : "■"} ${TEAM_NAMES[team]}</span><span class="m-count">${fleet.length} ship${fleet.length === 1 ? "" : "s"} · ${spent} cr</span>`),
       );
       const cards = el("div", "m-cards");
-      cards.style.setProperty("--n", String(fleet.length));
-      fleet.forEach((hull, k) => cards.append(this.card(hull, team, k, o)));
+      const groups = fleet.length > MAX_CARDS ? grouped(fleet, o.info) : fleet.map((h) => [h, 1] as [string, number]);
+      cards.style.setProperty("--n", String(groups.length));
+      groups.forEach(([hull, n], k) => cards.append(this.card(hull, n, team, k, o)));
       side.append(cards);
       sides.append(side);
     }
@@ -86,7 +107,7 @@ export class Muster {
     root.classList.add("on");
   }
 
-  private card(hull: string, team: 0 | 1, k: number, o: MusterOptions): HTMLElement {
+  private card(hull: string, count: number, team: 0 | 1, k: number, o: MusterOptions): HTMLElement {
     const info = o.info[hull];
     const node = el("div", "m-card");
     node.style.animationDelay = `${0.15 + k * 0.09 + team * 0.05}s`;
@@ -97,7 +118,7 @@ export class Muster {
     const stats = info ? `${info.hp.toFixed(0)} hp${info.shield ? ` · ${info.shield.toFixed(0)} sh` : ""}` : "";
     node.append(
       img,
-      el("div", "m-name", hull.toUpperCase()),
+      el("div", "m-name", hull.toUpperCase() + (count > 1 ? ` <span class="m-x">×${count}</span>` : "")),
       el("div", "m-role", ROLE_LINES[info?.role ?? ""] ?? info?.role ?? ""),
       el("div", "m-stats", stats),
     );

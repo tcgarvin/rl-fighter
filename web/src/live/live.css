@@ -143,8 +143,11 @@ body.details #meta-details {
 
 #controls {
   pointer-events: auto;
+  display: flex;
+  gap: 8px;
 }
 
+#commands-toggle,
 #details-toggle {
   appearance: none;
   color: var(--fg);
@@ -160,9 +163,265 @@ body.details #meta-details {
   -webkit-tap-highlight-color: transparent;
 }
 
+#commands-toggle[aria-pressed="true"],
 #details-toggle[aria-pressed="true"] {
   border-color: var(--fg);
   background: color-mix(in srgb, var(--fg) 14%, transparent);
+}
+
+/* ---- Mission panel: carrier hull per side, or the convoy's progress. ---- */
+#mission {
+  margin-top: 6px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 8px var(--bg);
+}
+
+#mission[hidden] {
+  display: none;
+}
+
+#mission .mrow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+  line-height: 1.7;
+}
+
+#mission .mlabel {
+  flex: none;
+  font-weight: 700;
+}
+
+#mission .mrow.team-a .mlabel,
+#mission .mrow.team-b .mlabel {
+  min-width: 9.6em;
+}
+
+#mission .mbar {
+  flex: none;
+  width: 64px;
+  height: 3px;
+  background: color-mix(in srgb, currentColor 22%, transparent);
+}
+
+#mission .mbar i {
+  display: block;
+  height: 100%;
+  background: currentColor;
+  transition: width 0.4s;
+}
+
+#mission .mval {
+  min-width: 3.2em;
+  text-align: right;
+  color: var(--fg);
+}
+
+#mission .mnote,
+#mission .msub {
+  color: var(--muted);
+  letter-spacing: 0.06em;
+}
+
+#mission .msub {
+  font-size: 9.5px;
+  line-height: 1.4;
+}
+
+#mission .mrow.down .mval,
+#mission .mrow.down .mlabel {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+#mission .pips {
+  display: inline-flex;
+  gap: 3px;
+  font-size: 11px;
+  letter-spacing: 0;
+}
+
+#mission .pips i {
+  font-style: normal;
+  color: var(--team-a);
+}
+
+#mission .pips .cv-lost {
+  color: var(--muted);
+}
+
+#mission .pips .cv-go {
+  opacity: 0.75;
+}
+
+#mission .pips .cv-charge {
+  animation: live-pulse 0.7s ease-in-out infinite;
+}
+
+/* ---- The command log (behind "Show commands"): ambient lines; a tap opens it. ---- */
+#cmdlog {
+  display: none;
+  flex: 1 0 100%;
+  max-width: 420px;
+  pointer-events: auto;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--fg-soft);
+  opacity: 0.72;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+/* Collapsed: just who did what; times and counts wait for the open panel. */
+#cmdlog:not(.open) .cl-t,
+#cmdlog:not(.open) .cl-d {
+  display: none;
+}
+
+/* The convoy's jump point, labelled in the DOM so it reads over any backdrop. */
+.jump-label {
+  position: absolute;
+  top: 0;
+  left: -60px;
+  width: 120px;
+  text-align: center;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--team-a);
+  opacity: 0.85;
+  text-shadow: 0 0 6px var(--bg), 0 0 2px var(--bg);
+  white-space: nowrap;
+  will-change: transform;
+}
+
+/* A dark backing so the label reads over a bright backdrop body. */
+.jump-label::before {
+  content: "";
+  position: absolute;
+  inset: -2px 50% -2px 50%;
+  margin: 0 -48px;
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+  border-radius: 2px;
+  z-index: -1;
+}
+
+@media (min-width: 1024px) and (min-height: 640px) {
+  .jump-label {
+    font-size: 10.5px;
+  }
+}
+
+.jump-label[hidden] {
+  display: none;
+}
+
+/* The muster stands alone: no caption or controls showing through its scrim. */
+body.mustering #bottom {
+  visibility: hidden;
+}
+
+body.commands #cmdlog {
+  display: block;
+}
+
+#cmdlog .cl-lines {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  height: calc(3 * 1.5em);
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(transparent, #000 45%);
+  mask-image: linear-gradient(transparent, #000 45%);
+}
+
+#cmdlog .cl-line {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 0 6px var(--bg);
+  flex: none;
+}
+
+#cmdlog .cl-line b {
+  font-weight: 700;
+}
+
+#cmdlog .cl-line.team-a b {
+  color: var(--team-a);
+}
+
+#cmdlog .cl-line.team-b b {
+  color: var(--team-b);
+}
+
+#cmdlog .cl-line.team-a,
+#cmdlog .cl-line.team-b {
+  color: var(--fg-soft);
+}
+
+#cmdlog .cl-line:not(.team-a):not(.team-b),
+#cmdlog .cl-t {
+  color: var(--muted);
+}
+
+#cmdlog .cl-sep {
+  letter-spacing: 0.08em;
+}
+
+#cmdlog .cl-line.cl-hi {
+  color: var(--fg);
+}
+
+#cmdlog:focus-visible {
+  outline: 1px solid var(--line-strong);
+}
+
+/* Open: a readable panel over the lower screen; the battle keeps its framing. */
+#cmdlog.open {
+  position: fixed;
+  z-index: 4;
+  left: var(--pad-left);
+  right: var(--pad-right);
+  bottom: calc(var(--pad-bottom) + 56px);
+  max-width: 560px;
+  padding: 10px 12px 8px;
+  font-size: 11.5px;
+  line-height: 1.55;
+  opacity: 1;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+}
+
+#cmdlog.open .cl-lines {
+  height: auto;
+  max-height: min(46vh, 420px);
+  overflow-y: auto;
+  justify-content: flex-start;
+  -webkit-mask-image: none;
+  mask-image: none;
+  overscroll-behavior: contain;
+}
+
+#cmdlog.open .cl-line {
+  white-space: normal;
+  padding: 1px 0;
+}
+
+#cmdlog.open::before {
+  content: "Command log · tap to close";
+  display: block;
+  margin-bottom: 6px;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
 /* ---- Pips and per-ship technical details. ---- */
@@ -287,6 +546,21 @@ body.details #meta-details {
   line-height: 1.25;
   letter-spacing: 0.01em;
   animation: m-rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.m-brief {
+  margin: 6px auto 0;
+  max-width: 34em;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--fg-soft);
+  animation: m-rise 0.5s 0.1s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.m-x {
+  font-weight: 400;
+  color: var(--fg-soft);
+  letter-spacing: 0.04em;
 }
 
 .m-budget {
@@ -545,6 +819,22 @@ body.details #meta-details {
 
   .m-matchup {
     font-size: 34px;
+  }
+
+  .m-brief {
+    font-size: 16px;
+  }
+
+  #mission {
+    font-size: 11px;
+  }
+
+  #mission .mbar {
+    width: 96px;
+  }
+
+  #cmdlog {
+    font-size: 10px;
   }
 
   .m-budget,

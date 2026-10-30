@@ -100,10 +100,14 @@ uv run python -m pytest tests/test_build_notebook.py tests/test_build_catalogue.
 
 The project is moving to a Rust sim + three.js web client; `docs/DESIGN.md` is the
 source of truth for that direction. The website (`web/`, Vite + TypeScript) serves the
-live page at `/`: matches that loop forever, every ship flown by the champion policy
-(Rust sim in WASM, MLP inference in JS, `web/src/live/`, renderer modules in
-`web/src/render/`), loaded from the champion bundle at `/bundle/`. `/duel/` redirects to a
-1v1 fighter roster. The scripted story demo in `prototypes/story/` (draft, then missions;
+live page at `/`: matches that loop forever, rotating team deathmatch, carrier battle
+and convoy escort (`web/src/live/missions.ts`: rotation, rosters, briefs; `?mission=
+deathmatch|carrier|convoy` pins one, `?commands=1` shows the commander layer), every
+strike craft flown by the champion policy and capital ships by the sim's scripts (Rust
+sim in WASM, MLP inference in JS, `web/src/live/`, renderer modules in
+`web/src/render/`), loaded from the champion bundle at `/bundle/`. The renderer takes
+hull mounts from the bundle catalogue (the YAML), not `render/hulls.js`. `/duel/`
+redirects to a 1v1 fighter roster. The scripted story demo in `prototypes/story/` (draft, then missions;
 it builds on the art-direction demo in `prototypes/art-direction/`) is served at `/story/`.
 The sections below describe the original Python/NumPy prototype.
 
