@@ -67,6 +67,14 @@ node --experimental-strip-types tools/web/live_smoke.mjs web/public/bundle 4 [--
 # against a running preview / web/dist; RLF_GPU=1 uses the host GPU instead of SwiftShader
 node tools/web/live_shots.mjs http://localhost:4173
 node tools/web/live_soak.mjs 10 8
+# M3 art preview without the sim (carrier, freighter, bay launch, jump charge/out, orders):
+# dev-only page web/dev/m3-art.html?scene=lineup|detail|convoy|launch|jump|quick|orders[&t=s]
+# on the Vite dev server; screenshots into web/shots/m3-art/
+cd web && npx vite --port 5179 --strictPort   # then, from the repo root:
+node tools/web/art_shots.mjs http://localhost:5179
+# Art agent (DESIGN §11): Codex, gpt-6.1-sol only, always at high reasoning effort (the
+# default is none); -i attaches screenshots for review
+codex exec -m gpt-6.1-sol -c model_reasoning_effort='"high"' -s workspace-write -C . -i shot.png "..."
 
 # Fleets (1-4 ships a side, mixed hulls): fleet eval (schema rlf.eval.fleet/1), the
 # script-vs-script fleet survey, and the fleet pilot v1 run (BC -> DAgger -> PPO;
