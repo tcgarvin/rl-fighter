@@ -19,14 +19,22 @@ step() { printf '\n==> %s\n' "$*"; }
 scripts/build_site.sh
 
 step "serve web/dist at $BASE"
-(cd web && exec npx vite preview --port "$PORT" --strictPort) >/dev/null 2>&1 &
+# Something already answering on the port would be screenshotted instead of this build.
+if curl -s -o /dev/null "$BASE/"; then
+    echo "Error: port $PORT is already in use; stop that server or set RLF_WEB_PORT" >&2
+    exit 1
+fi
+# vite itself, not npx: killing an npx wrapper leaves the vite child serving the port.
+(cd web && exec ./node_modules/.bin/vite preview --port "$PORT" --strictPort) >/dev/null 2>&1 &
 SERVER=$!
 trap 'kill "$SERVER" 2>/dev/null || true' EXIT
 for _ in $(seq 1 50); do
+    kill -0 "$SERVER" 2>/dev/null || break
     curl -sf "$BASE/" >/dev/null && break
     sleep 0.2
 done
-curl -sf "$BASE/" >/dev/null || { echo "Error: preview server did not start on $PORT" >&2; exit 1; }
+kill -0 "$SERVER" 2>/dev/null && curl -sf "$BASE/" >/dev/null \
+    || { echo "Error: preview server did not start on $PORT" >&2; exit 1; }
 
 rm -rf web/shots/live web/shots/pages
 step "screenshots: live page (web/shots/live)"

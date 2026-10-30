@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>M3 art preview</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #02040a; }
+      body > canvas { position: fixed; inset: 0; display: block; }
+      #caption {
+        position: fixed; left: 12px; top: 10px; z-index: 2; margin: 0;
+        font: 12px/1.35 "Helvetica Neue", Arial, sans-serif; color: #8c99a8; letter-spacing: .02em;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Dev-only (not a Vite build input): `cd web && npx vite`, then open
+         /dev/m3-art.html?scene=lineup|convoy|launch|jump|quick|orders[&t=<seconds>] -->
+    <p id="caption"></p>
+    <script type="module" src="/src/dev/m3art.ts"></script>
+  </body>
+</html>

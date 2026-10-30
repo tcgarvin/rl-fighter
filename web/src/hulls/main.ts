@@ -28,11 +28,13 @@ function capitalise(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-function header(onTeam: (team: number) => void): HTMLElement {
+const COUNT_WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
+
+function header(count: number, onTeam: (team: number) => void): HTMLElement {
   const head = el("header", "hulls-head");
   head.append(
     el("p", "kicker", "Hull catalogue"),
-    el("h1", "", "Three hulls, three ways to fly"),
+    el("h1", "", `${COUNT_WORDS[count] ?? count} hulls, ${(COUNT_WORDS[count] ?? String(count)).toLowerCase()} ways to fly`),
     el(
       "p",
       "lede",
@@ -168,11 +170,11 @@ function card(hull: Hull, weapons: Record<string, Weapon>): { node: HTMLElement;
   figure.append(el("h3", "figure__title", "Actuators, from above"), actuatorDiagram(hull));
   const legend = el("ul", "legend diagram-legend");
   const strongest = Math.max(...hull.thrusters.map((t) => t.max_force));
-  const items: Array<[string, string]> = [
-    ["key-thrust", `thruster: pushes at its mount, length ∝ force (longest ${n(strongest)} N)`],
-    [hull.turrets.some((t) => t.arc_deg > 0) ? "key-arc" : "key-fixed", hull.turrets.some((t) => t.arc_deg > 0) ? "turret and its firing arc" : "fixed gun, fires along the nose"],
-    ["key-footprint", "collision footprint"],
-  ];
+  const slewing = hull.turrets.some((t) => t.arc_deg > 0);
+  const items: Array<[string, string]> = [["key-thrust", `thruster: pushes at its mount, length ∝ force (longest ${n(strongest)} N)`]];
+  // Unarmed hulls (the freighter) have no gun to key.
+  if (hull.turrets.length) items.push([slewing ? "key-arc" : "key-fixed", slewing ? "turret and its firing arc" : "fixed gun, fires along the nose"]);
+  items.push(["key-footprint", "collision footprint"]);
   if (hull.shield) items.push(["key-shield", `shield bubble, ${n(hull.shield.radius, 1)} m`]);
   for (const [key, text] of items) {
     const li = el("li");
@@ -189,7 +191,8 @@ function card(hull: Hull, weapons: Record<string, Weapon>): { node: HTMLElement;
   const ringNote = el("p", "figure__caption", "Brighter, thicker segments take more damage. Shields absorb first, so the multipliers apply to the hull only.");
 
   tech.append(figure, rings, ringNote);
-  tech.append(el("h3", "hull__subhead", "Guns"), weaponsTable(hull, weapons));
+  if (hull.turrets.length) tech.append(el("h3", "hull__subhead", "Guns"), weaponsTable(hull, weapons));
+  else tech.append(el("h3", "hull__subhead", "Guns"), el("p", "figure__caption", "None. It is unarmed and relies on its escort."));
   tech.append(el("h3", "hull__subhead", "Thrusters"), thrusterTable(hull));
   const source = el("a", "hull__source", `${hull.name}/hull.yaml`);
   source.href = hull.source;
@@ -220,7 +223,7 @@ async function start(): Promise<void> {
 
   let turntable: Turntable | null = null;
   const cards = catalogue.hulls.map((hull) => card(hull, catalogue.weapons));
-  main.append(header((team) => turntable?.setTeam(team)));
+  main.append(header(catalogue.hulls.length, (team) => turntable?.setTeam(team)));
   const list = el("div", "hull-list");
   for (const c of cards) list.append(c.node);
   main.append(list);
