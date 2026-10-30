@@ -1,9 +1,11 @@
 // M3 art preview (dev-only page, web/dev/m3-art.html): the carrier, the transport and
 // the strike craft in the Cinematic treatment with the live page's camera, playing the
-// M3 effects (bay launch, jump charge + jump out, the quick jump-out, the order overlay)
-// from small scripted scenes, with no sim. tools/web/art_shots.mjs screenshots it.
+// M3 effects (bay launch, jump charge + jump out, the quick jump-out, the order overlay,
+// shield impacts and collapse, the major explosion) from small scripted scenes, with no
+// sim. tools/web/art_shots.mjs screenshots it.
 //
-// URL: ?scene=lineup|convoy|launch|jump|quick|orders  &t=<s> fast-forwards to that time
+// URL: ?scene=lineup|convoy|launch|jump|quick|orders|shield|deplete|explode
+//   &t=<s> fast-forwards to that time
 // in fixed 1/60 s steps and then holds still (window.artReady turns true), for shots.
 
 import * as THREE from "three";
@@ -12,7 +14,7 @@ import * as hullgeo from "../render/hullgeo.js";
 import { createEffects, jumpOutOffset, JUMP_OUT_DURATION } from "../render/effects.js";
 import { createEnvironment } from "../render/environment.js";
 import { HULLS } from "../render/hulls.js";
-import { FitCamera, emptyBounds, growBounds } from "../live/camera.ts";
+import { FitCamera, TYPICAL_ZOOM, emptyBounds, growBounds } from "../live/camera.ts";
 
 interface Vec2Spec {
   pos: [number, number];
@@ -49,6 +51,8 @@ interface Effects {
   jumpOutQuick(e: { x: number; y: number; heading: number; team: number; size: number }): void;
   arrival(e: { x: number; y: number; heading: number; team: number; size: number; duration: number }): void;
   drawOrders(orders: Order[]): void;
+  shieldHit(e: { x: number; y: number; nx: number; ny: number; team: number; depleted: boolean; radius: number; object?: THREE.Object3D }): void;
+  explosion(e: { x: number; y: number; radius: number; team: number; kind: string }): void;
   attachDamage(model: HullModel): { update(hp: number, visible: boolean, dt: number): void };
   update(dt: number): void;
 }
@@ -81,7 +85,7 @@ const scene = new THREE.Scene();
 const cam = new FitCamera(window.innerWidth / window.innerHeight);
 const ctx = { THREE, scene, renderer, camera: cam.camera };
 treatment.init(ctx);
-const environment = createEnvironment(ctx) as unknown as { newMatch(seed: number): void; update(dt: number, v: { centerX: number; centerY: number; extent: number }): void };
+const environment = createEnvironment(ctx) as unknown as { newMatch(seed: number): void; update(dt: number, v: { centerX: number; centerY: number; extent: number; projection?: THREE.Matrix4; layoutZoom?: number }): void };
 const fx = createEffects({ ...ctx, palette: treatment.palette }) as unknown as Effects;
 environment.newMatch(7);
 
@@ -176,6 +180,14 @@ function charge(ship: Ship, at: number, events: Scene["events"]): void {
       fx.jumpOut({ x: ship.x, y: ship.y, heading: ship.heading, team: ship.team, size: ship.hull.length });
     },
   });
+}
+
+/** A shot from bearing `bearing` (rad, sim frame) landing on `ship`'s shield of radius r. */
+function shieldShot(ship: Ship, bearing: number, r: number, depleted = false): void {
+  const nx = Math.cos(bearing);
+  const ny = Math.sin(bearing);
+  const shooter = ship.team === 0 ? 1 : 0;
+  fx.shieldHit({ x: ship.x + nx * r, y: ship.y + ny * r, nx, ny, team: shooter, depleted, radius: r, object: ship.model.object });
 }
 
 function centroid(ships: Ship[]): [number, number] {
@@ -310,6 +322,62 @@ const SCENES: Record<string, () => Scene> = {
     };
     return { ships, events: [], orders, frame: [jumpPoint], caption: "orders: attack (brackets), guard (ring), hold (ticked ring), jump point (progress arc)" };
   },
+  // Shield impacts: a single hit on each shield, then sustained fire on the gunship and
+  // the carrier (several hits a second from a narrow arc), as in a capital-ship fight.
+  shield: () => {
+    const gunship = new Ship("gunship", 0, 0, 0, 0.3, 14);
+    const strafer = new Ship("strafer", 1, 46, -22, Math.PI - 0.4, 0);
+    const carrier = new Ship("carrier", 1, 40, 42, Math.PI + 0.1, 4);
+    const ships = [gunship, strafer, carrier];
+    const events: Scene["events"] = [
+      { at: 0.3, run: () => shieldShot(gunship, 0.5, 11) },
+      { at: 0.35, run: () => shieldShot(strafer, 2.6, 7.5) },
+      { at: 0.4, run: () => shieldShot(carrier, -2.2, 24) },
+    ];
+    for (let i = 0; i < 12; i++) {
+      const at = 1.0 + i * 0.13;
+      events.push({ at, run: () => shieldShot(gunship, 0.2 + Math.sin(i * 2.1) * 0.5, 11) });
+      events.push({ at: at + 0.05, run: () => shieldShot(carrier, -2.6 + Math.sin(i * 1.7) * 0.6, 24) });
+    }
+    return { ships, events, caption: "shield: single impacts (gunship, strafer, carrier), then sustained fire on the gunship and carrier" };
+  },
+  // Shield collapse: the last hit takes the shield down (depleted).
+  deplete: () => {
+    const gunship = new Ship("gunship", 0, 0, 0, 0.3, 10);
+    const carrier = new Ship("carrier", 1, 50, 30, Math.PI + 0.1, 0);
+    const strafer = new Ship("strafer", 1, 40, -26, Math.PI - 0.4, 0);
+    const ships = [gunship, carrier, strafer];
+    const events: Scene["events"] = [
+      { at: 0.2, run: () => shieldShot(gunship, 0.4, 11) },
+      { at: 0.3, run: () => shieldShot(gunship, 0.6, 11, true) },
+      { at: 0.4, run: () => shieldShot(carrier, -2.4, 24, true) },
+      { at: 0.5, run: () => shieldShot(strafer, 2.4, 7.5, true) },
+    ];
+    return { ships, events, caption: "deplete: shields collapse (gunship, carrier, strafer)" };
+  },
+  // A kill: the immediate 'death' burst, then the hulk blows up big ('major').
+  explode: () => {
+    const fighter = new Ship("fighter", 0, -10, -30, 0.4, 0);
+    const carrier = new Ship("carrier", 1, 40, 25, Math.PI + 0.1, 0);
+    const gunship = new Ship("gunship", 0, -30, 30, 0.2, 0);
+    const witness = new Ship("fighter", 1, 70, -40, 2.4, 0);
+    const ships = [fighter, carrier, gunship, witness];
+    const kill = (s: Ship, at: number, majorAt: number, radius: number, events: Scene["events"]) => {
+      events.push({ at, run: () => fx.explosion({ x: s.x, y: s.y, radius, team: s.team, kind: "death" }) });
+      events.push({
+        at: majorAt,
+        run: () => {
+          s.shown = false;
+          fx.explosion({ x: s.x, y: s.y, radius, team: s.team, kind: "major" });
+        },
+      });
+    };
+    const events: Scene["events"] = [];
+    kill(fighter, 0.2, 0.5, 6.5, events);
+    kill(carrier, 0.3, 0.7, 50, events);
+    kill(gunship, 1.6, 2.2, 15, events);
+    return { ships, events, caption: "explode: death burst, then the major blow-up (fighter 6.5 m, carrier 50 m, gunship 15 m)" };
+  },
 };
 
 const build = SCENES[sceneName];
@@ -361,7 +429,7 @@ function advance(dt: number): void {
   if (current.orders) fx.drawOrders(current.orders(time));
   cam.update(bounds, dt);
   if (closeSpan > 0) closeUp(bounds);
-  environment.update(dt, { centerX: cam.x, centerY: cam.y, extent: cam.extent });
+  environment.update(dt, { centerX: cam.x, centerY: cam.y, extent: cam.extent, projection: cam.baseProjection, layoutZoom: TYPICAL_ZOOM });
   fx.update(dt);
 }
 

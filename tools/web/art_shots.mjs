@@ -33,6 +33,13 @@ const SHOTS = {
   jump: [0.9, 2.0, 2.2, 2.33, 2.42],
   quick: [0.55, 0.62, 0.8],
   orders: [1.0],
+  // Single impacts at 0.3-0.4; sustained fire from 1.0. Collapses at 0.3-0.5.
+  shield: [0.36, 0.5, 0.8, 1.7],
+  "shield&close=70": [0.52, 1.72],
+  deplete: [0.36, 0.5, 0.8, 1.3],
+  "deplete&close=90": [0.52, 0.82],
+  // Fighter major at 0.5, carrier major at 0.7, gunship death 1.6 / major 2.2.
+  explode: [0.56, 0.8, 1.2, 2.0, 3.5],
 };
 const only = process.env.RLF_ART_SCENES?.split(",").filter(Boolean);
 

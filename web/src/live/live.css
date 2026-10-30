@@ -424,18 +424,7 @@ body.commands #cmdlog {
   color: var(--muted);
 }
 
-/* ---- Pips and per-ship technical details. ---- */
-#tags .pip {
-  position: absolute;
-  top: -9px;
-  left: -9px;
-  width: 18px;
-  height: 18px;
-  border: 1.5px solid currentColor;
-  border-radius: 50%;
-  will-change: transform, opacity;
-}
-
+/* ---- Per-ship technical details. ---- */
 #tags .tag {
   position: absolute;
   top: 0;
