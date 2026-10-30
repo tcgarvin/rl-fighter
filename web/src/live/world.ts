@@ -4,7 +4,8 @@
 // freighters spool their jump drive and leave as a streak; damage shows as smoke,
 // flame and arcing on the hull (no health bars). A destroyed ship either burns for up
 // to two seconds and goes up in a major explosion or becomes a hulk: it coasts on,
-// tumbling and smouldering, sunk below the battle plane so the living fly over it. Behind "show commands" the
+// tumbling, charred dark with a few embers (no smoke or fire, so it doesn't pull the
+// eye), sunk below the battle plane so the living fly over it. Behind "show commands" the
 // commanders' squad orders, carrier waypoints and the jump point are drawn faintly.
 
 import * as THREE from "three";
@@ -39,11 +40,19 @@ const HULK_DRAG = 0.12;
 // A hulk sinks this far below the plane (metres, plus its own radius), easing at HULK_SINK_RATE.
 const HULK_DEPTH = 6;
 const HULK_SINK_RATE = 0.8;
-// The hp fraction a wreck burns at (below the flame and arcing thresholds); a hulk's
-// fire dies down to smoke over HULK_SMOULDER seconds.
+// The hp fraction a doomed wreck burns at (below the flame and arcing thresholds).
 const WRECK_HP = 0.12;
-const HULK_HP = 0.35;
-const HULK_SMOULDER = 6;
+// A hulk burns like any wreck for HULK_BURN seconds, then over HULK_CHAR seconds its
+// fire goes out (arcing, then flame, then smoke, as its damage level climbs back past
+// each threshold) while it chars: its colours fall to HULK_DARKNESS of themselves,
+// pulled toward soot, its lights go out and embers come in. They cool to
+// HULK_EMBER_FLOOR heat by HULK_COOL seconds after death and keep glinting at that.
+const HULK_BURN = 1.5;
+const HULK_CHAR = 2;
+const HULK_DARKNESS = 0.14;
+const HULK_SOOT = new THREE.Color(0x1a1714);
+const HULK_EMBER_FLOOR = 0.35;
+const HULK_COOL = 8;
 const BEAM_TTL = 0.06;
 // Weapon ids are assets/weapons.yaml file order (SIM_SPEC §4.2); `Fire` carries one.
 const WEAPON_NAMES = ["gauss", "laser", "flak", "torpedo"];
@@ -85,6 +94,7 @@ interface HullModel {
 
 interface DamageFx {
   update(hpFraction: number, visible: boolean, dt: number): void;
+  smoulder(dt: number, heat: number): void;
   dispose(): void;
 }
 
@@ -172,12 +182,20 @@ function fate(seed: number, ship: number, salt: number): number {
   return ((h ^ (h >>> 15)) >>> 0) / 4294967296;
 }
 
+interface Charred {
+  material: THREE.MeshStandardMaterial;
+  color: THREE.Color;
+  emissiveIntensity: number;
+}
+
 interface ShipView {
   model: HullModel;
   hull: HullSpec;
   damage: DamageFx;
   jumpStart: number;
   wreck: Wreck | null;
+  /** A hulk's own darkening copies of its materials, with the originals' colours. */
+  char: Charred[];
   /** Interpolation origin: the ship at the previous tick. */
   prev: { x: number; y: number; heading: number };
   /** Where it was drawn this frame (sim metres), for the order overlay. */
@@ -323,6 +341,8 @@ export class World {
     for (const v of this.views) {
       v.charge?.cancel();
       v.damage.dispose();
+      // The pooled model gets its treatment materials back when it is next built.
+      for (const c of v.char) c.material.dispose();
       v.model.dispose();
     }
     this.views = [];
@@ -343,6 +363,7 @@ export class World {
         damage: this.effects.attachDamage(model),
         jumpStart: -Infinity,
         wreck: null,
+        char: [],
         prev: { x: ship.x, y: ship.y, heading: ship.heading },
         drawn: { x: ship.x, y: ship.y, visible: false },
         charge: null,
@@ -704,10 +725,40 @@ export class World {
     obj.rotation.set(w.age * w.roll, w.heading, 0);
     obj.updateMatrixWorld();
     v.model.setThrottles([], dt);
-    const hp = hulk ? WRECK_HP + (HULK_HP - WRECK_HP) * Math.min(1, w.age / HULK_SMOULDER) : WRECK_HP;
-    v.damage.update(hp, true, dt);
+    if (hulk && w.age > HULK_BURN) {
+      const t = Math.min(1, (w.age - HULK_BURN) / HULK_CHAR);
+      this.char(v, t);
+      v.damage.update(WRECK_HP + (1 - WRECK_HP) * t, true, dt);
+      v.damage.smoulder(dt, t * Math.max(HULK_EMBER_FLOOR, 1 - w.age / HULK_COOL));
+    } else {
+      v.damage.update(WRECK_HP, true, dt);
+    }
     // Only a wreck still to blow is worth holding in the shot.
     if (bounds && !hulk) this.cam.grow(bounds, w.x, w.y);
+  }
+
+  /** Darken hulk `v` to `t` (0..1) charred, giving it its own materials on first call. */
+  private char(v: ShipView, t: number): void {
+    if (!v.char.length) {
+      const copies = new Map<THREE.Material, THREE.MeshStandardMaterial>();
+      v.model.object.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        const m = mesh.material as THREE.Material | undefined;
+        if (!mesh.isMesh || !(m instanceof THREE.MeshStandardMaterial)) return;
+        let copy = copies.get(m);
+        if (!copy) {
+          copy = m.clone();
+          copies.set(m, copy);
+          v.char.push({ material: copy, color: m.color.clone(), emissiveIntensity: m.emissiveIntensity });
+        }
+        mesh.material = copy;
+      });
+    }
+    const k = 1 - t * t * (3 - 2 * t) * (1 - HULK_DARKNESS);
+    for (const c of v.char) {
+      c.material.color.copy(c.color).lerp(HULK_SOOT, 1 - k).multiplyScalar(k + (1 - k) * 0.6);
+      c.material.emissiveIntensity = c.emissiveIntensity * (1 - t);
+    }
   }
 
   /** Screen position and drawn length (CSS px) of ship `i`, or null when it isn't on show. */

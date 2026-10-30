@@ -41,7 +41,9 @@
 //       hull model with jumpOutOffset() (below) and hide it after JUMP_OUT_DURATION.
 //   fx.jumpOutQuick({x, y, heading, team, size})  the cheap variant (no charge, no ring,
 //       thinner streak) for a whole wing leaving at the end of a match; stagger the calls.
-//   fx.attachDamage(model) -> {update(hpFraction, visible, dt), dispose()}
+//   fx.attachDamage(model) -> {update(hpFraction, visible, dt), smoulder(dt, heat), dispose()}
+//       smoulder: a burnt-out hulk's hot spots instead of smoke and fire, a few glowing
+//       points fixed on the hull where it burned; heat 0..1, call every frame to keep them
 //
 // drawOrders(orders): each order is {kind, team, x2, y2, radius?, x1?, y1?, progress?}.
 //   kind 'attack' | 'guard' | 'hold' | 'jump'. With x1, y1 a faint dashed line crawls
@@ -351,8 +353,10 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
     p.vx=vx; p.vy=vy; p.vz=vz; p.angle=Math.random()*6.283; p.wait=wait; p.hot=false;
   }
   const scratch = new T.Color();
+  // Hulks' hot spots, drawn each frame from their hull's transform (see smoulder).
+  const hulks = new Set();
   const goldWhite = new T.Color(0xfff3cf), orange = new T.Color(0xff952f), deepFire = new T.Color(0xff5218);
-  const emberColor = new T.Color(0xffab4a), emberHot = new T.Color(0xffab4a).multiplyScalar(2), soot = new T.Color(0x3a3029), hotSmoke = new T.Color(0xb4501e);
+  const emberColor = new T.Color(0xffab4a), emberDim = new T.Color(0xff6a24), emberHot = new T.Color(0xffab4a).multiplyScalar(2), soot = new T.Color(0x3a3029), hotSmoke = new T.Color(0xb4501e);
   const fireLight = new T.Color(0xff7a2a).multiplyScalar(.2), shockColor = new T.Color(0xffd9a0);
   // Fireball puffs are additive and overlap: dimmed so their sum stays fire, not white.
   const puffA = orange.clone().multiplyScalar(.3), puffB = deepFire.clone().multiplyScalar(.35);
@@ -743,7 +747,7 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
     jumpOutQuick(e) { depart(e,true); },
     drawOrders(list) { orders=list || []; },
     attachDamage(model) {
-      let smokeClock=0, fireClock=0, arcClock=0, index=0, disposed=false;
+      let smokeClock=0, fireClock=0, arcClock=0, index=0, disposed=false, hot=null;
       const points=model.damagePoints || [];
       // Damage mounts span the hull: derive a scale once, without geometry traversal.
       let extent=0;
@@ -791,7 +795,20 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
             }
           }
         },
-        dispose() { disposed=true; },
+        smoulder(dt, heat) {
+          if(disposed || !points.length) return;
+          if(!hot) {
+            // Fixed on the hull near its damage mounts, each with its own size and pulse.
+            hot={model,heat:0,spots:Array.from({length:Math.min(7,3+points.length)},(_,i)=>{
+              const p=points[i%points.length];
+              return {local:new T.Vector3(p.x+(Math.random()-.5)*.9*scale,p.y+.25,p.z+(Math.random()-.5)*.9*scale),
+                size:(.3+Math.random()*.35)*scale,phase:Math.random()*6.283,rate:.6+Math.random()*1.2};
+            })};
+            hulks.add(hot);
+          }
+          hot.heat=Math.max(0,Math.min(1,heat));
+        },
+        dispose() { disposed=true; if(hot) hulks.delete(hot); },
       };
     },
     update(dt) {
@@ -913,6 +930,16 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
       }
       finish(glow);finish(flames);finish(smoke);finish(chips);finish(rings);finish(bolts);
       finish(trails);finish(lines);finish(thin);finish(chargeRings);finish(shocks);
+      for(const h of hulks) {
+        if(h.heat<=0 || !h.model.object.visible) continue;
+        for(const s of h.spots) {
+          point.copy(s.local).applyMatrix4(h.model.object.matrixWorld);
+          const glowing=h.heat*(.7+.3*Math.sin(clock*s.rate+s.phase));
+          put(embers,point.x,point.y,point.z,s.size,s.size,1,0,emberDim,glowing);
+          put(emberHalos,point.x,point.y,point.z,s.size*3,s.size*3,1,0,emberDim,.22*glowing);
+        }
+        h.heat=0;
+      }
       finish(fires);finish(embers);finish(emberHalos);finish(shards);
       finish(shieldFx);
       if(shieldFx.n) { shieldFx.hit.needsUpdate=true; shieldFx.mode.needsUpdate=true; }

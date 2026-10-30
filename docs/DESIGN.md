@@ -349,8 +349,10 @@ the next run.
 - **Shields** are invisible until they deflect a hit; then the struck patch of the
   bubble lights up and shimmers as it dissipates the impact.
 - **Destroyed ships** either go up in a major explosion within two seconds of the kill
-  or become hulks: they coast on, tumbling and smouldering, sunk a little below the
-  battle plane so the living fly over them. They stay until the match ends.
+  or become hulks: they burn for a moment, then over a couple of seconds the fire goes
+  out and the hull chars dark, left with a few glowing hot spots where it burned. Hulks
+  coast on, tumbling, sunk a little below the battle plane so the living fly over
+  them; visible, but nothing that pulls the eye. They stay until the match ends.
 - **Scenery** has two layers. (1) A rigid **backdrop**: the starfield, nebulae and
   large painted bodies (planets, rings, moons). Its parts never move relative to each
   other. It is fixed to the camera's whole-arena frame, so the digital zoom and pan
