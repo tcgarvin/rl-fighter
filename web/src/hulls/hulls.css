@@ -455,3 +455,12 @@
     font-size: 44px;
   }
 }
+
+/* Six gun columns fit a phone-width card only with tighter cells. */
+@media (max-width: 420px) {
+  .hull__table th,
+  .hull__table td {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+}

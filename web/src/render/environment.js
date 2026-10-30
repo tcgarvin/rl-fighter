@@ -72,14 +72,16 @@ export function createEnvironment({ THREE: T, scene, camera, renderer }) {
   const bodies=[];
   for(let i=0;i<3;i++){
     const target=new T.WebGLRenderTarget(i===0?768:384,i===0?768:384,{type:T.HalfFloatType,depthBuffer:false,stencilBuffer:false});
-    const material=new T.MeshBasicMaterial({map:target.texture,transparent:true,depthWrite:false,depthTest:false,toneMapped:false,dithering:true});
+    // Transparent objects draw after the opaque ships, so the far-off bodies must depth
+    // test or they paint over any ship in front of them.
+    const material=new T.MeshBasicMaterial({map:target.texture,transparent:true,depthWrite:false,depthTest:true,toneMapped:false,dithering:true});
     const mesh=new T.Mesh(quad,material);mesh.renderOrder=-20+i;backdrop.add(mesh);bodies.push({target,material,mesh});
   }
   // Static temperature-varied sky points, with a soft galactic concentration.
   const starCount=4200, starGeo=new T.BufferGeometry();
   const sp=new Float32Array(starCount*3), sc=new Float32Array(starCount*3), ss=new Float32Array(starCount);
   starGeo.setAttribute('position',new T.BufferAttribute(sp,3));starGeo.setAttribute('color',new T.BufferAttribute(sc,3));starGeo.setAttribute('size',new T.BufferAttribute(ss,1));
-  const starMat=new T.ShaderMaterial({transparent:true,depthWrite:false,depthTest:false,vertexColors:true,
+  const starMat=new T.ShaderMaterial({transparent:true,depthWrite:false,depthTest:true,vertexColors:true,
     vertexShader:`attribute float size;varying vec3 tint;void main(){tint=color;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);gl_PointSize=size;}`,
     fragmentShader:`varying vec3 tint;void main(){float d=length(gl_PointCoord-.5)*2.;float a=exp(-d*d*3.5)*(1.-smoothstep(.65,1.,d));gl_FragColor=vec4(tint,a);#include <tonemapping_fragment>\n#include <colorspace_fragment>}`.replace(';#include',';\n#include') });
   const stars=new T.Points(starGeo,starMat);stars.frustumCulled=false;stars.renderOrder=-100;backdrop.add(stars);

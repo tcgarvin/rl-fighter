@@ -98,7 +98,10 @@ function weaponsTable(hull: Hull, weapons: Record<string, Weapon>): HTMLElement 
     tr.append(el("td", "num", w ? n(w.damage) : "–"));
     tr.append(el("td", "num", w ? `${n(w.range)} m` : "–"));
     tr.append(el("td", "num", w ? `${n(w.rate, 1)}/s` : "–"));
-    tr.append(el("td", "num", t.arc_deg === 0 ? "fixed" : `${n(t.arc_deg)}° · ${n(t.slew_deg_s)}°/s`));
+    const arc = el("td", "num", t.arc_deg === 0 ? "fixed" : `${n(t.arc_deg)}°`);
+    // Arc and slew on two lines keep the table inside a phone-width card.
+    if (t.arc_deg !== 0) arc.append(document.createElement("br"), `${n(t.slew_deg_s)}°/s`);
+    tr.append(arc);
     tbody.append(tr);
   }
   table.append(thead, tbody);
