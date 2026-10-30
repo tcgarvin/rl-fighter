@@ -53,6 +53,16 @@ pub fn mission_time_limit_ticks(mission: &str) -> Result<u32, JsError> {
     Ok(mission_kind(mission)?.default_time_limit_ticks())
 }
 
+/// WP-S2: the default rosters of mission `mission` as JSON, an array of
+/// `{"name", "mission", "fleets": [[hull, ...], [hull, ...]]}` (slot order; empty for
+/// deathmatch, whose rosters are budget drafts). The live page drafts among them.
+#[wasm_bindgen(js_name = missionRostersJson)]
+pub fn mission_rosters_json(mission: &str) -> Result<String, JsError> {
+    Ok(sim::spec::to_json(&sim::spec::mission_rosters(
+        mission_kind(mission)?,
+    )))
+}
+
 /// v4: ships per match, docked reserves included.
 #[wasm_bindgen(js_name = MAX_SHIPS)]
 pub fn max_ships() -> usize {
