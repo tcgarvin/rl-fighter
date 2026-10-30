@@ -51,7 +51,7 @@ OBS_DIM = 385
 ORDER_BLOCK_WIDTH = 18
 ORDER_OBS_DIM = OBS_DIM + ORDER_BLOCK_WIDTH
 # Pilot obs width per sim version (mirrors ``rlf_sim.PILOT_OBS_DIMS`` from v5 on).
-PILOT_OBS_DIMS: dict[int, int] = {3: OBS_DIM, 4: OBS_DIM, 5: ORDER_OBS_DIM}
+PILOT_OBS_DIMS: dict[int, int] = {2: OBS_DIM, 3: OBS_DIM, 4: OBS_DIM, 5: ORDER_OBS_DIM}
 ACTION_WIDTH = 21
 N_LOGITS = 61
 HIDDEN = 256
@@ -864,10 +864,14 @@ def save_policy(
 
     ``meta`` must hold only plain types (str, int, float, bool, lists, dicts) so the
     file loads with ``weights_only=True``. A fleet critic is stored with
-    ``critic_kind`` "fleet"; older files without the key hold a spike critic.
+    ``critic_kind`` "fleet"; older files without the key hold a spike critic. The
+    actor's and critic's input widths are recorded as ``obs_dim`` and
+    ``critic_obs_dim`` (older files are 385 wide).
     """
     payload = {
         "format": _CHECKPOINT_FORMAT,
+        "obs_dim": actor.obs_dim,
+        "critic_obs_dim": critic.obs_dim,
         "actor_hidden": actor.hidden,
         "critic_hidden": critic.hidden,
         "critic_kind": critic_kind(critic),

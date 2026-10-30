@@ -15,7 +15,11 @@ Writes two files into ``--out``:
 
 The export refuses a checkpoint whose obs_dim or sim_version does not match the
 WASM build it will run against (``--wasm-sim-version`` / ``--wasm-obs-dim``, which
-``scripts/build_site.sh`` reads from the freshly built bundle).
+``scripts/build_site.sh`` reads from the freshly built bundle). A pilot of an older,
+pilot-compatible sim may be narrower than the build's obs when its width is that
+sim's (``PILOT_OBS_DIMS``: fleet pilot v1's 385 in a SIM_VERSION 5 build of 403);
+it flies on the obs prefix, and the manifest records both widths (``obs_dim`` and
+``sim_obs_dim``).
 
     python -m tools.export_policy --checkpoint X.pt --out web/public/bundle/policy \\
         --wasm-sim-version 2 --wasm-obs-dim 385 [--eval-json eval/x_vs_script.json]
@@ -41,7 +45,7 @@ from spacefight.rl.spike_policy import (
     HEAD_CHOICES,
     HEAD_GROUPS,
     N_LOGITS,
-    OBS_DIM,
+    PILOT_OBS_DIMS,
     SLEW_HOLD,
     THROTTLE_HOLD,
     FIRE_NONE,
@@ -177,6 +181,27 @@ def head_layout() -> list[dict[str, Any]]:
     return heads
 
 
+def check_obs_dim(
+    obs_dim: int, sim_version: int, wasm_sim_version: int, wasm_obs_dim: int
+) -> None:
+    """A pilot's width must be the build's, or, for a pilot of an older sim, that
+    sim's own width (``PILOT_OBS_DIMS``) and a prefix of the build's obs.
+
+    Raises:
+        ExportError: Neither holds.
+    """
+    if obs_dim == wasm_obs_dim:
+        return
+    own = PILOT_OBS_DIMS.get(sim_version)
+    if sim_version != wasm_sim_version and own == obs_dim and obs_dim < wasm_obs_dim:
+        return
+    raise ExportError(
+        f"checkpoint obs_dim {obs_dim} (sim_version {sim_version}) does not fly in "
+        f"wasm OBS_DIM {wasm_obs_dim} (sim_version {wasm_sim_version}; pilot widths "
+        f"{PILOT_OBS_DIMS})"
+    )
+
+
 def export(
     checkpoint: Path,
     out_dir: Path,
@@ -197,11 +222,6 @@ def export(
     actor, _critic, meta = load_policy(checkpoint)
     linears = actor_linears(actor)
     obs_dim = int(linears[0].in_features)
-    if obs_dim != wasm_obs_dim or obs_dim != OBS_DIM:
-        raise ExportError(
-            f"checkpoint obs_dim {obs_dim} != wasm OBS_DIM {wasm_obs_dim} "
-            f"(spike_policy OBS_DIM {OBS_DIM})"
-        )
     if int(linears[-1].out_features) != N_LOGITS:
         raise ExportError(f"checkpoint has {linears[-1].out_features} logits")
     eval_summary = summarize_eval(eval_json) if eval_json is not None else None
@@ -213,6 +233,7 @@ def export(
             f"does not fly in wasm sim_version {wasm_sim_version} "
             f"(pilot-compatible versions {compat})"
         )
+    check_obs_dim(obs_dim, sim_version.version, wasm_sim_version, wasm_obs_dim)
 
     layers = []
     chunks: list[np.ndarray] = []
@@ -243,6 +264,7 @@ def export(
         "sim_version": sim_version.version,
         "sim_version_source": sim_version.source,
         "obs_dim": obs_dim,
+        "sim_obs_dim": wasm_obs_dim,
         "action_width": ACTION_WIDTH,
         "n_logits": N_LOGITS,
         "hidden": [int(layer.out_features) for layer in linears[:-1]],
