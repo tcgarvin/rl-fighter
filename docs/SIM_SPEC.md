@@ -2,8 +2,10 @@
 
 Status: implementation spec for milestone M1, written 2026-10-28; revised the same
 day to **SIM_VERSION 2** (§0) after M1 landed, to **SIM_VERSION 3** (§0.1,
-collision damage) on 2026-10-29, and to **SIM_VERSION 4** (§0.2: missions, carriers,
-convoys, the commander layer; M3 stage A, WP-S1) on 2026-10-30. `docs/DESIGN.md` is the source of
+collision damage) on 2026-10-29, to **SIM_VERSION 4** (§0.2: missions, carriers,
+convoys, the commander layer; M3 stage A, WP-S1) on 2026-10-30, and to **SIM_VERSION
+5** (§0.3: orders reach the pilots, the order reward, the random commander; M3 stage
+B, WP-B1) the same evening. `docs/DESIGN.md` is the source of
 truth for direction; this file pins the decisions implementers need. When the two
 disagree, fix this file and note it in the lab journal.
 
@@ -90,6 +92,44 @@ only because the deathmatch commander now forms two squads (command state is has
 and `Order` events are in the aux digest). Deathmatch trajectories are unchanged: the
 `v3_compat_*` replays still pass untouched, since scripted pilots do not follow a
 scripted deathmatch commander.
+
+### 0.3 v5 changes (SIM_VERSION 4 → 5, M3 stage B / WP-B1)
+
+The M3 plan's "Stage B decisions" are the spec; this table is the diff and the reasons.
+
+| # | change | why | sections |
+|---|---|---|---|
+| 1 | **Order block** appended to the obs: `OBS_DIM` 385 → 403, block `order` (18 floats) at offset 385. The first 385 floats are exactly v4's for the same state (`obs::OBS_DIM_V4`) | pilots must see their order (DESIGN §7 "Hierarchy"); appending keeps every v3/v4 pilot flying on the prefix | §7.2 |
+| 2 | A ship's **own order** (`order` module): a strike craft's squad order; a capital ship with a waypoint has it as a hold of 25 m (for stage B′); an attack whose target is no longer active, or a guard whose ward is not on the field, reads as none at once | one notion of "my order" for the obs and the reward; a dead target should not keep pulling the pilot until the next slow tick | §5.9 |
+| 3 | **Order instances** per ship (hashed `OrderTrack`: kind, target, point, start tick, arrived, presence ticks, last Φ). A new instance whenever the ship's order kind, target or hold point changes (a radius change alone does not) | the obs's "time since order" feature and the per-instance reward caps need it, and it must be deterministic | §5.9, §8 |
+| 4 | **Order reward** in its own buffer `order_rewards[N,S]` (stage 13b): attack damage on the target, guard/hold potential shaping with a reset per instance, a one-shot arrival bonus, capped presence, guard damage near the ward. `rewards` is unchanged | Python weights it (`w = 1`, `w = 0.3` arms); capped because uncapped presence under the scripted carrier guard pays more than winning | §8 |
+| 5 | `CommanderMode::Random` (`"random"`): the scripted logistics, random squads and orders, on its own rng streams (one per team, hashed) | training on any order, not just the script's habits; its own streams so a scripted match is untouched | §5.9 |
+| 6 | `PILOT_COMPAT_VERSIONS = [3, 4, 5]` and `PILOT_OBS_DIMS = {3: 385, 4: 385, 5: 403}`: a pilot of version `v` reads `obs[..., :PILOT_OBS_DIMS[v]]` | frozen v1 opponents, older bundles on the live page | §10 |
+| 7 | `MAX_TRAIN_SHIPS = 12` (`sim::setup`): the slots a stage B training env pads to | carrier battles and convoys with 4–5 strike craft a side | §10.1, §13 |
+| 8 | State hash appends the random commander's state, then every slot's order track | determinism | §12 |
+
+**Compatibility.** Under the scripted commander nothing a v4 match does changes: the
+`v4_compat_*` replays (`tests/determinism.rs`) run all six v4 golden scenarios (kept
+verbatim in `tests/golden/v4/`) and render them as v4 did (the hash without the v5
+state, the aux digest over the first 385 obs floats): every trajectory, reward, hit,
+event and obs prefix is bit-identical, missions included. The `v3_compat_*` replays
+still pass too. So fleet pilot v1 (v3) flies a v5 bundle unchanged on the obs prefix
+(tested by the headless live smoke on a v5 bundle).
+
+**Judgement calls** (easy to change; each has its reason):
+- *No order → an all-zero block*, mission one-hot and order age included. An order-less
+  row is then exactly a v4 obs padded with zeros, which is what the run's KL anchor to
+  v1 on `has_order = 0` rows wants; the mission is visible whenever there is an order.
+- *Hit credit uses the standing order*, shaping/arrival/presence the effective one: the
+  hit that kills an attack target is paid although the effective order is already none.
+- *Capital waypoints also earn the order reward* (as holds of 25 m), so the obs and the
+  reward agree on what "my order" is for B′. Stage B trains strike rows only, so it
+  does not matter there.
+- *Random squads are fixed per ship for the match* (drawn once per slot, docked
+  reserves included); the orders change, the membership does not. Three squads.
+- *A cleared order is redrawn at once* (target dead, ward gone), not at its timer, so a
+  random squad does not idle for up to 16 s.
+- *Shaping γ = 0.99*, the trainer's PPO γ.
 
 ---
 
@@ -476,6 +516,8 @@ Each stage loops over ships in slot order and over projectiles in pool order.
     carrier that died this step (no `Death` events) and empties its hangar; a convoy
     escort starts and completes transport jump charges (`JumpCharge`, `JumpOut`).
 13. **Termination** (§5.8, per mission in v4) and terminal rewards; emits `MatchEnd`.
+13b. **Orders** (v5, §5.9, §8): refresh every ship's order instance and compute
+    `order_rewards` (cleared in stage 1 with `rewards`).
 14. `rewards` finalised (§8).
 
 ### 5.1 Physics
@@ -734,7 +776,52 @@ outcome `Sanitized`.
 
 **State** (hashed): `CommandState { squads: [[Squad { members, order }; 4]; 2],
 waypoints: [Waypoint; MAX_SHIPS] }`. Setup sets the carriers' and transports' first
-waypoints. Pilots do not see orders in stage A (stage B adds an obs block).
+waypoints. Pilots do not see orders in stage A; v5 adds the obs block (below, §7.2).
+
+**A ship's own order (v5, `order.rs`).** The *standing* order of slot `s` is its
+waypoint as `Hold { point, radius: CAPITAL_WAYPOINT_RADIUS = 25 }` if it has one
+(capital ships), else its squad's order, else none. The *effective* order is the
+standing one with an attack on a target that is not active, or a guard of a ward that
+is not active (dead, docked, not yet arrived, jumped out), replaced by none at once,
+not at the next slow tick. The obs block and the guard/hold reward terms use the
+effective order; hit credit uses the standing one. Order geometry: attack → the
+target's position, radius 0; guard → the ward's position, radius `GUARD_PRESENCE =
+90` m + the ward's bound radius; hold → its point and radius.
+
+**Order instances (v5).** `Match.order_tracks[s]` (`OrderTrack`, hashed): the
+instance's key `(kind, target, point)`, its `start_tick`, `arrived`,
+`presence_ticks` and `last_phi`. Stage 13b compares each ship's effective order with
+its key; a different kind, target or hold point (a radius change alone is not)
+starts a new instance at this tick with Φ reset to its current value. Setup starts
+every ship's instance at tick 0 (only capital waypoints exist then).
+
+**Random commander (v5, `CommanderMode::Random`, `"random"`,
+`scripted/random_commander.rs`).** Stage B trains pilots on any order. Per team, on
+every slow tick:
+- *Logistics*: the scripted commander's commands without its `Squad` ones (launches
+  and waypoints exactly as the script would).
+- *Squads*: the first time it commands, it draws for each of the team's strike-craft
+  slots in slot order (docked reserves too): no squad with probability
+  `UNASSIGNED_FRAC = 0.15`, else one of `RANDOM_SQUADS = 3` uniformly. Membership is
+  fixed for the match. A squad's members are its own strike craft in the match and
+  not docked, plus the reserves this tick's launches will take (the first in the
+  hangar), as the scripted commander does.
+- *Orders*: a squad with members draws when `tick ≥ next_draw` or when its order was
+  cleared (target or ward gone): kind uniform over none / attack / guard / hold;
+  attack → a uniformly drawn active enemy (capital ships included); guard → a
+  uniformly drawn own active ship not in the squad (capital ships included); hold →
+  a point uniform over the disc of `0.7 R` and a radius uniform in `[70, 150)` m. A
+  kind with no valid target becomes none. Then `next_draw = tick + 60 · (3 + u%6)`
+  (3–8 slow ticks). Squads with no members get `Order::None`. A command is sent only
+  when membership or order changes, so every `Order` event is a real change.
+- *Rng*: `RandomCommander.rng[team] = Pcg32::with_stream(seed,
+  RANDOM_COMMAND_STREAMS[team])`, never the match stream; draw order per team:
+  assignment (per slot: one `uniform`, then a `next_u32` for the squad unless it
+  drew none), then per
+  squad in index order: kind, target or point (`uniform` angle, `uniform` radius
+  fraction, `range` radius), timer. Team 1's draws do not depend on team 0's mode.
+  The state (`rng`, `assigned`, `squad`, `next_draw`, `drawn`) is hashed.
+Scripted strike pilots follow its orders in every mission, deathmatch included (§11).
 
 **Commander observation** (`Match::commander_obs(cat, team) -> CommanderObs`): tick,
 ticks left, mission kind; own ships by hull id `in_space` (active), `arriving`,
@@ -789,6 +876,7 @@ those.
   enemy nearest its centroid, squad 1 the most damaged enemy (hull + shield fraction
   lost) within 300 m of its centroid (switching for 0.2 more damage). These orders are
   only shown: scripted pilots do not follow a scripted deathmatch commander (§11).
+  v5: learned pilots see them in their obs (advisory orders), as in every mission.
 
 ### 5.10 Missions (v4)
 
@@ -899,7 +987,7 @@ zero unused slots), and the consts `THROTTLE_DECREASE = 0`, `THROTTLE_HOLD = 1`,
 
 ### 7.2 Observation (fixed vector for the spike)
 
-`OBS_DIM = 385` `f32` (v2; v1 was 204), body frame of the observing ship (relative
+`OBS_DIM = 403` `f32` (v5; 385 in v2–v4, 204 in v1), body frame of the observing ship (relative
 vectors rotated by `-heading`, so forward = +x). Scales: `R` = arena radius,
 `VS = 100` m/s, `OM = 4` rad/s, `L = 20` m, `A = 100` m/s², `HP = 400`, `DMG = 60`,
 `T_H = 2.0` s (threat horizon). Values are clamped to `[-5, 5]` after scaling. Absent
@@ -930,8 +1018,31 @@ entities/slots are all-zero with `present = 0`. Blocks (offset: width — featur
          power_index/6
 373: 6   turret slot j: arc/(2π)  (0 for fixed guns)
 379: 6   turret slot j: weapon range/R
-385 = OBS_DIM
+385: 18  v5 order block (below); 385 = OBS_DIM_V4, the obs of a v3/v4 pilot
+403 = OBS_DIM
 ```
+
+**Order block (v5, `write_order`).** The ship's effective order (§5.9), body frame,
+clamped like the rest. A ship with no order gets 18 zeros (mission and age included),
+so an order-less row is a v4 obs padded with zeros.
+
+| offset | feature |
+|---|---|
+| 0 | has_order (1) |
+| 1–3 | kind one-hot: attack, guard, hold |
+| 4–5 | target point − own position, body, / R (attack: the target; guard: the ward; hold: the point) |
+| 6–7 | target point velocity − own velocity, body, / VS (hold: −own velocity) |
+| 8 | (distance − radius) / R: negative inside the radius |
+| 9 | radius / R (attack 0; guard `GUARD_PRESENCE` 90 m + the ward's bound radius; hold its radius; a capital waypoint 25 m) |
+| 10 | target hp / max hp (0 for hold) |
+| 11 | target bound radius / L (0 for hold) |
+| 12–13 | sin, cos of (target heading − own heading) (0 for hold) |
+| 14 | ticks since this ship's order instance started / 300, at most 1 |
+| 15–17 | mission one-hot: deathmatch, carrier battle, convoy escort |
+
+Pilots see their order in every mission, the scripted deathmatch commander's advisory
+orders included. A pilot of sim version `v` reads `obs[..., :PILOT_OBS_DIMS[v]]`:
+385 for v3/v4 (no order block), 403 for v5 (`sim::pilot_obs_dim`).
 
 **Threat score (projectile ordering).** For a live projectile with `team !=
 observer.team` (own and allied shots are not listed; the ship knows its own fire from
@@ -952,7 +1063,8 @@ an absent slot (all zeros, `present = 0`) is distinguishable from a queued `IDLE
 `write_obs` lives in `obs.rs` with `pub const` offsets for every block so Python can
 slice by name (`rlf_sim.OBS_LAYOUT` dict exported by sim-py; v2 adds the
 `"pending"` block and `OBS_SLOTS` per block: self 1, thrusters 8, turrets 6, ships 7,
-projectiles 8, pending 4, turret_arc 6, turret_range 6). Turret `angle` is the
+projectiles 8, pending 4, turret_arc 6, turret_range 6; v5 appends `"order"`, 1 record
+of 18; WASM `obsLayoutJson()`). Turret `angle` is the
 current body-frame angle; `rel_heading = other.heading - self.heading`. Per-record
 writers: `write_self`, `write_thruster(hull, t, level, out)`, `write_turret`,
 `write_turret_extras`, `write_ship`, `write_projectile(observer, p, score parts,
@@ -983,6 +1095,27 @@ the per-step terms iff it was active after stage 2 of that step, so the killing 
 still penalises its target, while hits from projectiles of an already-dead shooter
 credit nobody in `rewards` (the HitRecord keeps the credit). Rewards are not
 normalised in the sim. Weights are the named consts in `reward.rs`.
+
+**Order reward (v5, `order_rewards[N, S] f32`, stage 13b).** A separate buffer, so the
+trainer weights it (`w`) and `rewards` stays exactly v4's. The same ships earn it as
+earn `rewards`; per ship and step, summed in this order:
+
+| term | value |
+|---|---|
+| attack | `+0.01 ·` hull `+ 0.005 ·` shield damage the ship dealt to its ordered target, when it lands (`HitRecord`s of this step; no retroactive credit: flight time is short next to GAE's horizon) |
+| guard, damage | the same weights on damage dealt to enemies within `ORDER_GUARD_DAMAGE_RADIUS` (180 m) + the ward's bound radius of the ward (the target's position after the step) |
+| guard, hold: shaping | `γΦ′ − Φ`, `Φ = −K · max(0, d − radius) / R`, `K = 1.0`, `γ = 0.99`; on the step an instance starts, 0 (Φ is reset to Φ′: no reward for the jump) |
+| guard, hold: arrival | `+0.1` once per instance, the first step inside the radius (`d ≤ radius`) |
+| guard, hold: presence | `+0.0003` per step inside, for at most 300 steps per instance (≤ 0.09) |
+
+`d` is the distance to the order point, `radius` the order radius (§5.9). Hit credit
+uses the standing order, the other terms the effective one, so the hit that kills an
+attack target is paid. Consts: `ORDER_HULL_WEIGHT`, `ORDER_SHIELD_WEIGHT`,
+`ORDER_GUARD_DAMAGE_RADIUS`, `ORDER_SHAPING_K`, `ORDER_SHAPING_GAMMA`,
+`ORDER_ARRIVAL_BONUS`, `ORDER_PRESENCE_REWARD`, `ORDER_PRESENCE_CAP_TICKS`. Why
+capped: an uncapped presence term under the scripted commander's carrier guard pays
+more than winning, and v1 already coasts. Capital ships' waypoint holds are paid too
+(they are what their obs shows); stage B trains strike rows only.
 
 **Retroactive projectile credit**: the sim attributes every hit to `owner` and records
 `fire_tick` and `decision_tick` (projectiles carry all three). `decision_tick` is
@@ -1094,7 +1227,26 @@ rlf_sim.PILOT_COMPAT_VERSIONS, N_NEAR_SHIPS, COMMAND_TICKS, MAX_SQUADS, MISSIONS
 rlf_sim.EVENT_KINDS (name -> code), arena_radius_for_mission(mission, n), mission_time_limit_s(mission),
 rlf_sim.pilot_compatible(version)
 rlf_sim.mission_rosters(mission) -> list[dict]       # WP-S2: default rosters, [{"name", "mission", "fleets": [[...], [...]]}]
+# v5:
+VecEnv(..., commanders=["random", "scripted"])      # "scripted" | "external" | "random" per team
+env.order_rewards [N,S] f32    # the order reward (§8), zero-copy like rewards; 0 for padding
+env.set_next_roster(i, fleets, arena_radius, mission=None, commanders=None, time_limit_s=None)
+    # commanders: two modes; None keeps the constructor's.
+    # time_limit_s: None = the mission's default (mission_time_limit_s) when a mission
+    # is given, else the constructor's time_limit_s. Both stick with the roster like
+    # the other fields, so one env mixes 90 s deathmatch, 150 s carrier, 120 s convoy.
+env.mission_state(i): + "commanders", "time_limit_ticks"
+rlf_sim.OBS_DIM == 403, OBS_DIM_V4 == 385, OBS_LAYOUT/OBS_SLOTS + "order"
+rlf_sim.PILOT_COMPAT_VERSIONS == [3, 4, 5]
+rlf_sim.PILOT_OBS_DIMS == {3: 385, 4: 385, 5: 403}   # sim version -> obs width its pilot reads
+rlf_sim.MAX_TRAIN_SHIPS == 12, rlf_sim.COMMANDER_MODES == ["scripted", "external", "random"]
 ```
+
+v5 Python side: `RustVecEnv` exposes `order_rewards` (property and `StepInfo.order_rewards`,
+views) and passes `mission`, `commanders` and `time_limit_s` through
+`set_next_roster`; `rust_env.PILOT_OBS_DIMS`, `MAX_TRAIN_SHIPS`. The v1-shaped policy
+(`spike_policy`, 385 inputs) reads the prefix: `spike_policy.policy_obs(obs)` =
+`obs[..., :385]`, used by PPO, BC and `act_numpy`.
 
 Training is unchanged by default: deathmatch, scripted commanders (they set squad
 state no pilot reads yet). `RustVecEnv` with a roster sampler pads to
@@ -1188,7 +1340,23 @@ launch is a `Launch` event (mouth and direction for the streak) and the ship's
 `present` flipping to 1 that step; `JumpCharge` → `JumpOut` brackets the jump effect.
 The policy flies strike craft only (role 0); capital ships take `scripted_action`.
 `bundle.ts` checks `manifest.sim_version` against the wasm and the pilot's
-`pilot_sim_version` against `pilot_compat_versions()`.
+`pilot_sim_version` against `pilot_compat_versions()`. v5: it takes the pilot's obs
+width from `pilotObsDimsJson()` (`Bundle.pilotObsDim`; the policy manifest's `obs_dim`
+must equal it) and `match.ts` feeds the policy `obs(s).subarray(0, pilotObsDim)`;
+`policy.js` refuses an obs of any other width. `scripts/build_bundle.sh` passes the
+table to `tools/export_policy.py` (`--wasm-pilot-obs-dims`), which checks a
+checkpoint's `obs_dim` against its own version's width.
+
+v5 additions:
+
+```ts
+// config_json "commanders" also takes "random".
+order_rewards(): Float32Array;     // last step's order reward per ship (§8)
+// module: pilotObsDim(version): number (throws for a version this build does not fly);
+// pilotObsDimsJson(): string  // {"3":385,"4":385,"5":403}
+// obsLayoutJson(): string     // {"blocks": [[name, offset, width], ...], "slots": [[name, n], ...]}
+// MAX_TRAIN_SHIPS(): number   // 12
+```
 
 `config_json` is `MatchConfig` serialised with serde
 (`{"seed":..,"arena_radius":..,"time_limit_ticks":..,"reaction_ticks":2,"fleets":[["fighter"],["fighter"]]}`
@@ -1206,6 +1374,7 @@ Both bindings parse missions and commands with the same serde structs (PyO3 pass
 {"kind": "carrier_battle", "jump_in": [2, 2]}                    // optional
 {"kind": "convoy_escort", "start": [x, y], "jump_point": [x, y], // all optional:
  "jump_radius": 40, "charge_ticks": 60, "start_speed_frac": 0.8} // ConvoyEscort::standard(R)
+// commanders (config_json / VecEnv): ["scripted" | "external" | "random", same]
 // commands (one or an array):
 {"kind": "launch", "hull": "fighter" | null, "bay": 0 | null}
 {"kind": "waypoint", "ship": 0, "pos": [x, y] | null}            // null unsets
@@ -1325,8 +1494,8 @@ after target selection (manoeuvre, deconfliction, turrets, power) is unchanged:
 Pilots follow orders in every mission **except a deathmatch whose team has the
 scripted commander**: there the orders are only shown, so the default deathmatch
 (the fleet pilot's eval and training opponent, and the `v3_compat_*` traces) is
-bit-identical to v3. An external commander's orders are followed in a deathmatch too
-(stage B's random orders). Against a capital ship the fighter's deconfliction miss
+bit-identical to v3. An external or (v5) random commander's orders are followed in
+a deathmatch too (stage B's random orders). Against a capital ship the fighter's deconfliction miss
 distance is both bound radii plus 6 m instead of 11 m, and it covers the whole
 shortfall itself (a capital ship does not sidestep), so a strafing run does not fly
 into the carrier's hull.
@@ -1387,12 +1556,22 @@ draws 0.016, median 1492 ticks, hit rate 0.46, 4.9 passes per match
   members `u32`, order `(kind, target, point, radius)`; per slot: waypoint `(0|1,
   pos)`). `inbox` and `command_results` are not hashed. The v3 hash is reproducible
   from v4 state (`tests/determinism.rs::v3_state_hash`: v3 hull ids, no v4 fields).
+  v5 appends the random commander's state (per team its rng `(state, stream)`, the
+  `assigned` flags, per slot its squad, per team and squad `next_draw` then `drawn`)
+  and then every slot's `OrderTrack` (kind, target, point, start tick, arrived,
+  presence ticks, last Φ). `order_rewards` is an output, not hashed. The v4 hash is
+  the v5 one without those two (`v4_state_hash`).
 - Native test (`crates/sim/tests/determinism.rs`): four golden scenarios, embedded
   with `include_str!` so the same binary runs under wasmtime:
   v4 adds `carrier_battle_s23` (two carriers with six-ship wings, scripted commanders, to
   a carrier kill) and `convoy_escort_s29` (four freighters and three escorts against
   six attackers, to `convoy_destroyed`; both regenerated by WP-S2 with the real commander), sampled every 300 ticks, with a `reason` line,
-  and the `v3_compat_*` replays of `tests/golden/v3/` (§0.2 item 10). The v3 scenarios:
+  and the `v3_compat_*` replays of `tests/golden/v3/` (§0.2 item 10). v5 adds
+  `carrier_battle_random_s31`, `convoy_escort_random_s37` (the random commander on both
+  sides) and `3v3_random_commander_s41` (random v scripted in a deathmatch), digests
+  `order_rewards` too, and the `v4_compat_*` replays of all six v4 traces kept in
+  `tests/golden/v4/` (§0.3; the v3 and v4 flavours digest the first 385 obs floats).
+  The node smoke runs `carrier_battle_random_s31` through the wasm-pack bundle. The v3 scenarios:
   `duel_fighter_s7` (1v1 fighter, seed 7), `2v2_mixed_s11` (fighter+strafer vs
   gunship+fighter), `3v3_mixed_s13`, all 3000 ticks with the scripted controller
   on both sides, sampled at ticks `{1, 30, 300, 1000, 3000}` (those reached before
