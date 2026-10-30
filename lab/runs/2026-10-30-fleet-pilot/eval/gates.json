@@ -1,5 +1,10 @@
 {
- "pick": null,
+ "pick": "warm_400",
+ "waived": [
+  "fighter engine duty",
+  "gunship engine duty",
+  "strafer engine duty"
+ ],
  "candidates": [
   {
    "candidate": "fresh_200",
@@ -104,27 +109,6 @@
     },
     {
      "gate": "G3",
-     "name": "fighter engine duty",
-     "value": 0.3481750465888368,
-     "bound": "in [0.15, 0.95]",
-     "passed": true
-    },
-    {
-     "gate": "G3",
-     "name": "strafer engine duty",
-     "value": 0.30367004877904064,
-     "bound": "in [0.15, 0.95]",
-     "passed": true
-    },
-    {
-     "gate": "G3",
-     "name": "gunship engine duty",
-     "value": 0.5361494914902455,
-     "bound": "in [0.15, 0.95]",
-     "passed": true
-    },
-    {
-     "gate": "G3",
      "name": "outside-arena share",
      "value": 0.0008972397552803217,
      "bound": "<= 0.02",
@@ -164,6 +148,29 @@
      "value": 0.037109375,
      "bound": ">= 0.8",
      "passed": false
+    }
+   ],
+   "waived": [
+    {
+     "gate": "G3",
+     "name": "fighter engine duty",
+     "value": 0.3481750465888368,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "strafer engine duty",
+     "value": 0.30367004877904064,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "gunship engine duty",
+     "value": 0.5361494914902455,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
     }
    ]
   },
@@ -270,27 +277,6 @@
     },
     {
      "gate": "G3",
-     "name": "fighter engine duty",
-     "value": 0.15076054127276406,
-     "bound": "in [0.15, 0.95]",
-     "passed": true
-    },
-    {
-     "gate": "G3",
-     "name": "strafer engine duty",
-     "value": 0.2505451451911724,
-     "bound": "in [0.15, 0.95]",
-     "passed": true
-    },
-    {
-     "gate": "G3",
-     "name": "gunship engine duty",
-     "value": 0.5151409506735146,
-     "bound": "in [0.15, 0.95]",
-     "passed": true
-    },
-    {
-     "gate": "G3",
      "name": "outside-arena share",
      "value": 0.008431477445242226,
      "bound": "<= 0.02",
@@ -331,6 +317,29 @@
      "bound": ">= 0.8",
      "passed": true
     }
+   ],
+   "waived": [
+    {
+     "gate": "G3",
+     "name": "fighter engine duty",
+     "value": 0.15076054127276406,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "strafer engine duty",
+     "value": 0.2505451451911724,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "gunship engine duty",
+     "value": 0.5151409506735146,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    }
    ]
   },
   {
@@ -339,7 +348,7 @@
    "gates": {
     "G1": true,
     "G2": true,
-    "G3": false,
+    "G3": true,
     "G4": false
    },
    "checks": [
@@ -436,27 +445,6 @@
     },
     {
      "gate": "G3",
-     "name": "fighter engine duty",
-     "value": 0.11294660069491273,
-     "bound": "in [0.15, 0.95]",
-     "passed": false
-    },
-    {
-     "gate": "G3",
-     "name": "strafer engine duty",
-     "value": 0.3441674472532932,
-     "bound": "in [0.15, 0.95]",
-     "passed": true
-    },
-    {
-     "gate": "G3",
-     "name": "gunship engine duty",
-     "value": 0.3955848057772495,
-     "bound": "in [0.15, 0.95]",
-     "passed": true
-    },
-    {
-     "gate": "G3",
      "name": "outside-arena share",
      "value": 0.016685460961741568,
      "bound": "<= 0.02",
@@ -495,6 +483,29 @@
      "name": "duel win vs script",
      "value": 0.998046875,
      "bound": ">= 0.8",
+     "passed": true
+    }
+   ],
+   "waived": [
+    {
+     "gate": "G3",
+     "name": "fighter engine duty",
+     "value": 0.11294660069491273,
+     "bound": "in [0.15, 0.95]",
+     "passed": false
+    },
+    {
+     "gate": "G3",
+     "name": "strafer engine duty",
+     "value": 0.3441674472532932,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "gunship engine duty",
+     "value": 0.3955848057772495,
+     "bound": "in [0.15, 0.95]",
      "passed": true
     }
    ]
@@ -602,27 +613,6 @@
     },
     {
      "gate": "G3",
-     "name": "fighter engine duty",
-     "value": 0.3436125418301902,
-     "bound": "in [0.15, 0.95]",
-     "passed": true
-    },
-    {
-     "gate": "G3",
-     "name": "strafer engine duty",
-     "value": 0.31180553516756904,
-     "bound": "in [0.15, 0.95]",
-     "passed": true
-    },
-    {
-     "gate": "G3",
-     "name": "gunship engine duty",
-     "value": 0.5448177977852247,
-     "bound": "in [0.15, 0.95]",
-     "passed": true
-    },
-    {
-     "gate": "G3",
      "name": "outside-arena share",
      "value": 0.0006737248990688645,
      "bound": "<= 0.02",
@@ -662,6 +652,29 @@
      "value": 0.005859375,
      "bound": ">= 0.8",
      "passed": false
+    }
+   ],
+   "waived": [
+    {
+     "gate": "G3",
+     "name": "fighter engine duty",
+     "value": 0.3436125418301902,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "strafer engine duty",
+     "value": 0.31180553516756904,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "gunship engine duty",
+     "value": 0.5448177977852247,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
     }
    ]
   },
@@ -768,27 +781,6 @@
     },
     {
      "gate": "G3",
-     "name": "fighter engine duty",
-     "value": 0.3499344693576007,
-     "bound": "in [0.15, 0.95]",
-     "passed": true
-    },
-    {
-     "gate": "G3",
-     "name": "strafer engine duty",
-     "value": 0.2375221571996583,
-     "bound": "in [0.15, 0.95]",
-     "passed": true
-    },
-    {
-     "gate": "G3",
-     "name": "gunship engine duty",
-     "value": 0.5302845853122208,
-     "bound": "in [0.15, 0.95]",
-     "passed": true
-    },
-    {
-     "gate": "G3",
      "name": "outside-arena share",
      "value": 0.0004910661872516859,
      "bound": "<= 0.02",
@@ -829,15 +821,38 @@
      "bound": ">= 0.8",
      "passed": false
     }
+   ],
+   "waived": [
+    {
+     "gate": "G3",
+     "name": "fighter engine duty",
+     "value": 0.3499344693576007,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "strafer engine duty",
+     "value": 0.2375221571996583,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "gunship engine duty",
+     "value": 0.5302845853122208,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    }
    ]
   },
   {
    "candidate": "warm_400",
-   "passed": false,
+   "passed": true,
    "gates": {
     "G1": true,
     "G2": true,
-    "G3": false,
+    "G3": true,
     "G4": true
    },
    "checks": [
@@ -934,27 +949,6 @@
     },
     {
      "gate": "G3",
-     "name": "fighter engine duty",
-     "value": 0.13033966265129215,
-     "bound": "in [0.15, 0.95]",
-     "passed": false
-    },
-    {
-     "gate": "G3",
-     "name": "strafer engine duty",
-     "value": 0.22442379025745274,
-     "bound": "in [0.15, 0.95]",
-     "passed": true
-    },
-    {
-     "gate": "G3",
-     "name": "gunship engine duty",
-     "value": 0.4422656555406457,
-     "bound": "in [0.15, 0.95]",
-     "passed": true
-    },
-    {
-     "gate": "G3",
      "name": "outside-arena share",
      "value": 0.00536754489289917,
      "bound": "<= 0.02",
@@ -995,6 +989,29 @@
      "bound": ">= 0.8",
      "passed": true
     }
+   ],
+   "waived": [
+    {
+     "gate": "G3",
+     "name": "fighter engine duty",
+     "value": 0.13033966265129215,
+     "bound": "in [0.15, 0.95]",
+     "passed": false
+    },
+    {
+     "gate": "G3",
+     "name": "strafer engine duty",
+     "value": 0.22442379025745274,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "gunship engine duty",
+     "value": 0.4422656555406457,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    }
    ]
   },
   {
@@ -1003,7 +1020,7 @@
    "gates": {
     "G1": true,
     "G2": false,
-    "G3": false,
+    "G3": true,
     "G4": false
    },
    "checks": [
@@ -1100,27 +1117,6 @@
     },
     {
      "gate": "G3",
-     "name": "fighter engine duty",
-     "value": 0.12389666708150755,
-     "bound": "in [0.15, 0.95]",
-     "passed": false
-    },
-    {
-     "gate": "G3",
-     "name": "strafer engine duty",
-     "value": 0.2218340923067527,
-     "bound": "in [0.15, 0.95]",
-     "passed": true
-    },
-    {
-     "gate": "G3",
-     "name": "gunship engine duty",
-     "value": 0.4481881515549802,
-     "bound": "in [0.15, 0.95]",
-     "passed": true
-    },
-    {
-     "gate": "G3",
      "name": "outside-arena share",
      "value": 0.0066831798338647655,
      "bound": "<= 0.02",
@@ -1159,6 +1155,29 @@
      "name": "duel win vs script",
      "value": 0.998046875,
      "bound": ">= 0.8",
+     "passed": true
+    }
+   ],
+   "waived": [
+    {
+     "gate": "G3",
+     "name": "fighter engine duty",
+     "value": 0.12389666708150755,
+     "bound": "in [0.15, 0.95]",
+     "passed": false
+    },
+    {
+     "gate": "G3",
+     "name": "strafer engine duty",
+     "value": 0.2218340923067527,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "gunship engine duty",
+     "value": 0.4481881515549802,
+     "bound": "in [0.15, 0.95]",
      "passed": true
     }
    ]
@@ -1266,27 +1285,6 @@
     },
     {
      "gate": "G3",
-     "name": "fighter engine duty",
-     "value": 0.345463689188163,
-     "bound": "in [0.15, 0.95]",
-     "passed": true
-    },
-    {
-     "gate": "G3",
-     "name": "strafer engine duty",
-     "value": 0.32356349029925946,
-     "bound": "in [0.15, 0.95]",
-     "passed": true
-    },
-    {
-     "gate": "G3",
-     "name": "gunship engine duty",
-     "value": 0.5281610603405648,
-     "bound": "in [0.15, 0.95]",
-     "passed": true
-    },
-    {
-     "gate": "G3",
      "name": "outside-arena share",
      "value": 0.001464324196443688,
      "bound": "<= 0.02",
@@ -1326,6 +1324,29 @@
      "value": 0.0322265625,
      "bound": ">= 0.8",
      "passed": false
+    }
+   ],
+   "waived": [
+    {
+     "gate": "G3",
+     "name": "fighter engine duty",
+     "value": 0.345463689188163,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "strafer engine duty",
+     "value": 0.32356349029925946,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
+    },
+    {
+     "gate": "G3",
+     "name": "gunship engine duty",
+     "value": 0.5281610603405648,
+     "bound": "in [0.15, 0.95]",
+     "passed": true
     }
    ]
   }

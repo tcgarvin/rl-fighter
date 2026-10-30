@@ -1,8 +1,15 @@
-# Fleet pilot v1: one network can fly every hull and beat the scripts, but PPO taught its fighters to coast
+# Fleet pilot v1: one network flies every hull and beats the scripts, mostly by coasting
 
 Run 2026-10-30, plan: `plan.md` (gates fixed in §5 before any learned fleet policy was
-evaluated). **Nothing promoted.** No candidate passes all four gates, so per §5 the
-live page keeps fighter-only fleets with the v3 champion (`2026-10-29-v3-fighter`).
+evaluated). **Promoted: warm arm, PPO update 400, as `2026-10-30-fleet-pilot-v1`.**
+It now flies every ship on the live page, in mixed fleets. The v3 fighter champion
+can still be watched at `/?champion=2026-10-29-v3-fighter`.
+
+**The gates were amended after they ran.** Under the original §5 no candidate
+passed. warm_400 failed only G3's fighter engine-duty floor (0.130 against 0.15).
+The user waived the engine-duty bound: if flying slowly is the strongest strategy, it
+ships, and the sim or the reward shaping is what gets discussed. See the amendment
+in plan.md §5.
 
 ## What ran
 
@@ -19,20 +26,21 @@ live page keeps fighter-only fleets with the v3 champion (`2026-10-29-v3-fighter
 ## Gates (fleet suite `fleet_v1`, 1024 matches; duels n = 512)
 
 Every table below is copied by script from `eval/gates.md` (written by `gates.py`) or
-from the eval reports in `eval/`.
+from the eval reports in `eval/`. G3 below is without the waived engine-duty checks.
 
 | candidate | G1 | G2 | G3 | G4 | all | win vs script | duel vs champ |
 |---|---|---|---|---|---|---|---|
 | fresh_200 | ✗ | ✗ | ✓ | ✗ | ✗ | 0.333 | 0.025 |
 | fresh_400 | ✓ | ✓ | ✓ | ✗ | ✗ | 0.849 | 0.050 |
-| fresh_600 | ✓ | ✓ | ✗ | ✗ | ✗ | 0.865 | 0.250 |
+| fresh_600 | ✓ | ✓ | ✓ | ✗ | ✗ | 0.865 | 0.250 |
 | fresh_dagger | ✗ | ✗ | ✓ | ✗ | ✗ | 0.159 | 0.025 |
 | warm_200 | ✗ | ✗ | ✓ | ✗ | ✗ | 0.428 | 0.010 |
-| warm_400 | ✓ | ✓ | ✗ | ✓ | ✗ | 0.889 | 0.453 |
-| warm_600 | ✓ | ✗ | ✗ | ✗ | ✗ | 0.898 | 0.291 |
+| warm_400 | ✓ | ✓ | ✓ | ✓ | ✓ | 0.889 | 0.453 |
+| warm_600 | ✓ | ✗ | ✓ | ✗ | ✗ | 0.898 | 0.291 |
 | warm_dagger | ✗ | ✗ | ✓ | ✗ | ✗ | 0.112 | 0.015 |
 
-Engine duty per hull (G3 needs 0.15–0.95; the script's are 0.39 / 0.43 / 0.53):
+Engine duty per hull (✗ marks the original 0.15–0.95 bound; the script's duty is
+0.39 / 0.43 / 0.53):
 
 | candidate | fighter engine duty | strafer engine duty | gunship engine duty |
 |---|---|---|---|
@@ -45,18 +53,16 @@ Engine duty per hull (G3 needs 0.15–0.95; the script's are 0.39 / 0.43 / 0.53)
 | warm_600 | 0.124 ✗ | 0.222 | 0.448 |
 | warm_dagger | 0.345 | 0.324 | 0.528 |
 
-- **warm_400 is one check from passing.** It wins 0.889 of fleet matches against
-  the scripts, and every roster class at 0.74 or better. Every hull matches or
-  beats its script on damage and survival (G2), and it wins 0.453 of duels against
-  the v3 champion. It fails only on fighter engine duty, 0.130 against a floor of
-  0.15.
-- **PPO is what made the fighters coast.** Every DAgger checkpoint and every
-  update-200 checkpoint flies fighters at about 0.35 duty, close to the script's
-  0.39. By update 400 both arms are at 0.13–0.15. In the duel, warm_400 uses its
-  engine 3.6 % of the time against the champion's 60 %. It sits still, turns and
-  shoots, and that works against both the scripts and the champion. It is the
-  dull, static fight the duty gate exists to keep off the live page, so the gate
-  stands.
+- **warm_400 is the only candidate that passes.** It wins 0.889 of fleet matches
+  against the scripts, and every roster class at 0.74 or better. Every hull matches
+  or beats its script on damage and survival (G2). It wins every duel against the
+  script and 0.453 of duels against the v3 champion.
+- **PPO taught the fighters to coast.** Every DAgger checkpoint and every update-200
+  checkpoint flies fighters at about 0.35 duty, close to the script's 0.39. By
+  update 400 both arms are at 0.13–0.15. In the duel, warm_400 uses its engine
+  3.6 % of the time against the champion's 60 %. It mostly sits, turns and shoots,
+  and that beats both the scripts and the champion. Expect slower, more static
+  fighter play on the live page than the v3 champion's.
 - **H2 holds: warm beats fresh.** At update 400, warm wins 0.453 of duels against
   the champion, while fresh wins 0.050. The fresh arm never learned to duel.
 - **H0 does not hold.** One shared MLP serves all three control schemes. warm_400
@@ -78,13 +84,17 @@ warm_400 against the scripts, per hull (side a is the pilot), from
 | b | gunship | 448 | 72.4 | 57.5 | 0.09 | 0.195 | 170.2 | 0.89 | 0.0000 | 0.35 | 1.24 | 0.4 | 0.346 |
 | b | strafer | 928 | 27.0 | 21.8 | 0.04 | 0.288 | 61.8 | 0.81 | 0.0000 | 0.41 | 1.68 | 0.4 | 0.098 |
 | b | all | 2432 | 45.8 | 32.7 | 0.10 | 0.306 | 68.5 | 0.85 | 0.0000 | 0.36 | 1.52 | 1.0 | 0.178 |
+## To discuss: why coasting wins
+
+- **Is it the sim?** It could be the speed cap, the turn rate relative to the gun
+  arcs, or projectile speed against the arena size. If a still ship that only turns
+  is hard enough to hit and hits well itself, motion buys little.
+- **Is it the reward?** Damage-only shaping plus a script pull that decays to zero
+  gives no reason to move once the shots line up.
+- A gate on passes or duel length (the backlog's watchability gate) would measure
+  "dull" directly, rather than through engine duty.
+
 ## Next
 
-- **Make coasting cost something in PPO rather than only rejecting it at the gate.**
-  Options: keep the script pull from decaying to zero for fighters, or add a gate-like
-  engine-duty term to the reward. Either needs to be fixed in a plan before the
-  rerun.
-- **Rerun from warm_200 or warm_400** with that change; warm clearly beats fresh, so
-  drop the fresh arm and spend its compute on the warm one.
-- Update 400 reached the fleet skill and the coasting together. Checkpointing every
-  50 updates, with gate evals on each, would show where the duty collapses.
+- Rerun from warm only (warm clearly beats fresh), with checkpoints every 50
+  updates and gate evals on each, to see where the duty collapses.

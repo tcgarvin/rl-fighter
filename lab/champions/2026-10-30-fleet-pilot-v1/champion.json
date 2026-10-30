@@ -1,0 +1,35 @@
+{
+  "schema": "rlf.champion/1",
+  "id": "2026-10-30-fleet-pilot-v1",
+  "name": "fleet pilot v1 \u00b7 warm, update 400",
+  "run": "2026-10-30-fleet-pilot",
+  "checkpoint": "lab/runs/2026-10-30-fleet-pilot/arm_warm/checkpoints/ppo_bc_400.pt",
+  "sim_version": 3,
+  "hulls": [
+    "fighter",
+    "strafer",
+    "gunship"
+  ],
+  "promoted": "2026-10-30",
+  "parent": "2026-10-29-v3-fighter",
+  "eval_json": "lab/runs/2026-10-30-fleet-pilot/eval/warm_400_duel_vs_script.json",
+  "eval": {
+    "file": "lab/runs/2026-10-30-fleet-pilot/eval/warm_400_duel_vs_script.json",
+    "a": "policy:ppo_bc_400.pt",
+    "b": "script",
+    "n": 512,
+    "sim_version": 3,
+    "wins": 512,
+    "draws": 0,
+    "losses": 0,
+    "win_rate": 1.0,
+    "hit_rate": 0.4997257644316468,
+    "length_median_ticks": 491.5
+  },
+  "weights": {
+    "sha256": "3256fc7b572b52c910de66fea5c7bcbdadd45f6b86a00523b8f5c370846349f9",
+    "bytes": 5115445,
+    "url": "https://storage.tcgarvin.com/rl-fighter/champions/2026-10-30-fleet-pilot-v1/3256fc7b572b52c910de66fea5c7bcbdadd45f6b86a00523b8f5c370846349f9.pt",
+    "key": "rl-fighter/champions/2026-10-30-fleet-pilot-v1/3256fc7b572b52c910de66fea5c7bcbdadd45f6b86a00523b8f5c370846349f9.pt"
+  }
+}

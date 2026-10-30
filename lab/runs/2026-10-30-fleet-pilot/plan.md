@@ -6,7 +6,7 @@
 | Branch | `m2-site` (WP-T worktree) |
 | Question | Can the spike's masked multi-head MLP, one network for every ship, fly fighters, strafers and gunships in mixed skirmishes of 1–4 ships a side, beat the scripted pilots, and leave no hull behind? |
 | Scenario | rosters from `fleet_v1` (1–4 a side, mixed hulls, uneven sides, budget drafts), arena 450 m, 90 s limit, `reaction_ticks` 2, `SIM_VERSION` 3 |
-| Status | **done**: nothing promoted (no candidate passes G1–G4); see `results.md` |
+| Status | **done**: promoted warm_400 as `2026-10-30-fleet-pilot-v1`, with the G3 engine-duty bound waived; see `results.md` |
 | Ships | the promoted pilot replaces the fighter-only duel pilot on the live page, where it flies every ship (M2 §1) |
 
 ## 1. Why, and what would count
@@ -176,6 +176,12 @@ duel win vs the champion). If none passes, nothing is promoted; the live page ke
 fighter-only fleets with the v3 champion (M2 §2), and `results.md` says which gate
 failed. Reported, not gated: win vs the arm's own DAgger init (`*_fleet_vs_ref`),
 per-class win, hit rate, passes and crash contacts per hull, median length.
+
+**Amended 2026-10-30, after the gates ran (the user's call):** the G3 engine-duty
+bound is waived. If flying slowly is the strongest strategy, the pilot ships, and
+whether the sim or the reward shaping should change is discussed afterwards. Engine
+duty is still reported in `eval/gates.md`. Under the original gates no candidate
+passed; warm_400 failed only fighter engine duty (0.130).
 
 ## 6. Budget and schedule (measured 2026-10-29 on this laptop, otherwise idle)
 

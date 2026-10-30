@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from dataclasses import asdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -42,10 +43,13 @@ def candidates(eval_dir: Path) -> list[str]:
 
 
 HULLS = ("fighter", "strafer", "gunship")
+# Waived by the user on 2026-10-30, after the gates first ran: if coasting is the
+# strongest play, it ships, and the sim or reward is what gets discussed (plan.md §5).
+WAIVED = frozenset(f"{h} engine duty" for h in HULLS)
 
 
 def duty_table(reports: list[fleet_gates.GateReport]) -> str:
-    """G3's engine duty per hull, the gate the PPO checkpoints come closest to failing."""
+    """Engine duty per hull, with ✗ where the original G3 bound fails."""
     lines = [
         "| candidate | " + " | ".join(f"{h} engine duty" for h in HULLS) + " |",
         "|---" * (len(HULLS) + 1) + "|",
@@ -73,9 +77,9 @@ def main() -> int:
     names = args.names or candidates(eval_dir)
     if not names:
         raise SystemExit(f"no candidate with all of {SUFFIXES} in {eval_dir}")
-    reports = []
+    measured = []
     for name in names:
-        reports.append(
+        measured.append(
             fleet_gates.check(
                 name,
                 load_fleet(eval_dir / f"{name}{SUFFIXES[0]}"),
@@ -84,8 +88,15 @@ def main() -> int:
                 load_duel(eval_dir / f"{name}{SUFFIXES[2]}"),
             )
         )
+    reports = [
+        fleet_gates.GateReport(
+            r.candidate, [c for c in r.checks if c.name not in WAIVED]
+        )
+        for r in measured
+    ]
     table = fleet_gates.markdown(reports)
-    lines = [table, "", duty_table(reports), ""]
+    waived = "Engine duty per hull, reported, not gated (waived 2026-10-30):"
+    lines = [table, "", waived, "", duty_table(measured), ""]
     for r in reports:
         failed = fleet_gates.failures(r)
         lines.append(
@@ -102,7 +113,14 @@ def main() -> int:
     text = "\n".join(lines)
     print(text)
     (eval_dir / "gates.md").write_text(text + "\n")
-    payload = {"pick": pick, "candidates": [r.to_dict() for r in reports]}
+    payload = {
+        "pick": pick,
+        "waived": sorted(WAIVED),
+        "candidates": [
+            r.to_dict() | {"waived": [asdict(c) for c in m.checks if c.name in WAIVED]}
+            for r, m in zip(reports, measured)
+        ],
+    }
     (eval_dir / "gates.json").write_text(json.dumps(payload, indent=1) + "\n")
     return 0
 
