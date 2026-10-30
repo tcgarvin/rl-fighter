@@ -182,30 +182,36 @@ function carrier(b,h) {
 }
 
 function freighter(b) {
-  // A narrow load-bearing spine leaves daylight between three blunt freight boxes.
+  // Four exposed containers flank a painted spine, rather than an armoured deck.
   b.panel('machinery',-.5,0,24.6,2.1,-.65,1.05,.12);
-  for (const x of [-5,0,5]) {
-    b.panel('machinery',x,0,3.9,2.6,-.25,.8,.1);
-    b.add('trim',plate(clipped(x,0,3.8,8,.22),.45,1.55,.14));
-    // Broad painted end bands repeat at phone scale; the pale roofs stay simple.
-    b.panel('paint',x+1.35,0,.75,8.05,2.09,.13,.04);
+  b.panel('paint',-.8,0,17.2,1.35,.42,.95,.08);
+  for (const x of [-4.6,3]) for (const s of [-1,1]) {
+    const z=s*2.55;
+    b.panel('machinery',x,z,7.15,3.75,-.25,.8,.08);
+    // Painted ends and broad side rims keep both teams legible around pale lids.
+    b.panel('paint',x,z,6.8,3.65,.5,1.25,.1);
+    b.panel('trim',x,z,5.3,2.65,1.81,.2,.06);
+    // A dark strap crosses each lid and folds down over the painted sides.
+    b.panel('machinery',x+.25,z,.45,3.72,1.79,.34,.025);
   }
-  // The cab has a flat face and a wide windshield, rather than a pointed prow.
-  b.panel('machinery',9.45,0,4.6,8.1,-.6,1.05,.13);
-  b.panel('paint',9.4,0,4.4,7.8,.6,.98,.14);
-  b.panel('paint',9.15,0,3.9,6.8,1.75,.32,.1);
-  b.panel('machinery',11.35,0,.45,5.6,1.7,.32,.05);
-  b.panel('glow',11.42,0,.2,4.8,2.06,.04,.02);
-  // A single square engineering block, with room inside for the automatic nozzles.
-  b.panel('machinery',-9.9,0,5.8,8.4,-.8,1.45,.16);
-  b.panel('paint',-10.2,0,5.1,7.7,.82,.62,.12);
+  // A low crossmember anchors the heading puffers beneath a distinctly narrow cab.
+  b.panel('machinery',9,0,1.25,8.2,-.45,.9,.08);
+  b.panel('machinery',9.4,0,6.3,4.5,-.6,1.15,.12);
+  b.panel('paint',9.45,0,6.1,4.1,.6,1,.12);
+  // This flat roof carries the badge and stripes; the windshield faces forward.
+  b.panel('paint',9.2,0,4.8,3.8,1.65,.4,.1);
+  b.panel('machinery',11.77,0,.38,3.1,1.65,.48,.045);
+  b.panel('glow',11.98,0,.12,2.65,1.75,.23,.015);
+  // The squat engine block encloses the mains and meets the aft RCS at its edge.
+  b.panel('machinery',-10.25,0,5.3,8.6,-.8,1.45,.16);
+  b.panel('paint',-10.25,0,5.1,8.35,.8,.65,.1);
   for (const s of [-1,1]) {
-    b.panel('trim',-10.3,s*2,3.2,1.5,1.53,.12,.06);
+    b.panel('trim',-10.5,s*2,3,1.5,1.52,.12,.06);
     for (const x of [-11.3,-10.5,-9.7])
       b.panel('machinery',x,s*2,.28,1.1,1.7,.06,.025);
   }
-  return [[-11,1.8,2],[-11,1.8,-2],[-5,2.15,2.6],[-5,2.15,-2.6],
-    [0,2.4,0],[5,2.15,2.6],[5,2.15,-2.6],[9.2,2.2,0]];
+  return [[-11,1.8,2],[-11,1.8,-2],[-4.6,2.16,2.55],[-4.6,2.16,-2.55],
+    [0,1.45,0],[3,2.16,2.55],[3,2.16,-2.55],[8.2,2.5,0]];
 }
 
 function radial(r,a) { return [Math.cos(a)*r,Math.sin(a)*r]; }
@@ -266,10 +272,11 @@ function largeMarkings(b,kind,team) {
     for (const s of [-1,1]) stripe(-12.7,s*5.7,1.91,4.1,2.8);
     insignia(b,team,-10.6,0,3.12,2.35);
   } else if (kind==='freighter' || kind==='transport') {
-    // Cab roof: 1.75 + .32 + .1*.65 = 2.135; aft casing: .82 + .62 + .12*.65 = 1.518.
-    stripe(10.55,0,2.15,5.8,1);
-    stripe(-8.15,0,1.53,6.6,.9);
-    insignia(b,team,8.8,0,2.15,1.2);
+    // Contact planes include the roof's top bevel and the markings' bottom bevel.
+    const cabTop=1.65+.4+.1*.65, engineTop=.8+.65+.1*.65;
+    stripe(10.45,0,cabTop+.015*.65,3.1,1);
+    stripe(-8.35,0,engineTop+.015*.65,7.1,.9);
+    insignia(b,team,8.25,0,cabTop+.08*1.05*.65,1.05);
   } else {
     for (const s of [-1,1]) stripe(0,s*17.2,1.99,6.6,3);
     insignia(b,team,0,0,2.72,3.6);

@@ -30,8 +30,8 @@ const SHOTS = {
   // Launch at 0.9 (port, 2nd craft, starboard) / 1.5 (bomber): flash, trail, coast.
   launch: [0.97, 1.1, 1.58, 3.6],
   // Transport 0 charges 0.3-2.3 then leaves; transport 1 charges 1.2-3.2.
-  jump: [0.9, 2.0, 2.33, 2.45, 2.7],
-  quick: [0.55, 0.72, 0.95],
+  jump: [0.9, 2.0, 2.2, 2.33, 2.42],
+  quick: [0.55, 0.62, 0.8],
   orders: [1.0],
 };
 const only = process.env.RLF_ART_SCENES?.split(",").filter(Boolean);

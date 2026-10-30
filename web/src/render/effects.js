@@ -21,14 +21,15 @@
 //   fx.bayLaunch({x, y, heading, team, size, speed})   ship leaving a carrier bay: x, y is
 //       the bay mouth, heading/speed the launch velocity (m/s), size the launched hull's
 //       length. A flash at the mouth, an afterglow inside the bay and a short trail that
-//       follows the ship out for ~0.7 s (it assumes the launch's straight, locked coast).
+//       follows the ship out for 0.6 s (it assumes the launch's straight, locked coast).
 //   fx.jumpCharge({object, team, size, duration}) -> {cancel()}  a transport spooling
 //       its jump drive: contracting rings, a growing core glow, inward sparks and, at the
 //       end, a forward aperture line. It follows `object` (the hull's THREE.Object3D, so
 //       a moving ship carries it); pass {x, y, heading} instead for a fixed spot.
-//       duration defaults to 2 s; it ends by itself, or call cancel() (ship destroyed).
+//       duration defaults to 2 s; it stops at completion so it cannot follow the jumping
+//       hull. Call cancel() to fade it out early (ship destroyed).
 //   fx.jumpOut({x, y, heading, team, size})  the departure: a flash and a collapse at
-//       the ship, then a streak that leaves forward (the mirror of arrival). Move the
+//       the ship, then a streak whose tail clears the origin as it fades. Move the
 //       hull model with jumpOutOffset() (below) and hide it after JUMP_OUT_DURATION.
 //   fx.jumpOutQuick({x, y, heading, team, size})  the cheap variant (no charge, no ring,
 //       thinner streak) for a whole wing leaving at the end of a match; stagger the calls.
@@ -42,6 +43,7 @@
 //   `progress` (0..1, e.g. the escort's hold time). radius is the marker's (metres).
 export const JUMP_OUT_DISTANCE = 900;
 export const JUMP_OUT_DURATION = 0.09;
+const JUMP_OUT_TAIL = 0.16, QUICK_OUT_TAIL = 0.10;
 /** Metres a departing hull has moved forward `age` seconds into jumpOut (ease-in). */
 export function jumpOutOffset(age, duration = JUMP_OUT_DURATION) {
   const t = Math.max(0, Math.min(1, age / duration));
@@ -53,7 +55,7 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
   const shot = palette.projectile.map(c => new T.Color(c));
   const pellet = shot.map(c => c.clone().lerp(new T.Color(0xffad63), .48));
   const shield = palette.shield.map(c => new T.Color(c));
-  const white = new T.Color(0xfff5df), amber = new T.Color(palette.exhaust);
+  const white = new T.Color(0xfff5df), warmWhite = new T.Color(0xffd9a8), amber = new T.Color(palette.exhaust);
   const fireColor = new T.Color(0xff6514);
   const smokeColor = new T.Color(0x887b6b), shell = new T.Color(0x26333c);
   const transform = new T.Object3D(), point = new T.Vector3(), end = new T.Vector3();
@@ -116,7 +118,7 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
   arcGeo.rotateX(-Math.PI / 2);
   const ripples = batch(arcGeo, 160);
   // Closed hairline rings for the jump drive: energy, not a HUD arc with a gap.
-  const thinGeo = new T.RingGeometry(.955, 1, 64, 1);
+  const thinGeo = new T.RingGeometry(.978, 1, 64, 1);
   thinGeo.rotateX(-Math.PI / 2);
   const thin = batch(thinGeo, 128);
   // Velocity-aligned ribbons expand across the view, so they cannot turn edge-on.
@@ -201,17 +203,18 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
     const p=jumps[jc++]; if(jc===jumps.length)jc=0;
     const c=team[e.team] || white, size=e.size || 10;
     p.x=e.x; p.z=-e.y; p.size=size; p.angle=e.heading; p.color=c;
-    p.max=JUMP_OUT_DURATION; p.life=p.max+(quick?.3:.45); p.out=true; p.quick=quick; p.landed=false;
+    p.max=JUMP_OUT_DURATION; p.life=p.max+(quick?QUICK_OUT_TAIL:JUMP_OUT_TAIL); p.out=true; p.quick=quick; p.landed=false;
     // The drive lets go: a hot flash where the ship was, and (full jump) a collapse ring.
-    particle(p.x,2,p.z,size*(quick?1.6:2.3),quick?.2:.3,c);
-    particle(p.x,2.2,p.z,size*(quick?.7:1.1),quick?.1:.16,white);
-    if(!quick) { wave(p.x,p.z,size*1.1,.3,c,4); sparks(p.x,p.z,10,size*.8,c); }
+    particle(p.x,2,p.z,size*(quick?.5:1.45),quick?.12:.24,c);
+    particle(p.x,2.2,p.z,size*(quick?.24:.6),quick?.055:.11,quick?warmWhite:white);
+    if(!quick) { wave(p.x,p.z,size*.72,.26,c,4); sparks(p.x,p.z,8,size*.5,c); }
   }
   // Hairline arc of `radius` round (x, z) from angle a0 to a1 (radians, three.js plane).
   function arc(x, z, radius, a0, a1, c, opacity, steps) {
-    const n=Math.max(1,steps|0), da=(a1-a0)/n;
+    const n=Math.max(1,steps|0), da=(a1-a0)/n, closed=Math.abs(a1-a0)>=TAU-.0001;
+    // Trace ends fade; a small overlap keeps adjoining pieces from looking dotted.
     for(let i=0;i<n;i++) {
-      const u=a0+i*da, v=u+da;
+      const u=a0+i*da-(i || closed?da*.1:0), v=a0+(i+1)*da+(i<n-1 || closed?da*.1:0);
       segment(lines,x+Math.cos(u)*radius,1.2,z+Math.sin(u)*radius,x+Math.cos(v)*radius,1.2,z+Math.sin(v)*radius,.5,c,opacity);
     }
   }
@@ -232,89 +235,98 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
           if(b<=a) continue;
           // Fade in from the squad and out at the marker.
           const m=(a+b)*.5, fade=Math.min(1,(m-from)/30)*Math.min(1,(to-m)/20+.35);
-          segment(lines,sx+ux*a,1.2,sz+uz*a,sx+ux*b,1.2,sz+uz*b,.5,c,.3*fade);
+          segment(lines,sx+ux*a,1.2,sz+uz*a,sx+ux*b,1.2,sz+uz*b,.5,c,.22*fade);
         }
       }
     }
     if(o.kind==='attack') {
       // Corner brackets: four short arcs at the diagonals.
-      for(let i=0;i<4;i++) { const a=Math.PI/4+i*Math.PI/2; arc(x,z,r,a-.32,a+.32,c,.5,4); }
+      for(let i=0;i<4;i++) { const a=Math.PI/4+i*Math.PI/2; arc(x,z,r,a-.32,a+.32,c,.6,4); }
     } else if(o.kind==='guard') {
-      arc(x,z,r,0,TAU,c,.26,40);
+      arc(x,z,r,0,TAU,c,.38,40);
     } else if(o.kind==='hold') {
-      arc(x,z,r,0,TAU,c,.3,48);
+      arc(x,z,r,0,TAU,c,.4,48);
       for(let i=0;i<4;i++) {
         const a=i*Math.PI/2+Math.PI/4, ca=Math.cos(a), sa=Math.sin(a);
-        segment(lines,x+ca*r,1.2,z+sa*r,x+ca*r*.82,1.2,z+sa*r*.82,.5,c,.4);
+        segment(lines,x+ca*r,1.2,z+sa*r,x+ca*r*.84,1.2,z+sa*r*.84,.5,c,.5);
       }
     } else if(o.kind==='jump') {
       // Dashed outer ring turns slowly; the progress arc runs clockwise from the top.
-      const spin=clock*.25;
-      for(let i=0;i<24;i++) { const a=spin+i*TAU/24; arc(x,z,r,a,a+TAU/48,c,.32,2); }
+      const spin=clock*.12;
+      for(let i=0;i<24;i++) { const a=spin+i*TAU/24; arc(x,z,r,a,a+TAU/48,c,.4,2); }
       const progress=Math.max(0,Math.min(1,o.progress ?? 0));
-      if(progress>0) arc(x,z,r*.9,-Math.PI/2,-Math.PI/2+progress*TAU,white,.55,Math.ceil(48*progress));
-      arc(x,z,r*.9,0,TAU,c,.12,36);
+      if(progress>0) arc(x,z,r*.9,-Math.PI/2,-Math.PI/2+progress*TAU,white,.72,Math.ceil(48*progress));
+      arc(x,z,r*.9,0,TAU,c,.08,36);
     }
   }
   // The mirror of an arrival's streak: it grows forward from where the ship was as the
-  // hull accelerates away (jumpOutOffset), then its rear end leaves that spot, slowly at
-  // first, and chases the front off the screen as it fades.
+  // hull accelerates away (jumpOutOffset), then its rear end immediately chases the
+  // front off the screen. A lingering line at the origin reads as a weapon beam.
   function departure(p) {
-    const total=p.max+(p.quick?.3:.45), age=total-p.life, travel=Math.min(1,age/p.max);
+    const total=p.max+(p.quick?QUICK_OUT_TAIL:JUMP_OUT_TAIL), age=total-p.life, travel=Math.min(1,age/p.max);
     const dx=Math.cos(p.angle), dz=-Math.sin(p.angle);
     const front=JUMP_OUT_DISTANCE*travel**3;
     let start=0, fade=1;
-    if(travel===1) { const after=(age-p.max)/(total-p.max); fade=Math.max(0,1-after); start=front*after*after; }
+    if(travel===1) { const after=(age-p.max)/(total-p.max); fade=Math.max(0,1-after)**1.5; start=front*(p.quick?Math.sqrt(after):after); }
     if(front-start<1) return;
     // Soft, tapered profiles (not the arrival's boxes): a box as wide as a 26 m hull
     // read as a solid beam. Narrow where the ship was, full width far ahead.
-    const w=p.quick?.24:.36, core=Math.max(p.quick?.8:1.2,p.size*(p.quick?.05:.07));
-    segment(trails,p.x+dx*start,1.4,p.z+dz*start,p.x+dx*front,1.4,p.z+dz*front,p.size*w,p.color,.9*fade);
-    segment(lines,p.x+dx*start,1.5,p.z+dz*start,p.x+dx*front,1.5,p.z+dz*front,core,white,fade);
+    const w=p.quick?.16:.28, core=Math.max(p.quick?.6:.9,p.size*(p.quick?.035:.045));
+    segment(trails,p.x+dx*start,1.4,p.z+dz*start,p.x+dx*front,1.4,p.z+dz*front,p.size*w,p.color,(p.quick?.65:.9)*fade);
+    segment(lines,p.x+dx*start,1.5,p.z+dz*start,p.x+dx*front,1.5,p.z+dz*front,core,p.quick?warmWhite:white,(p.quick?.6:.85)*fade);
   }
   function updateLaunches() {
     for(const p of launches) {
       if(p.life<=0) continue;
-      const age=p.max-p.life, head=p.speed*age, fade=(p.life/p.max)**1.5;
-      // The trail starts back in the bay well, ends just behind the launched ship's tail,
-      // and is never longer than four hulls.
-      const end=head-p.size*.45, start=Math.max(-p.size*.6,head-p.size*4.5);
+      const age=p.max-p.life, head=p.speed*age, fade=(p.life/p.max)**.85;
+      // A short jet straddles the mouth immediately, even before the tail has cleared.
+      // It then follows the tail, capped at 2.2 hulls, through the locked launch coast.
+      const end=Math.max(p.size*.3,head-p.size*.42), start=Math.max(-p.size*.2,end-p.size*2.2);
       if(end-start<.5) continue;
-      segment(trails,p.x+p.dx*start,1.3,p.z+p.dz*start,p.x+p.dx*end,1.3,p.z+p.dz*end,p.size*.32,p.color,.75*fade);
-      segment(lines,p.x+p.dx*(start+end)*.5,1.35,p.z+p.dz*(start+end)*.5,p.x+p.dx*end,1.35,p.z+p.dz*end,.6,white,.8*fade);
+      segment(trails,p.x+p.dx*start,2.4,p.z+p.dz*start,p.x+p.dx*end,2.4,p.z+p.dz*end,p.size*.3,p.color,.8*fade);
+      segment(lines,p.x+p.dx*(start+end)*.5,2.45,p.z+p.dz*(start+end)*.5,p.x+p.dx*end,2.45,p.z+p.dz*end,.75,white,.65*fade);
     }
   }
   function updateCharges(dt) {
     for(const c of charges) {
       if(!c.active) continue;
       c.age+=dt;
+      // Only the departure owns the jump movement and flash after charge completion.
+      if(!c.cancelled && c.age>=c.duration) { c.active=false; c.object=null; continue; }
       if(c.object) {
         point.setFromMatrixPosition(c.object.matrixWorld); c.x=point.x; c.z=point.z; c.heading=c.object.rotation.y;
       }
       if(c.cancelled) c.fade-=dt*6;
-      else if(c.age>c.duration) c.fade-=dt/.15;
       if(c.fade<=0) { c.active=false; c.object=null; continue; }
       const k=Math.min(1,c.age/c.duration), e=k*k, f=c.fade, s=c.size;
       c.phase+=dt*(.55+2.2*k);
-      // Three hairline rings contract onto the hull, faster and brighter as the drive spools.
-      for(let i=0;i<3;i++) {
-        const u=(c.phase+i/3)%1, r=s*(.95-.6*u);
-        put(thin,c.x,1.3,c.z,r,1,r,0,c.color,f*(.2+.8*k)*Math.sin(Math.PI*u));
+      // Two hairline rings contract onto the hull out of step (unequal phase, unequal
+      // brightness), so they read as the drive's field rather than a target reticle.
+      for(let i=0;i<2;i++) {
+        const u=(c.phase+i*.37)%1, r=s*(.76-.42*u)*(1-.12*e);
+        put(thin,c.x,1.3,c.z,r,1,r,0,c.color,f*(.24+.46*e)*Math.sin(Math.PI*u)*(i?.5:1));
       }
-      put(glow,c.x,2.6,c.z,s*(.25+.6*e),s*(.25+.6*e),1,0,c.color,f*(.15+.6*e));
-      if(k>.75) put(glow,c.x,2.8,c.z,s*.32*e,s*.32*e,1,0,white,f*(k-.75)*3);
-      c.sparkClock+=dt*(5+30*k);
+      // A broad, low field reads on a phone; only the last 0.3 s gets a hot core.
+      put(glow,c.x,2.6,c.z,s*(.45+.35*e),s*(.45+.35*e),1,0,c.color,f*(.1+.32*e));
+      const late=Math.max(0,Math.min(1,(c.age-(c.duration-.3))/.3));
+      const flare=late*late*(3-2*late);
+      if(late>0) {
+        put(glow,c.x,2.7,c.z,s*(.65+.45*flare),s*(.65+.45*flare),1,0,c.color,f*.75*flare);
+        put(glow,c.x,2.8,c.z,s*.32*flare,s*.32*flare,1,0,white,f*.8*flare*flare);
+      }
+      c.sparkClock+=dt*(5+23*k);
       while(c.sparkClock>=1) {
         c.sparkClock--;
-        const a=Math.random()*TAU, r=s*(1.1+Math.random()*.4), life=.28+Math.random()*.12;
-        particle(c.x+Math.cos(a)*r,1.6,c.z+Math.sin(a)*r,.7+Math.random()*.6,life,Math.random()<.3?white:c.color,3,
+        const a=Math.random()*TAU, r=s*(.8+Math.random()*.3), life=.24+Math.random()*.1;
+        particle(c.x+Math.cos(a)*r,1.6,c.z+Math.sin(a)*r,1+Math.random()*.6,life,Math.random()<.2?white:c.color,3,
           -Math.cos(a)*r/life*.85,0,-Math.sin(a)*r/life*.85);
       }
-      // The last 30%: an aperture line opens ahead, along the coming streak.
-      if(k>.7) {
-        const dx=Math.cos(c.heading), dz=-Math.sin(c.heading), q=(k-.7)/.3;
-        const flick=.75+.25*Math.sin(c.age*60);
-        segment(lines,c.x+dx*s*.6,1.6,c.z+dz*s*.6,c.x+dx*s*(.6+6*q*q),1.6,c.z+dz*s*(.6+6*q*q),.8,c.color,f*q*.8*flick);
+      // The last 0.25 s: a short aperture line opens ahead, along the coming streak.
+      const open=Math.max(0,Math.min(1,(c.age-(c.duration-.25))/.25));
+      if(open>0) {
+        const dx=Math.cos(c.heading), dz=-Math.sin(c.heading), reach=s*(.55+.85*open*open);
+        segment(trails,c.x+dx*s*.5,1.55,c.z+dz*s*.5,c.x+dx*reach,1.55,c.z+dz*reach,s*.1,c.color,f*open*.35);
+        segment(lines,c.x+dx*s*.55,1.6,c.z+dz*s*.55,c.x+dx*reach,1.6,c.z+dz*reach,.65,white,f*open*.65);
       }
     }
   }
@@ -383,14 +395,14 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
       const c=team[e.team] || white, size=e.size || 10, dx=Math.cos(e.heading), dz=-Math.sin(e.heading);
       const p=launches[lc++]; if(lc===launches.length)lc=0;
       p.x=e.x; p.z=-e.y; p.dx=dx; p.dz=dz; p.speed=e.speed ?? 60; p.size=size;
-      p.life=p.max=.7; p.color=c;
-      // Catapult flash at the mouth, and an afterglow back inside the bay well.
-      particle(p.x,1.6,p.z,size*2.8,.32,c);
-      particle(p.x,1.9,p.z,size*1.2,.16,white);
-      particle(p.x-dx*size*.55,.6,p.z-dz*size*.55,size*1.6,.8,c);
-      for(let j=0;j<6;j++) {
-        const a=e.heading+(Math.random()-.5)*1.1, v=p.speed*(.35+Math.random()*.4);
-        particle(p.x,1.4,p.z,.8+Math.random()*.6,.22+Math.random()*.2,j%2?white:c,3,
+      p.life=p.max=.6; p.color=c;
+      // A tight catapult flash at the mouth, and an afterglow back inside the bay well.
+      particle(p.x,2.4,p.z,size*1.45,.2,c);
+      particle(p.x,2.5,p.z,size*.65,.12,white);
+      particle(p.x-dx*size*.55,.6,p.z-dz*size*.55,size*1.1,.32,c);
+      for(let j=0;j<4;j++) {
+        const a=e.heading+(Math.random()-.5)*.5, v=p.speed*(.6+Math.random()*.25);
+        particle(p.x,1.4,p.z,.8+Math.random()*.6,.12+Math.random()*.12,j%2?white:c,3,
           Math.cos(a)*v,1+Math.random()*2,-Math.sin(a)*v);
       }
     },
@@ -412,9 +424,9 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
       // Damage mounts span the hull: derive a scale once, without geometry traversal.
       let extent=0;
       for(const p of points) extent=Math.max(extent,Math.abs(p.x),Math.abs(p.z));
-      // Linear up to gunship size, then sublinear: on a transport or carrier a linear
-      // scale made each flame tens of metres across and hid the hull it was burning on.
-      const scale=Math.max(.85,extent<=6?extent/3:2*Math.sqrt(extent/6));
+      // Small craft stay unchanged; large hulls burn at local vent scale, not hull scale.
+      // Even square-root growth engulfed the freighter's cargo and command cab.
+      const scale=Math.max(.85,Math.min(1.8,extent/3));
       const electric=new T.Color(0x99ddff);
       return {
         update(hp, alive, dt) {
@@ -514,8 +526,8 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
             put(ripples,w.x,1.1+j*.15,w.z,r,1,r,w.angle,j?white:w.color,fade*fade*(j?.65:1));
           }
         } else if(w.kind===4) {
-          const r=w.radius*(1-t*.8);
-          put(thin,w.x,1.3,w.z,r,1,r,0,w.color,fade*.9);
+          const r=w.radius*(1-.92*t*t*(3-2*t));
+          put(thin,w.x,1.3,w.z,r,1,r,0,w.color,fade**1.5*.75);
         } else {
           const r=w.radius*(w.kind===2?1-t*.55:.15+t);
           put(rings,w.x,1.1,w.z,r,1,r,w.angle+t*.7,w.color,fade*(w.kind===2?.9:.6));
