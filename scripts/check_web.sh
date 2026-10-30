@@ -2,7 +2,7 @@
 # Web gate: build the site from the current champion (scripts/build_site.sh: bundle,
 # policy export, headless smoke matches, notebook + hull data, typecheck + Vite), then
 # serve web/dist and screenshot every page at 390x844 and 1440x900 into web/shots/
-# (live: tools/web/live_shots.mjs; notebook and hulls: tools/web/page_shots.mjs).
+# (live: tools/web/live_shots.mjs; notebook, hulls and pilot: tools/web/page_shots.mjs).
 # Fails on a build, smoke or typecheck failure, a page error, or sideways page scroll.
 #
 # Usage: scripts/check_web.sh   (env: RLF_SKIP_WASM=1 reuses the last wasm build,
@@ -32,7 +32,7 @@ rm -rf web/shots/live web/shots/pages
 step "screenshots: live page (web/shots/live)"
 node tools/web/live_shots.mjs "$BASE" web/shots/live
 
-step "screenshots: notebook and hulls (web/shots/pages)"
+step "screenshots: notebook, hulls and pilot (web/shots/pages)"
 node tools/web/page_shots.mjs "$BASE" web/shots/pages
 
 step "web checks passed"

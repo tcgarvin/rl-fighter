@@ -1,11 +1,12 @@
 import "./site.css";
 
-export type PageId = "live" | "notebook" | "hulls";
+export type PageId = "live" | "notebook" | "hulls" | "pilot";
 
 const LINKS: ReadonlyArray<{ id: PageId; label: string; href: string }> = [
   { id: "live", label: "Live", href: "/" },
   { id: "notebook", label: "Notebook", href: "/notebook/" },
   { id: "hulls", label: "Hulls", href: "/hulls/" },
+  { id: "pilot", label: "Pilot", href: "/pilot/" },
 ];
 
 /**

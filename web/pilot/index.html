@@ -1,0 +1,632 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#060a10" />
+    <title>RL Fighter · How the pilot works</title>
+    <meta name="description" content="What the pilot network is: what it sees, what it controls, how it is built and trained, and what it is not yet." />
+  </head>
+  <!--
+    Every number that can drift sits in an element whose data-fact attribute names it.
+    tools/pilot_facts.py computes the same facts from the sim, the policy code, the hull
+    YAMLs and the champion registry; scripts/build_pages_data.sh and
+    tests/test_pilot_page.py fail when this page disagrees. Update the text, not the check.
+  -->
+  <body>
+    <main class="page pilot" id="main">
+      <header class="pilot-head">
+        <p class="kicker">How the pilot works</p>
+        <h1>A small network flies every ship</h1>
+        <p class="lede">
+          Every ship on the live page is flown by the same neural network:
+          <strong data-fact="champion.name">fleet pilot v1 · warm, update 400</strong>.
+          It is a plain multilayer perceptron with two hidden layers and no attention or
+          memory. Thirty times a second, each ship runs it once on its own view of the
+          battle and gets back a setting for every thruster, turret and trigger it has.
+        </p>
+        <dl class="pilot-stats">
+          <div><dt>inputs</dt><dd data-fact="obs.dim">385</dd></div>
+          <div><dt>hidden</dt><dd>2 × <span data-fact="actor.hidden">256</span></dd></div>
+          <div><dt>action heads</dt><dd data-fact="actor.heads">21</dd></div>
+          <div><dt>weights</dt><dd data-fact="actor.params">180,285</dd></div>
+        </dl>
+      </header>
+
+      <div class="pilot-body prose">
+        <section id="picture">
+          <h2>In one picture</h2>
+          <p>
+            One ship's observation goes in at the top. Two fully connected layers of
+            <span data-fact="actor.hidden">256</span> units, each followed by
+            <span data-fact="actor.activation">tanh</span>, turn it into
+            <span data-fact="actor.logits">61</span> numbers. Those are split into
+            <span data-fact="actor.heads">21</span> small choices, one per actuator, and the
+            chosen row of actions reaches the ship after a short reaction delay.
+          </p>
+          <figure class="figure wide pilot-figure">
+            <p class="figure__title">The actor, top to bottom</p>
+            <svg class="diagram" viewBox="0 0 360 392" role="img" aria-labelledby="net-fig-title net-fig-desc">
+            <title id="net-fig-title">The pilot network</title>
+            <desc id="net-fig-desc">The observation of 385 numbers goes through two tanh layers of 256 units into 61 logits, which split into 21 action heads: 8 throttle, 6 slew, 6 fire, 1 power. The chosen action row is queued for two ticks, then the sim steps and produces the next observation.</desc>
+            <text class="dg-kicker" x="30" y="12">OBSERVATION</text>
+            <text class="dg-small" x="330" y="12" text-anchor="end">one ship, its own frame</text>
+            <rect class="seg c-own" x="30.0" y="20" width="15.4" height="28" />
+            <rect class="seg c-own" x="46.4" y="20" width="42.6" height="28" />
+            <rect class="seg c-own" x="90.0" y="20" width="45.8" height="28" />
+            <rect class="seg c-other" x="136.8" y="20" width="64.5" height="28" />
+            <rect class="seg c-other" x="202.2" y="20" width="48.9" height="28" />
+            <rect class="seg c-queue" x="252.1" y="20" width="67.6" height="28" />
+            <rect class="seg c-own" x="320.6" y="20" width="3.7" height="28" />
+            <rect class="seg c-own" x="325.3" y="20" width="3.7" height="28" />
+            <rect class="dg-chip" x="128.0" y="25" width="104" height="18" rx="9" />
+            <text class="dg-num" x="180.0" y="38" text-anchor="middle"><tspan data-fact="actor.in">385</tspan> numbers</text>
+            <line class="dg-line" x1="180.0" x2="180.0" y1="50" y2="65" />
+            <path class="dg-arrow" d="M176.0,64 L180.0,70 L184.0,64 Z" />
+            <rect class="box" x="80.3" y="72" width="199.5" height="28" rx="3" />
+            <text class="dg-num" x="180.0" y="90" text-anchor="middle"><tspan data-fact="actor.hidden">256</tspan> · <tspan data-fact="actor.activation">tanh</tspan></text>
+            <text class="dg-small" x="74.3" y="90" text-anchor="end">layer 1</text>
+            <text class="dg-small" x="285.7" y="90"><tspan data-fact="actor.l0.params">98,816</tspan></text>
+            <line class="dg-line" x1="180.0" x2="180.0" y1="100" y2="115" />
+            <path class="dg-arrow" d="M176.0,114 L180.0,120 L184.0,114 Z" />
+            <rect class="box" x="80.3" y="120" width="199.5" height="28" rx="3" />
+            <text class="dg-num" x="180.0" y="138" text-anchor="middle">256 · tanh</text>
+            <text class="dg-small" x="74.3" y="138" text-anchor="end">layer 2</text>
+            <text class="dg-small" x="285.7" y="138"><tspan data-fact="actor.l1.params">65,792</tspan></text>
+            <line class="dg-line" x1="180.0" x2="180.0" y1="148" y2="163" />
+            <path class="dg-arrow" d="M176.0,162 L180.0,168 L184.0,162 Z" />
+            <rect class="box" x="156.2" y="168" width="47.5" height="28" rx="3" />
+            <text class="dg-num" x="180.0" y="186" text-anchor="middle"><tspan data-fact="actor.logits">61</tspan></text>
+            <text class="dg-small" x="150.2" y="186" text-anchor="end">logits</text>
+            <text class="dg-small" x="209.8" y="186"><tspan data-fact="actor.l2.params">15,677</tspan></text>
+            <path class="dg-fan" d="M165.6,196 C165.6,218 77.0,214 77.0,237" />
+            <path class="dg-fan" d="M181.9,196 C181.9,218 183.0,214 183.0,237" />
+            <path class="dg-fan" d="M193.6,196 C193.6,218 275.0,214 275.0,237" />
+            <path class="dg-fan" d="M201.0,196 C201.0,218 332.0,214 332.0,237" />
+            <rect class="cell on" x="22" y="240" width="12" height="12" rx="2" />
+            <rect class="cell on" x="36" y="240" width="12" height="12" rx="2" />
+            <rect class="cell on" x="50" y="240" width="12" height="12" rx="2" />
+            <rect class="cell on" x="64" y="240" width="12" height="12" rx="2" />
+            <rect class="cell on" x="78" y="240" width="12" height="12" rx="2" />
+            <rect class="cell on" x="92" y="240" width="12" height="12" rx="2" />
+            <rect class="cell on" x="106" y="240" width="12" height="12" rx="2" />
+            <rect class="cell on" x="120" y="240" width="12" height="12" rx="2" />
+            <rect class="cell on" x="142" y="240" width="12" height="12" rx="2" />
+            <rect class="cell on" x="156" y="240" width="12" height="12" rx="2" />
+            <rect class="cell on" x="170" y="240" width="12" height="12" rx="2" />
+            <rect class="cell on" x="184" y="240" width="12" height="12" rx="2" />
+            <rect class="cell on" x="198" y="240" width="12" height="12" rx="2" />
+            <rect class="cell on" x="212" y="240" width="12" height="12" rx="2" />
+            <rect class="cell on" x="234" y="240" width="12" height="12" rx="2" />
+            <rect class="cell on" x="248" y="240" width="12" height="12" rx="2" />
+            <rect class="cell on" x="262" y="240" width="12" height="12" rx="2" />
+            <rect class="cell on" x="276" y="240" width="12" height="12" rx="2" />
+            <rect class="cell on" x="290" y="240" width="12" height="12" rx="2" />
+            <rect class="cell on" x="304" y="240" width="12" height="12" rx="2" />
+            <rect class="cell on" x="326" y="240" width="12" height="12" rx="2" />
+            <text class="dg-label" x="22" y="268">throttle ×<tspan data-fact="heads.throttle.count">8</tspan></text>
+            <text class="dg-small" x="22" y="282"><tspan data-fact="heads.throttle.choices">3</tspan>-way each</text>
+            <text class="dg-label" x="142" y="268">slew ×<tspan data-fact="heads.slew.count">6</tspan></text>
+            <text class="dg-small" x="142" y="282"><tspan data-fact="heads.slew.choices">3</tspan>-way each</text>
+            <text class="dg-label" x="234" y="268">fire ×<tspan data-fact="heads.fire.count">6</tspan></text>
+            <text class="dg-small" x="234" y="282"><tspan data-fact="heads.fire.choices">2</tspan>-way each</text>
+            <text class="dg-label" x="338" y="268" text-anchor="end">power</text>
+            <text class="dg-small" x="338" y="282" text-anchor="end"><tspan data-fact="heads.power.choices">7</tspan>-way</text>
+            <line class="dg-line" x1="180.0" x2="180.0" y1="290" y2="305" />
+            <path class="dg-arrow" d="M176.0,304 L180.0,310 L184.0,304 Z" />
+            <rect class="box" x="52.0" y="312" width="256" height="28" rx="3" />
+            <text class="dg-num" x="180.0" y="330" text-anchor="middle">queued <tspan data-fact="reaction.ticks">2</tspan> ticks (<tspan data-fact="reaction.ms">67</tspan> ms)</text>
+            <line class="dg-line" x1="180.0" x2="180.0" y1="340" y2="355" />
+            <path class="dg-arrow" d="M176.0,354 L180.0,360 L184.0,354 Z" />
+            <rect class="box box--sim" x="52.0" y="362" width="256" height="28" rx="3" />
+            <text class="dg-num" x="180.0" y="380" text-anchor="middle">sim steps, <tspan data-fact="sim.tick_hz">30</tspan> times a second</text>
+            <path class="dg-loop" d="M52.0,376 L18,376 Q12,376 12,370 L12,40 Q12,34 18,34 L24,34" />
+            <path class="dg-arrow" d="M23,30 L29,34 L23,38 Z" />
+            <text class="dg-small" text-anchor="middle" transform="translate(9 205) rotate(-90)">next tick</text>
+            </svg>
+            <figcaption class="figure__caption">
+              Bar widths are to scale (385, 256, 256, 61). The numbers to the right are each
+              layer's weights and biases. The colours in the observation bar are the blocks
+              described below. Source:
+              <a class="code-link" href="https://github.com/tcgarvin/rl-fighter/blob/main/spacefight/rl/spike_policy.py"><code>spacefight/rl/spike_policy.py</code></a>.
+            </figcaption>
+          </figure>
+        </section>
+
+        <section id="sees">
+          <h2>What the pilot sees</h2>
+          <p>
+            The observation is a fixed list of <span data-fact="obs.dim">385</span> numbers
+            built by the Rust sim (<a class="code-link" href="https://github.com/tcgarvin/rl-fighter/blob/main/crates/sim/src/obs.rs"><code>crates/sim/src/obs.rs</code></a>,
+            <a class="code-link" href="https://github.com/tcgarvin/rl-fighter/blob/main/docs/SIM_SPEC.md"><code>SIM_SPEC.md</code></a> §7.2).
+            It is <strong>egocentric</strong>: every position, velocity and direction is
+            rotated into the ship's own body frame, so "forward" is always the first axis
+            and "port" the second. Each value is divided by a fixed scale (arena radius,
+            100 m/s, 20 m and so on) and clipped to ±5. A slot with nothing in it is all
+            zeros, with its <em>present</em> flag at 0.
+          </p>
+          <figure class="figure wide pilot-figure">
+            <p class="figure__title">The 385 numbers, block by block</p>
+            <ul class="legend">
+              <li><span class="legend__key legend__key--block c-own"></span>the ship itself</li>
+              <li><span class="legend__key legend__key--block c-other"></span>everything else</li>
+              <li><span class="legend__key legend__key--block c-queue"></span>its own queued actions</li>
+            </ul>
+            <svg class="diagram" viewBox="0 0 360 244" role="img" aria-labelledby="obs-fig-title obs-fig-desc">
+            <title id="obs-fig-title">The observation vector</title>
+            <desc id="obs-fig-desc">385 numbers in eight blocks: self 21, thrusters 8 by 7, turrets 6 by 10, other ships 7 by 12, projectiles 8 by 8, pending actions 4 by 22, turret arcs 6, turret ranges 6.</desc>
+            <rect class="seg c-own" x="4.0" y="4" width="18.2" height="14" />
+            <rect class="seg c-own" x="23.2" y="4" width="50.2" height="14" />
+            <rect class="seg c-own" x="74.4" y="4" width="53.9" height="14" />
+            <rect class="seg c-other" x="129.3" y="4" width="75.8" height="14" />
+            <rect class="seg c-other" x="206.1" y="4" width="57.5" height="14" />
+            <rect class="seg c-queue" x="264.6" y="4" width="79.5" height="14" />
+            <rect class="seg c-own" x="345.0" y="4" width="4.5" height="14" />
+            <rect class="seg c-own" x="350.5" y="4" width="4.5" height="14" />
+            <text class="dg-small" x="4" y="31">0</text>
+            <text class="dg-small" x="356" y="31" text-anchor="end"><tspan data-fact="obs.dim">385</tspan></text>
+            <text class="dg-label" x="104" y="54" text-anchor="end">self</text>
+            <rect class="bar c-own" x="110" y="44" width="36.8" height="12" rx="1" />
+            <text class="dg-num" x="152.8" y="54"><tspan data-fact="obs.self.width">21</tspan></text>
+            <text class="dg-label" x="104" y="80" text-anchor="end">thrusters</text>
+            <rect class="bar c-own" x="110" y="70" width="98.0" height="12" rx="1" />
+            <line class="tick" x1="122.2" x2="122.2" y1="70" y2="82" />
+            <line class="tick" x1="134.5" x2="134.5" y1="70" y2="82" />
+            <line class="tick" x1="146.8" x2="146.8" y1="70" y2="82" />
+            <line class="tick" x1="159.0" x2="159.0" y1="70" y2="82" />
+            <line class="tick" x1="171.2" x2="171.2" y1="70" y2="82" />
+            <line class="tick" x1="183.5" x2="183.5" y1="70" y2="82" />
+            <line class="tick" x1="195.8" x2="195.8" y1="70" y2="82" />
+            <text class="dg-num" x="214.0" y="80"><tspan data-fact="obs.thrusters.records">8</tspan> × <tspan data-fact="obs.thrusters.record_width">7</tspan></text>
+            <text class="dg-label" x="104" y="106" text-anchor="end">turrets</text>
+            <rect class="bar c-own" x="110" y="96" width="105.0" height="12" rx="1" />
+            <line class="tick" x1="127.5" x2="127.5" y1="96" y2="108" />
+            <line class="tick" x1="145.0" x2="145.0" y1="96" y2="108" />
+            <line class="tick" x1="162.5" x2="162.5" y1="96" y2="108" />
+            <line class="tick" x1="180.0" x2="180.0" y1="96" y2="108" />
+            <line class="tick" x1="197.5" x2="197.5" y1="96" y2="108" />
+            <text class="dg-num" x="221.0" y="106"><tspan data-fact="obs.turrets.records">6</tspan> × <tspan data-fact="obs.turrets.record_width">10</tspan></text>
+            <text class="dg-label" x="104" y="132" text-anchor="end">other ships</text>
+            <rect class="bar c-other" x="110" y="122" width="147.0" height="12" rx="1" />
+            <line class="tick" x1="131.0" x2="131.0" y1="122" y2="134" />
+            <line class="tick" x1="152.0" x2="152.0" y1="122" y2="134" />
+            <line class="tick" x1="173.0" x2="173.0" y1="122" y2="134" />
+            <line class="tick" x1="194.0" x2="194.0" y1="122" y2="134" />
+            <line class="tick" x1="215.0" x2="215.0" y1="122" y2="134" />
+            <line class="tick" x1="236.0" x2="236.0" y1="122" y2="134" />
+            <text class="dg-num" x="263.0" y="132"><tspan data-fact="obs.ships.records">7</tspan> × <tspan data-fact="obs.ships.record_width">12</tspan></text>
+            <text class="dg-label" x="104" y="158" text-anchor="end">projectiles</text>
+            <rect class="bar c-other" x="110" y="148" width="112.0" height="12" rx="1" />
+            <line class="tick" x1="124.0" x2="124.0" y1="148" y2="160" />
+            <line class="tick" x1="138.0" x2="138.0" y1="148" y2="160" />
+            <line class="tick" x1="152.0" x2="152.0" y1="148" y2="160" />
+            <line class="tick" x1="166.0" x2="166.0" y1="148" y2="160" />
+            <line class="tick" x1="180.0" x2="180.0" y1="148" y2="160" />
+            <line class="tick" x1="194.0" x2="194.0" y1="148" y2="160" />
+            <line class="tick" x1="208.0" x2="208.0" y1="148" y2="160" />
+            <text class="dg-num" x="228.0" y="158"><tspan data-fact="obs.projectiles.records">8</tspan> × <tspan data-fact="obs.projectiles.record_width">8</tspan></text>
+            <text class="dg-label" x="104" y="184" text-anchor="end">pending actions</text>
+            <rect class="bar c-queue" x="110" y="174" width="154.0" height="12" rx="1" />
+            <line class="tick" x1="148.5" x2="148.5" y1="174" y2="186" />
+            <line class="tick" x1="187.0" x2="187.0" y1="174" y2="186" />
+            <line class="tick" x1="225.5" x2="225.5" y1="174" y2="186" />
+            <text class="dg-num" x="270.0" y="184"><tspan data-fact="obs.pending.records">4</tspan> × <tspan data-fact="obs.pending.record_width">22</tspan></text>
+            <text class="dg-label" x="104" y="210" text-anchor="end">turret arcs</text>
+            <rect class="bar c-own" x="110" y="200" width="10.5" height="12" rx="1" />
+            <text class="dg-num" x="126.5" y="210"><tspan data-fact="obs.turret_arc.width">6</tspan></text>
+            <text class="dg-label" x="104" y="236" text-anchor="end">turret ranges</text>
+            <rect class="bar c-own" x="110" y="226" width="10.5" height="12" rx="1" />
+            <text class="dg-num" x="126.5" y="236"><tspan data-fact="obs.turret_range.width">6</tspan></text>
+            </svg>
+            <figcaption class="figure__caption">
+              The strip is the whole vector in order. Each bar below is one block, divided
+              into its records (slots × floats per slot).
+            </figcaption>
+          </figure>
+          <ul>
+            <li>
+              <strong>Self</strong> (<span data-fact="obs.self.width">21</span>): present,
+              control lock, speed, forward and sideways speed, spin, hull and shield
+              fractions, whether it has a shield, time left, the current power split, mass, speed cap, size, maximum
+              hull, the direction to the arena centre and the distance to its edge, and the
+              reaction delay.
+            </li>
+            <li>
+              <strong>Thrusters</strong> (<span data-fact="obs.thrusters.records">8</span>
+              slots × <span data-fact="obs.thrusters.record_width">7</span>): where each
+              thruster sits, which way it pushes, how hard (as an acceleration), and its
+              current throttle level.
+            </li>
+            <li>
+              <strong>Turrets</strong> (<span data-fact="obs.turrets.records">6</span>
+              slots × <span data-fact="obs.turrets.record_width">10</span>, plus an arc and
+              a range per slot at the end): where each gun sits, which way it points now,
+              how far through its reload it is, and its weapon kind (slug, beam, flak,
+              torpedo).
+            </li>
+            <li>
+              <strong>Other ships</strong> (<span data-fact="obs.ships.records">7</span>
+              slots × <span data-fact="obs.ships.record_width">12</span>), nearest first:
+              friend or foe, relative position and velocity, relative heading, hull and
+              shield fractions, size and distance. A match holds at most
+              <span data-fact="sim.max_ships">8</span> ships
+              (<span data-fact="sim.max_ships_a_side">4</span> a side), so the seven slots
+              cover every other ship on the field; nothing is cut off yet.
+            </li>
+            <li>
+              <strong>Projectiles</strong> (<span data-fact="obs.projectiles.records">8</span>
+              slots × <span data-fact="obs.projectiles.record_width">8</span>): enemy shots
+              only, sorted by threat rather than distance: relative position and velocity and damage. The sim works out when each shot
+              will pass closest and how close it will come, and lists those two numbers in
+              the record too.
+            </li>
+            <li>
+              <strong>Pending actions</strong> (<span data-fact="obs.pending.records">4</span>
+              slots × <span data-fact="obs.pending.record_width">22</span>): the actions
+              already chosen but not yet applied (see the reaction delay below). With them
+              and the throttle levels in view, the pilot needs no memory to know what its
+              ship is about to do.
+            </li>
+          </ul>
+          <p>
+            Nothing in the observation says "you are a gunship". The pilot learns which
+            hull it is flying from the thruster and turret records: their count, placement
+            and strength, and whether the guns turn. That is what lets one network fly
+            three different ships, and in principle a fourth.
+          </p>
+        </section>
+
+        <section id="controls">
+          <h2>What it controls</h2>
+          <p>
+            There is no autopilot. The pilot never says "turn left" or "attack that ship";
+            it sets actuators directly, and turning means firing a pair of side thrusters
+            and then the opposite pair to stop
+            (<a class="code-link" href="https://github.com/tcgarvin/rl-fighter/blob/main/crates/sim/src/actions.rs"><code>crates/sim/src/actions.rs</code></a>,
+            <a class="code-link" href="https://github.com/tcgarvin/rl-fighter/blob/main/docs/SIM_SPEC.md"><code>SIM_SPEC.md</code></a> §7.1).
+            Its output is a row of <span data-fact="action.width">21</span> small integers,
+            one per action head:
+          </p>
+          <div class="table-wrap">
+            <table class="data pilot-table">
+              <thead>
+                <tr><th>head</th><th class="num">count</th><th class="num">choices</th><th>meaning</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>throttle</td>
+                  <td class="num" data-fact="heads.throttle.count">8</td>
+                  <td class="num" data-fact="heads.throttle.choices">3</td>
+                  <td>per thruster slot: lower, hold or raise its level, a sixth per tick (zero to full in 0.2 s)</td>
+                </tr>
+                <tr>
+                  <td>slew</td>
+                  <td class="num" data-fact="heads.slew.count">6</td>
+                  <td class="num" data-fact="heads.slew.choices">3</td>
+                  <td>per turret slot: turn left, hold or turn right</td>
+                </tr>
+                <tr>
+                  <td>fire</td>
+                  <td class="num" data-fact="heads.fire.count">6</td>
+                  <td class="num" data-fact="heads.fire.choices">2</td>
+                  <td>per turret slot: pull the trigger or not</td>
+                </tr>
+                <tr>
+                  <td>power</td>
+                  <td class="num" data-fact="heads.power.count">1</td>
+                  <td class="num" data-fact="heads.power.choices">7</td>
+                  <td>a target split of power between shields, engines and weapons, from a fixed menu; the ship shifts toward it gradually</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            Each head is its own categorical distribution over its slice of the
+            <span data-fact="actor.logits">61</span> logits (8×3 + 6×3 + 6×2 + 7). The
+            heads are sampled independently, on the live page as in training, so the
+            pilot's moves are a little random by design.
+          </p>
+          <h3>Masks: one set of heads, three hulls</h3>
+          <p>
+            The network always produces all 21 heads. A head whose actuator the hull does
+            not have is <strong>masked</strong>: its output is ignored and replaced by
+            "hold" or "don't fire", and in training it adds nothing to the loss. Throttle
+            heads are masked for empty thruster slots, slew heads for empty slots and fixed
+            guns, fire heads for empty turret slots. The power head is never masked.
+          </p>
+          <figure class="figure wide pilot-figure">
+            <p class="figure__title">Which heads each hull uses</p>
+            <ul class="legend">
+              <li><span class="legend__key legend__key--cell on"></span>live</li>
+              <li><span class="legend__key legend__key--cell off"></span>masked (held)</li>
+            </ul>
+            <svg class="diagram" viewBox="0 0 360 162" role="img" aria-labelledby="mask-fig-title mask-fig-desc">
+            <title id="mask-fig-title">Live and masked heads per hull</title>
+            <desc id="mask-fig-desc">Fighter and strafer: 5 throttle heads, 1 fire head and the power head are live, 7 of 21. Gunship: 6 throttle, 3 slew, 3 fire and power, 13 of 21. The rest are masked.</desc>
+            <text class="dg-label" x="22" y="14">throttle ×<tspan data-fact="heads.throttle.count">8</tspan></text>
+            <text class="dg-label" x="142" y="14">slew ×<tspan data-fact="heads.slew.count">6</tspan></text>
+            <text class="dg-label" x="234" y="14">fire ×<tspan data-fact="heads.fire.count">6</tspan></text>
+            <text class="dg-label" x="338" y="14" text-anchor="end">power</text>
+            <text class="dg-label dg-label--strong" x="22" y="38">Fighter</text>
+            <text class="dg-small" x="338" y="38" text-anchor="end"><tspan data-fact="hull.fighter.heads">7</tspan> of 21 heads live</text>
+            <rect class="cell on" data-hull="fighter" data-head="throttle" x="22" y="46" width="12" height="12" rx="2" />
+            <rect class="cell on" data-hull="fighter" data-head="throttle" x="36" y="46" width="12" height="12" rx="2" />
+            <rect class="cell on" data-hull="fighter" data-head="throttle" x="50" y="46" width="12" height="12" rx="2" />
+            <rect class="cell on" data-hull="fighter" data-head="throttle" x="64" y="46" width="12" height="12" rx="2" />
+            <rect class="cell on" data-hull="fighter" data-head="throttle" x="78" y="46" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="fighter" data-head="throttle" x="92" y="46" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="fighter" data-head="throttle" x="106" y="46" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="fighter" data-head="throttle" x="120" y="46" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="fighter" data-head="slew" x="142" y="46" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="fighter" data-head="slew" x="156" y="46" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="fighter" data-head="slew" x="170" y="46" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="fighter" data-head="slew" x="184" y="46" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="fighter" data-head="slew" x="198" y="46" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="fighter" data-head="slew" x="212" y="46" width="12" height="12" rx="2" />
+            <rect class="cell on" data-hull="fighter" data-head="fire" x="234" y="46" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="fighter" data-head="fire" x="248" y="46" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="fighter" data-head="fire" x="262" y="46" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="fighter" data-head="fire" x="276" y="46" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="fighter" data-head="fire" x="290" y="46" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="fighter" data-head="fire" x="304" y="46" width="12" height="12" rx="2" />
+            <rect class="cell on" data-hull="fighter" data-head="power" x="326" y="46" width="12" height="12" rx="2" />
+            <text class="dg-label dg-label--strong" x="22" y="82">Strafer</text>
+            <text class="dg-small" x="338" y="82" text-anchor="end"><tspan data-fact="hull.strafer.heads">7</tspan> of 21 heads live</text>
+            <rect class="cell on" data-hull="strafer" data-head="throttle" x="22" y="90" width="12" height="12" rx="2" />
+            <rect class="cell on" data-hull="strafer" data-head="throttle" x="36" y="90" width="12" height="12" rx="2" />
+            <rect class="cell on" data-hull="strafer" data-head="throttle" x="50" y="90" width="12" height="12" rx="2" />
+            <rect class="cell on" data-hull="strafer" data-head="throttle" x="64" y="90" width="12" height="12" rx="2" />
+            <rect class="cell on" data-hull="strafer" data-head="throttle" x="78" y="90" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="strafer" data-head="throttle" x="92" y="90" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="strafer" data-head="throttle" x="106" y="90" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="strafer" data-head="throttle" x="120" y="90" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="strafer" data-head="slew" x="142" y="90" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="strafer" data-head="slew" x="156" y="90" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="strafer" data-head="slew" x="170" y="90" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="strafer" data-head="slew" x="184" y="90" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="strafer" data-head="slew" x="198" y="90" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="strafer" data-head="slew" x="212" y="90" width="12" height="12" rx="2" />
+            <rect class="cell on" data-hull="strafer" data-head="fire" x="234" y="90" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="strafer" data-head="fire" x="248" y="90" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="strafer" data-head="fire" x="262" y="90" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="strafer" data-head="fire" x="276" y="90" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="strafer" data-head="fire" x="290" y="90" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="strafer" data-head="fire" x="304" y="90" width="12" height="12" rx="2" />
+            <rect class="cell on" data-hull="strafer" data-head="power" x="326" y="90" width="12" height="12" rx="2" />
+            <text class="dg-label dg-label--strong" x="22" y="126">Gunship</text>
+            <text class="dg-small" x="338" y="126" text-anchor="end"><tspan data-fact="hull.gunship.heads">13</tspan> of 21 heads live</text>
+            <rect class="cell on" data-hull="gunship" data-head="throttle" x="22" y="134" width="12" height="12" rx="2" />
+            <rect class="cell on" data-hull="gunship" data-head="throttle" x="36" y="134" width="12" height="12" rx="2" />
+            <rect class="cell on" data-hull="gunship" data-head="throttle" x="50" y="134" width="12" height="12" rx="2" />
+            <rect class="cell on" data-hull="gunship" data-head="throttle" x="64" y="134" width="12" height="12" rx="2" />
+            <rect class="cell on" data-hull="gunship" data-head="throttle" x="78" y="134" width="12" height="12" rx="2" />
+            <rect class="cell on" data-hull="gunship" data-head="throttle" x="92" y="134" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="gunship" data-head="throttle" x="106" y="134" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="gunship" data-head="throttle" x="120" y="134" width="12" height="12" rx="2" />
+            <rect class="cell on" data-hull="gunship" data-head="slew" x="142" y="134" width="12" height="12" rx="2" />
+            <rect class="cell on" data-hull="gunship" data-head="slew" x="156" y="134" width="12" height="12" rx="2" />
+            <rect class="cell on" data-hull="gunship" data-head="slew" x="170" y="134" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="gunship" data-head="slew" x="184" y="134" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="gunship" data-head="slew" x="198" y="134" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="gunship" data-head="slew" x="212" y="134" width="12" height="12" rx="2" />
+            <rect class="cell on" data-hull="gunship" data-head="fire" x="234" y="134" width="12" height="12" rx="2" />
+            <rect class="cell on" data-hull="gunship" data-head="fire" x="248" y="134" width="12" height="12" rx="2" />
+            <rect class="cell on" data-hull="gunship" data-head="fire" x="262" y="134" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="gunship" data-head="fire" x="276" y="134" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="gunship" data-head="fire" x="290" y="134" width="12" height="12" rx="2" />
+            <rect class="cell off" data-hull="gunship" data-head="fire" x="304" y="134" width="12" height="12" rx="2" />
+            <rect class="cell on" data-hull="gunship" data-head="power" x="326" y="134" width="12" height="12" rx="2" />
+            </svg>
+            <figcaption class="figure__caption">
+              Fighter: <span data-fact="hull.fighter.thrusters">5</span> thrusters and a
+              fixed nose gun. Strafer: <span data-fact="hull.strafer.thrusters">5</span>
+              thrusters (strong lateral pairs, a weak main engine) and a fixed laser.
+              Gunship: <span data-fact="hull.gunship.thrusters">6</span> thrusters and
+              <span data-fact="hull.gunship.slewing">3</span> turning turrets. From
+              <code>assets/hulls/*/hull.yaml</code>; the <a href="/hulls/">hull catalogue</a>
+              draws them.
+            </figcaption>
+          </figure>
+          <h3>The reaction delay</h3>
+          <p>
+            An action takes effect <span data-fact="reaction.ticks">2</span> ticks
+            (<span data-fact="reaction.ms">67</span> ms) after the pilot chooses it. It
+            waits in a short queue that the pilot can see in its observation (the pending
+            actions block). The delay makes it fly like a pilot rather than a servo:
+            without it, twitching the nose back and forth every tick to aim is the best
+            strategy, and it looks robotic.
+          </p>
+        </section>
+
+        <section id="network">
+          <h2>The network</h2>
+          <div class="table-wrap">
+            <table class="data pilot-table">
+              <thead>
+                <tr><th>layer</th><th>shape</th><th>activation</th><th class="num">parameters</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>1</td><td>385 → 256</td><td>tanh</td><td class="num" data-fact="actor.l0.params">98,816</td></tr>
+                <tr><td>2</td><td>256 → 256</td><td>tanh</td><td class="num" data-fact="actor.l1.params">65,792</td></tr>
+                <tr><td>3</td><td>256 → 61</td><td>none (logits)</td><td class="num" data-fact="actor.l2.params">15,677</td></tr>
+                <tr class="total"><td>actor</td><td></td><td></td><td class="num" data-fact="actor.params">180,285</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            That is the whole pilot: <span data-fact="actor.params">180,285</span> numbers,
+            about <span data-fact="actor.kb">721</span> kB as 32-bit floats. There is no
+            normalisation layer, no convolution, no attention and no recurrent state. Each
+            tick's decision depends only on that tick's observation. The weights start
+            orthogonal, with the output layer scaled down so a fresh network picks every
+            choice about equally often.
+          </p>
+          <p>
+            In the browser the same arithmetic runs as a plain JavaScript loop over the
+            exported weights (<a class="code-link" href="https://github.com/tcgarvin/rl-fighter/blob/main/web/src/live/policy.js"><code>web/src/live/policy.js</code></a>;
+            a pytest checks it against PyTorch). With eight ships at 30 ticks a second, that
+            is about <span data-fact="browser.mmacs">43</span> million multiply-adds a
+            second, which a phone handles easily.
+          </p>
+          <h3>The critic, used only in training</h3>
+          <p>
+            PPO also trains a <strong>critic</strong>: a second network that estimates how
+            well things are going for a ship, so that training can tell a good action from
+            a lucky one. It never flies and is not shipped to the browser. Fleet pilot v1
+            uses a <strong>fleet critic</strong> (<code>FleetCritic</code>) with
+            <span data-fact="critic.params">243,394</span> parameters in three parts:
+          </p>
+          <ul>
+            <li>
+              <strong>A base value</strong> from the ship's own observation, through its own
+              385 → 256 → 256 → 1 tanh network (<span data-fact="critic.base.params">164,865</span>).
+              It has the actor's shape but separate weights; nothing is shared between the
+              two.
+            </li>
+            <li>
+              <strong>A per-ship encoder</strong>, 385 → <span data-fact="critic.context">64</span>
+              → 64 with tanh (<span data-fact="critic.encoder.params">28,864</span>), run on
+              every ship in the match. The encodings of the ship's live teammates and of
+              the live enemies are averaged separately into two summaries.
+            </li>
+            <li>
+              <strong>A correction</strong>: the base network's last hidden layer, both
+              summaries and the number of teammates and enemies (<span data-fact="critic.mix_in">386</span>
+              numbers) go through a
+              <span data-fact="critic.mix_hidden">128</span>-unit layer to one number that
+              is added to the base value (<span data-fact="critic.mix.params">49,665</span>).
+              It starts at exactly zero, so the critic first agrees with the one it was
+              warm-started from.
+            </li>
+          </ul>
+          <p>
+            Averaging over a team means the same critic handles one ship a side or four.
+            The critic sees the whole match, while the actor sees only its own ship's
+            view. This split (decentralised actors, a centralised critic) is the usual
+            MAPPO recipe.
+          </p>
+        </section>
+
+        <section id="training">
+          <h2>How it was trained</h2>
+          <p>
+            Learning to fly from scratch by trial and error failed. In the
+            <a href="/notebook/#2026-10-28-learnability-spike">learnability spike</a>, PPO
+            from random weights never learned to fire. What works is to copy a teacher
+            first, then improve on it. Every hull has a hand-written scripted pilot in Rust
+            that flies the same way, through actuators only. The scripts are the teachers.
+            They never fly on the live page.
+          </p>
+          <ol>
+            <li>
+              <strong>Copy (behaviour cloning).</strong> Train the network to predict the
+              script's action on states the script visits, with a little noise injected so
+              it also sees how the script recovers. On its own this fails: the spike's
+              cloned fighter won 0.6 % of duels against the script, because small mistakes
+              take it into states the script never showed it.
+            </li>
+            <li>
+              <strong>Correct (DAgger).</strong> Let the network fly, ask the script what it
+              would have done in each state the network reached, add those rows to the
+              data and retrain. Three rounds of two million rows each. For fleet pilot v1,
+              that meant fleets of every hull, each labelled by its own script.
+            </li>
+            <li>
+              <strong>Improve (PPO).</strong> Reinforcement learning on the match reward
+              (damage dealt and taken, a small cost per shot, a penalty outside the arena,
+              ±1 for winning or losing), with a pull toward the script that fades to zero
+              over the first 300 updates. Hits are credited to the tick the trigger was
+              pulled, not the tick the shot landed.
+            </li>
+          </ol>
+          <p>
+            The champion comes from run
+            <a href="/notebook/#2026-10-30-fleet-pilot"><code data-fact="champion.run">2026-10-30-fleet-pilot</code></a>
+            (<a href="/notebook/#2026-10-30-fleet-pilot/plan">plan</a>). It was
+            <strong>warm-started</strong>: before DAgger began, the network was given the
+            weights of the previous champion, a fighter-only duel pilot. A second arm
+            started from fresh weights; it did worse and never learned to duel. Then came PPO, with
+            <span data-fact="train.n_envs">256</span> matches at once and
+            <span data-fact="train.n_steps">128</span> ticks per update, over the
+            <code data-fact="train.rosters">fleet_v1</code> mix of rosters: 1 to 4 ships a
+            side, mixed hulls, sometimes uneven. Opponents were the scripts at first, then
+            a mix of scripts, the pilot itself and frozen earlier copies. The champion is
+            update <span data-fact="champion.update">400</span> of
+            <span data-fact="train.n_updates">600</span>.
+          </p>
+          <p>Against the scripts, measured after training:</p>
+          <ul>
+            <li>it wins 0.89 of fleet matches, and at least 0.74 in every roster class;</li>
+            <li>every hull deals at least 90 % of its script's damage (fighters and strafers far more) and survives longer than its script;</li>
+            <li>it wins <span data-fact="champion.duel_wins">512 of 512</span> fighter duels against the script, and 0.45 against the previous champion.</li>
+          </ul>
+          <p>
+            <strong>The verdict was PARTIAL, and one gate was waived.</strong> Before
+            training, the plan required every hull's engine duty (its strongest thruster's
+            average throttle) to be at least 0.15. The champion's fighters fly at 0.13; the
+            script's fly at 0.39.
+            PPO taught them to coast: mostly sit, turn and shoot. That beat both the scripts
+            and the previous champion. The user waived the engine-duty bound after the
+            gates ran, on the view that if flying slowly is the strongest strategy, the
+            pilot should ship and the sim or the reward should be the thing that changes.
+            So expect slow, fairly static fighters on the live page. The full numbers are
+            in the run's
+            <a href="/notebook/#2026-10-30-fleet-pilot">results</a>.
+          </p>
+        </section>
+
+        <section id="not-yet">
+          <h2>What it isn't (yet)</h2>
+          <ul>
+            <li>
+              <strong>No attention.</strong> Ships and projectiles sit in fixed slots sorted
+              by distance or threat, and the network sees them as one flat list. It cannot
+              see more than seven other ships or eight shots, and it learns about "the
+              nearest ship" rather than about ships in general.
+            </li>
+            <li>
+              <strong>No memory.</strong> There is no recurrent state. Anything the pilot
+              knows about the past has to be in the current observation: velocities, reload
+              timers, throttle levels and its own queued actions.
+            </li>
+            <li>
+              <strong>No orders.</strong> Nothing in the observation says what to do or who
+              to go after. Every pilot fights for the team reward on its own judgement.
+            </li>
+          </ul>
+          <h3>What's next</h3>
+          <p>
+            <strong>Orders (M3, stage B).</strong>
+            <a class="code-link" href="https://github.com/tcgarvin/rl-fighter/blob/main/docs/M3_PLAN.md"><code>docs/M3_PLAN.md</code></a>
+            adds carriers and a scripted commander that gives each squad an order: attack a
+            target, guard a ship, hold a point. Stage B adds an order block to the pilot's
+            observation: the kind of order, and the target's relative position and
+            velocity. That takes the observation from 385 to about 397 numbers. The new
+            inputs start with zero weights, so before its first update the new pilot is
+            exactly fleet pilot v1, and it learns to follow orders from there. Until then (stage A),
+            v1 will see a carrier as just a big enemy ship.
+          </p>
+          <p>
+            <strong>Attention (M4, after the carriers).</strong>
+            <a class="code-link" href="https://github.com/tcgarvin/rl-fighter/blob/main/docs/DESIGN.md"><code>docs/DESIGN.md</code></a>
+            §7 describes the pilot the project is aiming for. Every ship, shot, objective
+            and order becomes a token, and an attention encoder reads over them, with no
+            cap on the number of ships. Each actuator is a query token that outputs its own
+            action, so a hull added later would be flown without new heads. The
+            observation is already built from per-entity records for this reason; the
+            token version is a second assembler over the same record writers.
+          </p>
+        </section>
+      </div>
+
+      <footer class="page-footer">
+        This page describes champion <code data-fact="champion.id">2026-10-30-fleet-pilot-v1</code>
+        (sim version <span data-fact="sim.version">3</span>; hulls
+        <span data-fact="champion.hulls">fighter, strafer, gunship</span>). Its numbers are
+        checked against the sim, the policy code, the hull files and the exported champion
+        weights by <code>tools/pilot_facts.py</code> on every site build.
+      </footer>
+    </main>
+    <script type="module" src="/src/pilot/main.ts"></script>
+  </body>
+</html>
