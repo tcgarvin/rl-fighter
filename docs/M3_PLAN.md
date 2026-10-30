@@ -1,11 +1,12 @@
-# M3 — Carriers and commanders (plan, 2026-10-30, draft for review)
+# M3 — Carriers, convoys and commanders (plan, 2026-10-30)
 
-Status: **draft**. Asked for by the user on 2026-10-30, after fleet pilot v1: team
-deathmatch works, duels are dull, and the story needs the carrier and the layered
-("feudal") AI on the live page, with matches that have different goals, escort among
-them. A scripted or stub commander is fine. This pulls DESIGN §12's M5 (flagships, bays,
-a scripted commander, goal-conditioned orders) ahead of the attention policy, the league
-and the nightly lab, which move back one milestone each.
+Status: **agreed in outline** (the user's answers of 2026-10-30 are in §3), not started.
+Asked for by the user on 2026-10-30, after fleet pilot v1: team deathmatch works, duels
+are dull, and the story needs the carrier and the layered ("feudal") AI on the live
+page, with matches that have different goals, escort among them. A scripted or stub
+commander is fine. This pulls DESIGN §12's M5 (flagships, bays, a scripted commander,
+goal-conditioned orders) ahead of the attention policy, the league and the nightly lab,
+which move back one milestone each.
 
 Deferred on purpose (user, 2026-10-30): pilot diversity (several policies or styles on
 one hull type). Two identical commanders may well produce the same symmetry problem the
@@ -15,78 +16,111 @@ duels had; we deal with that when we see it.
 
 The live page rotates through three missions, every one readable without explanation:
 
-- **Team deathmatch.** As today, 2–4 ships a side (no duels).
+- **Team deathmatch.** As today, 2–4 ships a side (no duels since 2026-10-30).
 - **Carrier battle.** Each side has a carrier that launches its air wing from its bays
   over the match. Losing your carrier loses the match.
-- **Escort.** One side's carrier must reach a jump point across the arena and jump
-  out. Its wing escorts it. The other side has no carrier, but a larger strike force
-  that arrives in waves, and wins by killing the carrier or running out the clock.
+- **Convoy escort.** The scene opens on a convoy of 3–5 transports **already under way**
+  toward a jump point, with the defending fleet flying in formation with it. The
+  attackers **jump in**.
+  - When a transport reaches the jump point, it **jumps out** and counts as escaped.
+  - When the convoy is through, the defenders jump out too, for the look of it.
+  - The attackers win by destroying enough of the convoy before it gets through.
 
 A **commander** per side decides on a slow tick (every 2 s): what to launch and when,
-where the carrier goes, and an **order for each squad** (attack a target, guard a ship,
-hold a point). Pilots see their order and fly to it. The page shows the layer:
+where the carrier or the convoy goes, and an **order for each squad** (attack a target,
+guard a ship, hold a point). Pilots see their order and fly to it (stage B). The page
+shows:
 - the mission brief at muster;
-- the orders as lines and markers, kept light;
-- carrier HP and escort progress in the HUD;
-- a result that says why the match ended.
+- carrier HP and convoy progress in the HUD;
+- a result that says why the match ended;
+- behind a **"show commands" toggle** (like "technical details"), the commander layer:
+  - faint lines from each squad to its target, and markers at hold and jump points;
+  - a small scrolling **command log**, a computer readout of commander activity
+    ("EMBER CMD › launch 3 fighters · bay port", "AZURE CMD › strike squad → transport
+    2"). It is ambient, not something you're meant to read, and tapping it opens it to
+    be read.
 
 ## 2. Stages (each one ships to the live page)
 
-### Stage A: the carrier on screen (scripted commander, today's pilots)
+### Stage A: missions on screen (scripted commander, scripted capital ships, pilot v1)
 
+Common sim work, SIM_VERSION 4:
+- **Missions** in `MatchConfig` (deathmatch, carrier battle, convoy escort), each with
+  its own setup, termination, winner and time-limit tiebreak.
+- **The commander interface.** On the slow tick the sim exposes a coarse commander
+  observation and takes commander actions: launches, waypoints for the carrier or
+  convoy, and squad orders. Orders are sim state, so they are hashed and
+  deterministic.
+- **Command events** for the log and the lines.
+- **A higher ship cap.** Today `MAX_SHIPS` is 8; a convoy plus two fleets, or two
+  carriers with wings, needs about 16–20. Browser inference is about 0.4 ms per ship,
+  well inside the 33 ms tick.
+
+The scripted commander lives in the sim crate (Rust), so the browser and training run
+the same code, as with the scripted pilots. Capital ships are flown by scripts:
+actuator-level like every script, with no autopilot action. The learned pilot keeps
+flying the strike craft. The bundle maps carrier and transport → script.
+
+**A1, carrier battle.**
 1. **Carrier hull.** `assets/hulls/carrier/` (model.glb from Codex/sol, co-designed
-   mounts per DESIGN §5). It's slow and big, with flak turrets for point defence and
-   two bays. A starting point is the story demo's carrier in
-   `prototypes/story/hulls.js`.
-2. **Sim, SIM_VERSION 4:**
-   - **Hangars and launches.** A carrier holds a queue of ships that are not present
-     yet. A launch makes one present at the bay mouth, already moving along the bay's
-     direction, with its controls locked briefly. This is the arrival path that
-     already exists, started from a bay instead of a jump-in.
-   - **A flagship flag**, and **missions** in `MatchConfig`: deathmatch, carrier
-     battle, and escort (jump point, radius, hold time). Each sets its own termination,
-     winner and time-limit tiebreak.
-   - **The commander interface.** On the slow tick the sim exposes a coarse commander
-     observation and takes commander actions: launches, the carrier's waypoint and
-     squad orders. Orders are sim state, so they are hashed and deterministic.
-3. **Scripted carrier pilot (Rust).** It's actuator-level like every script, with no
-   autopilot action. It flies the carrier to the commander's waypoint and its flak
-   tracks the nearest threat. The learned pilot does not fly carriers, so the bundle
-   maps carrier → script.
-4. **Scripted commander (Rust, in the sim crate).** The browser and training run the
-   same code, as with the scripted pilots:
-   - It launches reserves when the wing in space thins out.
-   - It splits the wing into a guard squad on the carrier and a strike squad.
-   - It sends the strike squad at the enemy carrier, or at the nearest enemy squad when
-     the carrier's escort is strong.
-   - In escort it steers the carrier toward the jump point.
+   mounts per DESIGN §5). It's slow and big, with flak for point defence and two bays.
+   A starting point is the story demo's carrier in `prototypes/story/hulls.js`.
+2. **Hangars and launches.** A carrier holds a queue of ships that are not present yet.
+   A launch makes one present at the bay mouth, moving along the bay's direction, with
+   its controls locked briefly. This is the jump-in arrival path started from a bay.
+3. **Scripted carrier pilot.** It flies to the commander's waypoint, and its flak
+   tracks the nearest threat.
+4. **Commander script.**
+   - It launches reserves as the wing in space thins.
+   - It splits the wing into a guard squad and a strike squad.
+   - It strikes the enemy carrier, or the nearest enemy squad while the enemy escort
+     is strong.
 
-   In stage A, orders change only launches and the carrier's course. Pilots don't see
-   them yet and fight the nearest enemy, as today.
-5. **Web.** Render the carrier and bay launches (a short streak out of the bay mouth),
-   and rotate missions. Add the mission brief to the muster, carrier and escort state
-   to the HUD, and the reason to the result screen.
-6. **Balance.** A script-vs-script mission survey, as `tools/fleet_survey.py` does for
-   fleets, so neither escort side wins nearly always.
+**A2, convoy escort.**
+1. **Transport hull.** `assets/hulls/transport/`: unarmed or lightly armed, slow and
+   tough, also from Codex/sol. Convoys are 3–5 of them.
+2. **Under-way setup.** The convoy and its escort start present and moving, in
+   formation along the route. The attackers use the existing jump-in arrival.
+   Formation is only where they start. After that, escorts fly their own pilots, and
+   stage A's pilots will peel off to fight.
+3. **Jump-out.** It is a mission rule, not a pilot action. A transport that reaches the
+   jump point charges briefly, then leaves the field and counts as escaped (an event).
+   The defenders' jump-out at the end is drawn by the renderer when the match ends; the
+   sim only needs the end event.
+4. **Scripted transport pilot.** It flies the commander's route.
+5. **Commander script.** The defenders get a guard squad on the convoy and an
+   intercept squad. The attackers send waves, aimed at the lead or most-damaged
+   transport.
+6. **Win rule and clock.** The attackers win if at least half the convoy dies. The
+   distance and the clock are tuned with the survey; the user leaves both open.
 
-The stage A live page has carriers, launches and three missions, with pilot v1 flying
-the strike craft unchanged. Pilot v1's obs has no order or carrier-specific inputs; a
-carrier is just a big enemy ship to it.
+**Both:**
+- **Web.** Render the new hulls; draw bay launches, the under-way opening and
+  jump-outs; rotate missions. Add the mission brief, the HUD state, the result reason,
+  and the "show commands" toggle with lines and the command log.
+- **Balance.** A script-vs-script mission survey, as `tools/fleet_survey.py` does for
+  fleets, for win rates, match length and time-limit rates per mission.
+
+Pilot v1's obs has no order inputs; carriers and transports are just large ships to
+it. In stage A the commander's orders steer only the scripted capital ships and the
+launches, but they are logged and drawn, so the layer is visible from day one.
 
 ### Stage B: orders reach the pilots (the feudal layer)
 
 1. **Order block in the pilot obs:** order kind (none, attack, guard, hold) and the
    target's relative position and velocity, in the body frame. `OBS_DIM` 385 → about
-   397.
+   397. This needs a new obs layout, so a new sim season.
 2. **Warm start with zero-initialised order inputs.** At update 0 the new pilot is
-   exactly fleet pilot v1, so the run starts from a pilot that already fights well.
+   exactly fleet pilot v1.
 3. **Order reward**, small next to the team reward (DESIGN §7):
    - attack: damage dealt to the target;
    - guard: staying within range of the ward, plus damage to ships near it;
    - hold: time inside the hold radius.
-4. **Training missions.** Pilots train on random orders as well as the scripted
-   commander's, so they follow any order. Training uses all three missions.
-5. **Gates, fixed in the run's plan before any eval:**
+4. **Training on random orders** as well as the scripted commander's, so pilots follow
+   any order, across all three missions.
+5. **The learned pilot takes over the carrier** (user's choice), and the transports if
+   the run supports it. The scripts stay as their teachers and as the fallback.
+6. **Gates, fixed in the run's plan before any eval:**
    - order-following per order kind, against the same pilot with orders blanked;
    - mission win rate against v1 pilots under the same commander;
    - no loss of deathmatch strength;
@@ -94,34 +128,34 @@ carrier is just a big enemy ship to it.
 
    Engine duty is reported, not gated. There are no duel gates.
 
-The stage B live page draws the commander's orders and shows the ships obeying them.
-
 ### Later (not M3)
 
 - Docking and repair, flown by the pilot (the story demo's return-to-bay).
 - A supply economy.
 - Retreat as an order.
 - A learned commander (its own PPO at the slow tick).
-- Commander diversity.
+- Commander and pilot diversity.
 
-## 3. Decisions for review
+## 3. Decisions (user, 2026-10-30)
 
-1. **Escort shape.** The proposal escorts the carrier itself, so one new hull serves
-   both new missions, and the attackers have no carrier. The alternative is a separate
-   unarmed transport, which means more art and a fourth hull.
-2. **Who flies the carrier.** The proposal is a script for now. The learned pilot
-   would need a carrier block in its obs and training to fly something that slow and
-   heavy.
-3. **How much of the commander to draw.** The proposal is a thin line from each squad
-   to its target and a marker at hold points, with a toggle to hide them.
-   DESIGN §13 leaves this open.
-4. **Arena and clock for escort.** At the story carrier's 10 m/s, crossing 900 m
-   takes 90 s. The proposal is a larger arena for carrier missions with a 150 s
-   limit. That makes episodes longer, so training costs more per sample.
+1. **The escort protects a convoy of 3–5 transports**, not the carrier: a new
+   transport hull.
+2. **The carrier is scripted in stage A, and learned in stage B.**
+3. **Commands are shown behind a toggle:** light lines plus a small scrolling command
+   log, ambient, that can be tapped to read.
+4. **The escort is point to point**, opening with the convoy under way and its escort
+   in formation. The attackers jump in, and the convoy and then the defenders jump out
+   at the end. Length and clock are to be tuned. Parts of the opening and the jump-out
+   may be postponed if they prove costly, but this is the target.
 
 ## 4. Order of work
 
-Stage A sim (bays, missions, the commander interface, both scripts, with Rust tests and
-golden traces) → the carrier hull and art, in parallel with the sim → bindings (PyO3 and
-WASM) → mission survey and balance → web → deploy. Then the stage B plan for the run,
-the training run, gates, promotion and deploy.
+1. In parallel: the carrier and transport hulls (Codex/sol art, co-designed YAML).
+2. In parallel: the stage A sim (missions, the commander interface, launches, the
+   under-way setup, jump-out, the ship cap, both scripts and the commander script,
+   with Rust tests and golden traces).
+3. Bindings (PyO3 and WASM).
+4. Mission survey and balance.
+5. Web: hulls, effects, HUD, the commands toggle and log.
+6. Deploy A1 (carrier battle) as soon as it stands, then A2 (convoy escort).
+7. Then the stage B plan for the run, the training run, gates, promotion and deploy.
