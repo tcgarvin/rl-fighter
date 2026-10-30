@@ -1,0 +1,348 @@
+{
+ "mode": "script",
+ "pilot": "script",
+ "n_per_roster": 128,
+ "seed": 500000,
+ "sim_version": 4,
+ "missions": [
+  {
+   "mission": "carrier_battle",
+   "time_limit_s": 150.0,
+   "rosters": [
+    {
+     "name": "wing of 8",
+     "n": 128,
+     "team0_win": 0.4102,
+     "team1_win": 0.5898,
+     "draw_rate": 0.0078,
+     "time_limit_rate": 0.2344,
+     "end_reasons": {
+      "time_limit": 0.2344,
+      "carrier_destroyed": 0.7656
+     },
+     "length_median_s": 138.5,
+     "length_p90_s": 150.0,
+     "launches_per_match": 12.0,
+     "launch_median_s": 16.0,
+     "launch_p90_s": 44.0,
+     "launches_by_bin": [
+      8.383,
+      3.289,
+      0.328,
+      0.0,
+      0.0
+     ],
+     "escaped_mean": 0.0,
+     "destroyed_mean": 0.0,
+     "progress_mean": 0.0,
+     "defender_wins_with_escape": 0.0,
+     "carrier_travel_m": 353.3,
+     "strike_left": [
+      0.34,
+      0.85
+     ],
+     "hangar_left": [
+      0.0,
+      0.0
+     ],
+     "carrier_hp": [
+      0.33,
+      0.47
+     ]
+    },
+    {
+     "name": "wing of 6",
+     "n": 128,
+     "team0_win": 0.5547,
+     "team1_win": 0.4453,
+     "draw_rate": 0.0156,
+     "time_limit_rate": 0.1641,
+     "end_reasons": {
+      "time_limit": 0.1641,
+      "carrier_destroyed": 0.8359
+     },
+     "length_median_s": 135.8,
+     "length_p90_s": 150.0,
+     "launches_per_match": 8.0,
+     "launch_median_s": 16.0,
+     "launch_p90_s": 32.0,
+     "launches_by_bin": [
+      6.812,
+      1.188,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "escaped_mean": 0.0,
+     "destroyed_mean": 0.0,
+     "progress_mean": 0.0,
+     "defender_wins_with_escape": 0.0,
+     "carrier_travel_m": 358.3,
+     "strike_left": [
+      0.2,
+      0.06
+     ],
+     "hangar_left": [
+      0.0,
+      0.0
+     ],
+     "carrier_hp": [
+      0.32,
+      0.19
+     ]
+    },
+    {
+     "name": "wing of 9",
+     "n": 128,
+     "team0_win": 0.3867,
+     "team1_win": 0.6133,
+     "draw_rate": 0.0078,
+     "time_limit_rate": 0.1484,
+     "end_reasons": {
+      "time_limit": 0.1484,
+      "carrier_destroyed": 0.8516
+     },
+     "length_median_s": 134.6,
+     "length_p90_s": 150.0,
+     "launches_per_match": 14.0,
+     "launch_median_s": 14.0,
+     "launch_p90_s": 34.0,
+     "launches_by_bin": [
+      12.039,
+      1.758,
+      0.203,
+      0.0,
+      0.0
+     ],
+     "escaped_mean": 0.0,
+     "destroyed_mean": 0.0,
+     "progress_mean": 0.0,
+     "defender_wins_with_escape": 0.0,
+     "carrier_travel_m": 343.0,
+     "strike_left": [
+      0.52,
+      0.73
+     ],
+     "hangar_left": [
+      0.0,
+      0.0
+     ],
+     "carrier_hp": [
+      0.34,
+      0.47
+     ]
+    }
+   ],
+   "overall": {
+    "name": "all",
+    "n": 384,
+    "team0_win": 0.4505,
+    "team1_win": 0.5495,
+    "draw_rate": 0.0104,
+    "time_limit_rate": 0.1823,
+    "end_reasons": {
+     "time_limit": 0.1823,
+     "carrier_destroyed": 0.8177
+    },
+    "length_median_s": 136.3,
+    "length_p90_s": 150.0,
+    "launches_per_match": 11.33,
+    "launch_median_s": 16.0,
+    "launch_p90_s": 40.0,
+    "launches_by_bin": [
+     9.078,
+     2.078,
+     0.177,
+     0.0,
+     0.0
+    ],
+    "escaped_mean": 0.0,
+    "destroyed_mean": 0.0,
+    "progress_mean": 0.0,
+    "defender_wins_with_escape": 0.0,
+    "carrier_travel_m": 351.6,
+    "strike_left": [
+     0.35,
+     0.55
+    ],
+    "hangar_left": [
+     0.0,
+     0.0
+    ],
+    "carrier_hp": [
+     0.33,
+     0.38
+    ]
+   }
+  },
+  {
+   "mission": "convoy_escort",
+   "time_limit_s": 120.0,
+   "rosters": [
+    {
+     "name": "4 freighters",
+     "n": 128,
+     "team0_win": 0.0,
+     "team1_win": 1.0,
+     "draw_rate": 0.0,
+     "time_limit_rate": 0.0,
+     "end_reasons": {
+      "convoy_destroyed": 1.0
+     },
+     "length_median_s": 50.5,
+     "length_p90_s": 63.8,
+     "launches_per_match": 0.0,
+     "launch_median_s": 0.0,
+     "launch_p90_s": 0.0,
+     "launches_by_bin": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "escaped_mean": 0.08,
+     "destroyed_mean": 2.01,
+     "progress_mean": 0.719,
+     "defender_wins_with_escape": 0.0,
+     "carrier_travel_m": 0.0,
+     "strike_left": [
+      0.08,
+      3.86
+     ],
+     "hangar_left": [
+      0.0,
+      0.0
+     ],
+     "carrier_hp": [
+      0.0,
+      0.0
+     ]
+    },
+    {
+     "name": "3 freighters",
+     "n": 128,
+     "team0_win": 0.9766,
+     "team1_win": 0.0234,
+     "draw_rate": 0.0,
+     "time_limit_rate": 0.0,
+     "end_reasons": {
+      "eliminated": 0.1875,
+      "convoy_through": 0.7891,
+      "convoy_destroyed": 0.0234
+     },
+     "length_median_s": 68.0,
+     "length_p90_s": 68.5,
+     "launches_per_match": 0.0,
+     "launch_median_s": 0.0,
+     "launch_p90_s": 0.0,
+     "launches_by_bin": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "escaped_mean": 1.65,
+     "destroyed_mean": 0.15,
+     "progress_mean": 0.963,
+     "defender_wins_with_escape": 0.864,
+     "carrier_travel_m": 0.0,
+     "strike_left": [
+      1.48,
+      1.05
+     ],
+     "hangar_left": [
+      0.0,
+      0.0
+     ],
+     "carrier_hp": [
+      0.0,
+      0.0
+     ]
+    },
+    {
+     "name": "5 freighters",
+     "n": 128,
+     "team0_win": 0.7344,
+     "team1_win": 0.2656,
+     "draw_rate": 0.0,
+     "time_limit_rate": 0.0,
+     "end_reasons": {
+      "convoy_through": 0.7344,
+      "convoy_destroyed": 0.2656
+     },
+     "length_median_s": 75.1,
+     "length_p90_s": 77.4,
+     "launches_per_match": 0.0,
+     "launch_median_s": 0.0,
+     "launch_p90_s": 0.0,
+     "launches_by_bin": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+     ],
+     "escaped_mean": 2.36,
+     "destroyed_mean": 1.55,
+     "progress_mean": 0.962,
+     "defender_wins_with_escape": 1.0,
+     "carrier_travel_m": 0.0,
+     "strike_left": [
+      0.69,
+      2.14
+     ],
+     "hangar_left": [
+      0.0,
+      0.0
+     ],
+     "carrier_hp": [
+      0.0,
+      0.0
+     ]
+    }
+   ],
+   "overall": {
+    "name": "all",
+    "n": 384,
+    "team0_win": 0.5703,
+    "team1_win": 0.4297,
+    "draw_rate": 0.0,
+    "time_limit_rate": 0.0,
+    "end_reasons": {
+     "eliminated": 0.0625,
+     "convoy_through": 0.5078,
+     "convoy_destroyed": 0.4297
+    },
+    "length_median_s": 67.9,
+    "length_p90_s": 75.2,
+    "launches_per_match": 0.0,
+    "launch_median_s": 0.0,
+    "launch_p90_s": 0.0,
+    "launches_by_bin": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "escaped_mean": 1.36,
+    "destroyed_mean": 1.23,
+    "progress_mean": 0.881,
+    "defender_wins_with_escape": 0.922,
+    "carrier_travel_m": 0.0,
+    "strike_left": [
+     0.75,
+     2.35
+    ],
+    "hangar_left": [
+     0.0,
+     0.0
+    ],
+    "carrier_hp": [
+     0.0,
+     0.0
+    ]
+   }
+  }
+ ],
+ "seconds": 207.1,
+ "schema": "rlf.survey.mission/1"
+}
