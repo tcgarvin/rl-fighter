@@ -6,8 +6,12 @@ in every env; team 1 is played by one of three opponent kinds:
 * ``SCRIPTED``: the Rust scripted pilot (``env.scripted_actions()``).
 * ``SELF``: mirror self-play, the learner's current weights; team 1 rows join the
   PPO batch.
-* ``SNAPSHOT``: a frozen actor from the pool of periodic checkpoints, sampled
-  uniformly; its rows do not join the batch.
+* ``SNAPSHOT``: a frozen actor from the pool, sampled uniformly; its rows do not
+  join the batch. The pool holds the run's ``pool_seed`` checkpoints (e.g. frozen
+  fleet pilot v1) first, then periodic checkpoints. With ``seed_p`` > 0 a snapshot env
+  plays a seed entry with that probability (uniform among seeds) and a periodic
+  checkpoint otherwise, so a seed keeps its share as the pool grows. Each entry
+  flies on ``obs[..., :actor.obs_dim]`` (a 385-wide v1 in a 403-wide sim).
 
 Each env keeps its opponent for a whole episode and is reassigned when it resets.
 Assignment is by quota, not by independent draws: a resetting env takes the kind
@@ -156,13 +160,22 @@ class OpponentAssigner:
     """
 
     def __init__(
-        self, n_envs: int, schedule: OpponentSchedule, rng: np.random.Generator
+        self,
+        n_envs: int,
+        schedule: OpponentSchedule,
+        rng: np.random.Generator,
+        n_seeds: int = 0,
+        seed_p: float = 0.0,
     ) -> None:
         if n_envs <= 0:
             raise ValueError(f"n_envs must be positive, got {n_envs}")
+        if n_seeds < 0 or not 0.0 <= seed_p <= 1.0:
+            raise ValueError(f"need n_seeds >= 0 and seed_p in [0, 1], got {seed_p}")
         self.n_envs = n_envs
         self.schedule = schedule
         self.rng = rng
+        self.n_seeds = n_seeds
+        self.seed_p = seed_p
         self.kinds = np.full(n_envs, OpponentKind.SCRIPTED, dtype=np.int8)
         self.snapshot = np.full(n_envs, NO_SNAPSHOT, dtype=np.int64)
 
@@ -194,9 +207,18 @@ class OpponentAssigner:
             self.kinds[env] = kind
             counts[kind] += 1
             if kind == OpponentKind.SNAPSHOT:
-                self.snapshot[env] = int(self.rng.integers(pool_size))
+                self.snapshot[env] = self._draw_snapshot(pool_size)
             else:
                 self.snapshot[env] = NO_SNAPSHOT
+
+    def _draw_snapshot(self, pool_size: int) -> int:
+        """A pool index: uniform, or a seed entry with ``seed_p`` (module doc)."""
+        seeds = min(self.n_seeds, pool_size)
+        if self.seed_p == 0.0 or seeds == 0:
+            return int(self.rng.integers(pool_size))
+        if seeds == pool_size or self.rng.random() < self.seed_p:
+            return int(self.rng.integers(seeds))
+        return seeds + int(self.rng.integers(pool_size - seeds))
 
     def counts(self) -> dict[str, int]:
         """Envs per kind name."""
