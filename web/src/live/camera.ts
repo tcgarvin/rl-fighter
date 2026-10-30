@@ -1,6 +1,11 @@
 // Camera v1 (DESIGN §9): a fixed oblique view that frames every live ship, with
 // smoothed zoom and pan, kept inside the band the HUD leaves free. Ported from the
 // duel page (and the story demo before it).
+//
+// The view is set by one world axis, the match's main line (the teams' approach, sim
+// +x; a convoy's route): portrait screens look along it, so it runs up the screen's
+// long side, and landscape screens look across it, so it runs left to right. Framing
+// boxes are kept in that axis's frame (`grow`), so a route at any angle fits tightly.
 
 import * as THREE from "three";
 
@@ -14,6 +19,7 @@ const SAFE_NDC_X = 0.88;
 // 1/s; about two thirds of the way to the target in 0.7 s.
 const EASE_RATE = 1.5;
 
+/** A box in the camera axis's frame: f along the axis, g across it (CCW). */
 export interface Bounds {
   minX: number;
   maxX: number;
@@ -25,6 +31,7 @@ export function emptyBounds(): Bounds {
   return { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
 }
 
+/** Grow a box by a point already in its frame (the axis is sim +x by default). */
 export function growBounds(b: Bounds, x: number, y: number): void {
   b.minX = Math.min(b.minX, x);
   b.maxX = Math.max(b.maxX, x);
@@ -43,6 +50,9 @@ export class FitCamera {
   /** NDC rows the HUD leaves clear (top > bottom). */
   private band = { top: 0.8, bottom: -0.8 };
   private readonly corner = new THREE.Vector3();
+  /** The main axis, a unit vector in sim coordinates. */
+  private ax = 1;
+  private ay = 0;
 
   constructor(aspect: number) {
     this.camera = new THREE.PerspectiveCamera(FOV, aspect, 1, 60000);
@@ -51,6 +61,24 @@ export class FitCamera {
   /** Jump straight to the next framing instead of easing (a new match). */
   snap(): void {
     this.initialized = false;
+  }
+
+  /** The match's main line (any length); see the header. */
+  setAxis(x: number, y: number): void {
+    const len = Math.hypot(x, y);
+    if (!(len > 1e-6)) return;
+    this.ax = x / len;
+    this.ay = y / len;
+  }
+
+  /** Grow `b` (axis frame) by the sim point (x, y). */
+  grow(b: Bounds, x: number, y: number): void {
+    growBounds(b, x * this.ax + y * this.ay, -x * this.ay + y * this.ax);
+  }
+
+  /** Axis-frame (f, g) back to sim metres. */
+  private toSim(f: number, g: number): [number, number] {
+    return [f * this.ax - g * this.ay, f * this.ay + g * this.ax];
   }
 
   /**
@@ -66,43 +94,46 @@ export class FitCamera {
     this.camera.updateProjectionMatrix();
   }
 
-  // Portrait screens turn the camera 90° so the teams' approach axis (sim x) runs up
-  // the screen instead of across its narrow width.
+  // Portrait looks along the axis; landscape looks along its left-hand normal, so
+  // the axis runs left to right (with the default axis: as the duel page did).
   private place(x: number, y: number, dist: number): void {
     const back = Math.cos(PITCH) * dist;
     const portrait = this.camera.aspect < 1;
-    if (portrait) this.camera.position.set(x - back, Math.sin(PITCH) * dist, -y);
-    else this.camera.position.set(x, Math.sin(PITCH) * dist, -y + back);
+    const ux = portrait ? this.ax : -this.ay;
+    const uy = portrait ? this.ay : this.ax;
+    this.camera.position.set(x - ux * back, Math.sin(PITCH) * dist, -(y - uy * back));
     this.camera.lookAt(x, 0, -y);
     this.camera.updateMatrixWorld();
   }
 
   private fitDistance(cx: number, cy: number, box: [number, number, number, number]): number {
-    const [minX, maxX, minY, maxY] = box;
-    const probe = Math.max(maxX - minX, maxY - minY, 1) * 2;
+    const [minF, maxF, minG, maxG] = box;
+    const probe = Math.max(maxF - minF, maxG - minG, 1) * 2;
     this.place(cx, cy, probe);
     const bandCenter = (this.band.top + this.band.bottom) / 2;
     const bandHalf = Math.max(0.2, (this.band.top - this.band.bottom) / 2);
     let extent = 0;
-    for (const [x, y] of [[minX, minY], [minX, maxY], [maxX, minY], [maxX, maxY]] as const) {
+    for (const [f, g] of [[minF, minG], [minF, maxG], [maxF, minG], [maxF, maxG]] as const) {
+      const [x, y] = this.toSim(f, g);
       this.corner.set(x, 0, -y).project(this.camera);
       extent = Math.max(extent, Math.abs(this.corner.x) / SAFE_NDC_X, Math.abs(this.corner.y - bandCenter) / bandHalf);
     }
     return probe * extent;
   }
 
-  /** Ease toward framing `b` (sim metres); an empty box frames the arena centre. */
+  /** Ease toward framing `b` (axis frame, sim metres); an empty box frames the arena centre. */
   update(b: Bounds, dt: number): void {
     if (!Number.isFinite(b.minX)) b = { minX: -60, maxX: 60, minY: -60, maxY: 60 };
-    const cx = (b.minX + b.maxX) / 2;
-    const cy = (b.minY + b.maxY) / 2;
+    const cf = (b.minX + b.maxX) / 2;
+    const cg = (b.minY + b.maxY) / 2;
     const half = MIN_FRAME_SPAN / 2;
     const box: [number, number, number, number] = [
-      Math.min(b.minX - FRAME_MARGIN, cx - half),
-      Math.max(b.maxX + FRAME_MARGIN, cx + half),
-      Math.min(b.minY - FRAME_MARGIN, cy - half),
-      Math.max(b.maxY + FRAME_MARGIN, cy + half),
+      Math.min(b.minX - FRAME_MARGIN, cf - half),
+      Math.max(b.maxX + FRAME_MARGIN, cf + half),
+      Math.min(b.minY - FRAME_MARGIN, cg - half),
+      Math.max(b.maxY + FRAME_MARGIN, cg + half),
     ];
+    const [cx, cy] = this.toSim(cf, cg);
     const needed = this.fitDistance(cx, cy, box);
     const k = this.initialized ? 1 - Math.exp(-dt * EASE_RATE) : 1;
     this.initialized = true;

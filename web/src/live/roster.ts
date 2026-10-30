@@ -42,7 +42,7 @@ export function draftableHulls(rules: RosterRules, info: Record<string, HullInfo
   return hulls;
 }
 
-function pick<T>(items: readonly T[], rng: Rng): T {
+export function pick<T>(items: readonly T[], rng: Rng): T {
   const item = items[Math.floor(rng() * items.length)];
   if (item === undefined) throw new Error("pick from an empty list");
   return item;
@@ -52,7 +52,7 @@ function pick<T>(items: readonly T[], rng: Rng): T {
  * Spend `budget` on random affordable hulls until nothing fits or the side is full,
  * never buying a hull that would leave too little to reach `minShips` of the cheapest.
  */
-function draftSide(hulls: string[], info: Record<string, HullInfo>, budget: number, minShips: number, maxShips: number, rng: Rng): string[] {
+export function draftSide(hulls: string[], info: Record<string, HullInfo>, budget: number, minShips: number, maxShips: number, rng: Rng): string[] {
   const cheapest = Math.min(...hulls.map((h) => info[h]!.cost));
   const side: string[] = [];
   let left = budget;
@@ -99,10 +99,14 @@ function counts(fleet: string[]): Map<string, number> {
   return out;
 }
 
-/** "a gunship and two fighters" */
-export function describeFleet(fleet: string[]): string {
+// Capital ships lead the description ("a carrier, three fighters and ...").
+const ROLE_RANK: Record<string, number> = { carrier: 0, transport: 1 };
+
+/** "a gunship and two fighters"; with `info`, capital ships come first. */
+export function describeFleet(fleet: string[], info?: Record<string, HullInfo>): string {
+  const rank = (h: string) => ROLE_RANK[info?.[h]?.role ?? ""] ?? 2;
   const parts = [...counts(fleet)]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .sort((a, b) => rank(a[0]) - rank(b[0]) || b[1] - a[1] || a[0].localeCompare(b[0]))
     .map(([hull, n]) => (n === 1 ? `${/^[aeiou]/.test(hull) ? "an" : "a"} ${hull}` : `${NUMBER_WORDS[n] ?? n} ${hull}s`));
   if (parts.length <= 1) return parts[0] ?? "nothing";
   return `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`;
@@ -113,11 +117,11 @@ function sameFleet(a: string[], b: string[]): boolean {
 }
 
 /** One line for the muster: who meets whom. */
-export function matchupLine(roster: Roster): string {
+export function matchupLine(roster: Roster, info?: Record<string, HullInfo>): string {
   const [a, b] = roster.fleets;
   let line: string;
   if (a.length === 1 && b.length === 1 && a[0] === b[0]) line = `A duel: one ${a[0]} each`;
-  else if (sameFleet(a, b)) line = `Mirror match: ${describeFleet(a).replace(/^an? /, "one ")} a side`;
-  else line = `${describeFleet(a)} against ${describeFleet(b)}`;
+  else if (sameFleet(a, b)) line = `Mirror match: ${describeFleet(a, info).replace(/^an? /, "one ")} a side`;
+  else line = `${describeFleet(a, info)} against ${describeFleet(b, info)}`;
   return line.charAt(0).toUpperCase() + line.slice(1) + ".";
 }

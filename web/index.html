@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#060a10" />
     <title>RL Fighter · Live</title>
-    <meta name="description" content="A live space battle: every ship flown by a neural-network pilot, trained overnight on a laptop." />
+    <meta name="description" content="A live space battle: every fighter flown by a neural-network pilot, with carriers and convoys, trained overnight on a laptop." />
   </head>
   <body class="live-page">
     <div id="hud">
@@ -15,14 +15,17 @@
           <div id="tally"></div>
           <div id="meta">loading the pilot…</div>
           <div id="meta-details"></div>
+          <div id="mission" hidden></div>
         </div>
         <div id="perf" aria-label="Simulation performance"></div>
       </div>
       <div id="tags"></div>
       <div id="banner" role="status" aria-live="polite"></div>
       <div id="bottom">
+        <div id="cmdlog"></div>
         <p id="caption"></p>
         <div id="controls">
+          <button type="button" id="commands-toggle" aria-pressed="false">Show commands</button>
           <button type="button" id="details-toggle" aria-pressed="false">Technical details</button>
         </div>
       </div>

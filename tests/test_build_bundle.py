@@ -88,12 +88,15 @@ def test_catalogue_carries_every_hull_and_the_card_info(tmp_path: Path) -> None:
     names = [name for name, _ in catalogue["hulls"]]
     assert names == sorted(names) and {"fighter", "strafer", "gunship"} <= set(names)
     assert catalogue["info"]["gunship"]["shield"] > 0
-    assert catalogue["info"]["fighter"] == {
-        "role": "fighter",
-        "cost": 10,
-        "hp": 80.0,
-        "shield": 0.0,
-    }
+    fighter = dict(catalogue["info"]["fighter"])
+    geometry = fighter.pop("geometry")
+    assert fighter == {"role": "fighter", "cost": 10, "hp": 80.0, "shield": 0.0}
+    assert geometry["thrusters"][0]["id"] == "thruster.main.0"
+    assert geometry["turrets"][0]["weapon"] == "gauss"
+    assert geometry["bays"] == [] and geometry["shield_radius"] == 0.0
+    carrier = catalogue["info"]["carrier"]["geometry"]
+    assert [b["id"] for b in carrier["bays"]] == ["bay.port", "bay.starboard"]
+    assert carrier["shield_radius"] > 0 and len(carrier["collision"]) == 3
     assert "gauss" in catalogue["weapons"]
 
 
