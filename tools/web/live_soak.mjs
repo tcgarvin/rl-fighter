@@ -71,31 +71,35 @@ const samples = [];
 let lastMatch = 0;
 const swap = { brokenAt: null, validAt: null, keptOld: null, tookNew: null };
 const newId = `${original.bundle_id}-soak`;
-// Per match (between samples): the most ships on the field, the mean and worst frame
-// and the worst smoothed sim + inference tick, polled once a second.
-let load = { mission: "", ships: 0, frame: [], worstFrame: 0, tick: 0 };
+// Per match (keyed by its number, as polls can straddle a match change): the most ships
+// on the field, the mean and worst frame and the worst smoothed sim + inference tick,
+// polled once a second while it is in battle.
+const loadByMatch = new Map();
 const loads = [];
 while (Date.now() - start < MINUTES * 60_000) {
   await page.waitForTimeout(SAMPLE_POLL_MS);
   const st = await page.evaluate(() => window.rlfLive.stats());
   if (st.phase === "battle") {
-    load.mission = st.mission ?? "";
+    const load = loadByMatch.get(st.matches) ?? { mission: st.mission ?? "", ships: 0, frame: [], worstFrame: 0, tick: 0 };
     load.ships = Math.max(load.ships, st.ships ?? 0);
     if (st.frameMs) load.frame.push(st.frameMs);
     load.worstFrame = Math.max(load.worstFrame, st.worstFrameMs ?? 0);
     load.tick = Math.max(load.tick, st.tickMs ?? 0);
+    loadByMatch.set(st.matches, load);
   }
   const matches = st.matches;
   if (matches === lastMatch) continue;
+  const load = loadByMatch.get(lastMatch);
+  loadByMatch.delete(lastMatch);
   lastMatch = matches;
   const s = await sample();
   samples.push(s);
-  const meanFrame = load.frame.length ? load.frame.reduce((a, b) => a + b, 0) / load.frame.length : 0;
-  if (load.mission) loads.push({ ...load, meanFrame });
-  const perf = load.mission
-    ? ` · last match ${load.mission}: peak ${load.ships} ships, frame ${meanFrame.toFixed(1)} ms mean / ${load.worstFrame.toFixed(0)} worst, tick ≤ ${load.tick.toFixed(2)} ms`
-    : "";
-  load = { mission: "", ships: 0, frame: [], worstFrame: 0, tick: 0 };
+  let perf = "";
+  if (load) {
+    const meanFrame = load.frame.length ? load.frame.reduce((x, y) => x + y, 0) / load.frame.length : 0;
+    loads.push({ ...load, meanFrame });
+    perf = ` · last match ${load.mission}: peak ${load.ships} ships, frame ${meanFrame.toFixed(1)} ms mean / ${load.worstFrame.toFixed(0)} worst, tick ≤ ${load.tick.toFixed(2)} ms`;
+  }
   console.log(`live soak: ${(s.t / 1000).toFixed(0)} s match ${s.matches} heap ${(s.heap / 1048576).toFixed(2)} MiB gpu ${JSON.stringify(s.gpu)} dom ${s.dom} bundle ${s.bundle} tally ${s.tally.wins.join("-")}/${s.tally.draws}${perf}`);
   const half = (MINUTES * 60_000) / 2;
   if (swap.brokenAt === null && s.t > half) {
