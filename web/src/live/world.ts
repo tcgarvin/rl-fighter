@@ -28,8 +28,11 @@ const COLLISION_FLASH_MAX = 4;
 // Chance a destroyed ship blows up (else it's a hulk), and the latest it does, seconds.
 const MAJOR_CHANCE = 0.45;
 const MAJOR_DELAY_MAX = 2;
-// A major explosion's radius against the hull's collision radius.
+// A major explosion's radius against the hull's collision radius r: min(2.6 r, 1.6 r + 12),
+// so a fighter's is 2.6 r and a carrier's (r ~ 50 m) doesn't swallow the screen.
 const MAJOR_RADIUS_SCALE = 2.6;
+const MAJOR_RADIUS_LARGE = 1.6;
+const MAJOR_RADIUS_PAD = 12;
 // Drift decays at this rate (1/s): a doomed wreck slows hard, a hulk coasts on.
 const WRECK_DRAG = 0.7;
 const HULK_DRAG = 0.12;
@@ -112,7 +115,7 @@ interface Effects {
   updateProjectiles(projectiles: LiveMatch["projectiles"], beams: Beam[], alpha: number): void;
   muzzle(e: { x: number; y: number; angle: number; team: number; weapon: string }): void;
   hit(e: { x: number; y: number; team: number; targetId: number }): void;
-  shieldHit(e: { x: number; y: number; nx: number; ny: number; team: number; depleted: boolean; radius: number }): void;
+  shieldHit(e: { x: number; y: number; nx: number; ny: number; team: number; depleted: boolean; radius: number; object?: THREE.Object3D }): void;
   explosion(e: { x: number; y: number; radius: number; team: number; kind: string }): void;
   arrival(e: { x: number; y: number; heading: number; team: number; size: number; duration: number }): void;
   bayLaunch(e: { x: number; y: number; heading: number; team: number; size: number; speed: number }): void;
@@ -439,7 +442,7 @@ export class World {
           fx.hit({ x: e.x, y: e.y, team: shooter?.team ?? 0, targetId: e.a });
           break;
         case "shieldHit":
-          fx.shieldHit({ x: e.x, y: e.y, nx: e.f5, ny: e.f6, team: shooter?.team ?? 0, depleted: e.extra > 0.5, radius: view?.hull.shield?.radius ?? 8 });
+          fx.shieldHit({ x: e.x, y: e.y, nx: e.f5, ny: e.f6, team: shooter?.team ?? 0, depleted: e.extra > 0.5, radius: view?.hull.shield?.radius ?? 8, object: view?.model.object });
           break;
         case "burst":
           fx.explosion({ x: e.x, y: e.y, radius: e.extra, team: e.a, kind: "flak" });
@@ -690,7 +693,7 @@ export class World {
       w.gone = true;
       obj.visible = false;
       v.damage.update(1, false, dt);
-      this.effects.explosion({ x: w.x, y: w.y, radius: v.hull.radius * MAJOR_RADIUS_SCALE, team, kind: "major" });
+      this.effects.explosion({ x: w.x, y: w.y, radius: Math.min(v.hull.radius * MAJOR_RADIUS_SCALE, v.hull.radius * MAJOR_RADIUS_LARGE + MAJOR_RADIUS_PAD), team, kind: "major" });
       return;
     }
     const hulk = w.blowAt === Infinity;

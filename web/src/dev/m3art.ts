@@ -85,7 +85,7 @@ const scene = new THREE.Scene();
 const cam = new FitCamera(window.innerWidth / window.innerHeight);
 const ctx = { THREE, scene, renderer, camera: cam.camera };
 treatment.init(ctx);
-const environment = createEnvironment(ctx) as unknown as { newMatch(seed: number): void; update(dt: number, v: { centerX: number; centerY: number; extent: number }): void };
+const environment = createEnvironment(ctx) as unknown as { newMatch(seed: number): void; update(dt: number, v: { centerX: number; centerY: number; extent: number; projection?: THREE.Matrix4; layoutZoom?: number }): void };
 const fx = createEffects({ ...ctx, palette: treatment.palette }) as unknown as Effects;
 environment.newMatch(7);
 
