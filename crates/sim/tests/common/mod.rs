@@ -3,15 +3,16 @@
 //! checks it against the shipped asset files, so the two cannot drift apart.
 //!
 //! Numbers are ported from `prototypes/story/hulls.js` and the spec tables. Hulls
-//! are sorted by name like the loader (fighter = 0, gunship = 1, strafer = 2);
+//! are sorted by name like the loader (v4: carrier = 0, fighter = 1, freighter = 2,
+//! gunship = 3, strafer = 4);
 //! weapons are in `weapons.yaml` file order (gauss, laser, flak, torpedo).
 
 // Each test binary uses a different subset of these helpers.
 #![allow(dead_code)]
 
 use sim::data::{
-    ArmourArc, Catalogue, Circle, HullDef, HullId, ShieldDef, ThrusterDef, TurretDef, WeaponDef,
-    WeaponId, WeaponKind,
+    ArmourArc, BayDef, Catalogue, Circle, HullDef, HullId, ShieldDef, ThrusterDef, TurretDef,
+    WeaponDef, WeaponId, WeaponKind,
 };
 use sim::setup::MatchConfig;
 use sim::state::Match;
@@ -22,9 +23,11 @@ pub const LASER: WeaponId = 1;
 pub const FLAK: WeaponId = 2;
 pub const TORPEDO: WeaponId = 3;
 
-pub const FIGHTER: HullId = 0;
-pub const GUNSHIP: HullId = 1;
-pub const STRAFER: HullId = 2;
+pub const CARRIER: HullId = 0;
+pub const FIGHTER: HullId = 1;
+pub const FREIGHTER: HullId = 2;
+pub const GUNSHIP: HullId = 3;
+pub const STRAFER: HullId = 4;
 
 fn v(x: f32, y: f32) -> Vec2 {
     Vec2::new(x, y)
@@ -192,6 +195,87 @@ pub fn gunship_hull() -> HullDef {
     h
 }
 
+/// v4 carrier (SIM_SPEC §4.1): flak, two bays.
+pub fn carrier_hull() -> HullDef {
+    let mut h = hull("carrier", "carrier", 1500.0, 600.0, 90000.0, 10.0);
+    h.cost = 120;
+    h.shield = Some(ShieldDef {
+        hp: 260.0,
+        regen_rate: 15.0,
+        regen_delay: 5.0,
+        radius: 24.0,
+    });
+    h.collision = vec![
+        circle(13.0, 0.0, 6.5),
+        circle(0.0, 0.0, 8.5),
+        circle(-13.0, 0.0, 7.5),
+    ];
+    h.thrusters = vec![
+        thruster("thruster.main.l", (-19.5, 4.5), (1.0, 0.0), 7000.0),
+        thruster("thruster.main.c", (-20.0, 0.0), (1.0, 0.0), 7000.0),
+        thruster("thruster.main.r", (-19.5, -4.5), (1.0, 0.0), 7000.0),
+        thruster("thruster.rcs.fl", (15.0, 8.0), (0.0, -1.0), 3500.0),
+        thruster("thruster.rcs.fr", (15.0, -8.0), (0.0, 1.0), 3500.0),
+        thruster("thruster.rcs.rl", (-14.0, 8.5), (0.0, -1.0), 3500.0),
+        thruster("thruster.rcs.rr", (-14.0, -8.5), (0.0, 1.0), 3500.0),
+    ];
+    h.turrets = vec![
+        turret("turret.flak.fore", (12.0, 0.0), 0.0, 270.0, 90.0, FLAK),
+        turret("turret.flak.port", (-6.0, 7.0), 90.0, 200.0, 90.0, FLAK),
+        turret(
+            "turret.flak.starboard",
+            (-6.0, -7.0),
+            -90.0,
+            200.0,
+            90.0,
+            FLAK,
+        ),
+    ];
+    h.bays = vec![
+        BayDef {
+            id: "bay.port".to_string(),
+            pos: v(4.0, 9.0),
+            dir: v(0.5, 0.87).normalized(),
+        },
+        BayDef {
+            id: "bay.starboard".to_string(),
+            pos: v(4.0, -9.0),
+            dir: v(0.5, -0.87).normalized(),
+        },
+    ];
+    h.impact = vec![armour_arc(-180.0, 180.0, 0.5)];
+    h.derive();
+    h
+}
+
+/// v4 freighter, the convoy transport: unarmed, weak heading-hold RCS.
+pub fn freighter_hull() -> HullDef {
+    let mut h = hull("freighter", "transport", 500.0, 300.0, 40000.0, 14.0);
+    h.cost = 40;
+    h.shield = Some(ShieldDef {
+        hp: 80.0,
+        regen_rate: 6.0,
+        regen_delay: 5.0,
+        radius: 15.0,
+    });
+    h.collision = vec![
+        circle(8.0, 0.0, 4.0),
+        circle(0.0, 0.0, 4.5),
+        circle(-8.0, 0.0, 4.2),
+    ];
+    h.thrusters = vec![
+        thruster("thruster.main.l", (-13.0, 2.0), (1.0, 0.0), 3000.0),
+        thruster("thruster.main.r", (-13.0, -2.0), (1.0, 0.0), 3000.0),
+        thruster("thruster.rcs.fl", (9.0, 4.2), (0.0, -1.0), 300.0),
+        thruster("thruster.rcs.fr", (9.0, -4.2), (0.0, 1.0), 300.0),
+        thruster("thruster.rcs.rl", (-9.0, 4.4), (0.0, -1.0), 300.0),
+        thruster("thruster.rcs.rr", (-9.0, -4.4), (0.0, 1.0), 300.0),
+    ];
+    h.impact = vec![armour_arc(-180.0, 180.0, 0.75)];
+    h.derive();
+    h
+}
+
 /// Synthetic immobile hull (SIM_SPEC §3.4): no thrusters, one fixed gun, shield.
 pub fn static_hull() -> HullDef {
     let mut h = hull("teststation", "station", 500.0, 5000.0, 1.0e6, 0.0);
@@ -260,10 +344,16 @@ pub fn test_weapons() -> Vec<WeaponDef> {
     vec![gauss, laser, flak, torpedo]
 }
 
-/// The three M1 hulls and four weapons, ids as the loader would assign them.
+/// The five v4 hulls and four weapons, ids as the loader would assign them.
 pub fn test_catalogue() -> Catalogue {
     Catalogue {
-        hulls: vec![fighter_hull(), gunship_hull(), strafer_hull()],
+        hulls: vec![
+            carrier_hull(),
+            fighter_hull(),
+            freighter_hull(),
+            gunship_hull(),
+            strafer_hull(),
+        ],
         weapons: test_weapons(),
     }
 }
@@ -321,6 +411,14 @@ pub fn new_present_match(cat: &Catalogue, seed: u64, team0: &[HullId], team1: &[
 /// The catalogue loaded from the shipped `assets/` YAML (embedded, so wasip1 can run it).
 pub fn asset_catalogue() -> Catalogue {
     let hulls = [
+        (
+            "carrier",
+            include_str!("../../../../assets/hulls/carrier/hull.yaml"),
+        ),
+        (
+            "freighter",
+            include_str!("../../../../assets/hulls/freighter/hull.yaml"),
+        ),
         (
             "fighter",
             include_str!("../../../../assets/hulls/fighter/hull.yaml"),

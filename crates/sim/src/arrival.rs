@@ -17,10 +17,15 @@
 //!         for ship in squad:                    # fleet order
 //!             arrive_jitter = range(0, 0.08)
 //! ```
+//!
+//! v4: missions schedule only the ships that jump in (`schedule_arrivals_where`);
+//! a team with no such ships draws nothing. Deathmatch schedules every ship, which
+//! is exactly the v3 sequence.
 
 use crate::TICK_HZ;
 use crate::data::Catalogue;
 use crate::math::{PI, Vec2};
+use crate::mission::JumpState;
 use crate::rng::Pcg32;
 use crate::state::{Attach, Match, Ship, ShipIdx};
 
@@ -49,12 +54,27 @@ pub const ARRIVAL_LOCK_TICKS: u32 = 21;
 /// `ships` must be in slot order (team 0 first); the draw order is documented in
 /// the module docs.
 pub fn schedule_arrivals(ships: &mut [Ship], rng: &mut Pcg32, arena_radius: f32) {
+    schedule_arrivals_where(ships, rng, arena_radius, |_| true);
+}
+
+/// [`schedule_arrivals`] for the ships `jumps_in` selects only (v4 missions); the
+/// others are left untouched. Squads are cut from each team's selected ships in slot
+/// order; a team with none draws nothing.
+pub fn schedule_arrivals_where(
+    ships: &mut [Ship],
+    rng: &mut Pcg32,
+    arena_radius: f32,
+    jumps_in: impl Fn(&Ship) -> bool,
+) {
     for team in 0..2u8 {
         let side = if team == 0 { -1.0 } else { 1.0 };
         let heading = if team == 0 { 0.0 } else { PI };
         let slots: Vec<usize> = (0..ships.len())
-            .filter(|&i| ships[i].team == team)
+            .filter(|&i| ships[i].team == team && jumps_in(&ships[i]))
             .collect();
+        if slots.is_empty() {
+            continue;
+        }
         let n_squads = slots.len().div_ceil(SQUAD_SIZE);
         let team_offset = rng.range(0.0, MAX_TEAM_OFFSET_S);
         for (k, squad) in slots.chunks(SQUAD_SIZE).enumerate() {
@@ -92,16 +112,19 @@ pub fn latest_arrive_tick(n_ships: usize) -> u32 {
 impl Match {
     /// Stage 2 (SIM_SPEC §5): every alive, unattached, not-yet-present ship whose
     /// `arrive_tick` has come becomes present, moving forward at its hull's
-    /// `arrival_speed`, with control locked for `ARRIVAL_LOCK_TICKS`.
+    /// `arrival_speed`, with control locked for `ARRIVAL_LOCK_TICKS`. Ships that
+    /// jumped out (v4) never come back.
     ///
     /// Appends the arrived slots to `arrived` in slot order (it is not cleared), so
     /// the step assembly can emit `Arrival` events.
     pub fn process_arrivals(&mut self, cat: &Catalogue, arrived: &mut Vec<ShipIdx>) {
         let tick = self.tick;
+        let jump = &self.mission.jump;
         for ship in self.ships.iter_mut() {
             let due = !ship.present
                 && ship.alive
                 && ship.attach == Attach::None
+                && jump[usize::from(ship.slot)] != JumpState::Departed
                 && tick >= ship.arrive_tick;
             if !due {
                 continue;

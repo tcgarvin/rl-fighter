@@ -12,7 +12,7 @@ use crate::data::{DataError, life_ticks};
 use crate::math::Vec2;
 
 pub use crate::data::hull::MAX_ARMOUR_ARCS;
-pub use crate::state::{MAX_REACTION_TICKS, MAX_THRUSTERS, MAX_TURRETS};
+pub use crate::state::{MAX_BAYS, MAX_REACTION_TICKS, MAX_THRUSTERS, MAX_TURRETS};
 /// Rule 3: largest allowed `bound_radius`, metres.
 pub const MAX_BOUND_RADIUS: f32 = 60.0;
 /// Rule 4: accepted range for authored direction lengths before renormalising.
@@ -182,6 +182,12 @@ fn check_mounts(e: &mut HullErrors, raw: &RawHull) {
     }
     for b in &raw.bays {
         check_dir(e, &b.id, b.dir);
+    }
+    if raw.bays.len() > MAX_BAYS {
+        e.push(format!(
+            "rule 13: {} bays exceeds MAX_BAYS = {MAX_BAYS}",
+            raw.bays.len()
+        ));
     }
 }
 

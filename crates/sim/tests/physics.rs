@@ -530,8 +530,8 @@ fn setup_rejects_bad_configs() {
         SetupError::EmptyFleet { team: 0 }
     );
     assert_eq!(
-        Match::new(&cat, &cfg(vec![0; 5], vec![0; 4])).unwrap_err(),
-        SetupError::TooManyShips { count: 9 }
+        Match::new(&cat, &cfg(vec![1; 11], vec![1; 10])).unwrap_err(),
+        SetupError::TooManyShips { count: 21 }
     );
     assert_eq!(
         Match::new(&cat, &cfg(vec![0], vec![7])).unwrap_err(),

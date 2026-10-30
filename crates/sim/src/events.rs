@@ -5,7 +5,8 @@
 //! so dropping excess events never changes the simulation (they are not hashed).
 
 use crate::math::Vec2;
-use crate::state::{MAX_EVENTS, MAX_HITS, MAX_SHIPS, Match, ShipIdx};
+use crate::mission::EndReason;
+use crate::state::{MAX_EVENTS, MAX_HITS, MAX_SHIPS, Match, NONE, ShipIdx};
 
 /// Floats per event in the flat FFI encoding.
 pub const EVENT_STRIDE: usize = 8;
@@ -20,6 +21,12 @@ pub const KIND_DEATH: u8 = 5;
 pub const KIND_ARRIVAL: u8 = 6;
 /// v3: appended last so the v2 codes stay stable.
 pub const KIND_COLLISION: u8 = 7;
+/// v4 (missions and the commander layer), appended so codes 0–7 stay stable.
+pub const KIND_LAUNCH: u8 = 8;
+pub const KIND_ORDER: u8 = 9;
+pub const KIND_JUMP_CHARGE: u8 = 10;
+pub const KIND_JUMP_OUT: u8 = 11;
+pub const KIND_MATCH_END: u8 = 12;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Event {
@@ -82,10 +89,49 @@ pub enum Event {
         normal: Vec2,
         closing: f32,
     },
+    /// v4: a reserve left its carrier's bay. `pos` is the bay mouth (world), `dir`
+    /// the unit launch direction; the ship itself appears a little further out.
+    Launch {
+        ship: u8,
+        carrier: u8,
+        bay: u8,
+        pos: Vec2,
+        dir: Vec2,
+    },
+    /// v4: squad `squad` of `team` got a new order (emitted only when the order
+    /// changes). `kind` is `Order::kind` (0 none, 1 attack, 2 guard, 3 hold);
+    /// `target` the attacked or guarded slot (`NONE` otherwise); `point` the hold
+    /// point, or the target's position when the order was given; `radius` the hold
+    /// radius (0 otherwise).
+    Order {
+        team: u8,
+        squad: u8,
+        kind: u8,
+        target: u8,
+        point: Vec2,
+        radius: f32,
+    },
+    /// v4: a convoy transport entered the jump radius and charges until tick `until`.
+    JumpCharge {
+        ship: u8,
+        pos: Vec2,
+        until: u32,
+    },
+    /// v4: a convoy transport jumped out (escaped).
+    JumpOut {
+        ship: u8,
+        pos: Vec2,
+        heading: f32,
+    },
+    /// v4: the match ended (`winner` -1 draw, 0/1).
+    MatchEnd {
+        winner: i8,
+        reason: EndReason,
+    },
 }
 
 impl Event {
-    /// Flat-encoding kind code (0..7 in declaration order).
+    /// Flat-encoding kind code (0..12 in declaration order).
     pub fn kind(&self) -> u8 {
         match self {
             Event::Fire { .. } => KIND_FIRE,
@@ -96,6 +142,11 @@ impl Event {
             Event::Death { .. } => KIND_DEATH,
             Event::Arrival { .. } => KIND_ARRIVAL,
             Event::Collision { .. } => KIND_COLLISION,
+            Event::Launch { .. } => KIND_LAUNCH,
+            Event::Order { .. } => KIND_ORDER,
+            Event::JumpCharge { .. } => KIND_JUMP_CHARGE,
+            Event::JumpOut { .. } => KIND_JUMP_OUT,
+            Event::MatchEnd { .. } => KIND_MATCH_END,
         }
     }
 
@@ -183,8 +234,69 @@ impl Event {
                 normal.y,
                 closing,
             ],
+            Event::Launch {
+                ship,
+                carrier,
+                bay,
+                pos,
+                dir,
+            } => [
+                k,
+                f32::from(ship),
+                f32::from(carrier),
+                pos.x,
+                pos.y,
+                dir.x,
+                dir.y,
+                f32::from(bay),
+            ],
+            Event::Order {
+                team,
+                squad,
+                kind,
+                target,
+                point,
+                radius,
+            } => [
+                k,
+                f32::from(team),
+                f32::from(squad),
+                point.x,
+                point.y,
+                slot_or_minus_one(target),
+                radius,
+                f32::from(kind),
+            ],
+            Event::JumpCharge { ship, pos, until } => [
+                k,
+                f32::from(ship),
+                0.0,
+                pos.x,
+                pos.y,
+                0.0,
+                0.0,
+                until as f32,
+            ],
+            Event::JumpOut { ship, pos, heading } => {
+                [k, f32::from(ship), 0.0, pos.x, pos.y, 0.0, 0.0, heading]
+            }
+            Event::MatchEnd { winner, reason } => [
+                k,
+                f32::from(winner),
+                f32::from(reason.index()),
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+            ],
         }
     }
+}
+
+/// A slot as a float, `NONE` as -1.
+fn slot_or_minus_one(s: ShipIdx) -> f32 {
+    if s == NONE { -1.0 } else { f32::from(s) }
 }
 
 /// Events of one step, at most `MAX_EVENTS`; excess is dropped and counted.

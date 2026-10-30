@@ -3,9 +3,10 @@
 use core::fmt;
 
 use crate::actions::ShipAction;
-use crate::arrival;
+use crate::command::{CommandState, CommanderMode};
 use crate::data::{Catalogue, HullId};
 use crate::events::EventBuf;
+use crate::mission::{self, Mission, MissionState};
 use crate::rng::Pcg32;
 use crate::state::{
     MAX_HITS, MAX_PROJECTILES, MAX_REACTION_TICKS, MAX_SHIPS, Match, MatchPhase, Projectile, Ship,
@@ -26,7 +27,7 @@ pub const ARENA_RADIUS_PER_SHIP: f32 = 0.0;
 /// rosters, the fleet eval and the live page all size their arenas with this one
 /// rule (DESIGN §6), so change it here and nowhere else.
 ///
-/// It is 450 m for every fleet size up to `MAX_SHIPS`: script-vs-script fleets
+/// It is 450 m for every fleet size up to 8 ships: script-vs-script fleets
 /// (lab/runs/2026-10-30-fleet-pilot/plan.md §2) at a growing radius (+25 m per
 /// ship, 600 m for 4v4) had the same engagement and crash damage as at 450 m but
 /// reached the time limit more often in 4v4 (0.28 vs 0.19), and the obs scale
@@ -45,8 +46,13 @@ pub struct MatchConfig {
     /// Ticks between choosing an action and applying it, for hulls without their own
     /// `reaction_ticks`; at most `MAX_REACTION_TICKS`.
     pub reaction_ticks: u8,
-    /// Hulls of team 0 and team 1; at most `MAX_SHIPS` in total.
+    /// Hulls of team 0 and team 1; at most `MAX_SHIPS` in total. How they enter the
+    /// match (jump in, start present, start docked) is the mission's business.
     pub fleets: [Vec<HullId>; 2],
+    /// v4: what the match is for (SIM_SPEC §5.10); `Deathmatch` is the v3 match.
+    pub mission: Mission,
+    /// v4: who commands each team on the slow tick (SIM_SPEC §5.9).
+    pub commanders: [CommanderMode; 2],
 }
 
 impl Default for MatchConfig {
@@ -57,6 +63,8 @@ impl Default for MatchConfig {
             time_limit_ticks: DEFAULT_TIME_LIMIT_TICKS,
             reaction_ticks: DEFAULT_REACTION_TICKS,
             fleets: [Vec::new(), Vec::new()],
+            mission: Mission::Deathmatch,
+            commanders: [CommanderMode::Scripted; 2],
         }
     }
 }
@@ -75,6 +83,8 @@ pub enum SetupError {
     ZeroTimeLimit,
     /// `reaction_ticks` exceeds `MAX_REACTION_TICKS`.
     ReactionTooLong { ticks: u8 },
+    /// v4: the fleets or parameters do not fit the mission.
+    Mission(String),
 }
 
 impl fmt::Display for SetupError {
@@ -95,6 +105,7 @@ impl fmt::Display for SetupError {
                 f,
                 "reaction_ticks {ticks} exceeds MAX_REACTION_TICKS = {MAX_REACTION_TICKS}"
             ),
+            SetupError::Mission(msg) => f.write_str(msg),
         }
     }
 }
@@ -136,13 +147,14 @@ fn validate(cat: &Catalogue, cfg: &MatchConfig) -> Result<(), SetupError> {
             return Err(SetupError::UnknownHull { team, hull });
         }
     }
-    Ok(())
+    mission::validate(cat, cfg)
 }
 
 impl Match {
     /// Build a match: ships in slot order (team 0 then team 1), full health, initial
     /// power split, empty projectile pool, RNG seeded from `cfg.seed`. Each ship's
-    /// reaction delay is its hull's `reaction_ticks` override, else the config's.
+    /// reaction delay is its hull's `reaction_ticks` override, else the config's. The
+    /// mission places the ships (SIM_SPEC §5.6, §5.10).
     pub fn new(cat: &Catalogue, cfg: &MatchConfig) -> Result<Match, SetupError> {
         validate(cat, cfg)?;
         let mut ships = Vec::with_capacity(cfg.fleets[0].len() + cfg.fleets[1].len());
@@ -174,8 +186,12 @@ impl Match {
             collision_damage: [0.0; MAX_SHIPS],
             collision_shield_damage: [0.0; MAX_SHIPS],
             reserves: [Vec::new(), Vec::new()],
+            mission: MissionState::default(),
+            command: CommandState::default(),
+            inbox: [Vec::new(), Vec::new()],
+            command_results: [Vec::new(), Vec::new()],
         };
-        arrival::schedule_arrivals(&mut m.ships, &mut m.rng, m.cfg.arena_radius);
+        m.setup_mission(cat);
         Ok(m)
     }
 }
@@ -186,7 +202,7 @@ mod tests {
 
     #[test]
     fn arena_radius_rule_is_the_duel_arena_for_every_fleet_size() {
-        for n in 0..=MAX_SHIPS {
+        for n in 0..=8 {
             assert_eq!(arena_radius_for(n), DEFAULT_ARENA_RADIUS);
         }
         assert_eq!(DEFAULT_ARENA_RADIUS, 450.0);

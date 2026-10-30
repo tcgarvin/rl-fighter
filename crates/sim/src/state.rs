@@ -6,16 +6,21 @@
 //! the determinism hash.
 
 use crate::actions::ShipAction;
+use crate::command::{Command, CommandOutcome, CommandState};
 use crate::data::{HullDef, HullId, WeaponId, WeaponKind};
 use crate::events::{EventBuf, HitRecord};
 use crate::hash::{StateHash, StateHasher};
 use crate::math::Vec2;
+use crate::mission::MissionState;
 use crate::power;
 use crate::rng::Pcg32;
 use crate::setup::MatchConfig;
 
-/// Ships per match, both teams together.
-pub const MAX_SHIPS: usize = 8;
+/// Ships per match, both teams together, docked reserves included (v4: 20, was 8).
+/// The pilot obs does not grow with it: it sees the nearest `obs::N_NEAR_SHIPS`.
+pub const MAX_SHIPS: usize = 20;
+/// Launch bays per hull (v4; validation rule 13).
+pub const MAX_BAYS: usize = 4;
 /// Thrusters per hull (the carrier has 7).
 pub const MAX_THRUSTERS: usize = 8;
 /// Turrets per hull (the station has 6).
@@ -50,8 +55,9 @@ impl MatchPhase {
     }
 }
 
-/// How a ship is attached to its `parent`. Reserved for M5+ (bays, mounts, tethers);
-/// always `None` in M1. Ships with `attach != None` are not present.
+/// How a ship is attached to its `parent`. v4 uses `Docked` for a carrier's hangar
+/// reserves (SIM_SPEC §5.9); `Mounted` and `Tethered` stay reserved. Ships with
+/// `attach != None` are not present.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Attach {
     #[default]
@@ -96,9 +102,9 @@ pub struct Ship {
     pub power: [f32; 3],
     /// Split `power` slews toward (set from the action's power head).
     pub power_target: [f32; 3],
-    /// Reserved for M5+: always `NONE` in M1.
+    /// v4: the carrier a docked reserve waits in; `NONE` otherwise (cleared at launch).
     pub parent: ShipIdx,
-    /// Reserved for M5+: always `Attach::None` in M1.
+    /// v4: `Docked` while the ship waits in its carrier's hangar, else `None`.
     pub attach: Attach,
     /// Effective reaction delay `d` in ticks (hull override or match config), at most
     /// `MAX_REACTION_TICKS` (v2).
@@ -300,8 +306,19 @@ pub struct Match {
     /// v3, per slot: raw collision damage a raised shield took in the last step
     /// (before absorption scaling, like a shield `HitRecord`). Output only.
     pub collision_shield_damage: [f32; MAX_SHIPS],
-    /// Reserved for bays: ships waiting to launch, per team (empty in M1).
+    /// v4: per team, the docked slots in the carrier's hangar in launch order
+    /// (SIM_SPEC §5.9). Hashed.
     pub reserves: [Vec<ShipIdx>; 2],
+    /// v4: mission state: end reason, carriers, bay cooldowns, convoy jumps (hashed).
+    pub mission: MissionState,
+    /// v4: squads, orders and waypoints, the commander layer's state (hashed).
+    pub command: CommandState,
+    /// v4, per team: commands from an `External` commander waiting for the next slow
+    /// tick (input, like `pending`; not hashed).
+    pub inbox: [Vec<Command>; 2],
+    /// v4, per team: what became of each command on the last slow tick (output, not
+    /// hashed).
+    pub command_results: [Vec<CommandOutcome>; 2],
 }
 
 /// `winner` before the match is over.
@@ -336,7 +353,9 @@ impl Match {
     }
 
     /// FNV-1a 64 over the simulation state in SIM_SPEC §12 order: tick, rng state,
-    /// every ship, every projectile pool slot, `proj_next`, phase, winner.
+    /// every ship, every projectile pool slot, `proj_next`, phase, winner, then (v4)
+    /// both teams' reserves (count, then slots), the mission state and the command
+    /// state.
     pub fn state_hash(&self) -> u64 {
         let mut h = StateHasher::new();
         h.write_u32(self.tick);
@@ -346,6 +365,12 @@ impl Match {
         h.write_usize(self.proj_next);
         h.write_u8(self.phase.index());
         h.write_i8(self.winner);
+        for reserve in &self.reserves {
+            h.write_usize(reserve.len());
+            reserve.as_slice().hash_into(&mut h);
+        }
+        self.mission.hash_into(&mut h);
+        self.command.hash_into(&mut h);
         h.finish()
     }
 }
