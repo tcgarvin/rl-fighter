@@ -686,3 +686,91 @@ fn freighter_cruises_and_holds_heading_after_a_knock() {
         tau / fr.inertia
     );
 }
+
+/// RCS pods of `hull` (thrusters that are not mains).
+fn rcs_slots(cat: &Catalogue, hull: &str) -> Vec<usize> {
+    let h = cat.hull(cat.hull_id(hull).unwrap());
+    (0..h.thrusters.len())
+        .filter(|&i| h.thrusters[i].dir.x.abs() < 0.5)
+        .collect()
+}
+
+/// Per tick: whether any RCS pod of ship 0 fires, over `ticks` scripted steps.
+fn rcs_trace(m: &mut Match, cat: &Catalogue, ticks: u32) -> Vec<bool> {
+    let rcs = rcs_slots(cat, "carrier");
+    (0..ticks)
+        .map(|_| {
+            scripted_step(m, cat);
+            rcs.iter().any(|&i| m.ships[0].thrust_level[i] > 0.0)
+        })
+        .collect()
+}
+
+/// Switch-ons (off → on) in `trace`, and the shortest gap (ticks) between a
+/// switch-off and the next switch-on (`u32::MAX` with fewer than two burns).
+fn burns(trace: &[bool]) -> (u32, u32) {
+    let (mut ons, mut shortest_gap, mut off_since) = (0, u32::MAX, None);
+    for (t, w) in trace.windows(2).enumerate() {
+        if w[0] && !w[1] {
+            off_since = Some(t as u32);
+        }
+        if !w[0] && w[1] {
+            ons += 1;
+            if let Some(off) = off_since {
+                shortest_gap = shortest_gap.min(t as u32 - off);
+            }
+        }
+    }
+    (ons, shortest_gap)
+}
+
+#[test]
+fn carrier_is_ponderous() {
+    let cat = asset_catalogue();
+    let carrier = cat.hull(cat.hull_id("carrier").unwrap()).clone();
+    let yaw = scripted::capital::yaw_authority(&carrier);
+    let mains: f32 = carrier
+        .thrusters
+        .iter()
+        .filter(|t| t.dir.x > 0.5)
+        .map(|t| t.max_force)
+        .sum();
+    // Even at the engines-max power split (x1.64) it neither spins nor sprints.
+    assert!(yaw * 1.64 < 0.3, "yaw authority {yaw} rad/s^2");
+    let accel = mains / carrier.mass;
+    assert!(accel * 1.64 < 3.0, "main accel {accel} m/s^2");
+
+    // A 90 degree turn onto a waypoint 340 m off, and the run there.
+    let goal = Vec2::new(0.0, 340.0);
+    let mut m = lone_capital(&cat, "carrier", 0.0, goal);
+    let mut top_omega = 0.0f32;
+    for _ in 0..30 * 70 {
+        scripted_step(&mut m, &cat);
+        top_omega = top_omega.max(m.ships[0].omega.abs());
+    }
+    let s = &m.ships[0];
+    let bearing = (goal - s.pos).angle();
+    let err = sim::math::wrap_angle(s.heading - bearing).abs();
+    assert!(err < 0.06, "settled on the waypoint bearing: {err}");
+    assert!(top_omega < 0.15, "a ponderous turn: {top_omega} rad/s");
+    assert!((s.pos - goal).length() < 60.0, "got there: {:?}", s.pos);
+}
+
+#[test]
+fn carrier_holds_heading_without_rcs_chatter() {
+    let cat = asset_catalogue();
+    // On the axis to a far waypoint, knocked into a slow spin: one correcting burn,
+    // then the nose stays put with the RCS quiet.
+    let mut m = lone_capital(&cat, "carrier", 0.0, Vec2::new(370.0, 0.0));
+    m.ships[0].pos = Vec2::new(-300.0, 0.0);
+    m.ships[0].omega = 0.03;
+    let trace = rcs_trace(&mut m, &cat, 30 * 40);
+    let (ons, gap) = burns(&trace);
+    assert!(ons <= 3, "RCS switched on {ons} times");
+    assert!(gap >= 15, "RCS off for only {gap} ticks between burns");
+    let quiet = trace[30 * 15..].iter().filter(|&&on| on).count();
+    assert!(quiet <= 15, "RCS fired {quiet} ticks after settling");
+    let s = &m.ships[0];
+    assert!(s.heading.abs() < 0.05, "held heading: {}", s.heading);
+    assert!(s.omega.abs() < 0.01, "and stopped turning: {}", s.omega);
+}

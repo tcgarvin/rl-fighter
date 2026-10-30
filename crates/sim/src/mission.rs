@@ -148,12 +148,111 @@ impl MissionKind {
 /// rule (DESIGN §6). Every mission uses [`arena_radius_for`] (450 m) today: the pilot
 /// obs scales distances by the radius, so pilot v1 sees the inputs it trained on, and
 /// both mission layouts fit (a carrier at `0.72 R`, the convoy route from `-0.55 R` to
-/// `+0.75 R` across the centre). WP-S2's mission survey may change it here.
+/// `+0.75 R` across the centre). The WP-S2 mission survey kept it: the missions balance at 450 m (lab/runs/2026-10-30-mission-survey); a change belongs here.
 pub fn arena_radius_for_mission(kind: MissionKind, n_ships: usize) -> f32 {
     match kind {
         MissionKind::Deathmatch | MissionKind::CarrierBattle | MissionKind::ConvoyEscort => {
             arena_radius_for(n_ships)
         }
+    }
+}
+
+/// A default roster of a mission (WP-S2): what the live page drafts and the mission
+/// survey measures. Hull names per team in slot order (fleet order: a carrier
+/// battle's first `jump_in` strike craft jump in, the rest wait in the hangar in this
+/// order; a convoy's transports form two files in this order).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MissionRoster {
+    /// Short label, unique within the mission ("wing of 8").
+    pub name: &'static str,
+    pub fleets: [&'static [&'static str]; 2],
+}
+
+const CARRIER_WING_8: &[&str] = &[
+    "carrier", "fighter", "strafer", "fighter", "gunship", "fighter", "strafer", "fighter",
+    "gunship",
+];
+const CARRIER_WING_6: &[&str] = &[
+    "carrier", "fighter", "fighter", "strafer", "fighter", "strafer", "gunship",
+];
+const CARRIER_WING_9: &[&str] = &[
+    "carrier", "fighter", "strafer", "fighter", "gunship", "fighter", "strafer", "fighter",
+    "gunship", "fighter",
+];
+const CONVOY_4_3: &[&str] = &[
+    "freighter",
+    "freighter",
+    "freighter",
+    "freighter",
+    "fighter",
+    "strafer",
+    "fighter",
+];
+const CONVOY_3: &[&str] = &[
+    "freighter",
+    "freighter",
+    "freighter",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship",
+];
+const CONVOY_5: &[&str] = &[
+    "freighter",
+    "freighter",
+    "freighter",
+    "freighter",
+    "freighter",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship",
+];
+const RAIDERS_8: &[&str] = &[
+    "fighter", "fighter", "strafer", "gunship", "fighter", "strafer", "fighter", "fighter",
+];
+const RAIDERS_6: &[&str] = &[
+    "fighter", "fighter", "strafer", "gunship", "fighter", "strafer",
+];
+const RAIDERS_5: &[&str] = &["fighter", "strafer", "fighter", "gunship", "fighter"];
+
+const CARRIER_ROSTERS: &[MissionRoster] = &[
+    MissionRoster {
+        name: "wing of 8",
+        fleets: [CARRIER_WING_8, CARRIER_WING_8],
+    },
+    MissionRoster {
+        name: "wing of 6",
+        fleets: [CARRIER_WING_6, CARRIER_WING_6],
+    },
+    MissionRoster {
+        name: "wing of 9",
+        fleets: [CARRIER_WING_9, CARRIER_WING_9],
+    },
+];
+const CONVOY_ROSTERS: &[MissionRoster] = &[
+    MissionRoster {
+        name: "4 freighters",
+        fleets: [CONVOY_4_3, RAIDERS_6],
+    },
+    MissionRoster {
+        name: "3 freighters",
+        fleets: [CONVOY_3, RAIDERS_5],
+    },
+    MissionRoster {
+        name: "5 freighters",
+        fleets: [CONVOY_5, RAIDERS_8],
+    },
+];
+
+/// The default rosters of a mission, the first one the default of defaults (the
+/// live page picks among them; the mission survey balances them). Deathmatch has
+/// none: its rosters are budget drafts of 2–4 strike craft a side.
+pub fn default_rosters(kind: MissionKind) -> &'static [MissionRoster] {
+    match kind {
+        MissionKind::Deathmatch => &[],
+        MissionKind::CarrierBattle => CARRIER_ROSTERS,
+        MissionKind::ConvoyEscort => CONVOY_ROSTERS,
     }
 }
 

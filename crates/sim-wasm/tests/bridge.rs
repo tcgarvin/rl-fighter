@@ -248,7 +248,7 @@ fn mission_views_have_documented_strides() {
     let team = m.team_state(0).unwrap();
     assert_eq!(team.len(), TEAM_STRIDE);
     assert_eq!(team[0], 0.0, "team 0's carrier is slot 0");
-    assert_eq!((team[2], team[5], team[6]), (1500.0, 4.0, 2.0));
+    assert_eq!((team[2], team[5], team[6]), (1000.0, 4.0, 2.0));
     assert!(m.team_state(2).is_err());
     assert!(m.convoy().is_empty());
     assert_eq!(m.hangar_hulls(1).unwrap().len(), 4);

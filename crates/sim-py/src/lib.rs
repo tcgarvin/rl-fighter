@@ -100,6 +100,7 @@ fn rlf_sim(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(arena_radius_for_mission, m)?)?;
     m.add_function(wrap_pyfunction!(mission_time_limit_s, m)?)?;
     m.add_function(wrap_pyfunction!(pilot_compatible, m)?)?;
+    m.add_function(wrap_pyfunction!(mission_rosters, m)?)?;
     Ok(())
 }
 
@@ -140,4 +141,13 @@ fn mission_time_limit_s(mission: &str) -> PyResult<f32> {
 #[pyfunction]
 fn pilot_compatible(version: u32) -> bool {
     sim::pilot_compatible(version)
+}
+
+/// WP-S2: the default rosters of mission `mission` (`sim::mission::default_rosters`),
+/// a list of `{"name", "mission", "fleets": [[hull, ...], [hull, ...]]}` dicts in slot
+/// order; empty for deathmatch (its rosters are budget drafts).
+#[pyfunction]
+fn mission_rosters<'py>(py: Python<'py>, mission: &str) -> PyResult<Bound<'py, PyAny>> {
+    let text = sim::spec::to_json(&sim::spec::mission_rosters(mission_kind(mission)?));
+    py.import("json")?.call_method1("loads", (text,))
 }
