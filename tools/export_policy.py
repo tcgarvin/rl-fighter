@@ -183,8 +183,13 @@ def export(
     wasm_sim_version: int,
     wasm_obs_dim: int,
     eval_json: Path | None = None,
+    wasm_pilot_compat: Sequence[int] | None = None,
 ) -> dict[str, Any]:
     """Write ``weights.bin`` and ``manifest.json``; return the manifest.
+
+    The checkpoint's sim version must be one the wasm build flies pilots of
+    (``wasm_pilot_compat``, the build's ``pilot_compat_versions()``; default just
+    ``wasm_sim_version``). The manifest keeps the checkpoint's own version.
 
     Raises:
         ExportError: obs_dim or sim_version mismatch, or a malformed checkpoint.
@@ -201,10 +206,12 @@ def export(
         raise ExportError(f"checkpoint has {linears[-1].out_features} logits")
     eval_summary = summarize_eval(eval_json) if eval_json is not None else None
     sim_version = checkpoint_sim_version(meta, eval_summary)
-    if sim_version.version != wasm_sim_version:
+    compat = list(wasm_pilot_compat) if wasm_pilot_compat else [wasm_sim_version]
+    if sim_version.version not in compat:
         raise ExportError(
             f"checkpoint sim_version {sim_version.version} ({sim_version.source}) "
-            f"!= wasm sim_version {wasm_sim_version}"
+            f"does not fly in wasm sim_version {wasm_sim_version} "
+            f"(pilot-compatible versions {compat})"
         )
 
     layers = []
@@ -268,6 +275,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--wasm-sim-version", type=int, required=True)
     parser.add_argument("--wasm-obs-dim", type=int, required=True)
+    parser.add_argument(
+        "--wasm-pilot-compat",
+        default=None,
+        help="comma-separated sim versions the wasm flies pilots of "
+        "(default: --wasm-sim-version only)",
+    )
     parser.add_argument("--eval-json", type=Path, default=None)
     args = parser.parse_args(argv)
     try:
@@ -277,6 +290,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.wasm_sim_version,
             args.wasm_obs_dim,
             args.eval_json,
+            (
+                [int(v) for v in args.wasm_pilot_compat.split(",")]
+                if args.wasm_pilot_compat
+                else None
+            ),
         )
     except (ExportError, FileNotFoundError) as exc:
         print(f"export_policy: {exc}", file=sys.stderr)

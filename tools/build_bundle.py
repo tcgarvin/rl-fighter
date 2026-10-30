@@ -7,7 +7,8 @@ and the hull YAMLs and writes the remaining two files:
 - ``catalogue.json``: ``{"hulls": [[name, yaml_text], ...], "weapons": yaml_text,
   "info": {name: {"role", "cost", "hp", "shield"}}}``. The first two are the
   ``WasmMatch`` constructor's input; ``info`` is what the muster cards show.
-- ``manifest.json`` (``rlf.bundle/1``): the bundle id, sim version, the champion
+- ``manifest.json`` (``rlf.bundle/1``): the bundle id, sim version (the wasm's; the
+  policy's own is ``pilot_sim_version``, which must be pilot-compatible), the champion
   (id, name, notebook run, the hulls it is certified to fly, an eval summary), the
   match config it was trained on, and the roster rules the page drafts from.
 
@@ -33,7 +34,8 @@ import yaml
 
 SCHEMA = "rlf.bundle/1"
 POLICY_FORMAT = "rlf.web_policy/1"
-# SIM_SPEC §2.1: at most 8 ships in a match.
+# Live drafts are strike-craft fleets of up to 4 a side (the fleet pilot's rosters);
+# the sim itself allows 20 ships since SIM_VERSION 4 (carrier hangars).
 MAX_SHIPS = 8
 # Eval-summary keys copied into the manifest (export_policy.summarize_eval names).
 _EVAL_KEYS = (
@@ -186,8 +188,15 @@ def build(
     min_per_side: int = MIN_PER_SIDE,
     max_per_side: int = 4,
     budget: int | None = None,
+    sim_version: int | None = None,
+    pilot_compat: Sequence[int] | None = None,
 ) -> dict[str, Any]:
     """Write ``catalogue.json`` and ``manifest.json`` into ``bundle``; return the manifest.
+
+    ``sim_version`` is the wasm build's (default: the policy's, for a same-version
+    bundle); the policy's version must be in ``pilot_compat`` (the build's
+    ``pilot_compat_versions()``; default just ``sim_version``) and goes into the
+    manifest as ``pilot_sim_version``.
 
     Raises:
         BundleError: Missing or inconsistent pkg/policy files, or bad roster options.
@@ -208,6 +217,14 @@ def build(
             f"policy manifest format {policy.get('format')}, expected {POLICY_FORMAT}"
         )
 
+    pilot_version = int(policy["sim_version"])
+    build_version = pilot_version if sim_version is None else sim_version
+    compat = list(pilot_compat) if pilot_compat else [build_version]
+    if pilot_version not in compat:
+        raise BundleError(
+            f"policy sim_version {pilot_version} does not fly in sim {build_version} "
+            f"(pilot-compatible versions {compat})"
+        )
     catalogue = load_catalogue(assets)
     (bundle / "catalogue.json").write_text(json.dumps(catalogue))
     certified = certified_hulls(policy, hulls)
@@ -220,7 +237,8 @@ def build(
     update = source.get("update")
     config = policy["match_config"]
     settings: dict[str, Any] = {
-        "sim_version": policy["sim_version"],
+        "sim_version": build_version,
+        "pilot_sim_version": pilot_version,
         "champion": {
             "id": champion_id or f"{run}/{stem}",
             "name": champion_name
@@ -268,6 +286,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--min-per-side", type=int, default=MIN_PER_SIDE)
     parser.add_argument("--max-per-side", type=int, default=4)
     parser.add_argument("--budget", type=int, default=None)
+    parser.add_argument(
+        "--sim-version", type=int, default=None, help="the wasm build's sim version"
+    )
+    parser.add_argument(
+        "--pilot-compat",
+        default=None,
+        help="comma-separated sim versions the wasm flies pilots of",
+    )
     args = parser.parse_args(argv)
     try:
         manifest = build(
@@ -281,6 +307,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             min_per_side=args.min_per_side,
             max_per_side=args.max_per_side,
             budget=args.budget,
+            sim_version=args.sim_version,
+            pilot_compat=(
+                [int(v) for v in args.pilot_compat.split(",")]
+                if args.pilot_compat
+                else None
+            ),
         )
     except (BundleError, FileNotFoundError, KeyError) as exc:
         print(f"build_bundle: {exc}", file=sys.stderr)

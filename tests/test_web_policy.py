@@ -177,6 +177,27 @@ def test_export_refuses_an_unstamped_checkpoint_without_eval_json(
         export(ckpt, tmp_path / "out", wasm_sim_version=3, wasm_obs_dim=OBS_DIM)
 
 
+def test_export_accepts_a_pilot_compatible_older_sim(tmp_path: Path) -> None:
+    ckpt = tmp_path / "ckpt.pt"
+    _random_checkpoint(ckpt, 0)
+    manifest = export(
+        ckpt,
+        tmp_path / "out",
+        wasm_sim_version=4,
+        wasm_obs_dim=OBS_DIM,
+        wasm_pilot_compat=[2, 3, 4],
+    )
+    assert manifest["sim_version"] == 2
+    with pytest.raises(ExportError, match="pilot-compatible"):
+        export(
+            ckpt,
+            tmp_path / "out2",
+            wasm_sim_version=4,
+            wasm_obs_dim=OBS_DIM,
+            wasm_pilot_compat=[3, 4],
+        )
+
+
 def test_export_refuses_a_sim_version_mismatch(tmp_path: Path) -> None:
     ckpt = tmp_path / "random.pt"
     _random_checkpoint(ckpt, seed=2)

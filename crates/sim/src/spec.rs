@@ -21,7 +21,7 @@ use crate::state::{Match, NONE};
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum MissionSpec {
-    Deathmatch,
+    Deathmatch {},
     CarrierBattle {
         #[serde(default)]
         jump_in: Option<[u8; 2]>,
@@ -48,7 +48,7 @@ impl MissionSpec {
     /// The mission, defaults filled for an arena of `arena_radius`.
     pub fn build(&self, arena_radius: f32) -> Mission {
         match self {
-            MissionSpec::Deathmatch => Mission::Deathmatch,
+            MissionSpec::Deathmatch {} => Mission::Deathmatch,
             MissionSpec::CarrierBattle { jump_in } => {
                 let mut cb = CarrierBattle::default();
                 if let Some(j) = jump_in {
@@ -95,7 +95,7 @@ impl MissionSpec {
 
     pub fn of_kind(kind: MissionKind) -> MissionSpec {
         match kind {
-            MissionKind::Deathmatch => MissionSpec::Deathmatch,
+            MissionKind::Deathmatch => MissionSpec::Deathmatch {},
             MissionKind::CarrierBattle => MissionSpec::CarrierBattle { jump_in: None },
             MissionKind::ConvoyEscort => MissionSpec::ConvoyEscort {
                 start: None,
@@ -128,7 +128,7 @@ pub fn parse_commanders(names: &[String]) -> Result<[CommanderMode; 2], String> 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum OrderSpec {
-    None,
+    None {},
     Attack { target: u8 },
     Guard { ward: u8 },
     Hold { point: [f32; 2], radius: f32 },
@@ -137,7 +137,7 @@ pub enum OrderSpec {
 impl From<Order> for OrderSpec {
     fn from(o: Order) -> Self {
         match o {
-            Order::None => OrderSpec::None,
+            Order::None => OrderSpec::None {},
             Order::Attack { target } => OrderSpec::Attack { target },
             Order::Guard { ward } => OrderSpec::Guard { ward },
             Order::Hold { point, radius } => OrderSpec::Hold {
@@ -151,7 +151,7 @@ impl From<Order> for OrderSpec {
 impl From<OrderSpec> for Order {
     fn from(o: OrderSpec) -> Self {
         match o {
-            OrderSpec::None => Order::None,
+            OrderSpec::None {} => Order::None,
             OrderSpec::Attack { target } => Order::Attack { target },
             OrderSpec::Guard { ward } => Order::Guard { ward },
             OrderSpec::Hold { point, radius } => Order::Hold {

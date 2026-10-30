@@ -198,7 +198,9 @@ def test_the_gcs_store_only_writes_under_its_prefix(tmp_path: Path) -> None:
         GcsStore().put(tmp_path / "x.pt", "me.png")
 
 
-def test_only_same_season_past_champions_are_watchable(lab: dict[str, Path]) -> None:
+def test_only_pilot_compatible_past_champions_are_watchable(
+    lab: dict[str, Path],
+) -> None:
     store = DirStore(lab["store"])
     _promote(lab, store, "2026-10-28-v2", promoted="2026-10-28")
     _promote(lab, store, "2026-10-29-v3", promoted="2026-10-29")
@@ -210,3 +212,6 @@ def test_only_same_season_past_champions_are_watchable(lab: dict[str, Path]) -> 
 
     ids = [c.id for c in watchable(load_champions(lab["champions"]))]
     assert ids == ["2026-10-29-v3"]
+    # A build that flew v2 pilots too would replay both.
+    both = watchable(load_champions(lab["champions"]), compat=[2, 3])
+    assert [c.id for c in both] == ["2026-10-28-v2", "2026-10-29-v3"]

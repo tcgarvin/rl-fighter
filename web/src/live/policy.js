@@ -20,11 +20,14 @@ export function mulberry32(seed) {
 /**
  * Build a policy from the export's manifest and the bytes of weights.bin.
  * Throws if the files disagree with each other or with `expect` ({ simVersion, obsDim,
- * actionWidth }) — the WASM build the policy will run against.
+ * actionWidth, pilotCompat? }) — the WASM build the policy will run against. A policy
+ * trained under an older sim flies if its sim_version is in `pilotCompat` (the build's
+ * pilot_compat_versions(), SIM_SPEC §0.2); without `pilotCompat` it must match exactly.
  */
 export function createPolicy(manifest, weightsBuffer, expect) {
   if (manifest.format !== MANIFEST_FORMAT) throw new Error(`policy manifest format ${manifest.format}, expected ${MANIFEST_FORMAT}`);
-  if (expect.simVersion !== manifest.sim_version) throw new Error(`policy is for sim_version ${manifest.sim_version}, this build is ${expect.simVersion}`);
+  const flies = expect.pilotCompat ? expect.pilotCompat.includes(manifest.sim_version) : expect.simVersion === manifest.sim_version;
+  if (!flies) throw new Error(`policy is for sim_version ${manifest.sim_version}, this build is ${expect.simVersion} (flies pilots of ${expect.pilotCompat ?? [expect.simVersion]})`);
   if (expect.obsDim !== manifest.obs_dim) throw new Error(`policy obs_dim ${manifest.obs_dim} != sim OBS_DIM ${expect.obsDim}`);
   if (expect.actionWidth !== manifest.action_width) throw new Error(`policy action_width ${manifest.action_width} != sim ACTION_WIDTH ${expect.actionWidth}`);
   if (weightsBuffer.byteLength !== manifest.weights_floats * 4) throw new Error(`weights.bin has ${weightsBuffer.byteLength} bytes, manifest says ${manifest.weights_floats * 4}`);
