@@ -1,6 +1,6 @@
 # M3 — Carriers, convoys and commanders (plan, 2026-10-30)
 
-Status: **agreed in outline** (the user's answers of 2026-10-30 are in §3), not started.
+Status: **stage A done and live; stage B in progress** (decisions under "Stage B decisions"; the user's answers of 2026-10-30 are in §3).
 Asked for by the user on 2026-10-30, after fleet pilot v1: team deathmatch works, duels
 are dull, and the story needs the carrier and the layered ("feudal") AI on the live
 page, with matches that have different goals, escort among them. A scripted or stub
@@ -281,6 +281,75 @@ What it decided; SIM_SPEC §0.2 ("WP-S2"), §5.9, §10.3 and §11 have the detai
    - time-limit and stalemate rates.
 
    Engine duty is reported, not gated. There are no duel gates.
+
+#### Stage B decisions (team lead with Fable as design partner, 2026-10-30 evening)
+
+The outline above stands except where this list changes it. Two work packages run in
+parallel against the interface below; the run follows.
+
+- **Split: stage B is strike craft only; the learned carrier moves to stage B′.** It is a
+  separate short run (BC on capital rows from their scripts, a KL anchor to the stage B
+  pilot on strike rows; it decides shared net vs a small capital net with data). Why: the
+  carrier's control timescales are 50–100× a fighter's, a wobbling carrier is the
+  biggest thing on screen, it would confound the mission gates, and a policy carrier
+  that follows waypoints looks the same as the script. The user's choice (a learned
+  carrier) is kept, just one run later. Item 5 above moves to B′.
+- **SIM_VERSION 5, order block appended at the end of the obs.** `OBS_DIM` 385 → 403;
+  the first 385 floats are exactly v4's, so v3/v4 pilots run on `obs[..., :385]` (frozen
+  v1 opponents, older bundles on the live page). Block `order`, 18 floats, body frame,
+  clamped like the rest:
+  `0` has_order · `1–3` kind one-hot attack/guard/hold · `4–5` target point rel pos / R
+  (attack: the target; guard: the ward; hold: the point) · `6–7` target point vel −
+  own vel, body, / VS (hold: −own vel) · `8` signed (dist − radius) / R · `9` radius / R ·
+  `10` target hp fraction (0 for hold) · `11` target bound radius / L (0 for hold) ·
+  `12–13` sin/cos of the target's heading relative to own (0 for hold) · `14` ticks
+  since this ship's order last changed / 300, clamped to 1 · `15–17` mission one-hot
+  (deathmatch, carrier battle, convoy). Radii: hold = its order radius; guard =
+  `GUARD_PRESENCE = 90 m` + the ward's bound radius; attack = 0. Capital ships' obs get
+  their waypoint as a hold (radius 25 m) for B′. Pilots see their squad's order in
+  every mission, including the advisory deathmatch orders the scripts ignore.
+- **Order reward, a separate buffer `order_rewards[N,S]`** (Python weights it by `w`),
+  named consts in `reward.rs`. An *order instance* starts whenever a ship's order kind,
+  target or point changes (per ship, hashed state: start tick, arrived flag, presence
+  ticks used, last Φ):
+  - attack: `+0.01·hull + 0.005·shield` damage dealt to the ordered target, at landing
+    (no retroactive credit: flight time is short next to GAE's horizon);
+  - guard and hold: potential shaping `γΦ′ − Φ`, `Φ = −K·max(0, d − radius)/R`, `K =
+    1.0`, Φ reset at a new instance (no reward for the jump); a one-shot **arrival
+    bonus** `+0.1` the first time inside the radius per instance; **capped presence**
+    `+0.0003`/tick inside, for at most 300 ticks per instance (≤ 0.09);
+  - guard also `+0.01·hull + 0.005·shield` damage dealt to enemies within
+    `GUARD_RADIUS` (180 m) + bound of the ward.
+  Why capped: an uncapped presence term under the scripted commander's carrier guard
+  pays more than winning, and v1 already coasts.
+- **`CommanderMode::Random`** (Rust, its own rng stream): the script's logistics
+  (launches, waypoints), random squads and orders: every 3–8 slow ticks a squad draws
+  a kind uniformly from none/attack/guard/hold and a valid target (an active enemy; an
+  own ship, capitals included; a point within 0.7 R, radius 70–150 m); about 15 % of
+  strike craft unassigned. Scripted pilots follow it, like an external commander.
+- **Training rosters pad to 12 ships** (`MAX_TRAIN_SHIPS`; live rosters go to 18).
+  Training missions: carrier + 4–5 strike craft a side (2 jump in); convoy 3–4
+  freighters + 2–3 escorts v 4–5. Evals also run the live default rosters.
+- **The run:** init = v1 with the 18 new input columns (actor and critic) zeroed, so
+  update 0 is exactly v1. 400 PPO updates, checkpoints every 50 with gate evals on
+  each. Env mix deathmatch 0.4 / carrier 0.3 / convoy 0.3; commander scripted 0.5 /
+  random 0.5 per team. Opponents: order-following scripts ≥ 40 %, self-play, frozen v1
+  on `obs[..., :385]`. No β pull toward strike scripts; a **KL anchor to v1 on rows with
+  `has_order = 0`** keeps unordered behaviour. **Arms: `w = 1` and `w = 0.3`.**
+- **Gates** (the run's plan fixes the numbers before any eval; baselines measured
+  first: v1 and script-vs-script time-limit and stalemate rates per mission):
+  - following, per kind, against **v1 on `obs[:385]`** (primary) and the pilot with the
+    block zeroed (secondary), under the random commander *and* the scripted one in
+    missions: attack — time to close (order to inside gun range, median ≤ 150 ticks for
+    targets under 250 m) and damage share on the target; guard — time within 90 m +
+    bound of the ward; hold — time inside the radius; **order-change response time**
+    (order to the nose within 30° of the target point, median ≤ 90 ticks);
+  - missions: win vs v1 pilots under the scripted commander (n ≥ 512 per mission);
+  - deathmatch: `fleet_v1` win vs script ≥ 0.85 and vs v1 ≥ 0.45 (advisory orders
+    may cost a little: named, not excused);
+  - health: time-limit and stalemate rates against the measured baselines, NaN or stuck
+    ≤ 1 %, outside arena ≤ 0.02. Reported: engine duty per hull *and per order kind*
+    (the direct readout of farming), passes, length.
 
 ### Later (not M3)
 
