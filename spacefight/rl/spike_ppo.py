@@ -86,6 +86,7 @@ from spacefight.rl.spike_policy import (
     N_THRUSTERS,
     N_TURRETS,
     OBS_DIM,
+    policy_obs,
     Critic,
     FleetCritic,
     HeadMasks,
@@ -1058,7 +1059,7 @@ class SpikeTrainer:
             store.learner[b] = learner
             policy_np = np.flatnonzero(learner)
             policy_rows = torch.from_numpy(policy_np)
-            obs_now = env.obs.reshape(rows, OBS_DIM)
+            obs_now = policy_obs(env.obs).reshape(rows, OBS_DIM)
             store.obs[b] = obs_now
             store.act_mask[b] = env.act_mask.reshape(rows)
             # Script labels for every row (each hull's own script); team-1 scripted
@@ -1165,7 +1166,7 @@ class SpikeTrainer:
             decided = done_rows & (win_rows >= 0) & (team >= 0)
             terminal[decided] = np.where(team[decided] == win_rows[decided], 1, -1)
 
-        next_obs = self.env.obs.reshape(rows, OBS_DIM)
+        next_obs = policy_obs(self.env.obs).reshape(rows, OBS_DIM)
         outside = (next_obs[:, _ARENA_MARGIN_COL] < 0.0) & prev_alive & ~done_rows
         store.outside[b] = outside
         store.arena[b] = ARENA_PENALTY * outside
@@ -1208,7 +1209,9 @@ class SpikeTrainer:
             real = np.flatnonzero(team_now.reshape(-1) >= 0)
             last_values = np.zeros(self.rows, dtype=np.float32)
             last_values[real] = self._values(
-                self.env.obs.reshape(1, self.rows, OBS_DIM), team_now, real
+                policy_obs(self.env.obs).reshape(1, self.rows, OBS_DIM),
+                team_now,
+                real,
             ).numpy()
         advantages, returns = compute_gae(
             store.rewards,

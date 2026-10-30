@@ -15,10 +15,14 @@ Writes two files into ``--out``:
 
 The export refuses a checkpoint whose obs_dim or sim_version does not match the
 WASM build it will run against (``--wasm-sim-version`` / ``--wasm-obs-dim``, which
-``scripts/build_site.sh`` reads from the freshly built bundle).
+``scripts/build_site.sh`` reads from the freshly built bundle). SIM_VERSION 5: a
+pilot reads the obs prefix of its own sim version (``--wasm-pilot-obs-dims``, the
+build's ``pilotObsDimsJson()``: 385 for a v3/v4 pilot, 403 for v5), so a v3/v4
+checkpoint exports into a v5 bundle.
 
     python -m tools.export_policy --checkpoint X.pt --out web/public/bundle/policy \\
-        --wasm-sim-version 2 --wasm-obs-dim 385 [--eval-json eval/x_vs_script.json]
+        --wasm-sim-version 5 --wasm-obs-dim 403 --wasm-pilot-compat 3,4,5 \\
+        --wasm-pilot-obs-dims '{"3": 385, "4": 385, "5": 403}' [--eval-json x.json]
 """
 
 from __future__ import annotations
@@ -27,7 +31,7 @@ import argparse
 import hashlib
 import json
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -184,12 +188,16 @@ def export(
     wasm_obs_dim: int,
     eval_json: Path | None = None,
     wasm_pilot_compat: Sequence[int] | None = None,
+    wasm_pilot_obs_dims: Mapping[int, int] | None = None,
 ) -> dict[str, Any]:
     """Write ``weights.bin`` and ``manifest.json``; return the manifest.
 
     The checkpoint's sim version must be one the wasm build flies pilots of
     (``wasm_pilot_compat``, the build's ``pilot_compat_versions()``; default just
-    ``wasm_sim_version``). The manifest keeps the checkpoint's own version.
+    ``wasm_sim_version``). The manifest keeps the checkpoint's own version. Its
+    obs_dim must be the obs width a pilot of that version reads
+    (``wasm_pilot_obs_dims[version]``, the build's ``pilotObsDimsJson()``; default
+    ``wasm_obs_dim``).
 
     Raises:
         ExportError: obs_dim or sim_version mismatch, or a malformed checkpoint.
@@ -197,15 +205,18 @@ def export(
     actor, _critic, meta = load_policy(checkpoint)
     linears = actor_linears(actor)
     obs_dim = int(linears[0].in_features)
-    if obs_dim != wasm_obs_dim or obs_dim != OBS_DIM:
+    eval_summary = summarize_eval(eval_json) if eval_json is not None else None
+    sim_version = checkpoint_sim_version(meta, eval_summary)
+    dims = dict(wasm_pilot_obs_dims) if wasm_pilot_obs_dims else {}
+    want_dim = dims.get(sim_version.version, wasm_obs_dim)
+    if obs_dim != want_dim or obs_dim != OBS_DIM:
         raise ExportError(
-            f"checkpoint obs_dim {obs_dim} != wasm OBS_DIM {wasm_obs_dim} "
-            f"(spike_policy OBS_DIM {OBS_DIM})"
+            f"checkpoint obs_dim {obs_dim} != the obs width a sim_version "
+            f"{sim_version.version} pilot reads in this wasm ({want_dim}; wasm OBS_DIM "
+            f"{wasm_obs_dim}, spike_policy OBS_DIM {OBS_DIM})"
         )
     if int(linears[-1].out_features) != N_LOGITS:
         raise ExportError(f"checkpoint has {linears[-1].out_features} logits")
-    eval_summary = summarize_eval(eval_json) if eval_json is not None else None
-    sim_version = checkpoint_sim_version(meta, eval_summary)
     compat = list(wasm_pilot_compat) if wasm_pilot_compat else [wasm_sim_version]
     if sim_version.version not in compat:
         raise ExportError(
@@ -281,6 +292,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="comma-separated sim versions the wasm flies pilots of "
         "(default: --wasm-sim-version only)",
     )
+    parser.add_argument(
+        "--wasm-pilot-obs-dims",
+        default=None,
+        help='JSON {"version": obs width} of the wasm\'s pilotObsDimsJson() '
+        "(default: --wasm-obs-dim for every version)",
+    )
     parser.add_argument("--eval-json", type=Path, default=None)
     args = parser.parse_args(argv)
     try:
@@ -293,6 +310,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             (
                 [int(v) for v in args.wasm_pilot_compat.split(",")]
                 if args.wasm_pilot_compat
+                else None
+            ),
+            (
+                {int(k): int(v) for k, v in json.loads(args.wasm_pilot_obs_dims).items()}
+                if args.wasm_pilot_obs_dims
                 else None
             ),
         )

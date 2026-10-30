@@ -4,7 +4,7 @@
 // its wasm instantiates as a fresh module next to the running one.
 
 import { createPolicy, type Policy, type PolicyManifest } from "./policy.js";
-import { simLayout, type Catalogue, type MatchSettings, type SimLayout, type SimModule } from "./sim.ts";
+import { pilotObsDim, simLayout, type Catalogue, type MatchSettings, type SimLayout, type SimModule } from "./sim.ts";
 import type { RosterRules } from "./roster.ts";
 
 export const BUNDLE_SCHEMA = "rlf.bundle/1";
@@ -44,6 +44,8 @@ export interface Bundle {
   sim: SimModule;
   layout: SimLayout;
   policy: Policy;
+  /** v5: the obs prefix the policy reads, from the pilot's sim version (pilotObsDim). */
+  pilotObsDim: number;
   catalogue: Catalogue;
 }
 
@@ -88,13 +90,16 @@ export function assembleBundle(
   if (layout.simVersion !== manifest.sim_version) throw new Error(`bundle says sim_version ${manifest.sim_version}, its wasm is ${layout.simVersion}`);
   const pilot = manifest.pilot_sim_version ?? manifest.sim_version;
   if (!layout.pilotCompat.includes(pilot)) throw new Error(`bundle pilot is for sim_version ${pilot}; this wasm flies pilots of ${layout.pilotCompat.join(", ")}`);
-  const policy = createPolicy(policyManifest, weights, layout);
+  if (policyManifest.sim_version !== pilot) throw new Error(`bundle says pilot_sim_version ${pilot}, its policy is for ${policyManifest.sim_version}`);
+  // A v3/v4 pilot in a v5 wasm reads the first 385 obs floats (SIM_SPEC §0.3).
+  const obsDim = pilotObsDim(layout, pilot);
+  const policy = createPolicy(policyManifest, weights, { ...layout, obsDim });
   for (const hull of manifest.roster.hulls) {
     if (!catalogue.info[hull]) throw new Error(`roster hull ${hull} is not in the catalogue`);
     const probe = new sim.WasmMatch(catalogue.hulls, catalogue.weapons, JSON.stringify({ seed: 0, ...manifest.match, fleets: [[hull], [hull]] }));
     probe.free();
   }
-  return { manifest, sim, layout, policy, catalogue };
+  return { manifest, sim, layout, policy, pilotObsDim: obsDim, catalogue };
 }
 
 async function fetchOk(url: string, init?: RequestInit): Promise<Response> {

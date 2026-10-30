@@ -50,6 +50,8 @@ export function createPolicy(manifest, weightsBuffer, expect) {
 
   /** Raw logits for one observation (a view, overwritten by the next call). */
   function forward(obs) {
+    // A wider obs is a v5 sim's for an older pilot: the caller slices the prefix.
+    if (obs.length !== manifest.obs_dim) throw new Error(`policy reads ${manifest.obs_dim} obs floats, got ${obs.length}`);
     let x = obs;
     for (const l of layers) {
       const { w, b, y } = l;

@@ -56,6 +56,8 @@ export interface LiveMatchOptions {
   layout: SimLayout;
   catalogue: Catalogue;
   policy: Policy;
+  /** v5: the obs prefix the policy reads (Bundle.pilotObsDim). */
+  pilotObsDim: number;
   /** The champion's trained match config (manifest.match): deathmatch clock and reaction. */
   settings: MatchSettings;
   fleets: Fleets;
@@ -105,6 +107,7 @@ export class LiveMatch {
   private readonly sim: SimModule;
   private readonly layout: SimLayout;
   private readonly policy: Policy;
+  private readonly pilotObsDim: number;
   private match: WasmMatch | null;
   private readonly headValid: Uint8Array[];
   private readonly rngs: Rng[];
@@ -119,6 +122,7 @@ export class LiveMatch {
     this.sim = o.sim;
     this.layout = o.layout;
     this.policy = o.policy;
+    this.pilotObsDim = o.pilotObsDim;
     this.seed = o.seed;
     this.fleets = o.fleets;
     this.settings = o.settings;
@@ -231,7 +235,8 @@ export class LiveMatch {
         continue;
       }
       const t0 = performance.now();
-      this.policy.act(m.obs(s), this.headValid[s]!, this.rngs[s]!, this.row);
+      // A v3/v4 pilot reads the v4 prefix of the v5 obs (no order block).
+      this.policy.act(m.obs(s).subarray(0, this.pilotObsDim), this.headValid[s]!, this.rngs[s]!, this.row);
       nn += performance.now() - t0;
       m.set_action(s, this.row);
     }
