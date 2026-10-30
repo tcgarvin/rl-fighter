@@ -7,6 +7,10 @@ mod vec_env;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use sim::actions::{ACTION_WIDTH, FIRE_OFFSET, POWER_OFFSET, SLEW_OFFSET, THROTTLE_OFFSET};
+use sim::command::{COMMAND_TICKS, MAX_SQUADS};
+use sim::events;
+use sim::mission::{EndReason, MissionKind};
+use sim::obs::N_NEAR_SHIPS;
 use sim::obs::{OBS_DIM, OBS_LAYOUT, OBS_SLOTS};
 use sim::state::{MAX_HITS, MAX_REACTION_TICKS, MAX_SHIPS, MAX_THRUSTERS, MAX_TURRETS};
 
@@ -21,6 +25,54 @@ fn rlf_sim(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("HIT_FIELDS", batch::HIT_FIELDS)?;
     m.add("HIT_DAMAGE_SCALE", batch::HIT_DAMAGE_SCALE)?;
     m.add("MAX_REACTION_TICKS", MAX_REACTION_TICKS)?;
+    // v4.
+    m.add("PILOT_COMPAT_VERSIONS", sim::PILOT_COMPAT_VERSIONS.to_vec())?;
+    m.add("N_NEAR_SHIPS", N_NEAR_SHIPS)?;
+    m.add("COMMAND_TICKS", COMMAND_TICKS)?;
+    m.add("MAX_SQUADS", MAX_SQUADS)?;
+    m.add(
+        "MISSIONS",
+        [
+            MissionKind::Deathmatch,
+            MissionKind::CarrierBattle,
+            MissionKind::ConvoyEscort,
+        ]
+        .map(MissionKind::name)
+        .to_vec(),
+    )?;
+    // Indexed by the `end_reason` buffer's codes.
+    m.add(
+        "END_REASONS",
+        [
+            EndReason::NotOver,
+            EndReason::Eliminated,
+            EndReason::TimeLimit,
+            EndReason::CarrierDestroyed,
+            EndReason::ConvoyThrough,
+            EndReason::ConvoyDestroyed,
+        ]
+        .map(EndReason::name)
+        .to_vec(),
+    )?;
+    let event_kinds = PyDict::new(py);
+    for (name, code) in [
+        ("fire", events::KIND_FIRE),
+        ("beam", events::KIND_BEAM),
+        ("hit", events::KIND_HIT),
+        ("shield_hit", events::KIND_SHIELD_HIT),
+        ("burst", events::KIND_BURST),
+        ("death", events::KIND_DEATH),
+        ("arrival", events::KIND_ARRIVAL),
+        ("collision", events::KIND_COLLISION),
+        ("launch", events::KIND_LAUNCH),
+        ("order", events::KIND_ORDER),
+        ("jump_charge", events::KIND_JUMP_CHARGE),
+        ("jump_out", events::KIND_JUMP_OUT),
+        ("match_end", events::KIND_MATCH_END),
+    ] {
+        event_kinds.set_item(name, code)?;
+    }
+    m.add("EVENT_KINDS", event_kinds)?;
 
     // name -> (offset, width), in layout order (dicts keep insertion order).
     let obs_layout = PyDict::new(py);
@@ -45,6 +97,9 @@ fn rlf_sim(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     m.add_class::<vec_env::VecEnv>()?;
     m.add_function(wrap_pyfunction!(arena_radius_for, m)?)?;
+    m.add_function(wrap_pyfunction!(arena_radius_for_mission, m)?)?;
+    m.add_function(wrap_pyfunction!(mission_time_limit_s, m)?)?;
+    m.add_function(wrap_pyfunction!(pilot_compatible, m)?)?;
     Ok(())
 }
 
@@ -54,4 +109,35 @@ fn rlf_sim(m: &Bound<'_, PyModule>) -> PyResult<()> {
 #[pyfunction]
 fn arena_radius_for(n_ships: usize) -> f32 {
     sim::setup::arena_radius_for(n_ships)
+}
+
+fn mission_kind(name: &str) -> PyResult<MissionKind> {
+    MissionKind::from_name(name).ok_or_else(|| {
+        pyo3::exceptions::PyValueError::new_err(format!(
+            "unknown mission {name:?} (deathmatch, carrier_battle, convoy_escort)"
+        ))
+    })
+}
+
+/// v4: arena radius for mission `mission` with `n_ships` ships
+/// (`sim::mission::arena_radius_for_mission`, the one per-mission rule).
+#[pyfunction]
+fn arena_radius_for_mission(mission: &str, n_ships: usize) -> PyResult<f32> {
+    Ok(sim::mission::arena_radius_for_mission(
+        mission_kind(mission)?,
+        n_ships,
+    ))
+}
+
+/// v4: the default time limit of mission `mission`, seconds.
+#[pyfunction]
+fn mission_time_limit_s(mission: &str) -> PyResult<f32> {
+    Ok(mission_kind(mission)?.default_time_limit_ticks() as f32 / sim::TICK_HZ)
+}
+
+/// v4: whether a pilot trained under sim version `version` flies in this build
+/// (`version in PILOT_COMPAT_VERSIONS`).
+#[pyfunction]
+fn pilot_compatible(version: u32) -> bool {
+    sim::pilot_compatible(version)
 }

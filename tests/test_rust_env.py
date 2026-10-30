@@ -41,6 +41,7 @@ ARENA_PENALTY = -0.002
 
 EVENT_FIRE = 0
 EVENT_COLLISION = 7
+EVENT_MATCH_END = 12
 
 FIGHTER_1V1 = [["fighter"], ["fighter"]]
 MIXED_2V2 = [["fighter", "strafer"], ["fighter", "strafer"]]
@@ -59,7 +60,12 @@ def random_actions(rng, shape):
 def test_module_constants():
     assert rlf_sim.OBS_DIM == OBS_DIM
     assert rlf_sim.ACTION_WIDTH == ACTION_WIDTH
-    assert rlf_sim.SIM_VERSION == 3
+    assert rlf_sim.SIM_VERSION == 4
+    assert list(rlf_sim.PILOT_COMPAT_VERSIONS) == [3, 4]
+    assert rlf_sim.pilot_compatible(3) and not rlf_sim.pilot_compatible(2)
+    assert rlf_sim.MAX_SHIPS == 20 and rlf_sim.N_NEAR_SHIPS == 7
+    assert rlf_sim.EVENT_KINDS["collision"] == EVENT_COLLISION
+    assert rlf_sim.EVENT_KINDS["match_end"] == EVENT_MATCH_END
     layout = rlf_sim.OBS_LAYOUT
     assert list(layout) == [
         "self",
@@ -388,7 +394,7 @@ def test_events_have_a_match_index_column():
         ev = env.events()
         assert ev.dtype == np.float32 and ev.ndim == 2 and ev.shape[1] == 9
         seen.update(ev[:, 0].astype(int).tolist())
-        assert ((ev[:, 1] >= 0) & (ev[:, 1] <= EVENT_COLLISION)).all()
+        assert ((ev[:, 1] >= 0) & (ev[:, 1] <= EVENT_MATCH_END)).all()
     assert seen == {0, 1, 2, 3}
 
 
@@ -449,7 +455,10 @@ def test_render_state_lists_ships_and_projectiles():
         ({"fleets": [["fighter"], ["nope"]]}, "unknown hull"),
         ({"fleets": [["fighter"]]}, "fleets must be"),
         ({"fleets": [["fighter"], []]}, "empty"),
-        ({"fleets": [["fighter"] * 5, ["fighter"] * 4]}, "at most 8"),
+        ({"fleets": [["fighter"] * 11, ["fighter"] * 10]}, "at most 20"),
+        ({"mission": "duel"}, "mission"),
+        ({"mission": "carrier_battle"}, "carrier"),
+        ({"commanders": ["scripted"]}, "commanders"),
         ({"n_envs": 0}, "n_envs"),
         ({"n_threads": -1}, "n_threads"),
         ({"time_limit_s": 0.0}, "time_limit_s"),

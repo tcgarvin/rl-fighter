@@ -22,6 +22,7 @@ pub mod reward;
 pub mod rng;
 pub mod scripted;
 pub mod setup;
+pub mod spec;
 pub mod state;
 pub mod step;
 pub mod turrets;

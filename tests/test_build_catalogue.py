@@ -37,7 +37,13 @@ def test_arcs_merge_across_the_wrap_and_absent_means_uniform() -> None:
 def test_real_catalogue_has_every_hull_with_derived_handling(tmp_path: Path) -> None:
     catalogue = build_catalogue(ASSETS, tmp_path)
     hulls = {h["name"]: h for h in catalogue["hulls"]}
-    assert [h["name"] for h in catalogue["hulls"]] == ["fighter", "strafer", "gunship"]
+    assert [h["name"] for h in catalogue["hulls"]] == [
+        "fighter",
+        "strafer",
+        "gunship",
+        "freighter",
+        "carrier",
+    ]
     assert json.loads((tmp_path / "hulls.json").read_text()) == catalogue
     # Fighter: 900 N main on 10 kg; RCS pairs 160 N each side.
     assert hulls["fighter"]["thrust"]["forward"] == 90.0

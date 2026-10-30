@@ -261,7 +261,7 @@ class PPOConfig:
     )
     checkpoint_every: int = 100
     # Fleets: a roster preset of spacefight.env.rosters ("" = the fixed ``fleets``),
-    # field overrides on it, and slots per match (0 = MAX_SHIPS with rosters, else
+    # field overrides on it, and slots per match (0 = MAX_FLEET_SHIPS with rosters, else
     # the fleet size).
     rosters: str = ""
     roster_overrides: dict[str, object] = field(default_factory=dict)

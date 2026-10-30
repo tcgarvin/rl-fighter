@@ -16,7 +16,9 @@
 
 use rayon::prelude::*;
 use sim::actions::{self, ACTION_WIDTH, ShipAction};
+use sim::command::CommanderMode;
 use sim::data::{Catalogue, HullId};
+use sim::mission::Mission;
 use sim::obs::OBS_DIM;
 use sim::rng;
 use sim::scripted;
@@ -31,11 +33,13 @@ pub const HIT_DAMAGE_SCALE: f32 = 1000.0;
 /// Team and hull id of a padding slot.
 pub const PAD_SLOT: i8 = -1;
 
-/// Who plays a match: each team's hulls in slot order, and the arena radius.
+/// Who plays a match: each team's hulls in slot order, the arena radius and (v4) the
+/// mission.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Roster {
     pub fleets: [Vec<HullId>; 2],
     pub arena_radius: f32,
+    pub mission: Mission,
 }
 
 impl Roster {
@@ -59,6 +63,8 @@ pub struct BatchConfig {
     pub n_ships: usize,
     pub n_threads: usize,
     pub record_events: bool,
+    /// v4: who commands each team (the default `Scripted` runs the stub commander).
+    pub commanders: [CommanderMode; 2],
 }
 
 /// Why a batch could not be built, or a roster not queued.
@@ -98,7 +104,7 @@ impl std::error::Error for BatchError {}
 
 /// Per-step buffers, flat and C-ordered: `obs [N,S,OBS_DIM]`, `actions [N,S,21]`,
 /// `rewards/act_mask/alive/collision_damage/team/hull_id [N,S]`,
-/// `dones/winner/tick/episode_count/hit_count/arena_radius [N]`,
+/// `dones/winner/end_reason/tick/episode_count/hit_count/arena_radius [N]`,
 /// `hits [N,MAX_HITS,HIT_FIELDS]`, `thruster_mask [N,S,8]`,
 /// `turret_mask/fixed_turret [N,S,6]`.
 pub struct StepBuffers<'a> {
@@ -107,6 +113,8 @@ pub struct StepBuffers<'a> {
     pub rewards: &'a mut [f32],
     pub dones: &'a mut [bool],
     pub winner: &'a mut [i8],
+    /// v4: `EndReason::index` of the match that ended this step (0 while running).
+    pub end_reason: &'a mut [i8],
     pub act_mask: &'a mut [bool],
     pub alive: &'a mut [bool],
     pub tick: &'a mut [u32],
@@ -131,6 +139,7 @@ struct MatchRows<'a> {
     rewards: &'a mut [f32],
     done: &'a mut bool,
     winner: &'a mut i8,
+    end_reason: &'a mut i8,
     act_mask: &'a mut [bool],
     alive: &'a mut [bool],
     tick: &'a mut u32,
@@ -172,6 +181,8 @@ fn match_config(cfg: &BatchConfig, roster: &Roster, index: usize, episode: u32) 
         time_limit_ticks: cfg.time_limit_ticks,
         reaction_ticks: cfg.reaction_ticks,
         fleets: roster.fleets.clone(),
+        mission: roster.mission.clone(),
+        commanders: cfg.commanders,
     }
 }
 
@@ -238,6 +249,11 @@ impl Batch {
         &self.slots[i].m
     }
 
+    /// Match `i`, mutably (v4: to queue commander commands).
+    pub fn match_at_mut(&mut self, i: usize) -> &mut Match {
+        &mut self.slots[i].m
+    }
+
     /// Flat encoded events of match `i`'s last step (empty unless record_events).
     pub fn events_of(&self, i: usize) -> &[f32] {
         &self.slots[i].events
@@ -280,6 +296,7 @@ impl Batch {
                     r.rewards.fill(0.0);
                     *r.done = false;
                     *r.winner = WINNER_NONE;
+                    *r.end_reason = 0;
                     r.hits.fill(0);
                     *r.hit_count = 0;
                     r.collision_damage.fill(0.0);
@@ -352,6 +369,7 @@ fn split_rows<'a>(cfg: &BatchConfig, b: StepBuffers<'a>) -> Vec<MatchRows<'a>> {
     let mut rewards = b.rewards.chunks_mut(s);
     let mut dones = b.dones.iter_mut();
     let mut winner = b.winner.iter_mut();
+    let mut end_reason = b.end_reason.iter_mut();
     let mut act_mask = b.act_mask.chunks_mut(s);
     let mut alive = b.alive.chunks_mut(s);
     let mut tick = b.tick.iter_mut();
@@ -373,6 +391,7 @@ fn split_rows<'a>(cfg: &BatchConfig, b: StepBuffers<'a>) -> Vec<MatchRows<'a>> {
             rewards: rewards.next().expect(SHORT),
             done: dones.next().expect(SHORT),
             winner: winner.next().expect(SHORT),
+            end_reason: end_reason.next().expect(SHORT),
             act_mask: act_mask.next().expect(SHORT),
             alive: alive.next().expect(SHORT),
             tick: tick.next().expect(SHORT),
@@ -420,6 +439,7 @@ fn step_one(
     let done = m.phase() == MatchPhase::Over;
     *r.done = done;
     *r.winner = m.winner();
+    *r.end_reason = m.mission.end_reason.index() as i8;
     if done {
         slot.episode += 1;
         if let Some(next) = slot.next.take() {
@@ -498,6 +518,7 @@ mod tests {
         rewards: Vec<f32>,
         dones: Vec<bool>,
         winner: Vec<i8>,
+        end_reason: Vec<i8>,
         act_mask: Vec<bool>,
         alive: Vec<bool>,
         tick: Vec<u32>,
@@ -521,6 +542,7 @@ mod tests {
                 rewards: vec![0.0; n * s],
                 dones: vec![false; n],
                 winner: vec![0; n],
+                end_reason: vec![0; n],
                 act_mask: vec![false; n * s],
                 alive: vec![false; n * s],
                 tick: vec![0; n],
@@ -544,6 +566,7 @@ mod tests {
                 rewards: &mut self.rewards,
                 dones: &mut self.dones,
                 winner: &mut self.winner,
+                end_reason: &mut self.end_reason,
                 act_mask: &mut self.act_mask,
                 alive: &mut self.alive,
                 tick: &mut self.tick,
@@ -566,6 +589,7 @@ mod tests {
         Roster {
             fleets: [vec![f], vec![f]],
             arena_radius: 450.0,
+            mission: Mission::Deathmatch,
         }
     }
 
@@ -583,6 +607,7 @@ mod tests {
                 n_ships,
                 n_threads,
                 record_events: false,
+                commanders: [CommanderMode::Scripted; 2],
             },
         )
         .unwrap()
@@ -651,6 +676,7 @@ mod tests {
         let roster = Roster {
             fleets: [vec![g], vec![f, f, f]],
             arena_radius: 500.0,
+            mission: Mission::Deathmatch,
         };
         b.set_next_roster(3, roster.clone()).unwrap();
         assert_eq!(&o.team[12..16], &[0, 1, -1, -1], "current match untouched");
@@ -674,6 +700,7 @@ mod tests {
         let big = Roster {
             fleets: [vec![f, f], vec![f]],
             arena_radius: 450.0,
+            mission: Mission::Deathmatch,
         };
         assert!(matches!(
             b.set_next_roster(0, big),
@@ -682,6 +709,7 @@ mod tests {
         let empty = Roster {
             fleets: [vec![], vec![f]],
             arena_radius: 450.0,
+            mission: Mission::Deathmatch,
         };
         assert!(matches!(
             b.set_next_roster(0, empty),
