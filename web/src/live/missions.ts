@@ -137,11 +137,11 @@ export interface Brief {
  */
 export function missionBrief(mission: MissionName, convoy: ConvoyState | null): Brief {
   if (mission === "carrier_battle") {
-    return { headline: "Destroy the enemy carrier.", brief: "Each carrier launches its wing from its bays. Lose yours and you lose the match." };
+    return { headline: "Destroy the enemy carrier.", brief: "Each carrier launches its wing from its bays. Lose yours and you lose the&nbsp;match." };
   }
   if (mission === "convoy_escort" && convoy) {
     return {
-      headline: "Get the convoy to the jump point, or stop it.",
+      headline: "Get the convoy to the jump point, or&nbsp;stop&nbsp;it.",
       brief:
         `${convoy.total} freighters are under way. ${teamSpan(0, TEAM_WORDS[0])} escorts: ${convoy.toEscape} through wins. ` +
         `${teamSpan(1, TEAM_WORDS[1])} intercepts: ${convoy.toDestroy} kill${convoy.toDestroy === 1 ? "" : "s"} stop${convoy.toDestroy === 1 ? "s" : ""} them.`,
