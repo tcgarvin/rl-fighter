@@ -60,7 +60,7 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
   const smokeColor = new T.Color(0x887b6b), shell = new T.Color(0x26333c);
   const transform = new T.Object3D(), point = new T.Vector3(), end = new T.Vector3();
   const resources = [];
-  function batch(geo, cap, billboard = false, smoke = false, additive = true, flame = false, trace = 0) {
+  function batch(geo, cap, billboard = false, smoke = false, additive = true, flame = false, trace = 0, ringWidth = 0) {
     const rgba = new T.InstancedBufferAttribute(new Float32Array(cap * 4), 4).setUsage(T.DynamicDrawUsage);
     geo.setAttribute('tint', rgba);
     const mat = new T.ShaderMaterial({
@@ -77,7 +77,14 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
         float pixelWorld=2.*max(1.,-center.z)/(projectionMatrix[1][1]*viewportHeight);
         width=max(width,pixelWorld*${trace === 1 ? '2.8' : '.95'});
         center.xy+=axis.xy*position.x+across*position.y*width;
-        gl_Position=projectionMatrix*center;` : billboard ? `vec4 center=modelViewMatrix*instanceMatrix*vec4(0.,0.,0.,1.);
+        gl_Position=projectionMatrix*center;` : ringWidth ? `float radius=length(position.xz);
+        vec3 rim=position/max(radius,.0001);
+        vec4 center=modelViewMatrix*instanceMatrix*vec4(0.,0.,0.,1.);
+        vec4 edge=modelViewMatrix*instanceMatrix*vec4(rim,1.);
+        float pixelWorld=2.*max(1.,-center.z)/(projectionMatrix[1][1]*viewportHeight);
+        float inset=max(.022,pixelWorld*${ringWidth}/max(length(edge.xy-center.xy),.0001));
+        float radial=radius<.99?max(0.,1.-inset):1.;
+        gl_Position=projectionMatrix*modelViewMatrix*instanceMatrix*vec4(rim*radial,1.);` : billboard ? `vec4 center=modelViewMatrix*instanceMatrix*vec4(0.,0.,0.,1.);
         vec2 size=vec2(length(instanceMatrix[0].xyz),length(instanceMatrix[1].xyz));
         center.xy+=position.xy*size; gl_Position=projectionMatrix*center;` :
         'gl_Position=projectionMatrix*modelViewMatrix*instanceMatrix*vec4(position,1.);'} }`,
@@ -121,6 +128,8 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
   const thinGeo = new T.RingGeometry(.978, 1, 64, 1);
   thinGeo.rotateX(-Math.PI / 2);
   const thin = batch(thinGeo, 128);
+  // Charge rings alone get a CSS-pixel floor; collapse rings retain their fine edge.
+  const chargeRings = batch(thinGeo.clone(), 32, false, false, true, false, 0, .85);
   // Velocity-aligned ribbons expand across the view, so they cannot turn edge-on.
   // Soft analytic profiles replace solid box faces; both layers remain additive.
   const tracers = batch(new T.PlaneGeometry(1, 1), 1200, false, false, true, false, 1);
@@ -281,7 +290,7 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
       const age=p.max-p.life, head=p.speed*age, fade=(p.life/p.max)**.85;
       // A short jet straddles the mouth immediately, even before the tail has cleared.
       // It then follows the tail, capped at 2.2 hulls, through the locked launch coast.
-      const end=Math.max(p.size*.3,head-p.size*.42), start=Math.max(-p.size*.2,end-p.size*2.2);
+      const end=Math.max(p.size*.12,head-p.size*.55), start=Math.max(-p.size*.2,end-p.size*2.2);
       if(end-start<.5) continue;
       segment(trails,p.x+p.dx*start,2.4,p.z+p.dz*start,p.x+p.dx*end,2.4,p.z+p.dz*end,p.size*.3,p.color,.8*fade);
       segment(lines,p.x+p.dx*(start+end)*.5,2.45,p.z+p.dz*(start+end)*.5,p.x+p.dx*end,2.45,p.z+p.dz*end,.75,white,.65*fade);
@@ -304,7 +313,7 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
       // brightness), so they read as the drive's field rather than a target reticle.
       for(let i=0;i<2;i++) {
         const u=(c.phase+i*.37)%1, r=s*(.76-.42*u)*(1-.12*e);
-        put(thin,c.x,1.3,c.z,r,1,r,0,c.color,f*(.24+.46*e)*Math.sin(Math.PI*u)*(i?.5:1));
+        put(chargeRings,c.x,1.3,c.z,r,1,r,0,c.color,f*(.42+.3*e)*Math.sin(Math.PI*u)*(i?.6:1));
       }
       // A broad, low field reads on a phone; only the last 0.3 s gets a hot core.
       put(glow,c.x,2.6,c.z,s*(.45+.35*e),s*(.45+.35*e),1,0,c.color,f*(.1+.32*e));
@@ -397,8 +406,8 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
       p.x=e.x; p.z=-e.y; p.dx=dx; p.dz=dz; p.speed=e.speed ?? 60; p.size=size;
       p.life=p.max=.6; p.color=c;
       // A tight catapult flash at the mouth, and an afterglow back inside the bay well.
-      particle(p.x,2.4,p.z,size*1.45,.2,c);
-      particle(p.x,2.5,p.z,size*.65,.12,white);
+      particle(p.x,2.4,p.z,size*2,.28,c);
+      particle(p.x,2.5,p.z,size*.85,.18,white);
       particle(p.x-dx*size*.55,.6,p.z-dz*size*.55,size*1.1,.32,c);
       for(let j=0;j<4;j++) {
         const a=e.heading+(Math.random()-.5)*.5, v=p.speed*(.6+Math.random()*.25);
@@ -427,6 +436,8 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
       // Small craft stay unchanged; large hulls burn at local vent scale, not hull scale.
       // Even square-root growth engulfed the freighter's cargo and command cab.
       const scale=Math.max(.85,Math.min(1.8,extent/3));
+      const freight=model.object.name==='hull.freighter' || model.object.name==='hull.transport';
+      const fireScale=scale*(freight?.7:1);
       const electric=new T.Color(0x99ddff);
       return {
         update(hp, alive, dt) {
@@ -442,12 +453,12 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
               (Math.random()-.5)*2,2.2,(Math.random()-.5)*2);
           }
           if(hp<.4) {
-            fireClock+=dt*30;
+            fireClock+=dt*(freight?20:30);
             while(fireClock>=1) {
               fireClock--; point.copy(points[index++%Math.min(3,points.length)]).applyMatrix4(model.object.matrixWorld);
-              particle(point.x,point.y+.4,point.z,(5+Math.random()*4)*scale,.3+Math.random()*.25,fireColor,4,
+              particle(point.x,point.y+.4,point.z,(5+Math.random()*4)*fireScale,.3+Math.random()*.25,fireColor,4,
                 (Math.random()-.5)*3,9*scale,(Math.random()-.5)*3);
-              particle(point.x,point.y+.5,point.z,3*scale,.16,white);
+              particle(point.x,point.y+.5,point.z,(freight?1.8:3)*scale,freight?.12:.16,white);
             }
           }
           if(hp<.2) {
@@ -470,11 +481,12 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
     },
     update(dt) {
       dt=Math.max(0,Math.min(dt,.1));
-      glow.n=flames.n=smoke.n=chips.n=rings.n=ripples.n=bolts.n=trails.n=lines.n=thin.n=0;
+      glow.n=flames.n=smoke.n=chips.n=rings.n=ripples.n=bolts.n=trails.n=lines.n=thin.n=chargeRings.n=0;
       clock+=dt;
       const height=Math.max(1,renderer.domElement.clientHeight || renderer.domElement.height);
       trails.mesh.material.uniforms.viewportHeight.value=height;
       lines.mesh.material.uniforms.viewportHeight.value=height;
+      chargeRings.mesh.material.uniforms.viewportHeight.value=height;
       for(const o of orders) order(o);
       for(const p of launches) if(p.life>0) p.life-=dt;
       updateLaunches();
@@ -550,7 +562,7 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
         }
       }
       finish(glow);finish(flames);finish(smoke);finish(chips);finish(rings);finish(ripples);finish(bolts);
-      finish(trails);finish(lines);finish(thin);
+      finish(trails);finish(lines);finish(thin);finish(chargeRings);
     },
     // Optional lifecycle hook for embeds; normal harness keeps one Effects for its lifetime.
     dispose() {
