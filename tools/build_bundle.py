@@ -109,6 +109,11 @@ def certified_hulls(
     return sorted({hull for fleet in fleets for hull in fleet})
 
 
+# Duels are dull to watch (user, 2026-10-30): drafts field at least two ships a side.
+# ?fleets=duel still asks for one explicitly.
+MIN_PER_SIDE = 2
+
+
 def roster_rules(
     hulls: Sequence[str],
     info: dict[str, dict[str, Any]],
@@ -178,7 +183,7 @@ def build(
     champion_id: str | None = None,
     champion_name: str | None = None,
     hulls: Sequence[str] | None = None,
-    min_per_side: int = 1,
+    min_per_side: int = MIN_PER_SIDE,
     max_per_side: int = 4,
     budget: int | None = None,
 ) -> dict[str, Any]:
@@ -260,7 +265,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=None,
         help="comma-separated hulls the champion may fly (default: its training fleets)",
     )
-    parser.add_argument("--min-per-side", type=int, default=1)
+    parser.add_argument("--min-per-side", type=int, default=MIN_PER_SIDE)
     parser.add_argument("--max-per-side", type=int, default=4)
     parser.add_argument("--budget", type=int, default=None)
     args = parser.parse_args(argv)

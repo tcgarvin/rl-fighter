@@ -73,7 +73,7 @@ def test_manifest_certifies_the_training_hulls_and_defaults_the_budget(
     # Four fighters (cost 10) a side at most.
     assert manifest["roster"] == {
         "hulls": ["fighter"],
-        "min_per_side": 1,
+        "min_per_side": 2,
         "max_per_side": 4,
         "budget": 40,
     }

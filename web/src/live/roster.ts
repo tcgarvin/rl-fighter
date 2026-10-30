@@ -48,12 +48,17 @@ function pick<T>(items: readonly T[], rng: Rng): T {
   return item;
 }
 
-/** Spend `budget` on random affordable hulls until nothing fits or the side is full. */
-function draftSide(hulls: string[], info: Record<string, HullInfo>, budget: number, maxShips: number, rng: Rng): string[] {
+/**
+ * Spend `budget` on random affordable hulls until nothing fits or the side is full,
+ * never buying a hull that would leave too little to reach `minShips` of the cheapest.
+ */
+function draftSide(hulls: string[], info: Record<string, HullInfo>, budget: number, minShips: number, maxShips: number, rng: Rng): string[] {
+  const cheapest = Math.min(...hulls.map((h) => info[h]!.cost));
   const side: string[] = [];
   let left = budget;
   for (;;) {
-    const affordable = hulls.filter((h) => info[h]!.cost <= left);
+    const reserve = cheapest * Math.max(0, minShips - side.length - 1);
+    const affordable = hulls.filter((h) => info[h]!.cost + reserve <= left);
     if (affordable.length === 0 || side.length >= maxShips) break;
     const hull = pick(affordable, rng);
     side.push(hull);
@@ -82,7 +87,8 @@ export function chooseRoster(mode: RosterMode, rules: RosterRules, info: Record<
   const minShips = Math.max(1, Math.min(rules.min_per_side, maxShips));
   const size = minShips + Math.floor(rng() * (maxShips - minShips + 1));
   const budget = Math.min(rules.budget, cheapest * size);
-  return { fleets: [draftSide(hulls, info, budget, maxShips, rng), draftSide(hulls, info, budget, maxShips, rng)], budget };
+  const side = () => draftSide(hulls, info, budget, minShips, maxShips, rng);
+  return { fleets: [side(), side()], budget };
 }
 
 const NUMBER_WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight"];
