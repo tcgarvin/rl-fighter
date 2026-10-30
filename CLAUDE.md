@@ -78,9 +78,11 @@ nohup lab/runs/2026-10-30-fleet-pilot/run.sh > lab/runs/2026-10-30-fleet-pilot/r
 # Deploy dist/ (rl-fighter.tcgarvin.com); needs NETLIFY_AUTH_TOKEN in .env
 scripts/deploy.sh            # or --build (current champion) / <checkpoint.pt> <run-id> to rebuild first
 
-# Data for /notebook/ (from lab/runs) and /hulls/ (from assets/) into web/public/{notebook,hulls}/data/
+# Data for /notebook/ (from lab/runs) and /hulls/ (from assets/) into web/public/{notebook,hulls}/data/,
+# and the check that the static /pilot/ page (web/pilot/index.html, "How the pilot works")
+# still matches the sim, policy code, hulls and champion (tools/pilot_facts.py)
 scripts/build_pages_data.sh  # = cd web && npm run data
-uv run python -m pytest tests/test_build_notebook.py tests/test_build_catalogue.py -v
+uv run python -m pytest tests/test_build_notebook.py tests/test_build_catalogue.py tests/test_pilot_page.py -v
 ```
 
 The project is moving to a Rust sim + three.js web client; `docs/DESIGN.md` is the

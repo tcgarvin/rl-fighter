@@ -1,10 +1,11 @@
-// Full-page screenshots of the notebook and hull catalogue in headless Chromium, at the
-// iPhone portrait size (390×844) and a desktop (1440×900), for review. Fails on page
-// errors, on the pages' own error states (missing data), and on horizontal page scroll
-// (the phone-first rule). Serve web/dist first, e.g. `cd web && npx vite preview --port 4173`.
+// Full-page screenshots of the notebook, hull catalogue and pilot page in headless
+// Chromium, at the iPhone portrait size (390×844) and a desktop (1440×900), for review.
+// Fails on page errors, on the pages' own error states (missing data), and on
+// horizontal page scroll (the phone-first rule). Serve web/dist first, e.g. `cd web && npx vite preview --port 4173`.
 //
 // Usage: node tools/web/page_shots.mjs [base=http://localhost:4173] [out=web/shots/pages]
 //   RLF_SHOTS_RUN=<run-id> picks the run page shown (default: the newest run).
+//   RLF_SHOTS_SCENES=pilot,hulls shoots only those scenes (default: all).
 
 import fs from "node:fs";
 import path from "node:path";
@@ -33,13 +34,20 @@ const SCENES = [
   { name: "notebook-run", url: `/notebook/#${run}`, ready: ".nb-entry-head", settle: 0.5 },
   { name: "notebook-plan", url: `/notebook/#${run}/plan`, ready: ".nb-entry-head", settle: 0.5 },
   { name: "hulls", url: "/hulls/", ready: ".hull-list", settle: 2.0 },
+  { name: "pilot", url: "/pilot/", ready: ".pilot-head", settle: 0.3 },
 ];
+const only = process.env.RLF_SHOTS_SCENES?.split(",").filter(Boolean);
+if (only) {
+  const unknown = only.filter((n) => !SCENES.some((s) => s.name === n));
+  if (unknown.length) throw new Error(`page shots: unknown scene(s) ${unknown.join(", ")}`);
+}
+const scenes = only ? SCENES.filter((s) => only.includes(s.name)) : SCENES;
 
 const browser = await launch();
 const errors = [];
 for (const vp of VIEWPORTS) {
   const context = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, deviceScaleFactor: vp.deviceScaleFactor, isMobile: vp.isMobile ?? false, hasTouch: vp.hasTouch ?? false });
-  for (const scene of SCENES) {
+  for (const scene of scenes) {
     const label = `${vp.name}/${scene.name}`;
     const page = await context.newPage();
     const pageErrors = watchErrors(page, label);

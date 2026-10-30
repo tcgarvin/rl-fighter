@@ -2,7 +2,7 @@
 
 Status: active. Branch `m2-site`. Replaces DESIGN §12's narrower M2 ("WASM client with a
 scripted match"): the user asked on 2026-10-29 to get *the whole thing* working and
-looking good before building the nightly automation, stubbing what we must. M4 (the
+looking good before building the nightly automation, stubbing what we must. M5 (the
 nightly lab) starts after this.
 
 ## 1. Done when

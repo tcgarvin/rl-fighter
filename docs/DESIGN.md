@@ -436,13 +436,17 @@ Feedback from round 1 (2026-10-27):
    experiment notebook, the hull catalogue, one site shell, and the champion bundle.
    Later milestones are stubbed (random rosters, plain skirmish, the spike MLP for all
    hulls, a fleet eval instead of a league). The story demo moves to `/story/`.
-5. **M3, Pilots learn.** The attention policy, eval harness v1, the self-play league,
-   and the first champion deployed.
-6. **M4, Nightly lab on.** Starting with conservative experiments (fine-tuning, hull
+5. **M3, Carriers, convoys and commanders** (plan: `docs/M3_PLAN.md`; moved ahead at
+   the user's request, 2026-10-30, after fleet pilot v1). Missions (team deathmatch,
+   carrier battle, convoy escort), carrier and transport hulls, bays, a scripted
+   commander with a toggleable command overlay and log, then orders in the pilot obs
+   (goal-conditioned pilots) and a learned carrier pilot.
+6. **M4, Pilots learn.** The attention policy, eval harness v1, the self-play league,
+   and pilot diversity (several policies or styles per hull type).
+7. **M5, Nightly lab on.** Starting with conservative experiments (fine-tuning, hull
    tuning).
-7. **M5, Fleet battles.** Flagships, supply, bays, a scripted commander and
-   goal-conditioned orders.
-8. **M6+.** A learned commander, drafting, strange hulls, and handwired experiments.
+8. **M6+.** Supply, docking and repair, retreat, a learned commander, drafting,
+   strange hulls, and handwired experiments.
 
 ## 13. Open questions
 

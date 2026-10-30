@@ -114,6 +114,22 @@ a {
   box-shadow: inset 0 -1px 0 var(--fg);
 }
 
+/* Four links and the brand stay on one row at phone width. */
+@media (max-width: 430px) {
+  .site-nav {
+    gap: 4px 10px;
+    letter-spacing: 0.1em;
+  }
+
+  .site-nav__brand {
+    letter-spacing: 0.16em;
+  }
+
+  .site-nav__link {
+    padding: 10px 5px;
+  }
+}
+
 .site-nav--overlay {
   position: fixed;
   top: 0;
