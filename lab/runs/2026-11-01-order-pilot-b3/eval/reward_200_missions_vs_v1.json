@@ -1,0 +1,348 @@
+{
+ "a": "policy:ppo_bc_200.pt",
+ "b": "policy:ppo_bc_400.pt",
+ "config": {
+  "missions": [
+   "carrier_battle",
+   "convoy_escort"
+  ],
+  "n_per_mission": 516,
+  "seed": 300000,
+  "commanders": "scripted",
+  "reaction_ticks": 2,
+  "sim_version": 6
+ },
+ "missions": {
+  "carrier_battle": {
+   "mission": "carrier_battle",
+   "n": 516,
+   "time_limit_s": 150.0,
+   "win_rate": 0.7073643410852714,
+   "win_rate_team0": 0.689922480620155,
+   "win_rate_team1": 0.7248062015503876,
+   "win_rate_by_roster": {
+    "wing of 8": 0.686046511627907,
+    "wing of 6": 0.7441860465116279,
+    "wing of 9": 0.6918604651162791
+   },
+   "draw_rate": 0.0,
+   "time_limit_rate": 0.005813953488372093,
+   "stalemate_rate": 0.0,
+   "end_reasons": {
+    "time_limit": 0.005813953488372093,
+    "carrier_destroyed": 0.9941860465116279
+   },
+   "length_median_s": 107.56666666666666,
+   "length_p90_s": 129.43333333333334,
+   "side_a": {
+    "win_rate": 0.7073643410852714,
+    "all_ships": {
+     "ships": 3956,
+     "damage_dealt": 166.53399898887764,
+     "shield_damage_dealt": 74.79095045500506,
+     "survival": 0.13599595551061677,
+     "shots": 263.71764408493425,
+     "hits": 61.50075834175935,
+     "hit_rate": 0.23320683966808115,
+     "engagement_rate": 0.8007564022905838,
+     "outside_share": 0.001813374076823268,
+     "engine_duty": 0.3112305279237269,
+     "passes": 2.089737108190091,
+     "crash_damage_taken": 2.217702102330381,
+     "crash_contacts": 0.43832153690596565,
+     "fire_rate": 0.6692149303175691
+    },
+    "hulls": {
+     "fighter": {
+      "ships": 2064,
+      "damage_dealt": 60.74249031007752,
+      "shield_damage_dealt": 37.43217054263566,
+      "survival": 0.027616279069767442,
+      "shots": 86.98062015503876,
+      "hits": 21.382751937984494,
+      "hit_rate": 0.2458335190053919,
+      "engagement_rate": 0.8146496574977512,
+      "outside_share": 0.002076392993613288,
+      "engine_duty": 0.22244520738551435,
+      "passes": 1.8473837209302326,
+      "crash_damage_taken": 3.631784219639065,
+      "crash_contacts": 0.4326550387596899,
+      "fire_rate": 0.6159838424626614
+     },
+     "gunship": {
+      "ships": 860,
+      "damage_dealt": 503.1122093023256,
+      "shield_damage_dealt": 181.06744186046512,
+      "survival": 0.536046511627907,
+      "shots": 593.2476744186047,
+      "hits": 162.5418604651163,
+      "hit_rate": 0.27398651098701865,
+      "engagement_rate": 0.816428400347295,
+      "outside_share": 0.0019565282476572557,
+      "engine_duty": 0.48545039858000855,
+      "passes": 2.833720930232558,
+      "crash_damage_taken": 0.884623969110738,
+      "crash_contacts": 0.6825581395348838,
+      "fire_rate": 0.7157757929458762
+     },
+     "strafer": {
+      "ships": 1032,
+      "damage_dealt": 97.63517441860465,
+      "shield_damage_dealt": 60.94476744186046,
+      "survival": 0.01937984496124031,
+      "shots": 342.5833333333333,
+      "hits": 57.53585271317829,
+      "hit_rate": 0.16794702810949635,
+      "engagement_rate": 0.7415706546135191,
+      "outside_share": 0.0009824708011371818,
+      "engine_duty": 0.1720069689236299,
+      "passes": 1.9544573643410852,
+      "crash_damage_taken": 0.5004363120627154,
+      "crash_contacts": 0.24612403100775193,
+      "fire_rate": 0.6939377782901278
+     }
+    },
+    "nan_matches": 0,
+    "stuck_matches": 0
+   },
+   "side_b": {
+    "win_rate": 0.2926356589147287,
+    "all_ships": {
+     "ships": 3956,
+     "damage_dealt": 117.48495955510617,
+     "shield_damage_dealt": 74.97042467138523,
+     "survival": 0.08543983822042467,
+     "shots": 192.84504550050556,
+     "hits": 50.50783619817998,
+     "hit_rate": 0.2619089127599473,
+     "engagement_rate": 0.7960384323650083,
+     "outside_share": 0.007072810625991542,
+     "engine_duty": 0.29104688323896866,
+     "passes": 1.9047017189079878,
+     "crash_damage_taken": 2.005569477368123,
+     "crash_contacts": 0.333417593528817,
+     "fire_rate": 0.45989283733550895
+    },
+    "hulls": {
+     "fighter": {
+      "ships": 2064,
+      "damage_dealt": 51.843507751937985,
+      "shield_damage_dealt": 32.320736434108525,
+      "survival": 0.027616279069767442,
+      "shots": 65.71608527131782,
+      "hits": 18.281007751937985,
+      "hit_rate": 0.2781816305165219,
+      "engagement_rate": 0.802681715309406,
+      "outside_share": 0.006600043803736796,
+      "engine_duty": 0.15413077026221292,
+      "passes": 1.698643410852713,
+      "crash_damage_taken": 3.3751865174215037,
+      "crash_contacts": 0.3653100775193798,
+      "fire_rate": 0.37971324983520105
+     },
+     "gunship": {
+      "ships": 860,
+      "damage_dealt": 307.61046511627904,
+      "shield_damage_dealt": 159.07093023255814,
+      "survival": 0.2837209302325581,
+      "shots": 378.8639534883721,
+      "hits": 112.43837209302326,
+      "hit_rate": 0.2967776983208675,
+      "engagement_rate": 0.8566415278665919,
+      "outside_share": 0.0011797741055502142,
+      "engine_duty": 0.4979025612558706,
+      "passes": 2.2116279069767444,
+      "crash_damage_taken": 0.7335568027436831,
+      "crash_contacts": 0.5069767441860465,
+      "fire_rate": 0.529710029815168
+     },
+     "strafer": {
+      "ships": 1032,
+      "damage_dealt": 90.32994186046511,
+      "shield_damage_dealt": 90.18604651162791,
+      "survival": 0.035852713178294575,
+      "shots": 292.08720930232556,
+      "hits": 63.35271317829457,
+      "hit_rate": 0.21689656773953833,
+      "engagement_rate": 0.7012076873223989,
+      "outside_share": 0.015986589560795652,
+      "engine_duty": 0.2507064539600418,
+      "passes": 2.061046511627907,
+      "crash_damage_taken": 0.32634595944839456,
+      "crash_contacts": 0.125,
+      "fire_rate": 0.5054155794048066
+     }
+    },
+    "nan_matches": 0,
+    "stuck_matches": 0
+   }
+  },
+  "convoy_escort": {
+   "mission": "convoy_escort",
+   "n": 516,
+   "time_limit_s": 120.0,
+   "win_rate": 0.6821705426356589,
+   "win_rate_team0": 0.4108527131782946,
+   "win_rate_team1": 0.9534883720930233,
+   "win_rate_by_roster": {
+    "4 freighters": 0.6046511627906976,
+    "3 freighters": 0.6569767441860465,
+    "5 freighters": 0.7848837209302325
+   },
+   "draw_rate": 0.0,
+   "time_limit_rate": 0.0,
+   "stalemate_rate": 0.0,
+   "end_reasons": {
+    "eliminated": 0.01744186046511628,
+    "convoy_through": 0.21124031007751937,
+    "convoy_destroyed": 0.7713178294573644
+   },
+   "length_median_s": 47.55,
+   "length_p90_s": 71.53333333333333,
+   "side_a": {
+    "win_rate": 0.6821705426356589,
+    "all_ships": {
+     "ships": 2580,
+     "damage_dealt": 198.30988372093023,
+     "shield_damage_dealt": 61.75387596899225,
+     "survival": 0.47131782945736433,
+     "shots": 257.09922480620156,
+     "hits": 65.64651162790697,
+     "hit_rate": 0.255335315294671,
+     "engagement_rate": 0.9100837939838089,
+     "outside_share": 0.0005181062747087828,
+     "engine_duty": 0.253257424176752,
+     "passes": 1.37984496124031,
+     "crash_damage_taken": 5.709860299127475,
+     "crash_contacts": 1.625968992248062,
+     "fire_rate": 0.7179901165573654
+    },
+    "hulls": {
+     "fighter": {
+      "ships": 1462,
+      "damage_dealt": 146.5577975376197,
+      "shield_damage_dealt": 48.8235294117647,
+      "survival": 0.3850889192886457,
+      "shots": 102.25923392612859,
+      "hits": 40.738714090287274,
+      "hit_rate": 0.3983866544484057,
+      "engagement_rate": 0.9267199738482251,
+      "outside_share": 0.00048346373376804925,
+      "engine_duty": 0.2311603246550332,
+      "passes": 1.2291381668946648,
+      "crash_damage_taken": 9.604762638920311,
+      "crash_contacts": 2.133378932968536,
+      "fire_rate": 0.6825067434134456
+     },
+     "gunship": {
+      "ships": 430,
+      "damage_dealt": 392.57441860465116,
+      "shield_damage_dealt": 125.3093023255814,
+      "survival": 0.772093023255814,
+      "shots": 529.0906976744186,
+      "hits": 126.86744186046512,
+      "hit_rate": 0.2397839206361067,
+      "engagement_rate": 0.9117545158478634,
+      "outside_share": 0.00059263095320586,
+      "engine_duty": 0.3993891859827847,
+      "passes": 1.6116279069767443,
+      "crash_damage_taken": 0.7729442602542106,
+      "crash_contacts": 1.2790697674418605,
+      "fire_rate": 0.7838508631625393
+     },
+     "strafer": {
+      "ships": 688,
+      "damage_dealt": 186.86773255813952,
+      "shield_damage_dealt": 49.508720930232556,
+      "survival": 0.46656976744186046,
+      "shots": 416.13953488372096,
+      "hits": 80.3125,
+      "hit_rate": 0.19299416005364928,
+      "engagement_rate": 0.8718674882925853,
+      "outside_share": 0.0005169752795251374,
+      "engine_duty": 0.1505184220061586,
+      "passes": 1.555232558139535,
+      "crash_damage_taken": 0.5187653513634846,
+      "crash_contacts": 0.7645348837209303,
+      "fire_rate": 0.7272488919169263
+     }
+    },
+    "nan_matches": 0,
+    "stuck_matches": 0
+   },
+   "side_b": {
+    "win_rate": 0.3178294573643411,
+    "all_ships": {
+     "ships": 2580,
+     "damage_dealt": 177.72616279069769,
+     "shield_damage_dealt": 75.73333333333333,
+     "survival": 0.46472868217054264,
+     "shots": 234.28178294573644,
+     "hits": 60.263565891472865,
+     "hit_rate": 0.2572268536364644,
+     "engagement_rate": 0.7870493590466524,
+     "outside_share": 0.014712707314489202,
+     "engine_duty": 0.280634181369958,
+     "passes": 1.7651162790697674,
+     "crash_damage_taken": 4.529624902091461,
+     "crash_contacts": 1.1546511627906977,
+     "fire_rate": 0.4244106591423929
+    },
+    "hulls": {
+     "fighter": {
+      "ships": 1462,
+      "damage_dealt": 129.41176470588235,
+      "shield_damage_dealt": 51.89466484268126,
+      "survival": 0.27428180574555405,
+      "shots": 102.13543091655266,
+      "hits": 37.75512995896033,
+      "hit_rate": 0.369657518650969,
+      "engagement_rate": 0.871611697822894,
+      "outside_share": 0.007681174521023852,
+      "engine_duty": 0.17736319194811423,
+      "passes": 1.5075239398084814,
+      "crash_damage_taken": 7.340111917447183,
+      "crash_contacts": 1.527359781121751,
+      "fire_rate": 0.4133520039632962
+     },
+     "gunship": {
+      "ships": 430,
+      "damage_dealt": 501.6232558139535,
+      "shield_damage_dealt": 217.84651162790698,
+      "survival": 0.858139534883721,
+      "shots": 530.4441860465116,
+      "hits": 170.5860465116279,
+      "hit_rate": 0.32159094396534715,
+      "engagement_rate": 0.9194395554777416,
+      "outside_share": 0.0005052785482379755,
+      "engine_duty": 0.45000403364068803,
+      "passes": 1.6116279069767443,
+      "crash_damage_taken": 0.5792699948657131,
+      "crash_contacts": 0.9906976744186047,
+      "fire_rate": 0.6265282515843094
+     },
+     "strafer": {
+      "ships": 688,
+      "damage_dealt": 77.95857558139535,
+      "shield_damage_dealt": 37.56976744186046,
+      "survival": 0.623546511627907,
+      "shots": 329.9912790697674,
+      "hits": 39.14244186046512,
+      "hit_rate": 0.11861659487125277,
+      "engagement_rate": 0.5527841550254874,
+      "outside_share": 0.036576154256402746,
+      "engine_duty": 0.32003151981762673,
+      "passes": 2.4084302325581395,
+      "crash_damage_taken": 1.0263118114766427,
+      "crash_contacts": 0.46511627906976744,
+      "fire_rate": 0.29121281242640984
+     }
+    },
+    "nan_matches": 0,
+    "stuck_matches": 0
+   }
+  }
+ },
+ "win_rate_mean": 0.6947674418604651,
+ "schema": "rlf.eval.mission/1"
+}

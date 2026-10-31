@@ -1,0 +1,2417 @@
+{
+ "pick": null,
+ "candidates": [
+  {
+   "candidate": "reward_50",
+   "passed": false,
+   "gates": {
+    "O": false,
+    "M": false,
+    "D": true,
+    "H": true
+   },
+   "checks": [
+    {
+     "gate": "O",
+     "name": "attack instances",
+     "value": 3657.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defend instances",
+     "value": 3564.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "go-to judged instances",
+     "value": 1779.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defended ward-minutes",
+     "value": 377.61555555555555,
+     "bound": ">= 300",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defended ward-minutes, hidden",
+     "value": 386.93888888888887,
+     "bound": ">= 300",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "attack median ticks to gun range",
+     "value": 63.0,
+     "bound": "<= 150 -> <= 150.000",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "attack damage share on target",
+     "value": 0.3796728825546315,
+     "bound": ">= hidden + 0.05 -> >= 0.452",
+     "passed": false
+    },
+    {
+     "gate": "O",
+     "name": "defend ward hull lost per ward-minute",
+     "value": 0.4882896149041028,
+     "bound": "<= teacher 0.588 x 1.05 = 0.617 (plan: <= 0.8 x hidden) -> <= 0.617",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defend threat-set share",
+     "value": 0.3450245559539456,
+     "bound": ">= hidden + 0.05 -> >= 0.378",
+     "passed": false
+    },
+    {
+     "gate": "O",
+     "name": "go-to arrivals in time",
+     "value": 0.4468802698145025,
+     "bound": ">= 0.7 -> >= 0.700",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "carrier_battle: win vs v1",
+     "value": 0.7093023255813954,
+     "bound": ">= 0.47",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "convoy_escort: win vs v1",
+     "value": 0.7209302325581395,
+     "bound": ">= 0.47",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs v1",
+     "value": 0.7151162790697674,
+     "bound": ">= 0.52",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs w1_400",
+     "value": 0.43023255813953487,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs script",
+     "value": 0.8935546875,
+     "bound": ">= 0.85",
+     "passed": true
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs v1",
+     "value": 0.60009765625,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: time-limit rate",
+     "value": 0.011627906976744186,
+     "bound": "<= v1 0.019 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: outside-arena share",
+     "value": 0.002223958329210739,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: outside-arena share",
+     "value": 0.001066389766035083,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.001 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch outside-arena share",
+     "value": 0.00170465668500533,
+     "bound": "<= 0.02",
+     "passed": true
+    }
+   ]
+  },
+  {
+   "candidate": "reward_100",
+   "passed": false,
+   "gates": {
+    "O": false,
+    "M": true,
+    "D": true,
+    "H": true
+   },
+   "checks": [
+    {
+     "gate": "O",
+     "name": "attack instances",
+     "value": 3593.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defend instances",
+     "value": 3509.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "go-to judged instances",
+     "value": 1744.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defended ward-minutes",
+     "value": 370.5422222222222,
+     "bound": ">= 300",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defended ward-minutes, hidden",
+     "value": 397.9216666666667,
+     "bound": ">= 300",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "attack median ticks to gun range",
+     "value": 63.0,
+     "bound": "<= 150 -> <= 150.000",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "attack damage share on target",
+     "value": 0.3784911924166394,
+     "bound": ">= hidden + 0.05 -> >= 0.443",
+     "passed": false
+    },
+    {
+     "gate": "O",
+     "name": "defend ward hull lost per ward-minute",
+     "value": 0.5191524922468028,
+     "bound": "<= teacher 0.588 x 1.05 = 0.617 (plan: <= 0.8 x hidden) -> <= 0.617",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defend threat-set share",
+     "value": 0.34534456111305467,
+     "bound": ">= hidden + 0.05 -> >= 0.364",
+     "passed": false
+    },
+    {
+     "gate": "O",
+     "name": "go-to arrivals in time",
+     "value": 0.45756880733944955,
+     "bound": ">= 0.7 -> >= 0.700",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "carrier_battle: win vs v1",
+     "value": 0.7034883720930233,
+     "bound": ">= 0.47",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "convoy_escort: win vs v1",
+     "value": 0.6976744186046512,
+     "bound": ">= 0.47",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs v1",
+     "value": 0.7005813953488372,
+     "bound": ">= 0.52",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs w1_400",
+     "value": 0.47093023255813954,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs script",
+     "value": 0.8994140625,
+     "bound": ">= 0.85",
+     "passed": true
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs v1",
+     "value": 0.57470703125,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: time-limit rate",
+     "value": 0.003875968992248062,
+     "bound": "<= v1 0.019 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: outside-arena share",
+     "value": 0.0019373699667516273,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: outside-arena share",
+     "value": 0.000989656115907611,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.001 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch outside-arena share",
+     "value": 0.0011192569950317967,
+     "bound": "<= 0.02",
+     "passed": true
+    }
+   ]
+  },
+  {
+   "candidate": "reward_150",
+   "passed": false,
+   "gates": {
+    "O": false,
+    "M": true,
+    "D": true,
+    "H": true
+   },
+   "checks": [
+    {
+     "gate": "O",
+     "name": "attack instances",
+     "value": 3573.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defend instances",
+     "value": 3436.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "go-to judged instances",
+     "value": 1691.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defended ward-minutes",
+     "value": 366.57722222222225,
+     "bound": ">= 300",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defended ward-minutes, hidden",
+     "value": 388.1894444444444,
+     "bound": ">= 300",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "attack median ticks to gun range",
+     "value": 69.0,
+     "bound": "<= 150 -> <= 150.000",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "attack damage share on target",
+     "value": 0.4092433488339931,
+     "bound": ">= hidden + 0.05 -> >= 0.452",
+     "passed": false
+    },
+    {
+     "gate": "O",
+     "name": "defend ward hull lost per ward-minute",
+     "value": 0.530308318432365,
+     "bound": "<= teacher 0.588 x 1.05 = 0.617 (plan: <= 0.8 x hidden) -> <= 0.617",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defend threat-set share",
+     "value": 0.3445427602542586,
+     "bound": ">= hidden + 0.05 -> >= 0.397",
+     "passed": false
+    },
+    {
+     "gate": "O",
+     "name": "go-to arrivals in time",
+     "value": 0.4872856298048492,
+     "bound": ">= 0.7 -> >= 0.700",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "carrier_battle: win vs v1",
+     "value": 0.7344961240310077,
+     "bound": ">= 0.47",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "convoy_escort: win vs v1",
+     "value": 0.7034883720930233,
+     "bound": ">= 0.47",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs v1",
+     "value": 0.7189922480620154,
+     "bound": ">= 0.52",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs w1_400",
+     "value": 0.48643410852713176,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs script",
+     "value": 0.9052734375,
+     "bound": ">= 0.85",
+     "passed": true
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs v1",
+     "value": 0.59326171875,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: time-limit rate",
+     "value": 0.005813953488372093,
+     "bound": "<= v1 0.019 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: outside-arena share",
+     "value": 0.001909378219530265,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: outside-arena share",
+     "value": 0.0008119606359458013,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.001 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch outside-arena share",
+     "value": 0.0010752179266092106,
+     "bound": "<= 0.02",
+     "passed": true
+    }
+   ]
+  },
+  {
+   "candidate": "reward_200",
+   "passed": false,
+   "gates": {
+    "O": false,
+    "M": true,
+    "D": true,
+    "H": true
+   },
+   "checks": [
+    {
+     "gate": "O",
+     "name": "attack instances",
+     "value": 3503.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defend instances",
+     "value": 3448.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "go-to judged instances",
+     "value": 1702.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defended ward-minutes",
+     "value": 363.4611111111111,
+     "bound": ">= 300",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defended ward-minutes, hidden",
+     "value": 392.66055555555556,
+     "bound": ">= 300",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "attack median ticks to gun range",
+     "value": 66.0,
+     "bound": "<= 150 -> <= 150.000",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "attack damage share on target",
+     "value": 0.4082649344193138,
+     "bound": ">= hidden + 0.05 -> >= 0.441",
+     "passed": false
+    },
+    {
+     "gate": "O",
+     "name": "defend ward hull lost per ward-minute",
+     "value": 0.5167663841341953,
+     "bound": "<= teacher 0.588 x 1.05 = 0.617 (plan: <= 0.8 x hidden) -> <= 0.617",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defend threat-set share",
+     "value": 0.3597944394539124,
+     "bound": ">= hidden + 0.05 -> >= 0.387",
+     "passed": false
+    },
+    {
+     "gate": "O",
+     "name": "go-to arrivals in time",
+     "value": 0.49412455934195065,
+     "bound": ">= 0.7 -> >= 0.700",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "carrier_battle: win vs v1",
+     "value": 0.7073643410852714,
+     "bound": ">= 0.47",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "convoy_escort: win vs v1",
+     "value": 0.6821705426356589,
+     "bound": ">= 0.47",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs v1",
+     "value": 0.6947674418604651,
+     "bound": ">= 0.52",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs w1_400",
+     "value": 0.46511627906976744,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs script",
+     "value": 0.8984375,
+     "bound": ">= 0.85",
+     "passed": true
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs v1",
+     "value": 0.5390625,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: time-limit rate",
+     "value": 0.005813953488372093,
+     "bound": "<= v1 0.019 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: outside-arena share",
+     "value": 0.001813374076823268,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: outside-arena share",
+     "value": 0.0005181062747087828,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.001 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch outside-arena share",
+     "value": 0.0005199511721670477,
+     "bound": "<= 0.02",
+     "passed": true
+    }
+   ]
+  },
+  {
+   "candidate": "reward_250",
+   "passed": false,
+   "gates": {
+    "O": false,
+    "M": true,
+    "D": true,
+    "H": true
+   },
+   "checks": [
+    {
+     "gate": "O",
+     "name": "attack instances",
+     "value": 3461.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defend instances",
+     "value": 3385.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "go-to judged instances",
+     "value": 1700.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defended ward-minutes",
+     "value": 359.795,
+     "bound": ">= 300",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defended ward-minutes, hidden",
+     "value": 384.79833333333335,
+     "bound": ">= 300",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "attack median ticks to gun range",
+     "value": 66.0,
+     "bound": "<= 150 -> <= 150.000",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "attack damage share on target",
+     "value": 0.41303682247877477,
+     "bound": ">= hidden + 0.05 -> >= 0.450",
+     "passed": false
+    },
+    {
+     "gate": "O",
+     "name": "defend ward hull lost per ward-minute",
+     "value": 0.533994363957339,
+     "bound": "<= teacher 0.588 x 1.05 = 0.617 (plan: <= 0.8 x hidden) -> <= 0.617",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defend threat-set share",
+     "value": 0.36230028963841915,
+     "bound": ">= hidden + 0.05 -> >= 0.387",
+     "passed": false
+    },
+    {
+     "gate": "O",
+     "name": "go-to arrivals in time",
+     "value": 0.4894117647058824,
+     "bound": ">= 0.7 -> >= 0.700",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "carrier_battle: win vs v1",
+     "value": 0.752906976744186,
+     "bound": ">= 0.47",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "convoy_escort: win vs v1",
+     "value": 0.6821705426356589,
+     "bound": ">= 0.47",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs v1",
+     "value": 0.7175387596899225,
+     "bound": ">= 0.52",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs w1_400",
+     "value": 0.5,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs script",
+     "value": 0.90478515625,
+     "bound": ">= 0.85",
+     "passed": true
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs v1",
+     "value": 0.58544921875,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: time-limit rate",
+     "value": 0.003875968992248062,
+     "bound": "<= v1 0.019 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: outside-arena share",
+     "value": 0.0017944817331181668,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: outside-arena share",
+     "value": 0.0005888124725054899,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.001 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch outside-arena share",
+     "value": 0.0005379294458784713,
+     "bound": "<= 0.02",
+     "passed": true
+    }
+   ]
+  },
+  {
+   "candidate": "reward_300",
+   "passed": false,
+   "gates": {
+    "O": false,
+    "M": true,
+    "D": true,
+    "H": true
+   },
+   "checks": [
+    {
+     "gate": "O",
+     "name": "attack instances",
+     "value": 3432.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defend instances",
+     "value": 3343.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "go-to judged instances",
+     "value": 1618.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defended ward-minutes",
+     "value": 348.0661111111111,
+     "bound": ">= 300",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defended ward-minutes, hidden",
+     "value": 391.1411111111111,
+     "bound": ">= 300",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "attack median ticks to gun range",
+     "value": 64.5,
+     "bound": "<= 150 -> <= 150.000",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "attack damage share on target",
+     "value": 0.3889812815036456,
+     "bound": ">= hidden + 0.05 -> >= 0.454",
+     "passed": false
+    },
+    {
+     "gate": "O",
+     "name": "defend ward hull lost per ward-minute",
+     "value": 0.522937342129271,
+     "bound": "<= teacher 0.588 x 1.05 = 0.617 (plan: <= 0.8 x hidden) -> <= 0.617",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defend threat-set share",
+     "value": 0.3658369527042382,
+     "bound": ">= hidden + 0.05 -> >= 0.392",
+     "passed": false
+    },
+    {
+     "gate": "O",
+     "name": "go-to arrivals in time",
+     "value": 0.5142150803461063,
+     "bound": ">= 0.7 -> >= 0.700",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "carrier_battle: win vs v1",
+     "value": 0.7587209302325582,
+     "bound": ">= 0.47",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "convoy_escort: win vs v1",
+     "value": 0.6937984496124031,
+     "bound": ">= 0.47",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs v1",
+     "value": 0.7262596899224807,
+     "bound": ">= 0.52",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs w1_400",
+     "value": 0.5310077519379846,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs script",
+     "value": 0.900390625,
+     "bound": ">= 0.85",
+     "passed": true
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs v1",
+     "value": 0.61279296875,
+     "bound": ">= 0.45",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: time-limit rate",
+     "value": 0.003875968992248062,
+     "bound": "<= v1 0.019 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: outside-arena share",
+     "value": 0.0013905592082695908,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: outside-arena share",
+     "value": 0.00043183044972868546,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.001 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch outside-arena share",
+     "value": 0.00032259938555752625,
+     "bound": "<= 0.02",
+     "passed": true
+    }
+   ]
+  },
+  {
+   "candidate": "transit_50",
+   "passed": false,
+   "gates": {
+    "O": false,
+    "M": false,
+    "D": false,
+    "H": true
+   },
+   "checks": [
+    {
+     "gate": "O",
+     "name": "attack instances",
+     "value": 4148.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defend instances",
+     "value": 4042.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "go-to judged instances",
+     "value": 2021.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defended ward-minutes",
+     "value": 424.36944444444447,
+     "bound": ">= 300",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defended ward-minutes, hidden",
+     "value": 389.72,
+     "bound": ">= 300",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "attack median ticks to gun range",
+     "value": 93.0,
+     "bound": "<= 150 -> <= 150.000",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "attack damage share on target",
+     "value": 0.4445170289784769,
+     "bound": ">= hidden + 0.05 -> >= 0.440",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defend ward hull lost per ward-minute",
+     "value": 0.5263527804798478,
+     "bound": "<= teacher 0.588 x 1.05 = 0.617 (plan: <= 0.8 x hidden) -> <= 0.617",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defend threat-set share",
+     "value": 0.5151537240686929,
+     "bound": ">= hidden + 0.05 -> >= 0.382",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "go-to arrivals in time",
+     "value": 0.5314200890648194,
+     "bound": ">= 0.7 -> >= 0.700",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "carrier_battle: win vs v1",
+     "value": 0.050387596899224806,
+     "bound": ">= 0.47",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "convoy_escort: win vs v1",
+     "value": 0.47093023255813954,
+     "bound": ">= 0.47",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs v1",
+     "value": 0.2606589147286822,
+     "bound": ">= 0.52",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs w1_400",
+     "value": 0.13759689922480622,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs script",
+     "value": 0.76171875,
+     "bound": ">= 0.85",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs v1",
+     "value": 0.29345703125,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: time-limit rate",
+     "value": 0.001937984496124031,
+     "bound": "<= v1 0.019 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: outside-arena share",
+     "value": 0.0016308595318444991,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: outside-arena share",
+     "value": 4.434253207842636e-05,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch time-limit rate",
+     "value": 0.0009765625,
+     "bound": "<= v1 0.001 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch outside-arena share",
+     "value": 0.002903316826548981,
+     "bound": "<= 0.02",
+     "passed": true
+    }
+   ]
+  },
+  {
+   "candidate": "transit_100",
+   "passed": false,
+   "gates": {
+    "O": false,
+    "M": false,
+    "D": false,
+    "H": true
+   },
+   "checks": [
+    {
+     "gate": "O",
+     "name": "attack instances",
+     "value": 4238.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defend instances",
+     "value": 4034.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "go-to judged instances",
+     "value": 2036.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defended ward-minutes",
+     "value": 427.0566666666667,
+     "bound": ">= 300",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defended ward-minutes, hidden",
+     "value": 388.56333333333333,
+     "bound": ">= 300",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "attack median ticks to gun range",
+     "value": 93.0,
+     "bound": "<= 150 -> <= 150.000",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "attack damage share on target",
+     "value": 0.485063016802982,
+     "bound": ">= hidden + 0.05 -> >= 0.439",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defend ward hull lost per ward-minute",
+     "value": 0.5259843772916888,
+     "bound": "<= teacher 0.588 x 1.05 = 0.617 (plan: <= 0.8 x hidden) -> <= 0.617",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defend threat-set share",
+     "value": 0.5806565705282788,
+     "bound": ">= hidden + 0.05 -> >= 0.387",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "go-to arrivals in time",
+     "value": 0.6335952848722987,
+     "bound": ">= 0.7 -> >= 0.700",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "carrier_battle: win vs v1",
+     "value": 0.01744186046511628,
+     "bound": ">= 0.47",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "convoy_escort: win vs v1",
+     "value": 0.4418604651162791,
+     "bound": ">= 0.47",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs v1",
+     "value": 0.22965116279069767,
+     "bound": ">= 0.52",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs w1_400",
+     "value": 0.12015503875968993,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs script",
+     "value": 0.67529296875,
+     "bound": ">= 0.85",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs v1",
+     "value": 0.2998046875,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.019 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: outside-arena share",
+     "value": 0.0005964838121088017,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: outside-arena share",
+     "value": 5.3135963214851296e-05,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.001 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch outside-arena share",
+     "value": 0.0029328929140475172,
+     "bound": "<= 0.02",
+     "passed": true
+    }
+   ]
+  },
+  {
+   "candidate": "transit_150",
+   "passed": false,
+   "gates": {
+    "O": false,
+    "M": false,
+    "D": false,
+    "H": true
+   },
+   "checks": [
+    {
+     "gate": "O",
+     "name": "attack instances",
+     "value": 4197.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defend instances",
+     "value": 4087.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "go-to judged instances",
+     "value": 2079.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defended ward-minutes",
+     "value": 431.6222222222222,
+     "bound": ">= 300",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defended ward-minutes, hidden",
+     "value": 389.3211111111111,
+     "bound": ">= 300",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "attack median ticks to gun range",
+     "value": 93.0,
+     "bound": "<= 150 -> <= 150.000",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "attack damage share on target",
+     "value": 0.5104776692646384,
+     "bound": ">= hidden + 0.05 -> >= 0.444",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defend ward hull lost per ward-minute",
+     "value": 0.538315726097714,
+     "bound": "<= teacher 0.588 x 1.05 = 0.617 (plan: <= 0.8 x hidden) -> <= 0.617",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defend threat-set share",
+     "value": 0.5794989775051125,
+     "bound": ">= hidden + 0.05 -> >= 0.374",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "go-to arrivals in time",
+     "value": 0.6671476671476672,
+     "bound": ">= 0.7 -> >= 0.700",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "carrier_battle: win vs v1",
+     "value": 0.01937984496124031,
+     "bound": ">= 0.47",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "convoy_escort: win vs v1",
+     "value": 0.4903100775193798,
+     "bound": ">= 0.47",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs v1",
+     "value": 0.2548449612403101,
+     "bound": ">= 0.52",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs w1_400",
+     "value": 0.13953488372093023,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs script",
+     "value": 0.6806640625,
+     "bound": ">= 0.85",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs v1",
+     "value": 0.3046875,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: time-limit rate",
+     "value": 0.001937984496124031,
+     "bound": "<= v1 0.019 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: outside-arena share",
+     "value": 0.0004730148812610972,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: outside-arena share",
+     "value": 6.270149166427854e-05,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch time-limit rate",
+     "value": 0.00390625,
+     "bound": "<= v1 0.001 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch outside-arena share",
+     "value": 0.0031587106399594378,
+     "bound": "<= 0.02",
+     "passed": true
+    }
+   ]
+  },
+  {
+   "candidate": "transit_200",
+   "passed": false,
+   "gates": {
+    "O": false,
+    "M": false,
+    "D": false,
+    "H": true
+   },
+   "checks": [
+    {
+     "gate": "O",
+     "name": "attack instances",
+     "value": 4154.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defend instances",
+     "value": 4099.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "go-to judged instances",
+     "value": 2021.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defended ward-minutes",
+     "value": 433.14000000000004,
+     "bound": ">= 300",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defended ward-minutes, hidden",
+     "value": 395.05722222222226,
+     "bound": ">= 300",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "attack median ticks to gun range",
+     "value": 93.0,
+     "bound": "<= 150 -> <= 150.000",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "attack damage share on target",
+     "value": 0.5026506957241674,
+     "bound": ">= hidden + 0.05 -> >= 0.451",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defend ward hull lost per ward-minute",
+     "value": 0.49997707109662093,
+     "bound": "<= teacher 0.588 x 1.05 = 0.617 (plan: <= 0.8 x hidden) -> <= 0.617",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defend threat-set share",
+     "value": 0.6142454964831349,
+     "bound": ">= hidden + 0.05 -> >= 0.385",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "go-to arrivals in time",
+     "value": 0.6759030183077684,
+     "bound": ">= 0.7 -> >= 0.700",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "carrier_battle: win vs v1",
+     "value": 0.001937984496124031,
+     "bound": ">= 0.47",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "convoy_escort: win vs v1",
+     "value": 0.5135658914728682,
+     "bound": ">= 0.47",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs v1",
+     "value": 0.25775193798449614,
+     "bound": ">= 0.52",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs w1_400",
+     "value": 0.13372093023255813,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs script",
+     "value": 0.66015625,
+     "bound": ">= 0.85",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs v1",
+     "value": 0.3193359375,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.019 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: outside-arena share",
+     "value": 0.00033997445169608293,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: outside-arena share",
+     "value": 2.5280337880142547e-05,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.001 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch outside-arena share",
+     "value": 0.002796303539711066,
+     "bound": "<= 0.02",
+     "passed": true
+    }
+   ]
+  },
+  {
+   "candidate": "transit_250",
+   "passed": false,
+   "gates": {
+    "O": false,
+    "M": false,
+    "D": false,
+    "H": true
+   },
+   "checks": [
+    {
+     "gate": "O",
+     "name": "attack instances",
+     "value": 4152.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defend instances",
+     "value": 3991.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "go-to judged instances",
+     "value": 2072.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defended ward-minutes",
+     "value": 426.0227777777778,
+     "bound": ">= 300",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defended ward-minutes, hidden",
+     "value": 385.34055555555557,
+     "bound": ">= 300",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "attack median ticks to gun range",
+     "value": 102.0,
+     "bound": "<= 150 -> <= 150.000",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "attack damage share on target",
+     "value": 0.5214275402073167,
+     "bound": ">= hidden + 0.05 -> >= 0.435",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defend ward hull lost per ward-minute",
+     "value": 0.46767462698911916,
+     "bound": "<= teacher 0.588 x 1.05 = 0.617 (plan: <= 0.8 x hidden) -> <= 0.617",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defend threat-set share",
+     "value": 0.6103457073606328,
+     "bound": ">= hidden + 0.05 -> >= 0.379",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "go-to arrivals in time",
+     "value": 0.6718146718146718,
+     "bound": ">= 0.7 -> >= 0.700",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "carrier_battle: win vs v1",
+     "value": 0.01937984496124031,
+     "bound": ">= 0.47",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "convoy_escort: win vs v1",
+     "value": 0.5523255813953488,
+     "bound": ">= 0.47",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs v1",
+     "value": 0.2858527131782946,
+     "bound": ">= 0.52",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs w1_400",
+     "value": 0.16666666666666666,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs script",
+     "value": 0.7138671875,
+     "bound": ">= 0.85",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs v1",
+     "value": 0.34765625,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.019 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: outside-arena share",
+     "value": 0.0003118863208880985,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: outside-arena share",
+     "value": 5.351775154086526e-05,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch time-limit rate",
+     "value": 0.0009765625,
+     "bound": "<= v1 0.001 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch outside-arena share",
+     "value": 0.0023294375875705944,
+     "bound": "<= 0.02",
+     "passed": true
+    }
+   ]
+  },
+  {
+   "candidate": "transit_300",
+   "passed": false,
+   "gates": {
+    "O": false,
+    "M": false,
+    "D": false,
+    "H": true
+   },
+   "checks": [
+    {
+     "gate": "O",
+     "name": "attack instances",
+     "value": 4182.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defend instances",
+     "value": 4003.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "go-to judged instances",
+     "value": 2021.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defended ward-minutes",
+     "value": 418.71555555555557,
+     "bound": ">= 300",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defended ward-minutes, hidden",
+     "value": 390.4244444444445,
+     "bound": ">= 300",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "attack median ticks to gun range",
+     "value": 99.0,
+     "bound": "<= 150 -> <= 150.000",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "attack damage share on target",
+     "value": 0.5118406909077431,
+     "bound": ">= hidden + 0.05 -> >= 0.426",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defend ward hull lost per ward-minute",
+     "value": 0.4786543669499759,
+     "bound": "<= teacher 0.588 x 1.05 = 0.617 (plan: <= 0.8 x hidden) -> <= 0.617",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "defend threat-set share",
+     "value": 0.5842953535224329,
+     "bound": ">= hidden + 0.05 -> >= 0.383",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "go-to arrivals in time",
+     "value": 0.6615536862939139,
+     "bound": ">= 0.7 -> >= 0.700",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "carrier_battle: win vs v1",
+     "value": 0.01744186046511628,
+     "bound": ">= 0.47",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "convoy_escort: win vs v1",
+     "value": 0.5930232558139535,
+     "bound": ">= 0.47",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs v1",
+     "value": 0.3052325581395349,
+     "bound": ">= 0.52",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs w1_400",
+     "value": 0.18604651162790697,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs script",
+     "value": 0.744140625,
+     "bound": ">= 0.85",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs v1",
+     "value": 0.35009765625,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.019 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: outside-arena share",
+     "value": 0.000481866944342,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: outside-arena share",
+     "value": 3.221272606128217e-05,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch time-limit rate",
+     "value": 0.0009765625,
+     "bound": "<= v1 0.001 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch outside-arena share",
+     "value": 0.0023243289716590684,
+     "bound": "<= 0.02",
+     "passed": true
+    }
+   ]
+  }
+ ]
+}

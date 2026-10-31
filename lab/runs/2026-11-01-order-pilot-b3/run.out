@@ -1,0 +1,232 @@
+
+== 09:31:34 baseline: sizing, the teacher's and w1_400's following, O bounds, missions, deathmatch
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/sizing_w1_400_orders.json
+following eval: 390 matches per random-commander scenario
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/teacher_orders.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/w1_400_orders.json
+O bounds after the teacher-first rule (plan.md §5):
+
+| check (random commander) | bound | teacher | judged against | replaced from the teacher |
+|---|---|---|---|---|
+| attack median ticks to gun range | <= 150 | 66.000 | 150.000 | no |
+| attack damage share on target | >= hidden + 0.05 | 0.470 | 0.423 | no |
+| defend ward hull lost per ward-minute | <= teacher 0.588 x 1.05 = 0.617 (plan: <= 0.8 x hidden) | 0.588 | 0.393 | yes |
+| defend threat-set share | >= hidden + 0.05 | 0.650 | 0.396 | no |
+| go-to arrivals in time | >= 0.7 | 0.898 | 0.700 | no |
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/script_vs_script_missions.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/v1_vs_v1_missions.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/v1_fleet_vs_script.json
+
+== 09:44:15 PPO arms (transit reward) concurrently, 6 sim + 6 torch threads each
+stopped at update 300 of 300
+stopped at update 300 of 300
+
+== 11:41:57 gate evals (eval.sh), 12 threads
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/transit_100_orders.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/transit_100_missions_vs_v1.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/transit_100_missions_vs_w1_400.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/transit_100_fleet_vs_script.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/transit_100_fleet_vs_v1.json
+done: transit_100
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/reward_100_orders.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/reward_100_missions_vs_v1.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/reward_100_missions_vs_w1_400.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/reward_100_fleet_vs_script.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/reward_100_fleet_vs_v1.json
+done: reward_100
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/transit_200_orders.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/transit_200_missions_vs_v1.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/transit_200_missions_vs_w1_400.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/transit_200_fleet_vs_script.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/transit_200_fleet_vs_v1.json
+done: transit_200
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/reward_200_orders.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/reward_200_missions_vs_v1.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/reward_200_missions_vs_w1_400.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/reward_200_fleet_vs_script.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/reward_200_fleet_vs_v1.json
+done: reward_200
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/transit_300_orders.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/transit_300_missions_vs_v1.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/transit_300_missions_vs_w1_400.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/transit_300_fleet_vs_script.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/transit_300_fleet_vs_v1.json
+done: transit_300
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/reward_300_orders.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/reward_300_missions_vs_v1.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/reward_300_missions_vs_w1_400.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/reward_300_fleet_vs_script.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/reward_300_fleet_vs_v1.json
+done: reward_300
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/transit_50_orders.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/transit_50_missions_vs_v1.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/transit_50_missions_vs_w1_400.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/transit_50_fleet_vs_script.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/transit_50_fleet_vs_v1.json
+done: transit_50
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/reward_50_orders.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/reward_50_missions_vs_v1.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/reward_50_missions_vs_w1_400.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/reward_50_fleet_vs_script.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/reward_50_fleet_vs_v1.json
+done: reward_50
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/transit_150_orders.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/transit_150_missions_vs_v1.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/transit_150_missions_vs_w1_400.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/transit_150_fleet_vs_script.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/transit_150_fleet_vs_v1.json
+done: transit_150
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/reward_150_orders.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/reward_150_missions_vs_v1.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/reward_150_missions_vs_w1_400.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/reward_150_fleet_vs_script.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/reward_150_fleet_vs_v1.json
+done: reward_150
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/transit_250_orders.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/transit_250_missions_vs_v1.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/transit_250_missions_vs_w1_400.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/transit_250_fleet_vs_script.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/transit_250_fleet_vs_v1.json
+done: transit_250
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/reward_250_orders.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/reward_250_missions_vs_v1.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/reward_250_missions_vs_w1_400.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/reward_250_fleet_vs_script.json
+wrote lab/runs/2026-11-01-order-pilot-b3/eval/reward_250_fleet_vs_v1.json
+done: reward_250
+
+== 14:07:23 gates (plan.md §5)
+| candidate | O | M | D | H | all | mission win vs v1 | vs w1_400 | attack share | defend hull lost / ward-min | threat share | go-to in time | dm vs script | dm vs v1 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| reward_50 | ✗ | ✗ | ✓ | ✓ | ✗ | 0.715 | 0.430 | 0.380 | 0.488 | 0.345 | 0.447 | 0.894 | 0.600 |
+| reward_100 | ✗ | ✓ | ✓ | ✓ | ✗ | 0.701 | 0.471 | 0.378 | 0.519 | 0.345 | 0.458 | 0.899 | 0.575 |
+| reward_150 | ✗ | ✓ | ✓ | ✓ | ✗ | 0.719 | 0.486 | 0.409 | 0.530 | 0.345 | 0.487 | 0.905 | 0.593 |
+| reward_200 | ✗ | ✓ | ✓ | ✓ | ✗ | 0.695 | 0.465 | 0.408 | 0.517 | 0.360 | 0.494 | 0.898 | 0.539 |
+| reward_250 | ✗ | ✓ | ✓ | ✓ | ✗ | 0.718 | 0.500 | 0.413 | 0.534 | 0.362 | 0.489 | 0.905 | 0.585 |
+| reward_300 | ✗ | ✓ | ✓ | ✓ | ✗ | 0.726 | 0.531 | 0.389 | 0.523 | 0.366 | 0.514 | 0.900 | 0.613 |
+| transit_50 | ✗ | ✗ | ✗ | ✓ | ✗ | 0.261 | 0.138 | 0.445 | 0.526 | 0.515 | 0.531 | 0.762 | 0.293 |
+| transit_100 | ✗ | ✗ | ✗ | ✓ | ✗ | 0.230 | 0.120 | 0.485 | 0.526 | 0.581 | 0.634 | 0.675 | 0.300 |
+| transit_150 | ✗ | ✗ | ✗ | ✓ | ✗ | 0.255 | 0.140 | 0.510 | 0.538 | 0.579 | 0.667 | 0.681 | 0.305 |
+| transit_200 | ✗ | ✗ | ✗ | ✓ | ✗ | 0.258 | 0.134 | 0.503 | 0.500 | 0.614 | 0.676 | 0.660 | 0.319 |
+| transit_250 | ✗ | ✗ | ✗ | ✓ | ✗ | 0.286 | 0.167 | 0.521 | 0.468 | 0.610 | 0.672 | 0.714 | 0.348 |
+| transit_300 | ✗ | ✗ | ✗ | ✓ | ✗ | 0.305 | 0.186 | 0.512 | 0.479 | 0.584 | 0.662 | 0.744 | 0.350 |
+
+- reward_50: O attack damage share on target: 0.380 (needs >= hidden + 0.05 -> >= 0.452); O defend threat-set share: 0.345 (needs >= hidden + 0.05 -> >= 0.378); O go-to arrivals in time: 0.447 (needs >= 0.7 -> >= 0.700); M mean mission win vs w1_400: 0.430 (needs >= 0.45)
+- reward_100: O attack damage share on target: 0.378 (needs >= hidden + 0.05 -> >= 0.443); O defend threat-set share: 0.345 (needs >= hidden + 0.05 -> >= 0.364); O go-to arrivals in time: 0.458 (needs >= 0.7 -> >= 0.700)
+- reward_150: O attack damage share on target: 0.409 (needs >= hidden + 0.05 -> >= 0.452); O defend threat-set share: 0.345 (needs >= hidden + 0.05 -> >= 0.397); O go-to arrivals in time: 0.487 (needs >= 0.7 -> >= 0.700)
+- reward_200: O attack damage share on target: 0.408 (needs >= hidden + 0.05 -> >= 0.441); O defend threat-set share: 0.360 (needs >= hidden + 0.05 -> >= 0.387); O go-to arrivals in time: 0.494 (needs >= 0.7 -> >= 0.700)
+- reward_250: O attack damage share on target: 0.413 (needs >= hidden + 0.05 -> >= 0.450); O defend threat-set share: 0.362 (needs >= hidden + 0.05 -> >= 0.387); O go-to arrivals in time: 0.489 (needs >= 0.7 -> >= 0.700)
+- reward_300: O attack damage share on target: 0.389 (needs >= hidden + 0.05 -> >= 0.454); O defend threat-set share: 0.366 (needs >= hidden + 0.05 -> >= 0.392); O go-to arrivals in time: 0.514 (needs >= 0.7 -> >= 0.700)
+- transit_50: O go-to arrivals in time: 0.531 (needs >= 0.7 -> >= 0.700); M carrier_battle: win vs v1: 0.050 (needs >= 0.47); M mean mission win vs v1: 0.261 (needs >= 0.52); M mean mission win vs w1_400: 0.138 (needs >= 0.45); D deathmatch win vs script: 0.762 (needs >= 0.85); D deathmatch win vs v1: 0.293 (needs >= 0.45)
+- transit_100: O go-to arrivals in time: 0.634 (needs >= 0.7 -> >= 0.700); M carrier_battle: win vs v1: 0.017 (needs >= 0.47); M convoy_escort: win vs v1: 0.442 (needs >= 0.47); M mean mission win vs v1: 0.230 (needs >= 0.52); M mean mission win vs w1_400: 0.120 (needs >= 0.45); D deathmatch win vs script: 0.675 (needs >= 0.85); D deathmatch win vs v1: 0.300 (needs >= 0.45)
+- transit_150: O go-to arrivals in time: 0.667 (needs >= 0.7 -> >= 0.700); M carrier_battle: win vs v1: 0.019 (needs >= 0.47); M mean mission win vs v1: 0.255 (needs >= 0.52); M mean mission win vs w1_400: 0.140 (needs >= 0.45); D deathmatch win vs script: 0.681 (needs >= 0.85); D deathmatch win vs v1: 0.305 (needs >= 0.45)
+- transit_200: O go-to arrivals in time: 0.676 (needs >= 0.7 -> >= 0.700); M carrier_battle: win vs v1: 0.002 (needs >= 0.47); M mean mission win vs v1: 0.258 (needs >= 0.52); M mean mission win vs w1_400: 0.134 (needs >= 0.45); D deathmatch win vs script: 0.660 (needs >= 0.85); D deathmatch win vs v1: 0.319 (needs >= 0.45)
+- transit_250: O go-to arrivals in time: 0.672 (needs >= 0.7 -> >= 0.700); M carrier_battle: win vs v1: 0.019 (needs >= 0.47); M mean mission win vs v1: 0.286 (needs >= 0.52); M mean mission win vs w1_400: 0.167 (needs >= 0.45); D deathmatch win vs script: 0.714 (needs >= 0.85); D deathmatch win vs v1: 0.348 (needs >= 0.45)
+- transit_300: O go-to arrivals in time: 0.662 (needs >= 0.7 -> >= 0.700); M carrier_battle: win vs v1: 0.017 (needs >= 0.47); M mean mission win vs v1: 0.305 (needs >= 0.52); M mean mission win vs w1_400: 0.186 (needs >= 0.45); D deathmatch win vs script: 0.744 (needs >= 0.85); D deathmatch win vs v1: 0.350 (needs >= 0.45)
+
+O bounds (teacher-first, fixed by the baseline stage):
+
+| check (random commander) | bound | teacher | judged against | replaced from the teacher |
+|---|---|---|---|---|
+| attack median ticks to gun range | <= 150 | 66.000 | 150.000 | no |
+| attack damage share on target | >= hidden + 0.05 | 0.470 | 0.423 | no |
+| defend ward hull lost per ward-minute | <= teacher 0.588 x 1.05 = 0.617 (plan: <= 0.8 x hidden) | 0.588 | 0.393 | yes |
+| defend threat-set share | >= hidden + 0.05 | 0.650 | 0.396 | no |
+| go-to arrivals in time | >= 0.7 | 0.898 | 0.700 | no |
+
+Following, reported (followed and hidden passes; the teacher is the order-following scripts, w1_400 the init):
+
+| pilot | commander/pass | attack close | attack share | defend hull lost / ward-min | ward-min | threat share | go-to in time | near | far | arrivals/min |
+|---|---|---|---|---|---|---|---|---|---|---|
+| teacher | random/followed | 66 | 0.470 | 0.588 | 372 | 0.650 | 0.898 | 0.889 | 0.983 | 0.65 |
+| teacher | scripted/followed | 66 | 0.517 | 0.211 | 156 | 0.958 | 0.858 | 0.867 | 0.792 | 0.31 |
+| w1_400 | random/followed | 66 | 0.397 | 0.499 | 377 | 0.349 | 0.419 | 0.427 | 0.343 | 0.33 |
+| w1_400 | random/hidden | 75 | 0.373 | 0.491 | 397 | 0.346 | 0.372 | 0.374 | 0.355 | 0.30 |
+| w1_400 | scripted/followed | 63 | 0.492 | 0.238 | 168 | 0.551 | 0.050 | 0.060 | 0.000 | 0.03 |
+| reward_50 | random/followed | 63 | 0.380 | 0.488 | 378 | 0.345 | 0.447 | 0.449 | 0.424 | 0.34 |
+| reward_50 | random/hidden | 72 | 0.402 | 0.493 | 387 | 0.328 | 0.377 | 0.380 | 0.353 | 0.30 |
+| reward_50 | scripted/followed | 54 | 0.505 | 0.254 | 173 | 0.509 | 0.047 | 0.052 | 0.000 | 0.03 |
+| reward_100 | random/followed | 63 | 0.378 | 0.519 | 371 | 0.345 | 0.458 | 0.469 | 0.333 | 0.35 |
+| reward_100 | random/hidden | 78 | 0.393 | 0.468 | 398 | 0.314 | 0.387 | 0.394 | 0.324 | 0.31 |
+| reward_100 | scripted/followed | 54 | 0.484 | 0.248 | 173 | 0.537 | 0.055 | 0.062 | 0.000 | 0.04 |
+| reward_150 | random/followed | 69 | 0.409 | 0.530 | 367 | 0.345 | 0.487 | 0.493 | 0.422 | 0.36 |
+| reward_150 | random/hidden | 78 | 0.402 | 0.486 | 388 | 0.347 | 0.400 | 0.401 | 0.396 | 0.31 |
+| reward_150 | scripted/followed | 48 | 0.472 | 0.252 | 173 | 0.518 | 0.047 | 0.051 | 0.000 | 0.04 |
+| reward_200 | random/followed | 66 | 0.408 | 0.517 | 363 | 0.360 | 0.494 | 0.494 | 0.496 | 0.38 |
+| reward_200 | random/hidden | 78 | 0.391 | 0.500 | 393 | 0.337 | 0.404 | 0.407 | 0.377 | 0.31 |
+| reward_200 | scripted/followed | 51 | 0.492 | 0.239 | 166 | 0.490 | 0.073 | 0.076 | 0.000 | 0.07 |
+| reward_250 | random/followed | 66 | 0.413 | 0.534 | 360 | 0.362 | 0.489 | 0.499 | 0.396 | 0.38 |
+| reward_250 | random/hidden | 78 | 0.400 | 0.465 | 385 | 0.337 | 0.405 | 0.408 | 0.377 | 0.32 |
+| reward_250 | scripted/followed | 48 | 0.485 | 0.200 | 162 | 0.474 | 0.061 | 0.064 | 0.000 | 0.06 |
+| reward_300 | random/followed | 64 | 0.389 | 0.523 | 348 | 0.366 | 0.514 | 0.513 | 0.525 | 0.39 |
+| reward_300 | random/hidden | 78 | 0.404 | 0.454 | 391 | 0.342 | 0.393 | 0.395 | 0.376 | 0.31 |
+| reward_300 | scripted/followed | 42 | 0.478 | 0.223 | 161 | 0.455 | 0.071 | 0.073 | 0.000 | 0.06 |
+| transit_50 | random/followed | 93 | 0.445 | 0.526 | 424 | 0.515 | 0.531 | 0.548 | 0.349 | 0.46 |
+| transit_50 | random/hidden | 81 | 0.390 | 0.531 | 390 | 0.332 | 0.386 | 0.392 | 0.325 | 0.31 |
+| transit_50 | scripted/followed | 81 | 0.467 | 0.339 | 188 | 0.951 | 0.473 | 0.486 | 0.125 | 0.22 |
+| transit_100 | random/followed | 93 | 0.485 | 0.526 | 427 | 0.581 | 0.634 | 0.643 | 0.539 | 0.52 |
+| transit_100 | random/hidden | 78 | 0.389 | 0.509 | 389 | 0.337 | 0.388 | 0.395 | 0.318 | 0.31 |
+| transit_100 | scripted/followed | 87 | 0.482 | 0.360 | 185 | 0.975 | 0.591 | 0.595 | 0.000 | 0.22 |
+| transit_150 | random/followed | 93 | 0.510 | 0.538 | 432 | 0.579 | 0.667 | 0.668 | 0.655 | 0.55 |
+| transit_150 | random/hidden | 69 | 0.394 | 0.506 | 389 | 0.324 | 0.374 | 0.380 | 0.317 | 0.30 |
+| transit_150 | scripted/followed | 84 | 0.495 | 0.369 | 187 | 0.989 | 0.619 | 0.620 | 0.500 | 0.24 |
+| transit_200 | random/followed | 93 | 0.503 | 0.500 | 433 | 0.614 | 0.676 | 0.675 | 0.681 | 0.54 |
+| transit_200 | random/hidden | 81 | 0.401 | 0.482 | 395 | 0.335 | 0.397 | 0.401 | 0.352 | 0.31 |
+| transit_200 | scripted/followed | 84 | 0.489 | 0.351 | 188 | 0.984 | 0.590 | 0.591 | 0.500 | 0.23 |
+| transit_250 | random/followed | 102 | 0.521 | 0.468 | 426 | 0.610 | 0.672 | 0.674 | 0.645 | 0.57 |
+| transit_250 | random/hidden | 75 | 0.385 | 0.471 | 385 | 0.329 | 0.403 | 0.404 | 0.391 | 0.32 |
+| transit_250 | scripted/followed | 90 | 0.507 | 0.322 | 185 | 0.990 | 0.662 | 0.670 | 0.500 | 0.27 |
+| transit_300 | random/followed | 99 | 0.512 | 0.479 | 419 | 0.584 | 0.662 | 0.664 | 0.636 | 0.55 |
+| transit_300 | random/hidden | 72 | 0.376 | 0.468 | 390 | 0.333 | 0.385 | 0.388 | 0.359 | 0.31 |
+| transit_300 | scripted/followed | 78 | 0.494 | 0.317 | 190 | 0.992 | 0.783 | 0.790 | 0.727 | 0.26 |
+
+Engine duty per hull and order kind, random commander, followed:
+
+| pilot | hull | none | attack | defend | goto |
+|---|---|---|---|---|---|
+| teacher | fighter | 0.45 | 0.44 | 0.41 | 0.36 |
+| teacher | gunship | 0.45 | 0.49 | 0.50 | 0.45 |
+| teacher | strafer | 0.43 | 0.46 | 0.46 | 0.47 |
+| w1_400 | fighter | 0.19 | 0.22 | 0.21 | 0.22 |
+| w1_400 | gunship | 0.48 | 0.48 | 0.47 | 0.50 |
+| w1_400 | strafer | 0.24 | 0.20 | 0.21 | 0.22 |
+| reward_50 | fighter | 0.19 | 0.23 | 0.22 | 0.24 |
+| reward_50 | gunship | 0.47 | 0.48 | 0.46 | 0.47 |
+| reward_50 | strafer | 0.24 | 0.19 | 0.19 | 0.19 |
+| reward_100 | fighter | 0.19 | 0.21 | 0.20 | 0.22 |
+| reward_100 | gunship | 0.48 | 0.48 | 0.45 | 0.49 |
+| reward_100 | strafer | 0.23 | 0.18 | 0.18 | 0.19 |
+| reward_150 | fighter | 0.19 | 0.23 | 0.22 | 0.25 |
+| reward_150 | gunship | 0.48 | 0.49 | 0.45 | 0.49 |
+| reward_150 | strafer | 0.24 | 0.18 | 0.19 | 0.18 |
+| reward_200 | fighter | 0.19 | 0.26 | 0.24 | 0.28 |
+| reward_200 | gunship | 0.48 | 0.46 | 0.44 | 0.49 |
+| reward_200 | strafer | 0.23 | 0.17 | 0.17 | 0.17 |
+| reward_250 | fighter | 0.18 | 0.26 | 0.22 | 0.26 |
+| reward_250 | gunship | 0.47 | 0.46 | 0.42 | 0.47 |
+| reward_250 | strafer | 0.24 | 0.18 | 0.18 | 0.19 |
+| reward_300 | fighter | 0.18 | 0.28 | 0.24 | 0.29 |
+| reward_300 | gunship | 0.47 | 0.45 | 0.42 | 0.47 |
+| reward_300 | strafer | 0.23 | 0.18 | 0.18 | 0.19 |
+| transit_50 | fighter | 0.17 | 0.17 | 0.18 | 0.19 |
+| transit_50 | gunship | 0.47 | 0.45 | 0.40 | 0.52 |
+| transit_50 | strafer | 0.26 | 0.31 | 0.35 | 0.37 |
+| transit_100 | fighter | 0.18 | 0.20 | 0.22 | 0.22 |
+| transit_100 | gunship | 0.47 | 0.45 | 0.46 | 0.52 |
+| transit_100 | strafer | 0.25 | 0.34 | 0.38 | 0.43 |
+| transit_150 | fighter | 0.18 | 0.18 | 0.20 | 0.22 |
+| transit_150 | gunship | 0.47 | 0.45 | 0.46 | 0.55 |
+| transit_150 | strafer | 0.25 | 0.36 | 0.40 | 0.44 |
+| transit_200 | fighter | 0.18 | 0.17 | 0.20 | 0.22 |
+| transit_200 | gunship | 0.48 | 0.44 | 0.44 | 0.53 |
+| transit_200 | strafer | 0.25 | 0.34 | 0.40 | 0.45 |
+| transit_250 | fighter | 0.18 | 0.16 | 0.19 | 0.20 |
+| transit_250 | gunship | 0.47 | 0.45 | 0.44 | 0.55 |
+| transit_250 | strafer | 0.24 | 0.30 | 0.36 | 0.43 |
+| transit_300 | fighter | 0.18 | 0.14 | 0.18 | 0.19 |
+| transit_300 | gunship | 0.47 | 0.45 | 0.45 | 0.55 |
+| transit_300 | strafer | 0.25 | 0.31 | 0.37 | 0.43 |
+
+pick: none (no candidate passes every gate)
+
+== 14:07:23 done: baseline ppo eval gates

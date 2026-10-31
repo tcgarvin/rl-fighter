@@ -1,0 +1,52 @@
+{
+ "bounds": {
+  "attack median ticks to gun range": {
+   "op": "<=",
+   "relative": "none",
+   "value": 150.0,
+   "teacher": 66.0,
+   "reference": 150.0,
+   "replaced": false,
+   "text": "<= 150"
+  },
+  "attack damage share on target": {
+   "op": ">=",
+   "relative": "plus",
+   "value": 0.05,
+   "teacher": 0.47048761072438733,
+   "reference": 0.4229986736882442,
+   "replaced": false,
+   "text": ">= hidden + 0.05"
+  },
+  "defend ward hull lost per ward-minute": {
+   "op": "<=",
+   "relative": "none",
+   "value": 0.6174342546616424,
+   "teacher": 0.5880326234872785,
+   "reference": 0.393158167168997,
+   "replaced": true,
+   "text": "<= teacher 0.588 x 1.05 = 0.617 (plan: <= 0.8 x hidden)"
+  },
+  "defend threat-set share": {
+   "op": ">=",
+   "relative": "plus",
+   "value": 0.05,
+   "teacher": 0.6499562955851377,
+   "reference": 0.3959105290693329,
+   "replaced": false,
+   "text": ">= hidden + 0.05"
+  },
+  "go-to arrivals in time": {
+   "op": ">=",
+   "relative": "none",
+   "value": 0.7,
+   "teacher": 0.8980637813211845,
+   "reference": 0.7,
+   "replaced": false,
+   "text": ">= 0.7"
+  }
+ },
+ "teacher": "script",
+ "reference": "policy:ppo_bc_400.pt hidden",
+ "schema": "rlf.gates.b3_o_bounds/1"
+}
