@@ -90,12 +90,20 @@ PYTHONPATH=. uv run python tools/fleet_survey.py --n-per-roster 128
 nohup lab/runs/2026-10-30-fleet-pilot/run.sh > lab/runs/2026-10-30-fleet-pilot/run.out 2>&1 &
 
 # Stage B (orders, SIM_VERSION 5): mission eval (rlf.eval.mission/1; carrier + convoy,
-# live default rosters, capital ships by script), order-following eval
-# (rlf.eval.orders/1; blank:<ckpt> zeroes the order block), and the order pilot run
-# (rosters orders_v1, arms w1 / w03; SMOKE=1 for tiny sizes into smoke/)
+# live default rosters, capital ships by script), the v5 order-following eval
+# (spacefight.eval.orders_v1, rlf.eval.orders/1, runs 1 and B2b; v5 sim only), and the
+# order pilot run (rosters orders_v1, arms w1 / w03; SMOKE=1 for tiny sizes into smoke/)
 uv run python -m spacefight.eval.missions --a <checkpoint.pt> --b <v1.pt> --out missions.json
-uv run python -m spacefight.eval.orders --a <checkpoint.pt> --out orders.json
 nohup lab/runs/2026-10-31-order-pilot/run.sh > lab/runs/2026-10-31-order-pilot/run.out 2>&1 &
+
+# Stage B3 (orders attack / defend / go-to, SIM_VERSION 6, OBS_DIM 583): order eval
+# (rlf.eval.orders/2: followed and hidden-by-the-sim passes on the same matches; the
+# teacher with --a script --passes followed), gates in spacefight/eval/order_gates_b3.py,
+# and run B3 (w1_400 widened to 583, arms transit / reward; SMOKE=1 tiny sizes).
+# v6 pilots export with 583 inputs and sim_version 6: tools/export_policy.py
+# --wasm-sim-version 6 --wasm-obs-dim 583 --wasm-pilot-compat 3,4,5,6
+uv run python -m spacefight.eval.orders --a <checkpoint.pt> --out orders.json
+nohup lab/runs/2026-11-01-order-pilot-b3/run.sh > lab/runs/2026-11-01-order-pilot-b3/run.out 2>&1 &
 
 # Deploy dist/ (rl-fighter.tcgarvin.com); needs NETLIFY_AUTH_TOKEN in .env
 scripts/deploy.sh            # or --build (current champion) / <checkpoint.pt> <run-id> to rebuild first

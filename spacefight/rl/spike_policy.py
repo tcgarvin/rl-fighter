@@ -27,7 +27,8 @@ extension; ``tests/test_spike_policy.py`` checks the constants against it.
 
 Obs width. A net's input width is its ``obs_dim``: 385 for pilots of SIM_VERSION 3
 and 4, 403 for SIM_VERSION 5, whose obs appends an 18-float order block and keeps the
-first 385 floats exactly (``PILOT_OBS_DIMS``). A narrower pilot flies a wider sim on
+first 385 floats exactly, and 583 for SIM_VERSION 6, which appends 180 floats of
+threat and order-point context and keeps the first 403 (``PILOT_OBS_DIMS``). A narrower pilot flies a wider sim on
 the prefix ``obs[..., :obs_dim]`` (``fit_obs``), and ``widen_actor`` /
 ``widen_critic`` turn a 385-wide net into a 403-wide one whose new input columns are
 zero, so it computes exactly what the narrow net did on the prefix (stage B's warm
@@ -51,8 +52,19 @@ OBS_DIM = 385
 # SIM_VERSION 5: the v4 obs plus the 18-float order block at the end.
 ORDER_BLOCK_WIDTH = 18
 ORDER_OBS_DIM = OBS_DIM + ORDER_BLOCK_WIDTH
+# SIM_VERSION 6 (M3 stage B3): the v5 obs plus two tail blocks, ``ship_extras`` (7
+# records x 10) and ``order_ships`` (5 records x 22); the first 403 floats are v5's.
+SHIP_EXTRAS_WIDTH = 7 * 10
+ORDER_SHIPS_WIDTH = 5 * 22
+V6_OBS_DIM = ORDER_OBS_DIM + SHIP_EXTRAS_WIDTH + ORDER_SHIPS_WIDTH
 # Pilot obs width per sim version (mirrors ``rlf_sim.PILOT_OBS_DIMS`` from v5 on).
-PILOT_OBS_DIMS: dict[int, int] = {2: OBS_DIM, 3: OBS_DIM, 4: OBS_DIM, 5: ORDER_OBS_DIM}
+PILOT_OBS_DIMS: dict[int, int] = {
+    2: OBS_DIM,
+    3: OBS_DIM,
+    4: OBS_DIM,
+    5: ORDER_OBS_DIM,
+    6: V6_OBS_DIM,
+}
 ACTION_WIDTH = 21
 N_LOGITS = 61
 HIDDEN = 256

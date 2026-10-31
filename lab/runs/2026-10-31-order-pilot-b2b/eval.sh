@@ -48,7 +48,7 @@ run() {  # run OUT_JSON MODULE ARGS...: one eval, Markdown next to the JSON
 }
 
 orders() {  # orders OUT_JSON PILOT
-    run "$1" spacefight.eval.orders --a "$2" --b script \
+    run "$1" spacefight.eval.orders_v1 --a "$2" --b script \
         --n-per-scenario "$N_ORDERS" --seed 400000
 }
 

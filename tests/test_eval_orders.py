@@ -1,5 +1,6 @@
 """Order-following eval metrics on synthetic traces, the mission eval, the order
-gates and the export of pilots narrower than the sim (M3 stage B)."""
+gates and the export of pilots narrower than the sim (M3 stage B: runs 1 and B2b, the
+frozen SIM_VERSION 5 eval ``orders_v1``)."""
 
 from __future__ import annotations
 
@@ -25,7 +26,7 @@ from spacefight.eval.missions import (
     build_mission_env,
     evaluate as evaluate_missions,
 )
-from spacefight.eval.orders import (
+from spacefight.eval.orders_v1 import (
     ATTACK,
     GUARD,
     HOLD,
@@ -166,6 +167,9 @@ def test_censored_medians_treat_never_as_last() -> None:
     assert censored_median(np.zeros(0, dtype=np.int64)) == Timing(0, None, 0.0)
 
 
+@pytest.mark.skipif(
+    rlf_sim.SIM_VERSION != 5, reason="the v1 order eval reads SIM_VERSION 5 orders"
+)
 def test_ship_orders_reads_squads_from_mission_state() -> None:
     roster = rlf_sim.mission_rosters(CONVOY_ESCORT)[0]
     env = rlf_sim.VecEnv(

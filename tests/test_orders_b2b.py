@@ -453,6 +453,11 @@ def test_ordered_dagger_keeps_ordered_strike_rows_and_the_critic(
 # ------------------------------------------------------------ hold points
 
 
+# The random commander's point order: hold (SIM_VERSION 5), go-to from v6 on (the
+# same near-action draw, docs/M3_PLAN.md "Stage B3").
+_POINT = "goto" if rust_env.SIM_VERSION >= 6 else "hold"
+
+
 def _hold_draw_distances(
     n_envs: int, steps: int, seed: int
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -482,7 +487,7 @@ def _hold_draw_distances(
                 for q in squads:
                     order = q["order"]
                     key = (int(e), team, int(q["index"]))
-                    point = tuple(order["point"]) if order["kind"] == "hold" else None
+                    point = tuple(order["point"]) if order["kind"] == _POINT else None
                     if point is not None and last.get(key) != point:
                         ships = ships or env.raw.render_state(int(e))
                         pos = [

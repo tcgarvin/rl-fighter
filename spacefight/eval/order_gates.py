@@ -4,7 +4,7 @@ The bounds below were fixed in the plan before any order pilot was evaluated (th
 gate shapes are ``docs/M3_PLAN.md`` "Stage B decisions"); change them only with a
 dated note in the plan. Inputs are the JSONs the run's ``eval.sh`` writes:
 
-- following (``rlf.eval.orders/1``, ``spacefight.eval.orders``): the candidate, and
+- following (``rlf.eval.orders/1``, ``spacefight.eval.orders_v1``): the candidate, and
   the primary baseline, fleet pilot v1 on ``obs[:385]``, on the same scenarios
   (carrier battle + convoy under the random and the scripted commander, live
   default rosters, the script on the other side);
@@ -26,7 +26,7 @@ from dataclasses import asdict, dataclass
 
 from spacefight.eval.fleet import FleetResult
 from spacefight.eval.missions import MissionResult
-from spacefight.eval.orders import FollowSummary, OrdersResult, Timing
+from spacefight.eval.orders_v1 import FollowSummary, OrdersResult, Timing
 
 GATES: tuple[str, ...] = ("O", "M", "D", "H")
 RANDOM, SCRIPTED = "random", "scripted"
