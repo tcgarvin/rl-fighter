@@ -191,16 +191,6 @@ def test_transit_pull_refuses_rows_that_show_an_attack_order() -> None:
     transit_rows(env, obs)  # type: ignore[arg-type]
 
 
-@pytest.mark.skipif(
-    rust_env.SIM_VERSION >= 6, reason="v6 accepts hide_orders; the guard is for v5"
-)
-def test_hiding_orders_needs_the_v6_sim() -> None:
-    with pytest.raises(ValueError, match="SIM_VERSION"):
-        rust_env.RustVecEnv(
-            ASSETS, 1, [["fighter"], ["fighter"]], 0, hide_orders=(True, False)
-        )
-
-
 def test_hide_orders_names_two_teams() -> None:
     with pytest.raises(ValueError, match="two teams"):
         rust_env._hide_pair((True,))

@@ -387,16 +387,20 @@ def v1_like(tmp_path: Path) -> Path:
     return path
 
 
-def test_trainer_widens_a_v1_init_to_the_sim_and_starts_as_v1(
+def test_trainer_widens_a_v1_init_to_the_asked_width_and_starts_as_v1(
     tmp_path: Path, v1_like: Path
 ) -> None:
+    # Run 1's config: obs_dim 403 (the v5 width; on a v6 sim the prefix).
     trainer = SpikeTrainer(_orders_config(tmp_path, str(v1_like)), tmp_path / "run")
-    assert trainer.actor.obs_dim == rust_env.OBS_DIM
+    assert trainer.actor.obs_dim == ORDER_OBS_DIM
     v1 = load_policy(v1_like)[0]
     obs = torch.from_numpy(trainer.env.obs.reshape(-1, rust_env.OBS_DIM).copy())
     with torch.no_grad():
         torch.testing.assert_close(
-            trainer.actor(obs), v1(obs[:, :OBS_DIM]), rtol=0, atol=1e-5
+            trainer.actor(obs[:, :ORDER_OBS_DIM]),
+            v1(obs[:, :OBS_DIM]),
+            rtol=0,
+            atol=1e-5,
         )
 
 
