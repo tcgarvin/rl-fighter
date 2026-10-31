@@ -13,13 +13,14 @@ use sim::obs::*;
 use sim::order::{CAPITAL_WAYPOINT_RADIUS, GUARD_PRESENCE};
 use sim::pilot_obs_dim;
 use sim::reward::{
-    ORDER_ARRIVAL_BONUS, ORDER_HULL_WEIGHT, ORDER_PRESENCE_CAP_TICKS, ORDER_PRESENCE_REWARD,
-    ORDER_SHAPING_GAMMA, ORDER_SHIELD_WEIGHT,
+    HULL_DAMAGE_WEIGHT, ORDER_ARRIVAL_BONUS, ORDER_HULL_WEIGHT, ORDER_PRESENCE_CAP_TICKS,
+    ORDER_PRESENCE_REWARD, ORDER_SHAPING_GAMMA, ORDER_SHIELD_WEIGHT,
 };
+use sim::rng::Pcg32;
 use sim::scripted;
 use sim::scripted::random_commander::{
-    self, HOLD_POINT_FRAC, HOLD_RADIUS_MAX, HOLD_RADIUS_MIN, RANDOM_SQUADS, RandomCommander,
-    UNASSIGNED_FRAC,
+    self, HOLD_FAR_P, HOLD_JITTER, HOLD_LERP_MAX, HOLD_LERP_MIN, HOLD_POINT_FRAC, HOLD_RADIUS_MAX,
+    HOLD_RADIUS_MIN, RANDOM_SQUADS, REDRAW_MAX_SLOW_TICKS, RandomCommander, UNASSIGNED_FRAC,
 };
 use sim::setup::MatchConfig;
 use sim::state::{MAX_PROJECTILES, MAX_SHIPS, Match, MatchPhase, NONE, Projectile};
@@ -411,6 +412,35 @@ fn hold_shaping_is_gamma_phi_prime_minus_phi_and_resets_on_a_new_instance() {
     assert!(close(m.order_track(0).last_phi, -(380.0 - 50.0) / R));
 }
 
+/// B2b (SIM_SPEC §8): a held guard or hold order pays on the scale of a kill. Its
+/// ceiling (arrival plus capped presence, 0.37) is about half a fighter kill's
+/// damage reward and at most a strafer's, the presence cap (10 s) fits inside the
+/// longest random-commander order (16 s) so a random hold can earn all of it, and a
+/// scripted commander's all-match guard still earns no more than that ceiling.
+#[test]
+fn a_held_order_pays_on_the_scale_of_a_kill() {
+    let cat = asset_catalogue();
+    let presence = ORDER_PRESENCE_REWARD * f32::from(ORDER_PRESENCE_CAP_TICKS);
+    assert!(
+        (presence - 0.27).abs() < 1e-4,
+        "presence ceiling {presence}"
+    );
+    let held = presence + ORDER_ARRIVAL_BONUS;
+    let kill = |name: &str| HULL_DAMAGE_WEIGHT * cat.hull(cat.hull_id(name).unwrap()).hp;
+    assert!(
+        held >= 0.4 * kill("fighter") && held <= kill("strafer"),
+        "{held}"
+    );
+    assert!(u32::from(ORDER_PRESENCE_CAP_TICKS) <= REDRAW_MAX_SLOW_TICKS * COMMAND_TICKS);
+    // Parked inside for a whole long order: arrival plus the capped presence, no more.
+    let tcat = test_catalogue();
+    let mut m = hold_match(&tcat, 100.0, 50.0);
+    m.ships[0].pos.x = 0.0;
+    refresh(&mut m, &tcat);
+    let total: f32 = (0..3000).map(|_| refresh(&mut m, &tcat)[0]).sum();
+    assert!(total <= held + 1e-3, "{total}");
+}
+
 #[test]
 fn arrival_pays_once_and_presence_is_capped_per_instance() {
     let cat = test_catalogue();
@@ -673,6 +703,64 @@ fn random_commander_draw_statistics() {
     for (k, &n) in kinds.iter().enumerate() {
         let p = n as f32 / total as f32;
         assert!((p - 0.25).abs() < 0.05, "kind {k}: {p}");
+    }
+}
+
+/// Random hold points lie near the squad's fight (after run 1): between the squad's
+/// centroid and the centroid of its two nearest enemies, `HOLD_LERP_MIN..MAX` of the
+/// way plus at most `HOLD_JITTER`, except a `HOLD_FAR_P` share drawn over the whole
+/// disc of `HOLD_POINT_FRAC` R; every point is inside that disc.
+#[test]
+fn random_hold_points_lie_near_the_squads_fight() {
+    let cat = test_catalogue();
+    // Squad (slots 0, 1) round (-150, 0); enemies: two near (150, ±40), one far.
+    let m = placed(
+        &cat,
+        &[FIGHTER, FIGHTER],
+        &[FIGHTER, FIGHTER, FIGHTER],
+        &[
+            (-150.0, 20.0, 0.0),
+            (-150.0, -20.0, 0.0),
+            (150.0, 40.0, 0.0),
+            (150.0, -40.0, 0.0),
+            (-100.0, 300.0, 0.0),
+        ],
+    );
+    let squad = Vec2::new(-150.0, 0.0);
+    let foes = Vec2::new(150.0, 0.0);
+    let reach = HOLD_POINT_FRAC * R;
+    let (mut near, n) = (0usize, 4000usize);
+    for seed in 0..n as u64 {
+        let mut rng = Pcg32::with_stream(seed, 99);
+        let p = random_commander::hold_point(&m, 0, 0b11, &mut rng);
+        assert!(p.length() <= reach + 1e-3, "{p:?} outside the disc");
+        // Distance from the segment's lerp band, along the x axis.
+        let along = (p.x - squad.x) / (foes.x - squad.x);
+        let in_band = (HOLD_LERP_MIN - HOLD_JITTER / 300.0..HOLD_LERP_MAX + HOLD_JITTER / 300.0)
+            .contains(&along)
+            && p.y.abs() <= HOLD_JITTER + 1e-3;
+        near += usize::from(in_band);
+    }
+    let share = near as f32 / n as f32;
+    // Far points land in the band with probability about its area over the disc's.
+    assert!(
+        (share - (1.0 - HOLD_FAR_P)).abs() < 0.05,
+        "near share {share}, expected about {}",
+        1.0 - HOLD_FAR_P
+    );
+    // Without an enemy every point is a far one, still inside the disc.
+    let alone = placed(
+        &cat,
+        &[FIGHTER],
+        &[FIGHTER],
+        &[(0.0, 0.0, 0.0), (0.0, 0.0, 0.0)],
+    );
+    let mut alone = alone;
+    alone.ships[1].alive = false;
+    let mut rng = Pcg32::with_stream(1, 99);
+    for _ in 0..100 {
+        let p = random_commander::hold_point(&alone, 0, 0b1, &mut rng);
+        assert!(p.length() <= reach + 1e-3);
     }
 }
 

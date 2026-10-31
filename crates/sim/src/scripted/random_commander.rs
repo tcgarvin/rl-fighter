@@ -16,9 +16,20 @@
 //!   when its order was cleared because its target or ward is gone: a kind uniform
 //!   over none / attack / guard / hold, then a valid target. Attack: a uniformly drawn
 //!   active enemy (capital ships included). Guard: a uniformly drawn own active ship
-//!   that is not in the squad (capital ships included). Hold: a point uniform over the
-//!   disc of `HOLD_POINT_FRAC` R and a radius in `[HOLD_RADIUS_MIN, HOLD_RADIUS_MAX)`.
-//!   A kind with no valid target becomes none.
+//!   that is not in the squad (capital ships included). Hold: a point near the
+//!   squad's fight ([`hold_point`]) and a radius in `[HOLD_RADIUS_MIN,
+//!   HOLD_RADIUS_MAX)`. A kind with no valid target becomes none.
+//! - **Hold points near the action** (after the order pilot's run 1, whose holds were
+//!   uniform over the disc of `HOLD_POINT_FRAC` R: usually away from the fight, so
+//!   following one cost the pilot its fight and was rationally ignored). The point
+//!   lies between the squad's centroid and its `HOLD_NEAREST_ENEMIES` nearest enemies,
+//!   a fraction in `[HOLD_LERP_MIN, HOLD_LERP_MAX)` of the way, plus a jitter uniform
+//!   over a disc of `HOLD_JITTER` m, clamped into the disc of `HOLD_POINT_FRAC` R.
+//!   (A squad whose members are all still launching uses its team's active ships.)
+//!   With probability `HOLD_FAR_P` (or with no active own ship or enemy) it is
+//!   the old uniform draw over that disc instead: the scripted commander's own holds
+//!   (a convoy's staging and screening points) are not always at the fight, and a
+//!   hold must keep meaning "go to the point", not "go and fight".
 //!
 //! Its rng is its own: one PCG32 stream per team, seeded from the match seed on
 //! streams that differ from the match stream (`RANDOM_COMMAND_STREAMS`), so drawing
@@ -45,6 +56,17 @@ pub const REDRAW_MIN_SLOW_TICKS: u32 = 3;
 pub const REDRAW_MAX_SLOW_TICKS: u32 = 8;
 /// Hold points lie within this fraction of the arena radius.
 pub const HOLD_POINT_FRAC: f32 = 0.7;
+/// Chance that a hold point is drawn uniformly over the disc of `HOLD_POINT_FRAC` R
+/// (a far point) instead of near the squad's fight (module docs).
+pub const HOLD_FAR_P: f32 = 0.2;
+/// A near hold point lies this fraction of the way from the squad's centroid to its
+/// nearest enemies (uniform in `[MIN, MAX)`).
+pub const HOLD_LERP_MIN: f32 = 0.25;
+pub const HOLD_LERP_MAX: f32 = 0.75;
+/// Jitter of a near hold point: uniform over a disc of this radius, metres.
+pub const HOLD_JITTER: f32 = 60.0;
+/// A near hold point aims at the centroid of this many enemies nearest the squad.
+pub const HOLD_NEAREST_ENEMIES: usize = 2;
 /// Hold radius range, metres.
 pub const HOLD_RADIUS_MIN: f32 = 70.0;
 pub const HOLD_RADIUS_MAX: f32 = 150.0;
@@ -119,6 +141,70 @@ fn mask_of(m: &Match, keep: impl Fn(usize) -> bool) -> u32 {
         .fold(0, |a, s| a | 1 << s)
 }
 
+/// A point uniform over the disc of radius `r` (one `uniform` angle, then one
+/// `uniform` radius fraction).
+fn uniform_in_disc(rng: &mut Pcg32, r: f32) -> Vec2 {
+    let angle = rng.uniform() * TAU;
+    Vec2::from_angle(angle) * (r * libm::sqrtf(rng.uniform()))
+}
+
+/// Mean position of the active ships of `mask`, `None` if none is active.
+fn active_centroid(m: &Match, mask: u32) -> Option<Vec2> {
+    let (mut sum, mut n) = (Vec2::ZERO, 0.0f32);
+    for (s, ship) in m.ships.iter().enumerate() {
+        if mask & (1 << s) != 0 && ship.active() {
+            sum += ship.pos;
+            n += 1.0;
+        }
+    }
+    (n > 0.0).then(|| sum / n)
+}
+
+/// Centroid of the (at most) `HOLD_NEAREST_ENEMIES` active enemies of `team`
+/// nearest `from` (ties to the lower slot), `None` with no active enemy.
+fn nearest_enemies_centroid(m: &Match, team: u8, from: Vec2) -> Option<Vec2> {
+    let mut best: [(f32, usize); HOLD_NEAREST_ENEMIES] = [(f32::INFINITY, 0); HOLD_NEAREST_ENEMIES];
+    for (s, ship) in m.ships.iter().enumerate() {
+        if ship.team == team || !ship.active() {
+            continue;
+        }
+        let d = (ship.pos - from).length();
+        if let Some(k) = best.iter().position(|&(bd, _)| d < bd) {
+            best.copy_within(k..HOLD_NEAREST_ENEMIES - 1, k + 1);
+            best[k] = (d, s);
+        }
+    }
+    let mask = best
+        .iter()
+        .filter(|(d, _)| d.is_finite())
+        .fold(0u32, |a, &(_, s)| a | 1 << s);
+    active_centroid(m, mask)
+}
+
+/// A hold point for a squad of `team` with members `members` (module docs). Draws,
+/// in order: one `uniform` (far or near); far: [`uniform_in_disc`]; near: the lerp
+/// fraction, then the jitter's [`uniform_in_disc`].
+pub fn hold_point(m: &Match, team: u8, members: u32, rng: &mut Pcg32) -> Vec2 {
+    let reach = HOLD_POINT_FRAC * m.cfg.arena_radius;
+    let far = rng.uniform() < HOLD_FAR_P;
+    // Reserves launching this tick are not active yet: the team's ships stand in.
+    let own = mask_of(m, |s| m.ships[s].team == team);
+    let fight = active_centroid(m, members)
+        .or_else(|| active_centroid(m, own))
+        .and_then(|squad| nearest_enemies_centroid(m, team, squad).map(|foes| (squad, foes)));
+    let Some((squad, foes)) = fight.filter(|_| !far) else {
+        return uniform_in_disc(rng, reach);
+    };
+    let along = rng.range(HOLD_LERP_MIN, HOLD_LERP_MAX);
+    let point = squad + (foes - squad) * along + uniform_in_disc(rng, HOLD_JITTER);
+    let r = point.length();
+    if r > reach {
+        point * (reach / r)
+    } else {
+        point
+    }
+}
+
 /// A random order for a squad of `team` with members `members` (module docs).
 fn draw_order(m: &Match, team: u8, members: u32, rng: &mut Pcg32) -> Order {
     match below(rng, 4) {
@@ -133,14 +219,9 @@ fn draw_order(m: &Match, team: u8, members: u32, rng: &mut Pcg32) -> Order {
             pick(rng, own).map_or(Order::None, |ward| Order::Guard { ward })
         }
         3 => {
-            let reach = HOLD_POINT_FRAC * m.cfg.arena_radius;
-            let angle = rng.uniform() * TAU;
-            let r = reach * libm::sqrtf(rng.uniform());
+            let point = hold_point(m, team, members, rng);
             let radius = rng.range(HOLD_RADIUS_MIN, HOLD_RADIUS_MAX);
-            Order::Hold {
-                point: Vec2::from_angle(angle) * r,
-                radius,
-            }
+            Order::Hold { point, radius }
         }
         _ => Order::None,
     }

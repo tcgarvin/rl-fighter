@@ -170,6 +170,18 @@ class Roster:
         """``[[team 0 hulls], [team 1 hulls]]`` as the env takes them."""
         return [list(t) for t in self.teams]
 
+    def scripts_follow_orders(self) -> tuple[bool, bool]:
+        """Per team: whether its scripted strike pilots fly their squad's order.
+
+        Mirrors ``scripted::orders::active_order`` (SIM_SPEC §11): every commander's
+        orders are followed except the scripted commander's in a deathmatch, which
+        are advisory (shown, and in the pilot obs, but not flown by the scripts).
+        """
+        return (
+            not (self.mission == DEATHMATCH and self.commanders[0] == SCRIPTED),
+            not (self.mission == DEATHMATCH and self.commanders[1] == SCRIPTED),
+        )
+
     def swapped(self) -> Roster:
         """The same match with the teams (and their commanders) exchanged.
 

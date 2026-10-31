@@ -1,9 +1,10 @@
 # sim golden trace convoy_escort_random_s37 (SIM_VERSION 5); regenerate with UPDATE_GOLDEN=1
 # tick state_hash aux_digest; end tick state_hash aux_digest phase winner
-300 fc8bd23673cd81d2 29de49f04dd43797
-600 e4bd6fc9a5b4d33e ca8dc6a8a790557e
-900 0b3d6660c0144ddd 1173e674692d911d
-1200 0f3523cdf3289b72 030be54870e9f37b
-1500 55f3422607122f6a 711f5c07710660c9
-end 1687 8595c678e40e25f4 99834bf505e502ba over 1
+300 fc8bd23673cd81d2 7e2cb4632d64fdc8
+600 111888c4642b4350 28e74946f28f327a
+900 57ba0866d6097027 d96e50ffe82d3b3e
+1200 d5c789c8c0cc679a 5d1f8b0a2a316b2e
+1500 fb013b5f52144b5b 3dbecee64bd236ab
+1800 279269e874c19d22 ba6a299d469091f5
+end 1839 80581e953ea0f825 71d5ea411c5c37f5 over 1
 reason convoy_destroyed

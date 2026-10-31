@@ -810,7 +810,7 @@ every slow tick:
   cleared (target or ward gone): kind uniform over none / attack / guard / hold;
   attack → a uniformly drawn active enemy (capital ships included); guard → a
   uniformly drawn own active ship not in the squad (capital ships included); hold →
-  a point uniform over the disc of `0.7 R` and a radius uniform in `[70, 150)` m. A
+  a point near the squad's fight (below) and a radius uniform in `[70, 150)` m. A
   kind with no valid target becomes none. Then `next_draw = tick + 60 · (3 + u%6)`
   (3–8 slow ticks). Squads with no members get `Order::None`. A command is sent only
   when membership or order changes, so every `Order` event is a real change.
@@ -820,6 +820,28 @@ every slow tick:
   drew none), then per
   squad in index order: kind, target or point (`uniform` angle, `uniform` radius
   fraction, `range` radius), timer. Team 1's draws do not depend on team 0's mode.
+- *Hold points near the action* (`hold_point`; since the order pilot's run B2b, no
+  `SIM_VERSION` bump: the obs layout and every scripted-commander match are
+  unchanged, only the random commander's draws move). Run 1 drew hold points
+  uniformly over the disc of `0.7 R`, usually away from the fight, so a pilot paid
+  for following one lost its fight, and ignored holds (`lab/runs/2026-10-31-order-pilot/
+  results.md`). Now: `c` = the centroid of the squad's active members (all still
+  launching: of the team's active ships), `e` = the centroid of the
+  `HOLD_NEAREST_ENEMIES = 2` active enemies nearest `c` (ties to the lower slot); the
+  point is `c + f · (e − c) + j`, `f` uniform in `[HOLD_LERP_MIN, HOLD_LERP_MAX) =
+  [0.25, 0.75)`, `j` uniform over a disc of `HOLD_JITTER = 60` m, scaled back onto
+  the disc of `HOLD_POINT_FRAC · R = 0.7 R` if outside it. With probability
+  `HOLD_FAR_P = 0.2`, or with no active own ship or enemy, the point is the old
+  uniform draw over the `0.7 R` disc instead (a *far* point): the scripted
+  commander's own holds (a convoy's staging and screening points) are not always at
+  the fight, and a hold must keep meaning "go to the point", not "go and fight";
+  0.2 keeps far holds at about 5 % of all random orders, so following mostly
+  coincides with fighting while the habit forms. Draws: one `uniform` (far if `<
+  0.2`); far: `uniform` angle, `uniform` radius fraction; near: `range` f, then the
+  jitter's `uniform` angle and `uniform` radius fraction; then the hold radius. On
+  the training mix with scripted pilots the median squad-to-point distance at the
+  draw is 117 m (the old rule on the same states: 261 m). The three random-commander
+  golden traces were regenerated; every other trace is unchanged.
   The state (`rng`, `assigned`, `squad`, `next_draw`, `drawn`) is hashed.
 Scripted strike pilots follow its orders in every mission, deathmatch included (§11).
 
@@ -1106,7 +1128,7 @@ earn `rewards`; per ship and step, summed in this order:
 | guard, damage | the same weights on damage dealt to enemies within `ORDER_GUARD_DAMAGE_RADIUS` (180 m) + the ward's bound radius of the ward (the target's position after the step) |
 | guard, hold: shaping | `γΦ′ − Φ`, `Φ = −K · max(0, d − radius) / R`, `K = 1.0`, `γ = 0.99`; on the step an instance starts, 0 (Φ is reset to Φ′: no reward for the jump) |
 | guard, hold: arrival | `+0.1` once per instance, the first step inside the radius (`d ≤ radius`) |
-| guard, hold: presence | `+0.0003` per step inside, for at most 300 steps per instance (≤ 0.09) |
+| guard, hold: presence | `+0.0009` per step inside, for at most 300 steps per instance (≤ 0.27; B2b, was `0.0003`, ≤ 0.09) |
 
 `d` is the distance to the order point, `radius` the order radius (§5.9). Hit credit
 uses the standing order, the other terms the effective one, so the hit that kills an
@@ -1114,7 +1136,26 @@ attack target is paid. Consts: `ORDER_HULL_WEIGHT`, `ORDER_SHIELD_WEIGHT`,
 `ORDER_GUARD_DAMAGE_RADIUS`, `ORDER_SHAPING_K`, `ORDER_SHAPING_GAMMA`,
 `ORDER_ARRIVAL_BONUS`, `ORDER_PRESENCE_REWARD`, `ORDER_PRESENCE_CAP_TICKS`. Why
 capped: an uncapped presence term under the scripted commander's carrier guard pays
-more than winning, and v1 already coasts. Capital ships' waypoint holds are paid too
+more than winning, and v1 already coasts.
+
+*Presence on the scale of a kill (run B2b, no `SIM_VERSION` bump).* Run 1's pilots
+ignored holds: a held order paid at most 0.19 (arrival 0.1 + presence 0.09), against
+about 0.8 for a fighter kill's damage reward plus the terminal ±1, and the shaping
+term pays nothing net (it is potential-based with the trainer's γ). B2b raises the
+per-instance presence ceiling to 0.27, so a held order pays 0.37 with the arrival
+bonus: about half a fighter kill. It raises the **rate** (0.0003 → 0.0009 per step)
+and keeps the 300-step cap, rather than raising the cap at the old rate (900 steps ×
+0.0003 = 0.27 too), because a random-commander order lasts 180–480 steps: measured on
+the stage B training mix with order-following scripted pilots and the new hold
+points, a guard or hold instance has its ship inside for a median of about 100 steps
+and more than 300 steps in under 10 % of instances, so a 900-step cap at 0.0003 would
+pay 0.036 per hold instance on average (0.035 at run 1's setting), the 0.0009 rate
+0.10. Under γ = 0.99 per step it is the rate the critic sees (a stay inside is worth
+about `rate / (1 − γ)`), so only the rate makes holding compete with fighting. The
+cap still bounds what a scripted commander's all-match carrier guard can farm (0.27
+per instance, as the 900-step cap would). The v4-compat traces are unchanged; the v5
+golden traces whose ships hold or guard (both scripted missions and the three random
+ones) change only in the order-reward part of their aux digest, not the state hash. Capital ships' waypoint holds are paid too
 (they are what their obs shows); stage B trains strike rows only.
 
 **Retroactive projectile credit**: the sim attributes every hit to `owner` and records
