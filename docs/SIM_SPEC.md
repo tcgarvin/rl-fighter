@@ -810,7 +810,7 @@ every slow tick:
   cleared (target or ward gone): kind uniform over none / attack / guard / hold;
   attack → a uniformly drawn active enemy (capital ships included); guard → a
   uniformly drawn own active ship not in the squad (capital ships included); hold →
-  a point uniform over the disc of `0.7 R` and a radius uniform in `[70, 150)` m. A
+  a point near the squad's fight (below) and a radius uniform in `[70, 150)` m. A
   kind with no valid target becomes none. Then `next_draw = tick + 60 · (3 + u%6)`
   (3–8 slow ticks). Squads with no members get `Order::None`. A command is sent only
   when membership or order changes, so every `Order` event is a real change.
@@ -820,6 +820,28 @@ every slow tick:
   drew none), then per
   squad in index order: kind, target or point (`uniform` angle, `uniform` radius
   fraction, `range` radius), timer. Team 1's draws do not depend on team 0's mode.
+- *Hold points near the action* (`hold_point`; since the order pilot's run B2b, no
+  `SIM_VERSION` bump: the obs layout and every scripted-commander match are
+  unchanged, only the random commander's draws move). Run 1 drew hold points
+  uniformly over the disc of `0.7 R`, usually away from the fight, so a pilot paid
+  for following one lost its fight, and ignored holds (`lab/runs/2026-10-31-order-pilot/
+  results.md`). Now: `c` = the centroid of the squad's active members (all still
+  launching: of the team's active ships), `e` = the centroid of the
+  `HOLD_NEAREST_ENEMIES = 2` active enemies nearest `c` (ties to the lower slot); the
+  point is `c + f · (e − c) + j`, `f` uniform in `[HOLD_LERP_MIN, HOLD_LERP_MAX) =
+  [0.25, 0.75)`, `j` uniform over a disc of `HOLD_JITTER = 60` m, scaled back onto
+  the disc of `HOLD_POINT_FRAC · R = 0.7 R` if outside it. With probability
+  `HOLD_FAR_P = 0.2`, or with no active own ship or enemy, the point is the old
+  uniform draw over the `0.7 R` disc instead (a *far* point): the scripted
+  commander's own holds (a convoy's staging and screening points) are not always at
+  the fight, and a hold must keep meaning "go to the point", not "go and fight";
+  0.2 keeps far holds at about 5 % of all random orders, so following mostly
+  coincides with fighting while the habit forms. Draws: one `uniform` (far if `<
+  0.2`); far: `uniform` angle, `uniform` radius fraction; near: `range` f, then the
+  jitter's `uniform` angle and `uniform` radius fraction; then the hold radius. On
+  the training mix with scripted pilots the median squad-to-point distance at the
+  draw is 117 m (the old rule on the same states: 261 m). The three random-commander
+  golden traces were regenerated; every other trace is unchanged.
   The state (`rng`, `assigned`, `squad`, `next_draw`, `drawn`) is hashed.
 Scripted strike pilots follow its orders in every mission, deathmatch included (§11).
 
