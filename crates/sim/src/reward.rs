@@ -64,8 +64,9 @@ pub const ORDER_SHAPING_GAMMA: f32 = 0.99;
 /// v5: paid once per order instance, the first time inside the order radius.
 pub const ORDER_ARRIVAL_BONUS: f32 = 0.1;
 /// v5: paid per tick inside the order radius, for at most `ORDER_PRESENCE_CAP_TICKS`
-/// ticks per instance (≤ 0.09 per instance).
-pub const ORDER_PRESENCE_REWARD: f32 = 0.0003;
+/// ticks per instance (≤ 0.27 per instance, plus the arrival bonus: a held order pays
+/// on the scale of a kill; B2b, was 0.0003, SIM_SPEC §8).
+pub const ORDER_PRESENCE_REWARD: f32 = 0.0009;
 pub const ORDER_PRESENCE_CAP_TICKS: u16 = 300;
 
 /// The shaping potential of a ship `dist` metres from an order point with radius

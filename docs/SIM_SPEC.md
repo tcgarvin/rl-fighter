@@ -1128,7 +1128,7 @@ earn `rewards`; per ship and step, summed in this order:
 | guard, damage | the same weights on damage dealt to enemies within `ORDER_GUARD_DAMAGE_RADIUS` (180 m) + the ward's bound radius of the ward (the target's position after the step) |
 | guard, hold: shaping | `γΦ′ − Φ`, `Φ = −K · max(0, d − radius) / R`, `K = 1.0`, `γ = 0.99`; on the step an instance starts, 0 (Φ is reset to Φ′: no reward for the jump) |
 | guard, hold: arrival | `+0.1` once per instance, the first step inside the radius (`d ≤ radius`) |
-| guard, hold: presence | `+0.0003` per step inside, for at most 300 steps per instance (≤ 0.09) |
+| guard, hold: presence | `+0.0009` per step inside, for at most 300 steps per instance (≤ 0.27; B2b, was `0.0003`, ≤ 0.09) |
 
 `d` is the distance to the order point, `radius` the order radius (§5.9). Hit credit
 uses the standing order, the other terms the effective one, so the hit that kills an
@@ -1136,7 +1136,26 @@ attack target is paid. Consts: `ORDER_HULL_WEIGHT`, `ORDER_SHIELD_WEIGHT`,
 `ORDER_GUARD_DAMAGE_RADIUS`, `ORDER_SHAPING_K`, `ORDER_SHAPING_GAMMA`,
 `ORDER_ARRIVAL_BONUS`, `ORDER_PRESENCE_REWARD`, `ORDER_PRESENCE_CAP_TICKS`. Why
 capped: an uncapped presence term under the scripted commander's carrier guard pays
-more than winning, and v1 already coasts. Capital ships' waypoint holds are paid too
+more than winning, and v1 already coasts.
+
+*Presence on the scale of a kill (run B2b, no `SIM_VERSION` bump).* Run 1's pilots
+ignored holds: a held order paid at most 0.19 (arrival 0.1 + presence 0.09), against
+about 0.8 for a fighter kill's damage reward plus the terminal ±1, and the shaping
+term pays nothing net (it is potential-based with the trainer's γ). B2b raises the
+per-instance presence ceiling to 0.27, so a held order pays 0.37 with the arrival
+bonus: about half a fighter kill. It raises the **rate** (0.0003 → 0.0009 per step)
+and keeps the 300-step cap, rather than raising the cap at the old rate (900 steps ×
+0.0003 = 0.27 too), because a random-commander order lasts 180–480 steps: measured on
+the stage B training mix with order-following scripted pilots and the new hold
+points, a guard or hold instance has its ship inside for a median of about 100 steps
+and more than 300 steps in under 10 % of instances, so a 900-step cap at 0.0003 would
+pay 0.036 per hold instance on average (0.035 at run 1's setting), the 0.0009 rate
+0.10. Under γ = 0.99 per step it is the rate the critic sees (a stay inside is worth
+about `rate / (1 − γ)`), so only the rate makes holding compete with fighting. The
+cap still bounds what a scripted commander's all-match carrier guard can farm (0.27
+per instance, as the 900-step cap would). The v4-compat traces are unchanged; the v5
+golden traces whose ships hold or guard (both scripted missions and the three random
+ones) change only in the order-reward part of their aux digest, not the state hash. Capital ships' waypoint holds are paid too
 (they are what their obs shows); stage B trains strike rows only.
 
 **Retroactive projectile credit**: the sim attributes every hit to `owner` and records

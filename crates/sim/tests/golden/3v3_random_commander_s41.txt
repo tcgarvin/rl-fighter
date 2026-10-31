@@ -2,6 +2,6 @@
 # tick state_hash aux_digest; end tick state_hash aux_digest phase winner
 1 a0237d2b0d04e2da 70c466d5fe458bf5
 30 889c8ce90cb96913 e3e327a926a73a85
-300 1deb929d04324678 d868d91dc2fbdc76
-1000 87d0f789219dd650 46818b675134f8ea
-end 2687 cdde12424bf65beb 58c8de78589e824e over 1
+300 1deb929d04324678 4a70b8cb82498262
+1000 87d0f789219dd650 e227dff2ca31b17b
+end 2687 cdde12424bf65beb be5ce012fad6a5dc over 1
