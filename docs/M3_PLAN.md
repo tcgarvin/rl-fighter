@@ -1,6 +1,6 @@
 # M3 — Carriers, convoys and commanders (plan, 2026-10-30)
 
-Status: **stage A done and live; stage B run 1 failed its order gate (`lab/runs/2026-10-31-order-pilot/results.md`), nothing promoted; run B2b planned (`lab/runs/2026-10-31-order-pilot-b2b/plan.md`: script pull on ordered rows, hold points near the action, presence 0.0009/step)** (decisions under "Stage B decisions"; the user's answers of 2026-10-30 are in §3).
+Status: **stage A done and live; stage B run 1 failed its order gate, run B2b passed it but failed missions and deathmatch (`lab/runs/2026-10-31-order-pilot{,-b2b}/results.md`); nothing promoted; order redesign (attack / defend / go-to) next** (decisions under "Stage B decisions"; the user's answers of 2026-10-30 are in §3).
 Asked for by the user on 2026-10-30, after fleet pilot v1: team deathmatch works, duels
 are dull, and the story needs the carrier and the layered ("feudal") AI on the live
 page, with matches that have different goals, escort among them. A scripted or stub
