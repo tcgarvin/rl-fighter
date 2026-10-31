@@ -66,6 +66,10 @@ OBS_LAYOUT: dict[str, tuple[int, int]] = dict(rlf_sim.OBS_LAYOUT)
 ACTION_LAYOUT: dict[str, tuple[int, int]] = dict(rlf_sim.ACTION_LAYOUT)
 # has_order, the order block's first float (SIM_VERSION 5).
 HAS_ORDER_COL: int = OBS_LAYOUT["order"][0]
+# The attack one-hot right after has_order (the kind one-hot is ORDER_KINDS' order).
+ATTACK_COL: int = HAS_ORDER_COL + 1
+# ``order_tracks()["effective_kind"]`` / ``["standing_kind"]`` codes (SIM_VERSION 6).
+TRACK_NONE, TRACK_ATTACK, TRACK_DEFEND, TRACK_GOTO = 0, 1, 2, 3
 # SIM_VERSION 6: the v5 obs width (the prefix a v5 pilot reads), the per-ship extras
 # record, the ships observed round the order point, and the order kinds in the
 # obs one-hot's order (kind codes 1, 2, 3; 0 is none).
@@ -266,7 +270,7 @@ class RustVecEnv:
             reaction_ticks=reaction_ticks,
             max_ships=max_ships,
             commanders=list(modes),
-            hide_orders=[bool(hide_orders[0]), bool(hide_orders[1])],
+            hide_orders=list(_hide_pair(hide_orders)),
         )
         self.fleets: tuple[tuple[str, ...], ...] = tuple(tuple(t) for t in fleets)
         self.reaction_ticks = reaction_ticks
@@ -380,7 +384,7 @@ class RustVecEnv:
             mission=mission,
             commanders=list(roster.commanders),
             time_limit_s=time_limit_s,
-            hide_orders=None if hide_orders is None else [bool(h) for h in hide_orders],
+            hide_orders=None if hide_orders is None else list(_hide_pair(hide_orders)),
         )
         self._next[i] = roster
 
@@ -545,9 +549,35 @@ class RustVecEnv:
         has_order = self._env.obs[..., HAS_ORDER_COL] > 0.5
         return has_order & by_slot & (team >= 0)
 
+    def transit_rows(self) -> NDArray[np.bool_]:
+        """[N, S] bool, owned (SIM_VERSION 6): ``order_transit`` slots whose script
+        flies the order (``Roster.scripts_follow_orders``), so ``scripted_actions()``
+        is the order-following script's transit flying there: the rows of the
+        transit-only script pull (``docs/M3_PLAN.md`` "Stage B3"). Like the obs, it
+        describes the current matches (a done env's new match after a step)."""
+        follows = np.asarray(
+            [r.scripts_follow_orders() for r in self.rosters], dtype=np.bool_
+        )
+        team = np.asarray(self._env.team, dtype=np.int64)
+        by_slot = np.take_along_axis(follows, np.clip(team, 0, 1), axis=1)
+        transit = np.asarray(self._env.order_transit, dtype=np.bool_)
+        return transit & by_slot & (team >= 0)
+
     def events(self) -> NDArray[np.float32]:
         """Copied ``[E, 9]`` events of the last step (needs ``record_events``)."""
         return self._env.events()
 
     def _out(self, arr: NDArray) -> NDArray:
         return arr.copy() if self.copy_outputs else arr
+
+
+def _hide_pair(hide_orders: Sequence[bool]) -> tuple[bool, bool]:
+    """``hide_orders`` as two bools.
+
+    Raises:
+        ValueError: Not two values.
+    """
+    pair = tuple(bool(h) for h in hide_orders)
+    if len(pair) != 2:
+        raise ValueError(f"hide_orders must name two teams, got {hide_orders}")
+    return (pair[0], pair[1])

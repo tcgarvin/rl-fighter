@@ -64,6 +64,15 @@ the KL anchor (which stays on ``has_order = 0`` rows). ``beta_heads = "movement"
 restricts the pull to the thruster and power heads: an order says where to fly, and
 the pilot already aims and fires better than the script does.
 
+Transit rows and new inputs (run B3, ``lab/runs/2026-11-01-order-pilot-b3/plan.md``,
+SIM_VERSION 6). With ``beta_rows = "transit"`` the pull averages over the rows whose
+effective order is a go-to not yet reached or a defend with an empty threat set
+(``RustVecEnv.transit_rows``: ``env.order_transit`` where the row's script flies the
+order); attack rows are never transit, which the rollout asserts. When the init is
+widened (403 -> 583), the first-layer columns of the new inputs (actor, and the
+critic's base and encoder) step ``new_input_lr_mult`` times as far as the rest
+(``NewInputAdam``): run 1 showed that zero columns barely move at the base LR.
+
 Anchor cache. The frozen anchor's per-head log-softmax is computed once per sample
 at rollout time (learner rows, ``[rows, N_LOGITS]`` float32) and read back in every
 minibatch of every epoch, instead of running the anchor net each time; the loss is
@@ -76,7 +85,7 @@ import dataclasses
 import json
 import os
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -95,6 +104,7 @@ from spacefight.env.rosters import (
     resolve_distribution,
 )
 from spacefight.env.rust_env import (
+    ATTACK_COL,
     HAS_ORDER_COL,
     OBS_DIM,
     OBS_LAYOUT,
@@ -160,8 +170,8 @@ _ARENA_MARGIN_COL = OBS_LAYOUT["self"][0] + 19
 _MAIN_ENGINE_LEVEL_COL = OBS_LAYOUT["thrusters"][0] + 6
 _FIRE_COL = HEAD_GROUPS["fire"].start
 LEARNER_SIDES = ("team0", "random")
-# Rows the script pull applies to (module docstring, "Ordered rows").
-BETA_ROWS = ("all", "ordered")
+# Rows the script pull applies to (module docstring, "Ordered rows", "Transit rows").
+BETA_ROWS = ("all", "ordered", "transit")
 
 INIT_SCRATCH = "scratch"
 _CHECKPOINT_PREFIX = "ppo"
@@ -233,6 +243,7 @@ LOG_KEYS: tuple[str, ...] = (
     "beta",
     "actor_lr",
     "critic_lr",
+    "new_input_lr",
     "actor_frozen",
     "main_engine_duty",
     "fire_rate",
@@ -360,8 +371,12 @@ class PPOConfig:
     kl_anchor: str = ""
     kl_anchor_coeff: float = 0.0
     # The learner's obs width: 0 = the init's (scratch: the sim's OBS_DIM); wider
-    # than the init widens it with zero input columns (stage B: 403).
+    # than the init widens it with zero input columns (stage B: 403, B3: 583).
     obs_dim: int = 0
+    # Step size of the widened inputs' first-layer columns relative to the rest
+    # (actor and critic; ``NewInputAdam``). 1 = no difference; no effect without a
+    # widening.
+    new_input_lr_mult: float = 1.0
     # §7 risk responses (all off by default).
     entropy_floor: float = 0.0
     entropy_floor_coeff: float = 0.0
@@ -429,6 +444,10 @@ class PPOConfig:
         if self.beta_rows not in BETA_ROWS:
             raise ValueError(
                 f"beta_rows must be one of {BETA_ROWS}, got {self.beta_rows}"
+            )
+        if self.new_input_lr_mult <= 0.0:
+            raise ValueError(
+                f"new_input_lr_mult must be positive, got {self.new_input_lr_mult}"
             )
         if self.beta_heads not in HEAD_SETS:
             raise ValueError(
@@ -809,6 +828,8 @@ class RolloutStorage:
         self.has_order = np.zeros((length, rows), dtype=np.bool_)
         # ... that the row's script flies (the "ordered" script pull's rows).
         self.scripted_order = np.zeros((length, rows), dtype=np.bool_)
+        # Transit rows whose script flies the order (the "transit" pull's rows).
+        self.transit = np.zeros((length, rows), dtype=np.bool_)
         # The frozen anchor's per-head log-softmax of each learner row (rollout
         # cache; zero rows wide without an anchor).
         self.anchor_logp = np.zeros(
@@ -992,6 +1013,8 @@ class SpikeTrainer:
         self.anchor = self._load_anchor(config.kl_anchor)
         self.next_update = 0
         self.elapsed = 0.0
+        # First new input column of a widened init (0: not widened).
+        self.new_input_start = 0
         self.actor: SpikeActor
         self.critic: Critic
         if resume:
@@ -1090,9 +1113,11 @@ class SpikeTrainer:
         if actor.obs_dim < width:
             print(
                 f"init {path.name}: widening the actor and critic from "
-                f"{actor.obs_dim} to {width} obs floats (new columns zero)",
+                f"{actor.obs_dim} to {width} obs floats (new columns zero, "
+                f"{self.config.new_input_lr_mult}x step size)",
                 flush=True,
             )
+            self.new_input_start = actor.obs_dim
             actor = widen_actor(actor, width)
             critic = widen_critic(critic, width)
         return actor, as_critic_kind(critic, self.config.critic)
@@ -1120,11 +1145,20 @@ class SpikeTrainer:
             self.learner_team[envs] = self.rng.integers(0, 2, size=len(envs))
 
     def _make_optimisers(self) -> None:
-        self.actor_opt = torch.optim.Adam(
-            self.actor.parameters(), lr=self.config.actor_lr, eps=1e-5
+        start, mult = self.new_input_start, self.config.new_input_lr_mult
+        self.actor_opt = NewInputAdam(
+            self.actor.parameters(),
+            lr=self.config.actor_lr,
+            boosted=first_layer_weights(self.actor) if start else [],
+            start=start,
+            mult=mult,
         )
-        self.critic_opt = torch.optim.Adam(
-            self.critic.parameters(), lr=self.config.critic_lr, eps=1e-5
+        self.critic_opt = NewInputAdam(
+            self.critic.parameters(),
+            lr=self.config.critic_lr,
+            boosted=first_layer_weights(self.critic) if start else [],
+            start=start,
+            mult=mult,
         )
 
     def request_stop(self) -> None:
@@ -1154,6 +1188,7 @@ class SpikeTrainer:
             "format": _TRAIN_STATE_FORMAT,
             "next_update": self.next_update,
             "elapsed": self.elapsed,
+            "new_input_start": self.new_input_start,
             "actor_opt": self.actor_opt.state_dict(),
             "critic_opt": self.critic_opt.state_dict(),
             "torch_rng": torch.get_rng_state(),
@@ -1174,6 +1209,7 @@ class SpikeTrainer:
                 f"{path} has a {critic_kind(self.critic)} critic but the config asks "
                 f"for {self.config.critic}"
             )
+        self.new_input_start = int(train.get("new_input_start", 0))
         self._make_optimisers()
         self.actor_opt.load_state_dict(train["actor_opt"])
         self.critic_opt.load_state_dict(train["critic_opt"])
@@ -1293,6 +1329,11 @@ class SpikeTrainer:
             "beta": settings.beta,
             "actor_lr": cfg.actor_lr * lr_scale,
             "critic_lr": cfg.critic_lr * lr_scale,
+            "new_input_lr": (
+                cfg.actor_lr * lr_scale * cfg.new_input_lr_mult
+                if self.new_input_start
+                else None
+            ),
             "actor_frozen": settings.actor_frozen,
             "snapshot_pool": self.pool.updates(),
             "order_reward_weight": cfg.order_reward_weight,
@@ -1346,6 +1387,8 @@ class SpikeTrainer:
             env_obs = env.obs.reshape(rows, OBS_DIM)
             store.has_order[b] = env_obs[:, HAS_ORDER_COL] > 0.5
             store.scripted_order[b] = env.scripted_order_rows().reshape(rows)
+            if self.config.beta_rows == "transit":
+                store.transit[b] = transit_rows(env, env_obs)
             store.obs[b] = fit_obs(env_obs, self.obs_dim)
             store.act_mask[b] = env.act_mask.reshape(rows)
             # Script labels for every row (each hull's own script); team-1 scripted
@@ -1539,6 +1582,8 @@ class SpikeTrainer:
         )
         if cfg.beta_rows == "ordered":
             pull_rows = store.scripted_order[:n].reshape(-1)[flat]
+        elif cfg.beta_rows == "transit":
+            pull_rows = store.transit[:n].reshape(-1)[flat]
         else:
             pull_rows = np.ones(flat.size, dtype=np.bool_)
         stats["beta_rows_share"] = float(pull_rows.mean()) if flat.size else None
@@ -1645,6 +1690,96 @@ class SpikeTrainer:
             "hull_hit_rate": hull_hit_rate,
             "hull_damage_dealt": hull_dealt,
         }
+
+
+def transit_rows(env: RustVecEnv, env_obs: NDArray[np.float32]) -> NDArray[np.bool_]:
+    """[R] the env's transit rows (``RustVecEnv.transit_rows``), flat.
+
+    Args:
+        env: The env (SIM_VERSION 6).
+        env_obs: [R, OBS_DIM] its current obs (the attack check reads them).
+
+    Raises:
+        RuntimeError: A transit row shows an attack order: the sim's transit flag
+            must never cover attack rows (the pull would overwrite combat flying).
+    """
+    transit = env.transit_rows().reshape(-1)
+    attacking = transit & (env_obs[:, ATTACK_COL] > 0.5)
+    if attacking.any():
+        raise RuntimeError(
+            f"{int(attacking.sum())} transit rows show an attack order; the "
+            "transit pull never applies to attack rows"
+        )
+    return transit
+
+
+def first_layer_weights(module: SpikeActor | Critic) -> list[torch.Tensor]:
+    """The weights that take the obs as input: the actor's first layer, a spike
+    critic's first layer, or a fleet critic's base and encoder first layers."""
+    if isinstance(module, FleetCritic):
+        layers = [module.base.net[0], module.encoder[0]]
+    else:
+        layers = [module.net[0]]
+    weights = []
+    for layer in layers:
+        if not isinstance(layer, nn.Linear):
+            raise TypeError(f"first layer is {type(layer).__name__}, not Linear")
+        weights.append(layer.weight)
+    return weights
+
+
+class NewInputAdam(torch.optim.Adam):
+    """Adam whose steps on the input columns ``start:`` of ``boosted`` weights are
+    ``mult`` times as large as the rest (run B3's 10x step size for the new inputs).
+
+    Adam's step is elementwise ``-lr * m_hat / (sqrt(v_hat) + eps)`` (no weight
+    decay here), so scaling those columns' step after each ``step()`` is exactly a
+    separate parameter group at ``mult * lr`` for them, while the first-layer weight
+    stays one tensor (checkpoints, ``load_policy`` and the web export are unchanged).
+    The moment estimates and the state dict are plain Adam's.
+
+    Args:
+        params: Every parameter (as ``torch.optim.Adam``).
+        lr: Base learning rate.
+        boosted: First-layer weights ``[out, in]`` whose new columns are boosted.
+        start: First boosted input column (the init's width).
+        mult: Step-size multiple of the boosted columns.
+        eps: Adam's epsilon.
+
+    Raises:
+        ValueError: A boosted weight is not 2-d or has no column ``start``.
+    """
+
+    def __init__(
+        self,
+        params: Iterable[nn.Parameter],
+        lr: float,
+        boosted: Sequence[torch.Tensor] = (),
+        start: int = 0,
+        mult: float = 1.0,
+        eps: float = 1e-5,
+    ) -> None:
+        super().__init__(params, lr=lr, eps=eps)
+        for weight in boosted:
+            if weight.dim() != 2 or not 0 < start < weight.shape[1]:
+                raise ValueError(
+                    f"cannot boost columns {start}: of a {tuple(weight.shape)} weight"
+                )
+        self.boosted = list(boosted) if mult != 1.0 else []
+        self.start = start
+        self.mult = mult
+
+    @torch.no_grad()
+    def step(  # type: ignore[override]
+        self, closure: Callable[[], float] | None = None
+    ) -> float | None:
+        """One Adam step, then the boosted columns' step scaled by ``mult``."""
+        before = [w[:, self.start :].clone() for w in self.boosted]
+        loss = super().step(closure)
+        for weight, old in zip(self.boosted, before):
+            new = weight[:, self.start :]
+            new.copy_(old + self.mult * (new - old))
+        return loss
 
 
 def _pairs(flat: NDArray[np.int64], n_ships: int) -> torch.Tensor:
