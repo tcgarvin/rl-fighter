@@ -138,9 +138,7 @@ def vs_w1_table(eval_dir: Path, names: list[str]) -> str:
             f"{result.missions[m].win_rate:.3f}" if m in result.missions else "–"
             for m in ("carrier_battle", "convoy_escort")
         ]
-        lines.append(
-            f"| {name} | {' | '.join(cells)} | {result.win_rate_mean:.3f} |"
-        )
+        lines.append(f"| {name} | {' | '.join(cells)} | {result.win_rate_mean:.3f} |")
     return "\n".join(lines)
 
 
