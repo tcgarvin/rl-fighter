@@ -1,9 +1,10 @@
 //! Observation layout constants and `Match::write_obs` (SIM_SPEC §7.2, v2; v5 order
-//! block).
+//! block; v6 threat blocks).
 //!
-//! The obs is a fixed 403-float vector (385 through v4; v5 appends the 18-float
+//! The obs is a fixed 583-float vector (385 through v4; v5 appends the 18-float
 //! `order` block, so the first `OBS_DIM_V4` floats are exactly v4's and a v3/v4
-//! pilot reads `obs[..OBS_DIM_V4]`) in the observing ship's body frame (relative
+//! pilot reads `obs[..OBS_DIM_V4]`; v6 appends `ship_extras` and `order_ships`, so
+//! the first `OBS_DIM_V5` floats are exactly v5's) in the observing ship's body frame (relative
 //! vectors rotated by `-heading`, so forward = +x, port = +y). Every block is a
 //! sequence of fixed-width records of one entity (self, thruster, turret, ship,
 //! projectile, pending action); each record has its own writer so the later
@@ -37,21 +38,37 @@
 //! - v5 order block (`write_order`): the ship's effective order (`order` module). A
 //!   ship with no order gets the all-zero block, mission one-hot and order age
 //!   included, so an order-less row reads exactly as a v4 obs padded with zeros.
-//!   The target point's velocity is the target's (attack, guard) or zero (hold);
-//!   heading and hit points are the target's, 0 for hold.
+//!   The target point's velocity is the target's (attack, defend) or zero (go-to);
+//!   heading and hit points are the target's, 0 for go-to. v6: the radius is the
+//!   go-to radius, 0 for attack and defend; a completed go-to is no order.
+//! - v6 `ship_extras` (`write_ship_extras`): one record per `ships` slot, same order,
+//!   zero for an empty slot. The order-dependent features (distance to my order
+//!   point, is my order's target or ward, hit my ward recently) are 0 without an
+//!   effective order; the last is 0 unless the order is a defend.
+//! - v6 `order_ships`: the `N_ORDER_SHIPS` active ships nearest the effective order's
+//!   point (target, ward or go-to point; allies and enemies), excluding the observer
+//!   and the order's own ship, nearest first (ties to the lower slot), each a
+//!   `write_ship` record relative to the observer plus its extras. All zero without an
+//!   order.
+//! - v6 hidden-order mode (`MatchConfig.hide_orders`): a hidden team's obs is exactly
+//!   that of a ship without an order: zero order block, zero `order_ships`, zero
+//!   order-dependent extras.
 
 use crate::actions::{POWER_MAX, ShipAction, THROTTLE_HOLD};
 use crate::arrival::ARRIVAL_LOCK_TICKS;
 use crate::command::Order;
 use crate::data::{Catalogue, HullDef, ThrusterDef};
 use crate::math::{TAU, Vec2, clamp, rot};
-use crate::order::{effective_order, order_geometry};
+use crate::order::{N_HULL_CLASSES, effective_order, order_geometry};
 use crate::state::{
     MAX_REACTION_TICKS, MAX_SHIPS, MAX_THRUSTERS, MAX_TURRETS, Match, Projectile, Ship, ShipIdx,
 };
 
-/// Total obs width (v5; 385 through v4).
-pub const OBS_DIM: usize = 403;
+/// Total obs width (v6; 403 in v5, 385 through v4).
+pub const OBS_DIM: usize = 583;
+/// Width of the v5 obs, the prefix every v6 obs starts with unchanged: what a pilot
+/// trained under SIM_VERSION 5 reads (`crate::PILOT_OBS_DIMS`).
+pub const OBS_DIM_V5: usize = 403;
 /// Width of the v3/v4 obs, the prefix every v5 obs starts with unchanged: what a
 /// pilot trained under SIM_VERSION 3 or 4 reads (`crate::PILOT_OBS_DIMS`).
 pub const OBS_DIM_V4: usize = 385;
@@ -103,6 +120,13 @@ pub const TURRET_EXTRA_W: usize = 2;
 pub const ORDER_W: usize = 18;
 /// The order age feature saturates at this many ticks (10 s).
 pub const ORDER_AGE_TICKS: f32 = 300.0;
+/// v6 per-ship extras: hull class one-hot[6], longest weapon range, distance to my
+/// order point, is my order's target or ward, hit my ward recently.
+pub const SHIP_EXTRA_W: usize = N_HULL_CLASSES + 4;
+/// v6: ships observed around the order point.
+pub const N_ORDER_SHIPS: usize = 5;
+/// v6 `order_ships` record: a ship record plus its extras.
+pub const ORDER_SHIP_W: usize = SHIP_W + SHIP_EXTRA_W;
 
 // Block offsets and widths.
 pub const SELF_OFF: usize = 0;
@@ -123,10 +147,15 @@ pub const TURRET_RANGE_OFF: usize = TURRET_ARC_OFF + TURRET_ARC_WIDTH;
 pub const TURRET_RANGE_WIDTH: usize = N_TURRET_SLOTS;
 pub const ORDER_OFF: usize = TURRET_RANGE_OFF + TURRET_RANGE_WIDTH;
 pub const ORDER_WIDTH: usize = ORDER_W;
+pub const SHIP_EXTRAS_OFF: usize = ORDER_OFF + ORDER_WIDTH;
+pub const SHIP_EXTRAS_WIDTH: usize = N_NEAR_SHIPS * SHIP_EXTRA_W;
+pub const ORDER_SHIPS_OFF: usize = SHIP_EXTRAS_OFF + SHIP_EXTRAS_WIDTH;
+pub const ORDER_SHIPS_WIDTH: usize = N_ORDER_SHIPS * ORDER_SHIP_W;
 
 const _: () = assert!(ORDER_OFF == OBS_DIM_V4);
-const _: () = assert!(ORDER_OFF + ORDER_WIDTH == OBS_DIM);
-const _: () = assert!(OBS_DIM == 403);
+const _: () = assert!(SHIP_EXTRAS_OFF == OBS_DIM_V5);
+const _: () = assert!(ORDER_SHIPS_OFF + ORDER_SHIPS_WIDTH == OBS_DIM);
+const _: () = assert!(SHIP_EXTRA_W == 10 && ORDER_SHIP_W == 22);
 const _: () = assert!(PENDING_W == 22);
 
 /// `(name, offset, width)` of every block, contiguous and in order; sim-py exports
@@ -141,6 +170,8 @@ pub const OBS_LAYOUT: &[(&str, usize, usize)] = &[
     ("turret_arc", TURRET_ARC_OFF, TURRET_ARC_WIDTH),
     ("turret_range", TURRET_RANGE_OFF, TURRET_RANGE_WIDTH),
     ("order", ORDER_OFF, ORDER_WIDTH),
+    ("ship_extras", SHIP_EXTRAS_OFF, SHIP_EXTRAS_WIDTH),
+    ("order_ships", ORDER_SHIPS_OFF, ORDER_SHIPS_WIDTH),
 ];
 
 /// `(name, records)` per block, in `OBS_LAYOUT` order; each block's width is
@@ -155,6 +186,8 @@ pub const OBS_SLOTS: &[(&str, usize)] = &[
     ("turret_arc", N_TURRET_SLOTS),
     ("turret_range", N_TURRET_SLOTS),
     ("order", 1),
+    ("ship_extras", N_NEAR_SHIPS),
+    ("order_ships", N_ORDER_SHIPS),
 ];
 
 /// Feature indices within the self record.
@@ -257,31 +290,47 @@ pub mod pending_f {
 pub mod order_f {
     /// 1 when the ship has an order (0: the whole record is zero).
     pub const HAS_ORDER: usize = 0;
-    /// One-hot attack, guard, hold.
+    /// One-hot attack, defend, go-to (v5: attack, guard, hold).
     pub const KIND: usize = 1;
-    /// Target point (the target, the ward, the hold point) relative position, body
+    /// Target point (the target, the ward, the go-to point) relative position, body
     /// frame, / R.
     pub const REL_POS_X: usize = 4;
     pub const REL_POS_Y: usize = 5;
-    /// Target point velocity − own velocity, body frame, / VS (hold: −own velocity).
+    /// Target point velocity − own velocity, body frame, / VS (go-to: −own velocity).
     pub const REL_VEL_X: usize = 6;
     pub const REL_VEL_Y: usize = 7;
     /// `(distance − radius) / R`: negative inside the order radius.
     pub const SIGNED_DIST: usize = 8;
-    /// Order radius / R (attack 0; guard `GUARD_PRESENCE` + the ward's bound radius;
-    /// hold its radius; a capital ship's waypoint `CAPITAL_WAYPOINT_RADIUS`).
+    /// Order radius / R (v6: attack and defend 0; go-to its radius; a capital ship's
+    /// waypoint `CAPITAL_WAYPOINT_RADIUS`).
     pub const RADIUS: usize = 9;
-    /// Target hp / max hp (0 for hold).
+    /// Target hp / max hp (0 for go-to).
     pub const HP: usize = 10;
-    /// Target bound radius / L (0 for hold).
+    /// Target bound radius / L (0 for go-to).
     pub const BOUND_RADIUS: usize = 11;
-    /// sin / cos of the target's heading relative to own (0 for hold).
+    /// sin / cos of the target's heading relative to own (0 for go-to).
     pub const SIN_REL_HEADING: usize = 12;
     pub const COS_REL_HEADING: usize = 13;
     /// Ticks since the ship's order instance started / `ORDER_AGE_TICKS`, at most 1.
     pub const AGE: usize = 14;
     /// One-hot deathmatch, carrier battle, convoy escort.
     pub const MISSION: usize = 15;
+}
+
+/// Feature indices within a v6 ship-extras record.
+pub mod extra_f {
+    /// One-hot over `order::HULL_CLASSES`: fighter, strafer, gunship, carrier,
+    /// freighter, spare.
+    pub const CLASS: usize = 0;
+    /// The ship's longest weapon range / R.
+    pub const REACH: usize = 6;
+    /// The ship's distance to my order point / R (0 without an order).
+    pub const ORDER_DIST: usize = 7;
+    /// 1 if the ship is my order's target or ward.
+    pub const IS_ORDER_SHIP: usize = 8;
+    /// 1 if my order is a defend and the ship damaged my ward in the last
+    /// `order::RECENT_HIT_TICKS` ticks.
+    pub const HIT_MY_WARD: usize = 9;
 }
 
 #[inline]
@@ -489,20 +538,29 @@ pub fn write_pending(a: &ShipAction, out: &mut [f32]) {
     clamp_record(out);
 }
 
+/// The order `ship` sees: its effective order, or none on a hidden-order team.
+pub fn seen_order(m: &Match, ship: &Ship) -> Order {
+    if m.cfg.hide_orders[usize::from(ship.team & 1)] {
+        Order::None
+    } else {
+        effective_order(m, usize::from(ship.slot))
+    }
+}
+
 /// v5: `ship`'s order record (`ORDER_W` floats, module docs): all zero without an
-/// order.
+/// order (v6: or on a hidden-order team).
 pub fn write_order(m: &Match, cat: &Catalogue, ship: &Ship, out: &mut [f32]) {
     let out = &mut out[..ORDER_W];
     out.fill(0.0);
-    let order = effective_order(m, usize::from(ship.slot));
-    let Some((point, radius)) = order_geometry(m, cat, order) else {
+    let order = seen_order(m, ship);
+    let Some((point, radius)) = order_geometry(m, order) else {
         return;
     };
     let arena = m.cfg.arena_radius;
     let target = match order {
         Order::Attack { target } => Some(&m.ships[usize::from(target)]),
-        Order::Guard { ward } => Some(&m.ships[usize::from(ward)]),
-        Order::Hold { .. } | Order::None => None,
+        Order::Defend { ward } => Some(&m.ships[usize::from(ward)]),
+        Order::GoTo { .. } | Order::None => None,
     };
     let delta = point - ship.pos;
     let rel_pos = to_body(ship, delta);
@@ -525,6 +583,51 @@ pub fn write_order(m: &Match, cat: &Catalogue, ship: &Ship, out: &mut [f32]) {
     }
     out[order_f::AGE] = (m.order_age(ship.slot) as f32 / ORDER_AGE_TICKS).min(1.0);
     out[order_f::MISSION + usize::from(m.cfg.mission.kind().index())] = 1.0;
+    clamp_record(out);
+}
+
+/// v6: what a ship's order-dependent obs features are measured against: the order
+/// it sees ([`seen_order`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct OrderView {
+    /// The order point (target, ward or go-to point), `None` without an order.
+    pub point: Option<Vec2>,
+    /// The order's target or ward, `NONE` otherwise.
+    pub ship: ShipIdx,
+    /// The ward, for a defend order.
+    pub ward: Option<usize>,
+}
+
+impl OrderView {
+    pub fn of(m: &Match, ship: &Ship) -> OrderView {
+        let order = seen_order(m, ship);
+        OrderView {
+            point: order_geometry(m, order).map(|(p, _)| p),
+            ship: order.target(),
+            ward: match order {
+                Order::Defend { ward } => Some(usize::from(ward)),
+                _ => None,
+            },
+        }
+    }
+}
+
+/// v6: `other`'s extras record (`SHIP_EXTRA_W` floats, module docs) for an observer
+/// whose order is `view`.
+pub fn write_ship_extras(m: &Match, view: &OrderView, other: &Ship, out: &mut [f32]) {
+    let out = &mut out[..SHIP_EXTRA_W];
+    out.fill(0.0);
+    let s = usize::from(other.slot);
+    let arena = m.cfg.arena_radius;
+    out[extra_f::CLASS + usize::from(m.ship_class[s])] = 1.0;
+    out[extra_f::REACH] = m.ship_reach[s] / arena;
+    if let Some(p) = view.point {
+        out[extra_f::ORDER_DIST] = (other.pos - p).length() / arena;
+    }
+    out[extra_f::IS_ORDER_SHIP] = bit(other.slot == view.ship);
+    if let Some(w) = view.ward {
+        out[extra_f::HIT_MY_WARD] = bit(m.recently_hit(w, s));
+    }
     clamp_record(out);
 }
 
@@ -621,9 +724,27 @@ impl Match {
                 near_ships.offer(i, order_key((other.pos - me.pos).length()));
             }
         }
+        let view = OrderView::of(self, me);
         for (k, &i) in near_ships.indices().iter().enumerate() {
             let o = SHIPS_OFF + k * SHIP_W;
             write_ship(cat, me, &self.ships[i], radius, &mut out[o..o + SHIP_W]);
+            let o = SHIP_EXTRAS_OFF + k * SHIP_EXTRA_W;
+            write_ship_extras(self, &view, &self.ships[i], &mut out[o..o + SHIP_EXTRA_W]);
+        }
+        if let Some(point) = view.point {
+            let mut around = SmallestK::<N_ORDER_SHIPS>::new();
+            for (i, other) in self.ships.iter().enumerate() {
+                if i != ship as usize && i != usize::from(view.ship) && other.active() {
+                    around.offer(i, order_key((other.pos - point).length()));
+                }
+            }
+            for (k, &i) in around.indices().iter().enumerate() {
+                let o = ORDER_SHIPS_OFF + k * ORDER_SHIP_W;
+                let other = &self.ships[i];
+                write_ship(cat, me, other, radius, &mut out[o..o + SHIP_W]);
+                let e = o + SHIP_W;
+                write_ship_extras(self, &view, other, &mut out[e..e + SHIP_EXTRA_W]);
+            }
         }
 
         let mut threats = SmallestK::<N_NEAR_PROJ>::new();

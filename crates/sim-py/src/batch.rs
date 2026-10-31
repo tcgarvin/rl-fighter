@@ -45,6 +45,8 @@ pub struct Roster {
     pub commanders: [CommanderMode; 2],
     /// v5: the match's time limit, ticks.
     pub time_limit_ticks: u32,
+    /// v6: per team, hidden-order mode (`MatchConfig.hide_orders`).
+    pub hide_orders: [bool; 2],
 }
 
 impl Roster {
@@ -106,6 +108,7 @@ impl std::error::Error for BatchError {}
 
 /// Per-step buffers, flat and C-ordered: `obs [N,S,OBS_DIM]`, `actions [N,S,21]`,
 /// `rewards/order_rewards/act_mask/alive/collision_damage/team/hull_id [N,S]`,
+/// `order_transit/ward_hull_lost [N,S]`, `ward_threat [N,S,S]`,
 /// `dones/winner/end_reason/tick/episode_count/hit_count/arena_radius [N]`,
 /// `hits [N,MAX_HITS,HIT_FIELDS]`, `thruster_mask [N,S,8]`,
 /// `turret_mask/fixed_turret [N,S,6]`.
@@ -115,6 +118,14 @@ pub struct StepBuffers<'a> {
     pub rewards: &'a mut [f32],
     /// v5: the order reward (SIM_SPEC §8), separate from `rewards`.
     pub order_rewards: &'a mut [f32],
+    /// v6: the slot is in transit (`Match::order_transit`), as of the obs (the
+    /// rebuilt match after a done).
+    pub order_transit: &'a mut [bool],
+    /// v6: `[i, w, e]`, ship `e` was in ship `w`'s threat set in the step
+    /// (`Match.ward_threat`; the finished match on a done step, like `rewards`).
+    pub ward_threat: &'a mut [bool],
+    /// v6: hull fraction each ship lost in the step (`Match.hull_lost`).
+    pub ward_hull_lost: &'a mut [f32],
     pub dones: &'a mut [bool],
     pub winner: &'a mut [i8],
     /// v4: `EndReason::index` of the match that ended this step (0 while running).
@@ -142,6 +153,9 @@ struct MatchRows<'a> {
     actions: &'a [i8],
     rewards: &'a mut [f32],
     order_rewards: &'a mut [f32],
+    order_transit: &'a mut [bool],
+    ward_threat: &'a mut [bool],
+    ward_hull_lost: &'a mut [f32],
     done: &'a mut bool,
     winner: &'a mut i8,
     end_reason: &'a mut i8,
@@ -188,6 +202,7 @@ fn match_config(cfg: &BatchConfig, roster: &Roster, index: usize, episode: u32) 
         fleets: roster.fleets.clone(),
         mission: roster.mission.clone(),
         commanders: roster.commanders,
+        hide_orders: roster.hide_orders,
     }
 }
 
@@ -300,6 +315,8 @@ impl Batch {
                     slot.m = build_match(cat, cfg, &slot.roster, i, 0);
                     r.rewards.fill(0.0);
                     r.order_rewards.fill(0.0);
+                    r.ward_threat.fill(false);
+                    r.ward_hull_lost.fill(0.0);
                     *r.done = false;
                     *r.winner = WINNER_NONE;
                     *r.end_reason = 0;
@@ -371,10 +388,14 @@ fn split_rows<'a>(cfg: &BatchConfig, b: StepBuffers<'a>) -> Vec<MatchRows<'a>> {
     debug_assert_eq!(b.hits.len(), n * MAX_HITS * HIT_FIELDS);
     debug_assert_eq!(b.thruster_mask.len(), n * s * MAX_THRUSTERS);
     debug_assert_eq!(b.order_rewards.len(), n * s);
+    debug_assert_eq!(b.ward_threat.len(), n * s * s);
     let mut obs = b.obs.chunks_mut(s * OBS_DIM);
     let mut actions = b.actions.chunks(s * ACTION_WIDTH);
     let mut rewards = b.rewards.chunks_mut(s);
     let mut order_rewards = b.order_rewards.chunks_mut(s);
+    let mut order_transit = b.order_transit.chunks_mut(s);
+    let mut ward_threat = b.ward_threat.chunks_mut(s * s);
+    let mut ward_hull_lost = b.ward_hull_lost.chunks_mut(s);
     let mut dones = b.dones.iter_mut();
     let mut winner = b.winner.iter_mut();
     let mut end_reason = b.end_reason.iter_mut();
@@ -398,6 +419,9 @@ fn split_rows<'a>(cfg: &BatchConfig, b: StepBuffers<'a>) -> Vec<MatchRows<'a>> {
             actions: actions.next().expect(SHORT),
             rewards: rewards.next().expect(SHORT),
             order_rewards: order_rewards.next().expect(SHORT),
+            order_transit: order_transit.next().expect(SHORT),
+            ward_threat: ward_threat.next().expect(SHORT),
+            ward_hull_lost: ward_hull_lost.next().expect(SHORT),
             done: dones.next().expect(SHORT),
             winner: winner.next().expect(SHORT),
             end_reason: end_reason.next().expect(SHORT),
@@ -442,6 +466,7 @@ fn step_one(
     r.order_rewards[k..].fill(0.0);
     r.collision_damage[..k].copy_from_slice(&m.collision_damage[..k]);
     r.collision_damage[k..].fill(0.0);
+    write_wards(m, r);
     write_hits(m, r);
     if cfg.record_events {
         m.events.encode_into(&mut slot.events);
@@ -459,6 +484,20 @@ fn step_one(
         slot.m = build_match(cat, cfg, &slot.roster, index, slot.episode);
     }
     write_post_step(cat, slot, r, done);
+}
+
+/// The step's threat sets and hull losses (`[S,S]` and `[S]` rows; padding false/0).
+fn write_wards(m: &Match, r: &mut MatchRows<'_>) {
+    let k = m.ships.len();
+    let s = r.ward_hull_lost.len();
+    r.ward_hull_lost[..k].copy_from_slice(&m.hull_lost[..k]);
+    r.ward_hull_lost[k..].fill(0.0);
+    for (w, row) in r.ward_threat.chunks_exact_mut(s).enumerate() {
+        let set = if w < k { m.ward_threat[w] } else { 0 };
+        for (e, cell) in row.iter_mut().enumerate() {
+            *cell = set & (1 << e) != 0;
+        }
+    }
 }
 
 fn write_hits(m: &Match, r: &mut MatchRows<'_>) {
@@ -485,6 +524,7 @@ fn write_post_step(cat: &Catalogue, slot: &Slot, r: &mut MatchRows<'_>, rebuilt:
         let ship = &m.ships[s];
         r.act_mask[s] = actions::act_mask(ship, m.tick());
         r.alive[s] = ship.alive;
+        r.order_transit[s] = m.order_transit(cat, s);
     }
     *r.tick = m.tick();
     *r.episode_count = slot.episode;
@@ -494,6 +534,7 @@ fn write_post_step(cat: &Catalogue, slot: &Slot, r: &mut MatchRows<'_>, rebuilt:
     r.obs[k * OBS_DIM..].fill(0.0);
     r.act_mask[k..].fill(false);
     r.alive[k..].fill(false);
+    r.order_transit[k..].fill(false);
     for (s, ship) in m.ships.iter().enumerate() {
         let hull = cat.hull(ship.hull);
         r.thruster_mask[s * MAX_THRUSTERS..(s + 1) * MAX_THRUSTERS]
@@ -528,6 +569,9 @@ mod tests {
         actions: Vec<i8>,
         rewards: Vec<f32>,
         order_rewards: Vec<f32>,
+        order_transit: Vec<bool>,
+        ward_threat: Vec<bool>,
+        ward_hull_lost: Vec<f32>,
         dones: Vec<bool>,
         winner: Vec<i8>,
         end_reason: Vec<i8>,
@@ -553,6 +597,9 @@ mod tests {
                 actions: vec![0; n * s * ACTION_WIDTH],
                 rewards: vec![0.0; n * s],
                 order_rewards: vec![0.0; n * s],
+                order_transit: vec![false; n * s],
+                ward_threat: vec![false; n * s * s],
+                ward_hull_lost: vec![0.0; n * s],
                 dones: vec![false; n],
                 winner: vec![0; n],
                 end_reason: vec![0; n],
@@ -578,6 +625,9 @@ mod tests {
                 actions: &self.actions,
                 rewards: &mut self.rewards,
                 order_rewards: &mut self.order_rewards,
+                order_transit: &mut self.order_transit,
+                ward_threat: &mut self.ward_threat,
+                ward_hull_lost: &mut self.ward_hull_lost,
                 dones: &mut self.dones,
                 winner: &mut self.winner,
                 end_reason: &mut self.end_reason,
@@ -606,6 +656,7 @@ mod tests {
             mission: Mission::Deathmatch,
             commanders: [CommanderMode::Scripted; 2],
             time_limit_ticks: 300,
+            hide_orders: [false; 2],
         }
     }
 
@@ -693,6 +744,7 @@ mod tests {
             mission: Mission::Deathmatch,
             commanders: [CommanderMode::Random, CommanderMode::Scripted],
             time_limit_ticks: 300,
+            hide_orders: [true, false],
         };
         b.set_next_roster(3, roster.clone()).unwrap();
         assert_eq!(&o.team[12..16], &[0, 1, -1, -1], "current match untouched");
@@ -711,6 +763,8 @@ mod tests {
             [CommanderMode::Random, CommanderMode::Scripted]
         );
         assert_eq!(b.match_at(2).cfg.commanders, [CommanderMode::Scripted; 2]);
+        assert_eq!(b.match_at(3).cfg.hide_orders, [true, false]);
+        assert_eq!(b.match_at(2).cfg.hide_orders, [false; 2]);
     }
 
     #[test]

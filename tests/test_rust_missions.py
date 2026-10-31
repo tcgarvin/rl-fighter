@@ -194,10 +194,10 @@ TRAIN_CARRIER = ["carrier", "fighter", "fighter", "strafer", "gunship"]
 
 
 def test_v5_constants_and_pilot_obs_dims() -> None:
-    assert rlf_sim.SIM_VERSION == 5
+    assert rlf_sim.SIM_VERSION == 6
     assert (ORDER_OFF, ORDER_W) == (385, 18)
-    assert rlf_sim.OBS_DIM == ORDER_OFF + ORDER_W
-    assert rlf_sim.PILOT_OBS_DIMS == {3: 385, 4: 385, 5: 403}
+    assert rlf_sim.OBS_DIM_V5 == ORDER_OFF + ORDER_W
+    assert rlf_sim.PILOT_OBS_DIMS == {3: 385, 4: 385, 5: 403, 6: 583}
     assert set(rlf_sim.PILOT_OBS_DIMS) == set(rlf_sim.PILOT_COMPAT_VERSIONS)
     assert rlf_sim.MAX_TRAIN_SHIPS == 12
 
@@ -223,7 +223,7 @@ def test_random_commander_gives_orders_that_pilots_see() -> None:
         env.scripted_actions()
         env.step()
         assert env.order_rewards is order_rewards
-        block = env.obs[..., ORDER_OFF:]
+        block = env.obs[..., ORDER_OFF : ORDER_OFF + ORDER_W]
         has = block[..., 0] == 1.0
         # A ship with an order has exactly one kind; one without has an all-zero block.
         assert np.all(block[has][:, 1:4].sum(axis=1) == 1.0)

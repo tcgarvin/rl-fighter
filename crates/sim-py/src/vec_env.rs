@@ -81,6 +81,18 @@ fn commanders_from_py(
     }
 }
 
+/// v6: hidden-order flags from `None` (`default`) or two bools.
+fn hide_orders_from_py(flags: Option<Vec<bool>>, default: [bool; 2]) -> PyResult<[bool; 2]> {
+    match flags.as_deref() {
+        None => Ok(default),
+        Some(&[a, b]) => Ok([a, b]),
+        Some(other) => Err(PyValueError::new_err(format!(
+            "hide_orders must be [team 0, team 1] bools, got {} values",
+            other.len()
+        ))),
+    }
+}
+
 /// Borrow `arr` mutably as a flat slice, or explain why not (another Rust borrow is
 /// live, or the user made the array read-only).
 fn borrow_mut<'py, T: Element, D: numpy::ndarray::Dimension>(
@@ -146,6 +158,9 @@ pub struct VecEnv {
     actions: Py<PyArray3<i8>>,
     rewards: Py<PyArray2<f32>>,
     order_rewards: Py<PyArray2<f32>>,
+    order_transit: Py<PyArray2<bool>>,
+    ward_threat: Py<PyArray3<bool>>,
+    ward_hull_lost: Py<PyArray2<f32>>,
     dones: Py<PyArray1<bool>>,
     winner: Py<PyArray1<i8>>,
     end_reason: Py<PyArray1<i8>>,
@@ -166,6 +181,8 @@ pub struct VecEnv {
     /// time limit.
     default_commanders: [CommanderMode; 2],
     default_time_limit_ticks: u32,
+    /// v6: what `set_next_roster` falls back to for `hide_orders`.
+    default_hide_orders: [bool; 2],
 }
 
 /// Borrow every per-step buffer and call `f` with the slices.
@@ -175,6 +192,9 @@ macro_rules! with_step_buffers {
         let actions = $self.actions.bind($py);
         let rewards = $self.rewards.bind($py);
         let order_rewards = $self.order_rewards.bind($py);
+        let order_transit = $self.order_transit.bind($py);
+        let ward_threat = $self.ward_threat.bind($py);
+        let ward_hull_lost = $self.ward_hull_lost.bind($py);
         let dones = $self.dones.bind($py);
         let winner = $self.winner.bind($py);
         let end_reason = $self.end_reason.bind($py);
@@ -197,6 +217,9 @@ macro_rules! with_step_buffers {
             .map_err(|e| PyValueError::new_err(format!("env.actions cannot be read: {e}")))?;
         let mut rewards = borrow_mut(rewards, "rewards")?;
         let mut order_rewards = borrow_mut(order_rewards, "order_rewards")?;
+        let mut order_transit = borrow_mut(order_transit, "order_transit")?;
+        let mut ward_threat = borrow_mut(ward_threat, "ward_threat")?;
+        let mut ward_hull_lost = borrow_mut(ward_hull_lost, "ward_hull_lost")?;
         let mut dones = borrow_mut(dones, "dones")?;
         let mut winner = borrow_mut(winner, "winner")?;
         let mut end_reason = borrow_mut(end_reason, "end_reason")?;
@@ -220,6 +243,9 @@ macro_rules! with_step_buffers {
                 .map_err(|e| PyValueError::new_err(format!("env.actions: {e}")))?,
             rewards: as_slice(&mut rewards, "rewards")?,
             order_rewards: as_slice(&mut order_rewards, "order_rewards")?,
+            order_transit: as_slice(&mut order_transit, "order_transit")?,
+            ward_threat: as_slice(&mut ward_threat, "ward_threat")?,
+            ward_hull_lost: as_slice(&mut ward_hull_lost, "ward_hull_lost")?,
             dones: as_slice(&mut dones, "dones")?,
             winner: as_slice(&mut winner, "winner")?,
             end_reason: as_slice(&mut end_reason, "end_reason")?,
@@ -301,9 +327,11 @@ impl VecEnv {
     /// `None` (deathmatch, the v3 match), a kind name or a dict spec (SIM_SPEC §10.3);
     /// `commanders` names each team's commander mode, `"scripted"` (default),
     /// `"external"` (commands via `submit_command`) or (v5) `"random"` (the scripted
-    /// logistics with random squads and orders).
+    /// logistics with random squads and orders). v6: `hide_orders` is `[team 0,
+    /// team 1]` hidden-order mode (default both false): a hidden team's obs shows no
+    /// order (SIM_SPEC §7.2); rewards and scripts are unaffected.
     #[new]
-    #[pyo3(signature = (assets_dir, n_envs, fleets, seed, arena_radius=450.0, time_limit_s=90.0, n_threads=0, record_events=false, reaction_ticks=2, max_ships=None, mission=None, commanders=None))]
+    #[pyo3(signature = (assets_dir, n_envs, fleets, seed, arena_radius=450.0, time_limit_s=90.0, n_threads=0, record_events=false, reaction_ticks=2, max_ships=None, mission=None, commanders=None, hide_orders=None))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         py: Python<'_>,
@@ -319,6 +347,7 @@ impl VecEnv {
         max_ships: Option<i64>,
         mission: Option<&Bound<'_, PyAny>>,
         commanders: Option<Vec<String>>,
+        hide_orders: Option<Vec<bool>>,
     ) -> PyResult<Self> {
         if n_envs < 1 {
             return Err(PyValueError::new_err(format!(
@@ -344,6 +373,7 @@ impl VecEnv {
         let fleets = resolve_fleets(&cat, &fleets)?;
         let mission = mission_from_py(py, mission, arena_radius)?;
         let commanders = commanders_from_py(commanders, [CommanderMode::Scripted; 2])?;
+        let hide_orders = hide_orders_from_py(hide_orders, [false; 2])?;
         let total = fleets[0].len() + fleets[1].len();
         let n_ships = match max_ships {
             None => total,
@@ -367,6 +397,7 @@ impl VecEnv {
                     mission,
                     commanders,
                     time_limit_ticks,
+                    hide_orders,
                 },
                 n_ships,
                 n_threads: n_threads as usize,
@@ -381,6 +412,9 @@ impl VecEnv {
             actions: PyArray3::zeros(py, [n, s, ACTION_WIDTH], false).unbind(),
             rewards: PyArray2::zeros(py, [n, s], false).unbind(),
             order_rewards: PyArray2::zeros(py, [n, s], false).unbind(),
+            order_transit: PyArray2::zeros(py, [n, s], false).unbind(),
+            ward_threat: PyArray3::zeros(py, [n, s, s], false).unbind(),
+            ward_hull_lost: PyArray2::zeros(py, [n, s], false).unbind(),
             dones: PyArray1::zeros(py, [n], false).unbind(),
             winner: PyArray1::zeros(py, [n], false).unbind(),
             end_reason: PyArray1::zeros(py, [n], false).unbind(),
@@ -399,6 +433,7 @@ impl VecEnv {
             arena_radius: PyArray1::zeros(py, [n], false).unbind(),
             default_commanders: commanders,
             default_time_limit_ticks: time_limit_ticks,
+            default_hide_orders: hide_orders,
         };
         env.reset(py)?;
         Ok(env)
@@ -413,8 +448,9 @@ impl VecEnv {
     /// deathmatch). v5: `commanders` as in the constructor (default: the
     /// constructor's); `time_limit_s` the match's clock (default: the mission's own
     /// limit, `mission_time_limit_s`, when a mission is given, else the
-    /// constructor's `time_limit_s`). Every field sticks with the roster.
-    #[pyo3(signature = (i, fleets, arena_radius, mission=None, commanders=None, time_limit_s=None))]
+    /// constructor's `time_limit_s`). v6: `hide_orders` as in the constructor
+    /// (default: the constructor's). Every field sticks with the roster.
+    #[pyo3(signature = (i, fleets, arena_radius, mission=None, commanders=None, time_limit_s=None, hide_orders=None))]
     #[allow(clippy::too_many_arguments)]
     fn set_next_roster(
         &mut self,
@@ -425,6 +461,7 @@ impl VecEnv {
         mission: Option<&Bound<'_, PyAny>>,
         commanders: Option<Vec<String>>,
         time_limit_s: Option<f32>,
+        hide_orders: Option<Vec<bool>>,
     ) -> PyResult<()> {
         let n = self.batch.n_envs() as i64;
         if !(0..n).contains(&i) {
@@ -442,6 +479,7 @@ impl VecEnv {
         };
         let mission = mission_from_py(py, mission, arena_radius)?;
         let commanders = commanders_from_py(commanders, self.default_commanders)?;
+        let hide_orders = hide_orders_from_py(hide_orders, self.default_hide_orders)?;
         self.batch
             .set_next_roster(
                 i as usize,
@@ -451,6 +489,7 @@ impl VecEnv {
                     mission,
                     commanders,
                     time_limit_ticks,
+                    hide_orders,
                 },
             )
             .map_err(|e| PyValueError::new_err(e.to_string()))
@@ -572,6 +611,53 @@ impl VecEnv {
             py,
             &to_json(&MissionStateView::of(m, self.batch.catalogue())),
         )
+    }
+
+    /// v6: every slot's order instance now (`order` module), a dict of new arrays:
+    /// `standing_kind` and `effective_kind` (`[N,S] int8`: 0 none, 1 attack, 2
+    /// defend, 3 goto; standing is the squad's order or a capital ship's waypoint,
+    /// effective drops invalid and completed orders), `target` (`[N,S] int16`, the
+    /// instance's target or ward slot, -1), `point` (`[N,S,2] f32`, the instance's
+    /// go-to point), `radius` (`[N,S] f32`, the standing go-to radius, 0 otherwise),
+    /// `arrived` (`[N,S] bool`) and `instance_start` (`[N,S] uint32`, its start
+    /// tick). Padding slots read 0 / -1 / false.
+    fn order_tracks<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let (n, s) = (self.batch.n_envs(), self.batch.n_ships());
+        let mut standing = Array2::<i8>::zeros(Dim([n, s]));
+        let mut effective = Array2::<i8>::zeros(Dim([n, s]));
+        let mut target = Array2::<i16>::from_elem(Dim([n, s]), -1);
+        let mut point = numpy::ndarray::Array3::<f32>::zeros(Dim([n, s, 2]));
+        let mut radius = Array2::<f32>::zeros(Dim([n, s]));
+        let mut arrived = Array2::<bool>::from_elem(Dim([n, s]), false);
+        let mut start = Array2::<u32>::zeros(Dim([n, s]));
+        for i in 0..n {
+            let m = self.batch.match_at(i);
+            for k in 0..m.ships.len() {
+                let order = sim::order::standing_order(m, k);
+                let track = &m.order_tracks[k];
+                standing[[i, k]] = order.kind() as i8;
+                effective[[i, k]] = sim::order::effective_order(m, k).kind() as i8;
+                if track.target != sim::state::NONE {
+                    target[[i, k]] = i16::from(track.target);
+                }
+                point[[i, k, 0]] = track.point.x;
+                point[[i, k, 1]] = track.point.y;
+                if let sim::command::Order::GoTo { radius: r, .. } = order {
+                    radius[[i, k]] = r;
+                }
+                arrived[[i, k]] = track.arrived;
+                start[[i, k]] = track.start_tick;
+            }
+        }
+        let out = PyDict::new(py);
+        out.set_item("standing_kind", standing.into_pyarray(py))?;
+        out.set_item("effective_kind", effective.into_pyarray(py))?;
+        out.set_item("target", target.into_pyarray(py))?;
+        out.set_item("point", point.into_pyarray(py))?;
+        out.set_item("radius", radius.into_pyarray(py))?;
+        out.set_item("arrived", arrived.into_pyarray(py))?;
+        out.set_item("instance_start", start.into_pyarray(py))?;
+        Ok(out)
     }
 
     /// Per-match determinism hash (SIM_SPEC §12), a new `uint64[N]` array.
@@ -775,13 +861,34 @@ impl VecEnv {
     fn hit_count(&self, py: Python<'_>) -> Py<PyArray1<i32>> {
         self.hit_count.clone_ref(py)
     }
-    /// v5: the order reward of the last step (`[N,S] f32`, SIM_SPEC §8): attack
-    /// damage on the ordered target, guard and hold shaping, arrival and capped
-    /// presence, guard damage near the ward. Separate from `rewards` (the trainer
+    /// v5: the order reward of the last step (`[N,S] f32`, SIM_SPEC §8; v6): attack
+    /// damage on the ordered target, defend damage on the ward's threat set and the
+    /// ward's hull loss and death, go-to shaping and arrival. Separate from `rewards` (the trainer
     /// weights it); zero for padding and ships that do not earn.
     #[getter]
     fn order_rewards(&self, py: Python<'_>) -> Py<PyArray2<f32>> {
         self.order_rewards.clone_ref(py)
+    }
+    /// v6: `[N,S] bool`, the slot's effective order is a go-to not yet arrived, or a
+    /// defend whose ward's threat set is empty (`Match::order_transit`), as of the
+    /// current obs (the rebuilt match after a done). Raw: the trainer decides which
+    /// rows to pull toward the scripts.
+    #[getter]
+    fn order_transit(&self, py: Python<'_>) -> Py<PyArray2<bool>> {
+        self.order_transit.clone_ref(py)
+    }
+    /// v6: `[N,S,S] bool`, `[i, w, e]` = ship `e` was in ship `w`'s threat set in the
+    /// last step (every ship `w` on the field that step; the finished match on a
+    /// done step, like `rewards`). The threat set the defend reward pays on.
+    #[getter]
+    fn ward_threat(&self, py: Python<'_>) -> Py<PyArray3<bool>> {
+        self.ward_threat.clone_ref(py)
+    }
+    /// v6: `[N,S] f32`, the hull fraction each ship lost in the last step (a death
+    /// counts the rest of its hull).
+    #[getter]
+    fn ward_hull_lost(&self, py: Python<'_>) -> Py<PyArray2<f32>> {
+        self.ward_hull_lost.clone_ref(py)
     }
     /// Arena radius of each env's current match (`[N] f32`, metres).
     #[getter]

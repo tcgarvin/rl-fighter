@@ -279,7 +279,7 @@ fn external_commands_round_trip_as_json() {
         0,
         r#"[{"kind": "launch", "hull": "fighter", "bay": 1},
             {"kind": "squad", "squad": 0, "members": [1, 2],
-             "order": {"kind": "hold", "point": [0, 0], "radius": 50}}]"#,
+             "order": {"kind": "goto", "point": [0, 0], "radius": 50}}]"#,
     )
     .unwrap();
     assert!(
@@ -292,7 +292,7 @@ fn external_commands_round_trip_as_json() {
     assert!(results.contains("\"launched\""), "{results}");
     assert_eq!(m.command_results_json(1).unwrap(), "[]");
     let squads = m.squads();
-    assert_eq!(squads[4], 3.0, "team 0 squad 0 holds");
+    assert_eq!(squads[4], 3.0, "team 0 squad 0 goes to a point");
     assert_eq!(squads[2], 2.0, "two members");
     let obs = m.commander_obs_json(0).unwrap();
     assert!(obs.contains("\"reserves\""), "{obs}");

@@ -1,20 +1,24 @@
-//! Squad orders for the scripted strike-craft pilots (WP-S2, SIM_SPEC §11): which
-//! enemy an order points a pilot at, and where it flies when its order has nobody to
-//! fight (a guard with no threat near its ward, a hold with nobody near its point).
+//! Squad orders for the scripted strike-craft pilots (WP-S2, v6 redesign; SIM_SPEC
+//! §11): which enemy an order points a pilot at, and where it flies when its order
+//! has nobody to fight (a defend whose ward has no threat, a go-to on its way). These
+//! are the teachers of the order-following pilots (M3 stage B3).
 //!
 //! - **Attack** `target`: fly at the target. Self-defence: an enemy strike craft
 //!   within `SELF_DEFENCE_FACTOR` × gun range is fought first while the target is
 //!   more than twice that away (a strike run does not fly through an escort's guns
 //!   without shooting back). A target that died since the slow tick falls back to the
 //!   role's own choice until the commander re-tasks the squad.
-//! - **Guard** `ward`: the enemy nearest the ward within `GUARD_RADIUS` (plus the
-//!   ward's size) of it; with none, keep station on the ward.
-//! - **Hold** `point, radius`: the enemy nearest the point within `radius +
-//!   HOLD_REACH`; with none, keep station on the point.
+//! - **Defend** `ward`: engage the ward's threat set (`order` module: enemies within
+//!   their own reach + margin of the ward, or that hit it recently): the recent
+//!   hitters of the ward first, nearest the ward, then the rest nearest the ward. With
+//!   the set empty, keep station on the ward.
+//! - **Go-to** `point, radius`: fly to the point (a station on a ring inside the
+//!   radius, so a squad does not stack); once the ship has arrived the order is
+//!   complete (`order::completed`) and it falls back to its role.
 //! - **None**: the role's own choice, exactly as before orders existed.
 //!
 //! Station keeping is velocity matching: the pilot wants the ward's velocity plus a
-//! pull toward its station (a point on a ring round the ward or the hold point,
+//! pull toward its station (a point on a ring round the ward or the go-to point,
 //! spread by slot so a squad does not stack), turns its nose along the velocity it
 //! is missing and burns while roughly aligned.
 //!
@@ -30,24 +34,23 @@ use crate::command::{CommanderMode, Order};
 use crate::data::{Catalogue, HullDef};
 use crate::math::{Vec2, wrap_angle};
 use crate::mission::{Mission, is_capital_ship};
+use crate::order;
 use crate::state::{Match, Ship};
 
 /// An attack-ordered pilot fights an enemy strike craft this close (× its gun range)
 /// first, while its target is more than twice as far.
 pub const SELF_DEFENCE_FACTOR: f32 = 0.4;
-/// A guard engages enemies within this distance of its ward (plus the ward's bound
-/// radius), metres.
-pub const GUARD_RADIUS: f32 = 180.0;
-/// A hold engages enemies within its radius plus this, metres.
-pub const HOLD_REACH: f32 = 120.0;
-/// Guards keep station this far outside the ward's bound radius, metres.
-pub const GUARD_STATION: f32 = 45.0;
-/// Hold stations sit at this fraction of the hold radius from the point.
-const HOLD_STATION_FRAC: f32 = 0.5;
+/// Defenders keep station this far outside the ward's bound radius, metres.
+pub const DEFEND_STATION: f32 = 45.0;
+/// Go-to stations sit at this fraction of the go-to radius from the point.
+const GOTO_STATION_FRAC: f32 = 0.5;
 /// Station-keeping pull toward the station, 1/s, and its speed cap as a fraction of
 /// the hull's speed cap.
 const STATION_GAIN: f32 = 0.5;
 const STATION_SPEED_FRAC: f32 = 0.6;
+/// A go-to flies at this fraction of the hull's speed cap (it is a transit, not a
+/// station to hold).
+const GOTO_SPEED_FRAC: f32 = 0.9;
 /// Below this missing velocity (m/s) a station keeper coasts.
 const STATION_DEADBAND: f32 = 4.0;
 /// Burn the main engine while the missing velocity is within this angle of the nose.
@@ -55,8 +58,8 @@ const STATION_BURN_CONE: f32 = 0.5;
 /// Angle between successive slots' stations on the ring, radians (golden angle).
 const STATION_SPREAD: f32 = 2.399_963;
 
-/// The order `me` flies by: its squad's order if it follows orders (module docs),
-/// else `Order::None`.
+/// The order `me` flies by: its squad's order if it follows orders (module docs) and
+/// has not completed it (a go-to it arrived at), else `Order::None`.
 pub(crate) fn active_order(m: &Match, me: &Ship) -> Order {
     let team = usize::from(me.team & 1);
     if matches!(m.cfg.mission, Mission::Deathmatch)
@@ -65,10 +68,11 @@ pub(crate) fn active_order(m: &Match, me: &Ship) -> Order {
         return Order::None;
     }
     let slot = usize::from(me.slot);
-    m.command.squads[team]
+    let squad = m.command.squads[team]
         .iter()
         .find(|q| q.contains(slot))
-        .map_or(Order::None, |q| q.order)
+        .map_or(Order::None, |q| q.order);
+    order::completed(m, slot, squad)
 }
 
 /// Nearest active enemy of `me` to `from` within `reach` whose hull passes `keep`;
@@ -94,6 +98,31 @@ fn nearest_to<'a>(
         }
     }
     best
+}
+
+/// The member of `set` nearest `from`, preferring the slots that pass `first`; ties
+/// to the lower slot.
+fn nearest_in(m: &Match, set: u32, from: Vec2, first: impl Fn(usize) -> bool) -> Option<&Ship> {
+    let mut best: Option<(bool, f32, usize)> = None;
+    for (s, ship) in m.ships.iter().enumerate() {
+        if set & (1 << s) == 0 {
+            continue;
+        }
+        let key = (!first(s), (ship.pos - from).length(), s);
+        let better = best.is_none_or(|b| (key.0, key.1) < (b.0, b.1));
+        if better {
+            best = Some(key);
+        }
+    }
+    best.map(|(_, _, s)| &m.ships[s])
+}
+
+/// The threat a defender of `ward` engages (module docs): of the ward's threat set
+/// among the active ships, the recent hitters of the ward first, then the rest, each
+/// nearest the ward first; `None` with the set empty.
+pub fn defend_target<'a>(m: &'a Match, cat: &Catalogue, ward: usize) -> Option<&'a Ship> {
+    let set = m.threat_set(cat, ward, m.active_mask());
+    nearest_in(m, set, m.ships[ward].pos, |e| m.recently_hit(ward, e))
 }
 
 /// The enemy `order` points `me` at, or `None` when it has nobody to fight (keep
@@ -123,36 +152,33 @@ pub(crate) fn order_target<'a>(
             }
             Some(t)
         }
-        Order::Guard { ward } => {
-            let w = &m.ships[usize::from(ward)];
-            let reach = GUARD_RADIUS + cat.hull(w.hull).bound_radius;
-            nearest_to(m, cat, me, w.pos, reach, |_| true)
-        }
-        Order::Hold { point, radius } => {
-            nearest_to(m, cat, me, point, radius + HOLD_REACH, |_| true)
-        }
+        Order::Defend { ward } => defend_target(m, cat, usize::from(ward)),
+        Order::GoTo { .. } => None,
     }
 }
 
-/// Where `me` keeps station under `order`, and the velocity of what it keeps station
-/// on. `None` for orders without a station (none, attack).
-fn station(m: &Match, cat: &Catalogue, me: &Ship, order: Order) -> Option<(Vec2, Vec2)> {
+/// Where `me` keeps station under `order`, the velocity of what it keeps station on,
+/// and the fraction of its speed cap it may fly at. `None` for orders without a
+/// station (none, attack).
+fn station(m: &Match, cat: &Catalogue, me: &Ship, order: Order) -> Option<(Vec2, Vec2, f32)> {
     let ring = Vec2::from_angle(f32::from(me.slot) * STATION_SPREAD);
     match order {
-        Order::Guard { ward } => {
+        Order::Defend { ward } => {
             let w = &m.ships[usize::from(ward)];
-            let r = cat.hull(w.hull).bound_radius + GUARD_STATION;
-            Some((w.pos + ring * r, w.vel))
+            let r = cat.hull(w.hull).bound_radius + DEFEND_STATION;
+            Some((w.pos + ring * r, w.vel, STATION_SPEED_FRAC))
         }
-        Order::Hold { point, radius } => {
-            Some((point + ring * (HOLD_STATION_FRAC * radius), Vec2::ZERO))
-        }
+        Order::GoTo { point, radius } => Some((
+            point + ring * (GOTO_STATION_FRAC * radius),
+            Vec2::ZERO,
+            GOTO_SPEED_FRAC,
+        )),
         Order::None | Order::Attack { .. } => None,
     }
 }
 
-/// Station keeping for an order with nobody to fight (module docs). `me` is the
-/// predicted ship. Coasts with the current heading when there is no station.
+/// Station keeping (defend with no threat) or transit (go-to), module docs. `me` is
+/// the predicted ship. Coasts with the current heading when there is no station.
 pub(crate) fn station_manoeuvre(
     m: &Match,
     cat: &Catalogue,
@@ -164,11 +190,11 @@ pub(crate) fn station_manoeuvre(
         force_body: Vec2::ZERO,
         heading: me.heading,
     };
-    let Some((at, base_vel)) = station(m, cat, me, order) else {
+    let Some((at, base_vel, speed_frac)) = station(m, cat, me, order) else {
         return coast;
     };
     let pull = (at - me.pos) * STATION_GAIN;
-    let cap = STATION_SPEED_FRAC * hull.speed_cap;
+    let cap = speed_frac * hull.speed_cap;
     let pull = if pull.length() > cap {
         pull.normalized() * cap
     } else {

@@ -10,7 +10,7 @@ use sim::actions::{ACTION_WIDTH, FIRE_OFFSET, POWER_OFFSET, SLEW_OFFSET, THROTTL
 use sim::command::{COMMAND_TICKS, CommanderMode, MAX_SQUADS};
 use sim::events;
 use sim::mission::{EndReason, MissionKind};
-use sim::obs::N_NEAR_SHIPS;
+use sim::obs::{N_NEAR_SHIPS, N_ORDER_SHIPS, SHIP_EXTRA_W};
 use sim::obs::{OBS_DIM, OBS_LAYOUT, OBS_SLOTS};
 use sim::state::{MAX_HITS, MAX_REACTION_TICKS, MAX_SHIPS, MAX_THRUSTERS, MAX_TURRETS};
 
@@ -34,6 +34,13 @@ fn rlf_sim(m: &Bound<'_, PyModule>) -> PyResult<()> {
     }
     m.add("PILOT_OBS_DIMS", pilot_obs_dims)?;
     m.add("OBS_DIM_V4", sim::obs::OBS_DIM_V4)?;
+    // v6.
+    m.add("OBS_DIM_V5", sim::obs::OBS_DIM_V5)?;
+    m.add("SHIP_EXTRA_W", SHIP_EXTRA_W)?;
+    m.add("N_ORDER_SHIPS", N_ORDER_SHIPS)?;
+    // Order kinds in the obs one-hot's order (kind codes 1, 2, 3; 0 is none).
+    m.add("ORDER_KINDS", vec!["attack", "defend", "goto"])?;
+    m.add("HULL_CLASSES", sim::order::HULL_CLASSES.to_vec())?;
     m.add("MAX_TRAIN_SHIPS", sim::setup::MAX_TRAIN_SHIPS)?;
     m.add(
         "COMMANDER_MODES",

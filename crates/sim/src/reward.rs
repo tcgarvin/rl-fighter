@@ -9,30 +9,32 @@
 //! Python `CreditAssigner`). The terminal term goes to every ship of a team, dead
 //! ones too.
 //!
-//! v5: the **order reward** (SIM_SPEC §8 "Order reward") goes into its own buffer,
+//! v5, v6: the **order reward** (SIM_SPEC §8 "Order reward") goes into its own buffer,
 //! `Match.order_rewards`, which Python weights; `rewards` is unchanged. The same
-//! ships earn it as earn `rewards`. Per ship and step, in this order:
+//! ships earn it as earn `rewards` (docked reserves earn nothing). Per ship and step,
+//! in this order:
 //! - *attack*: `ORDER_HULL_WEIGHT` · hull + `ORDER_SHIELD_WEIGHT` · shield damage the
 //!   ship dealt to its ordered target, when it lands (no retroactive credit);
-//! - *guard*: the same weights on damage dealt to enemies within
-//!   `ORDER_GUARD_DAMAGE_RADIUS` + the ward's bound radius of the ward;
-//! - *guard and hold*: potential shaping `γΦ′ − Φ` with `Φ = −K · max(0, d −
-//!   radius) / R` (`order::order_geometry` gives the point and radius), no shaping on
-//!   the step an instance starts (Φ is reset, so a new order pays nothing for the
-//!   jump); a one-shot `ORDER_ARRIVAL_BONUS` the first time inside the radius per
-//!   instance; `ORDER_PRESENCE_REWARD` per tick inside, for at most
-//!   `ORDER_PRESENCE_CAP_TICKS` ticks per instance.
+//! - *defend*: the same weights on damage dealt to the ward's **threat set**
+//!   (`order` module; the enemies on the field this step), then
+//!   `DEFEND_HULL_LOSS_WEIGHT` × the ward's hull fraction lost this step and
+//!   `DEFEND_WARD_DEATH` once if the ward died this step. Every defender of the ward
+//!   pays the whole of both (shared, not split). No location term;
+//! - *go-to*: potential shaping `γΦ′ − Φ` with `Φ = −K · max(0, d − radius) / R`
+//!   until arrival, no shaping on the step an instance starts (Φ is reset, so a new
+//!   order pays nothing for the jump); a one-shot `ORDER_ARRIVAL_BONUS` the first time
+//!   inside the radius per instance, which completes the order for that ship. No
+//!   presence term (v5 had one).
 //!
-//! Hit credit uses the standing order (the squad's order during the step), so the
-//! hit that kills an attack target is paid; shaping, arrival and presence use the
-//! effective order at the step's end (`order` module docs). Why capped: an uncapped
-//! presence term under the scripted commander's carrier guard pays more than
-//! winning (M3 plan, stage B decisions).
+//! Hit credit and both defend terms use the standing order (the squad's order during
+//! the step: the effective order is already none on the tick an attack target or a
+//! ward dies); instances, shaping and arrival use it at the step's end too (`order`
+//! module docs).
 
 use crate::command::Order;
 use crate::data::Catalogue;
 use crate::events::HitRecord;
-use crate::order::{OrderTrack, effective_order, order_geometry, standing_order};
+use crate::order::{OrderTrack, order_geometry, standing_order};
 use crate::state::{MAX_SHIPS, Match, MatchPhase, WINNER_DRAW};
 
 /// Reward per point of hull damage dealt (shooter) and taken (target, negated).
@@ -48,26 +50,24 @@ pub const ARENA_PENALTY: f32 = -0.002;
 /// losers, 0 to everyone on a draw.
 pub const WIN_REWARD: f32 = 1.0;
 
-/// v5 order reward: per point of hull damage dealt to an attack target (or, for a
-/// guard, to an enemy near the ward).
+/// Order reward: per point of hull damage dealt to an attack target (or, for a
+/// defender, to its ward's threat set).
 pub const ORDER_HULL_WEIGHT: f32 = 0.01;
-/// v5 order reward: per point of raw shield damage dealt to the same ships.
+/// Order reward: per point of raw shield damage dealt to the same ships.
 pub const ORDER_SHIELD_WEIGHT: f32 = 0.005;
-/// v5: a guard is paid for damage to enemies within this distance (m) of its ward,
-/// plus the ward's bound radius: the scripted guard's engagement radius.
-pub const ORDER_GUARD_DAMAGE_RADIUS: f32 = crate::scripted::orders::GUARD_RADIUS;
-/// v5: shaping potential scale `K` (`Φ = −K · max(0, d − radius) / R`).
+/// v6: a defender pays this × the hull fraction its ward lost each step (fractions,
+/// so a freighter and a carrier weigh the same).
+pub const DEFEND_HULL_LOSS_WEIGHT: f32 = -0.5;
+/// v6: a defender pays this once, on the step its ward dies.
+pub const DEFEND_WARD_DEATH: f32 = -0.3;
+/// Go-to shaping potential scale `K` (`Φ = −K · max(0, d − radius) / R`).
 pub const ORDER_SHAPING_K: f32 = 1.0;
-/// v5: discount of the shaping term `γΦ′ − Φ`: the trainer's PPO γ, so the shaping
+/// Discount of the shaping term `γΦ′ − Φ`: the trainer's PPO γ, so the shaping
 /// leaves the optimal policy unchanged.
 pub const ORDER_SHAPING_GAMMA: f32 = 0.99;
-/// v5: paid once per order instance, the first time inside the order radius.
-pub const ORDER_ARRIVAL_BONUS: f32 = 0.1;
-/// v5: paid per tick inside the order radius, for at most `ORDER_PRESENCE_CAP_TICKS`
-/// ticks per instance (≤ 0.27 per instance, plus the arrival bonus: a held order pays
-/// on the scale of a kill; B2b, was 0.0003, SIM_SPEC §8).
-pub const ORDER_PRESENCE_REWARD: f32 = 0.0009;
-pub const ORDER_PRESENCE_CAP_TICKS: u16 = 300;
+/// Paid once per go-to instance, the first time inside its radius (v6: 0.2, was 0.1
+/// with a presence term on top).
+pub const ORDER_ARRIVAL_BONUS: f32 = 0.2;
 
 /// The shaping potential of a ship `dist` metres from an order point with radius
 /// `radius` in an arena of `arena_radius`.
@@ -83,6 +83,16 @@ pub fn hit_weight(h: &HitRecord) -> f32 {
         SHIELD_DAMAGE_WEIGHT
     } else {
         HULL_DAMAGE_WEIGHT
+    }
+}
+
+/// Order-reward weight of one HitRecord.
+#[inline]
+fn order_hit_weight(h: &HitRecord) -> f32 {
+    if h.shield {
+        ORDER_SHIELD_WEIGHT
+    } else {
+        ORDER_HULL_WEIGHT
     }
 }
 
@@ -134,88 +144,116 @@ impl Match {
         self.rewards = r;
     }
 
-    /// Distance from slot `s` to its order point and the order radius, for guard and
-    /// hold (the orders with a place to be); `None` otherwise.
-    fn order_distance(&self, cat: &Catalogue, s: usize, order: Order) -> Option<(f32, f32)> {
+    /// Distance from slot `s` to its go-to point and the radius; `None` for the other
+    /// kinds (only a go-to has a place to be).
+    fn goto_distance(&self, s: usize, order: Order) -> Option<(f32, f32)> {
         match order {
-            Order::Guard { .. } | Order::Hold { .. } => {
-                let (point, radius) = order_geometry(self, cat, order)?;
+            Order::GoTo { .. } => {
+                let (point, radius) = order_geometry(self, order)?;
                 Some(((point - self.ships[s].pos).length(), radius))
             }
-            Order::None | Order::Attack { .. } => None,
+            Order::None | Order::Attack { .. } | Order::Defend { .. } => None,
         }
     }
 
-    /// v5, at setup: every ship's order instance starts at tick 0 with its effective
-    /// order then (only capital ships' waypoints exist yet).
-    pub(crate) fn init_order_tracks(&mut self, cat: &Catalogue) {
+    /// At setup: every ship's order instance starts at tick 0 with its standing order
+    /// then (only capital ships' waypoints exist yet), and the hull marks start at
+    /// the full hulls.
+    pub(crate) fn init_order_tracks(&mut self) {
         let radius = self.cfg.arena_radius;
         for s in 0..self.ships.len() {
-            let order = effective_order(self, s);
+            let order = standing_order(self, s);
             let phi = self
-                .order_distance(cat, s, order)
+                .goto_distance(s, order)
                 .map_or(0.0, |(d, r)| order_potential(d, r, radius));
             self.order_tracks[s] = OrderTrack::start(order, self.tick, phi);
         }
+        self.mark_hulls();
     }
 
-    /// Stage 13b (v5): refresh every ship's order instance and overwrite
+    /// Remember every ship's hp and alive flag: the next step's hull loss and deaths
+    /// are measured from here.
+    fn mark_hulls(&mut self) {
+        for (s, ship) in self.ships.iter().enumerate() {
+            self.hp_mark[s] = ship.hp;
+            self.alive_mark[s] = ship.alive;
+        }
+    }
+
+    /// Stage 13b (v5, v6): record who hit whom, measure each ship's hull loss and
+    /// every ward's threat set, refresh every ship's order instance and overwrite
     /// `order_rewards` (module docs). `earning` as for [`Match::compute_rewards`].
     pub fn compute_order_rewards(&mut self, cat: &Catalogue, earning: &[bool; MAX_SHIPS]) {
-        let mut r = [0.0f32; MAX_SHIPS];
         let n = self.ships.len();
+        let tick = self.tick;
         for h in &self.hits {
             let (s, t) = (usize::from(h.shooter), usize::from(h.target));
-            if s >= n || t >= n || !earning[s] {
+            if s < n && t < n && self.ships[s].team != self.ships[t].team {
+                self.hit_by[t][s] = tick;
+            }
+        }
+        let on_field = (0..n).filter(|&s| earning[s]).fold(0u32, |a, s| a | 1 << s);
+        let mut died = [false; MAX_SHIPS];
+        for s in 0..n {
+            let ship = &self.ships[s];
+            let max_hp = cat.hull(ship.hull).hp;
+            self.hull_lost[s] = (self.hp_mark[s] - ship.hp).max(0.0) / max_hp;
+            died[s] = self.alive_mark[s] && !ship.alive;
+            self.ward_threat[s] = if earning[s] {
+                self.threat_set(cat, s, on_field)
+            } else {
+                0
+            };
+        }
+        self.hull_lost[n..].fill(0.0);
+        self.ward_threat[n..].fill(0);
+
+        let mut r = [0.0f32; MAX_SHIPS];
+        for h in &self.hits {
+            let (s, t) = (usize::from(h.shooter), usize::from(h.target));
+            if s >= n || t >= n || !earning[s] || self.ships[t].team == self.ships[s].team {
                 continue;
             }
             let paid = match standing_order(self, s) {
                 Order::Attack { target } => target == h.target,
-                Order::Guard { ward } => {
-                    let w = &self.ships[usize::from(ward)];
-                    let reach = ORDER_GUARD_DAMAGE_RADIUS + cat.hull(w.hull).bound_radius;
-                    self.ships[t].team != self.ships[s].team
-                        && (self.ships[t].pos - w.pos).length() <= reach
-                }
-                Order::None | Order::Hold { .. } => false,
+                Order::Defend { ward } => self.ward_threat[usize::from(ward)] & (1 << t) != 0,
+                Order::None | Order::GoTo { .. } => false,
             };
             if paid {
-                let weight = if h.shield {
-                    ORDER_SHIELD_WEIGHT
-                } else {
-                    ORDER_HULL_WEIGHT
-                };
-                r[s] += weight * h.damage;
+                r[s] += order_hit_weight(h) * h.damage;
             }
         }
         let radius = self.cfg.arena_radius;
         for (s, reward) in r.iter_mut().enumerate().take(n) {
-            let order = effective_order(self, s);
-            let place = self.order_distance(cat, s, order);
+            if earning[s]
+                && let Order::Defend { ward } = standing_order(self, s)
+            {
+                let w = usize::from(ward);
+                *reward += DEFEND_HULL_LOSS_WEIGHT * self.hull_lost[w];
+                if died[w] {
+                    *reward += DEFEND_WARD_DEATH;
+                }
+            }
+            let order = standing_order(self, s);
+            let place = self.goto_distance(s, order);
             let phi = place.map_or(0.0, |(d, rad)| order_potential(d, rad, radius));
-            let tick = self.tick;
             let track = &mut self.order_tracks[s];
             if !track.same_instance(order) {
                 // A new instance: Φ restarts here, so the jump pays nothing.
                 *track = OrderTrack::start(order, tick, phi);
             } else {
-                if earning[s] && place.is_some() {
+                if earning[s] && place.is_some() && !track.arrived {
                     *reward += ORDER_SHAPING_GAMMA * phi - track.last_phi;
                 }
                 track.last_phi = phi;
             }
             let inside = place.is_some_and(|(d, rad)| d <= rad);
-            if earning[s] && inside {
-                if !track.arrived {
-                    track.arrived = true;
-                    *reward += ORDER_ARRIVAL_BONUS;
-                }
-                if track.presence_ticks < ORDER_PRESENCE_CAP_TICKS {
-                    track.presence_ticks += 1;
-                    *reward += ORDER_PRESENCE_REWARD;
-                }
+            if earning[s] && inside && !track.arrived {
+                track.arrived = true;
+                *reward += ORDER_ARRIVAL_BONUS;
             }
         }
         self.order_rewards = r;
+        self.mark_hulls();
     }
 }

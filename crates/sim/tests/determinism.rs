@@ -27,6 +27,17 @@
 //! commander, every mission included, and that the obs prefix is bit-identical: the
 //! random commander's streams never touch the match rng. The v3 flavour also digests
 //! only the obs prefix.
+//!
+//! v6 compatibility (SIM_SPEC §0.4): `v5_compat_*` replay the four deathmatch scenarios
+//! (the v5 golden traces are kept verbatim under `tests/golden/v5/`) and render them
+//! as SIM_VERSION 5 would have: the state hash with v5's order tracks (a presence
+//! counter, always 0 under attack orders) and without `hit_by`, the aux digest over
+//! the first `OBS_DIM_V5` obs floats plus the order rewards. They prove that a
+//! deathmatch under the scripted commander (attack orders only, advisory) is
+//! bit-identical to v5, every obs prefix and order reward included. v6 changes the
+//! missions by design (defend and go-to replace guard and hold, and the scripted
+//! commander's waves fight on arrival), so the v4 mission scenarios are no longer
+//! replayed (`tests/golden/v4/` keeps their record).
 
 mod common;
 
@@ -37,7 +48,7 @@ use sim::data::{Catalogue, HullId};
 use sim::events::{EVENT_STRIDE, KIND_COLLISION};
 use sim::hash::StateHash;
 use sim::mission::{CarrierBattle, ConvoyEscort, EndReason, Mission};
-use sim::obs::{OBS_DIM, OBS_DIM_V4};
+use sim::obs::{OBS_DIM, OBS_DIM_V4, OBS_DIM_V5};
 use sim::rng::Pcg32;
 use sim::scripted;
 use sim::setup::MatchConfig;
@@ -140,6 +151,8 @@ enum Flavour {
     V3,
     /// As SIM_VERSION 4 rendered it (module docs).
     V4,
+    /// As SIM_VERSION 5 rendered it (module docs).
+    V5,
 }
 
 impl Flavour {
@@ -148,6 +161,7 @@ impl Flavour {
         match self {
             Flavour::Current => OBS_DIM,
             Flavour::V3 | Flavour::V4 => OBS_DIM_V4,
+            Flavour::V5 => OBS_DIM_V5,
         }
     }
 
@@ -156,6 +170,7 @@ impl Flavour {
             Flavour::Current => SIM_VERSION,
             Flavour::V3 => 3,
             Flavour::V4 => 4,
+            Flavour::V5 => 5,
         }
     }
 }
@@ -208,11 +223,71 @@ fn v4_state_hash(m: &Match) -> u64 {
     h.finish()
 }
 
-fn state_hash(flavour: Flavour, cat: &Catalogue, m: &Match) -> u64 {
+/// Order instances as SIM_VERSION 5 kept them: keyed on the *valid* order (a dead
+/// target started a new, empty instance; v6 keys them on the standing order), so the
+/// harness tracks them itself, per slot `(kind, target, start tick)`. Only attack and
+/// none occur in the v5 compat scenarios.
+struct V5Tracks(Vec<(u8, u8, u32)>);
+
+impl V5Tracks {
+    fn new(m: &Match) -> Self {
+        let mut t = V5Tracks(vec![(u8::MAX, 0, 0); m.ships.len()]);
+        t.update(m);
+        t
+    }
+
+    /// After setup and after every step (v5's stage 13b).
+    fn update(&mut self, m: &Match) {
+        for (s, t) in self.0.iter_mut().enumerate() {
+            let o = sim::order::valid_order(m, s);
+            assert!(o.kind() <= 1, "v5 compat scenarios only see attack orders");
+            if (t.0, t.1) != (o.kind(), o.target()) {
+                *t = (o.kind(), o.target(), m.tick);
+            }
+        }
+    }
+}
+
+/// `Match::state_hash` as SIM_VERSION 5 computed it: the v4 hash, then the random
+/// commander's state and every slot's order track with v5's layout and keying
+/// ([`V5Tracks`]; point zero, not arrived, presence 0, Φ 0 for attack and none),
+/// then the unused slots' default tracks; no `hit_by`.
+fn v5_state_hash(m: &Match, v5: &V5Tracks) -> u64 {
+    let mut h = StateHasher::new();
+    h.write_u32(m.tick);
+    m.rng.hash_into(&mut h);
+    m.ships.as_slice().hash_into(&mut h);
+    m.projectiles.hash_into(&mut h);
+    h.write_usize(m.proj_next);
+    h.write_u8(m.phase.index());
+    h.write_i8(m.winner);
+    for reserve in &m.reserves {
+        h.write_usize(reserve.len());
+        reserve.as_slice().hash_into(&mut h);
+    }
+    m.mission.hash_into(&mut h);
+    m.command.hash_into(&mut h);
+    m.random_commander.hash_into(&mut h);
+    let unused = (0u8, sim::state::NONE, 0u32);
+    for s in 0..sim::state::MAX_SHIPS {
+        let (kind, target, start) = v5.0.get(s).copied().unwrap_or(unused);
+        h.write_u8(kind);
+        h.write_u8(target);
+        h.write_vec2(sim::Vec2::ZERO);
+        h.write_u32(start);
+        h.write_bool(false);
+        h.write_u16(0);
+        h.write_f32(0.0);
+    }
+    h.finish()
+}
+
+fn state_hash(flavour: Flavour, cat: &Catalogue, m: &Match, v5: &V5Tracks) -> u64 {
     match flavour {
         Flavour::Current => m.state_hash(),
         Flavour::V3 => v3_state_hash(cat, m),
         Flavour::V4 => v4_state_hash(m),
+        Flavour::V5 => v5_state_hash(m, v5),
     }
 }
 
@@ -256,7 +331,7 @@ fn digest_outputs(
             aux.write_f32(f);
         }
     }
-    if flavour == Flavour::Current {
+    if matches!(flavour, Flavour::Current | Flavour::V5) {
         for &r in m.order_rewards() {
             aux.write_f32(r);
         }
@@ -275,6 +350,11 @@ fn trace(
 ) -> String {
     let cat = asset_catalogue();
     let mut m = Match::new(&cat, cfg).expect("match setup");
+    let mut v5 = if flavour == Flavour::V5 {
+        V5Tracks::new(&m)
+    } else {
+        V5Tracks(Vec::new())
+    };
     let mut aux = StateHasher::new();
     let mut obs = vec![0.0f32; OBS_DIM];
     let version = flavour.version();
@@ -293,12 +373,15 @@ fn trace(
             m.set_action(i as u8, a);
         }
         m.step(&cat);
+        if flavour == Flavour::V5 {
+            v5.update(&m);
+        }
         digest_outputs(&mut aux, &cat, &m, &mut obs, flavour);
         if sample(m.tick()) {
             out += &format!(
                 "{} {:016x} {:016x}\n",
                 m.tick(),
-                state_hash(flavour, &cat, &m),
+                state_hash(flavour, &cat, &m, &v5),
                 aux.finish()
             );
         }
@@ -310,7 +393,7 @@ fn trace(
     out += &format!(
         "end {} {:016x} {:016x} {phase} {}\n",
         m.tick(),
-        state_hash(flavour, &cat, &m),
+        state_hash(flavour, &cat, &m, &v5),
         aux.finish(),
         m.winner()
     );
@@ -654,25 +737,43 @@ fn v4_compat_3v3_random_actions_seed17() {
     );
 }
 
-#[test]
-fn v4_compat_carrier_battle_seed23() {
-    let cat = asset_catalogue();
-    check_v4(
-        include_str!("golden/v4/carrier_battle_s23.txt"),
-        &mission_trace(
-            "carrier_battle_s23",
-            &carrier_battle_config(&cat, 23),
-            Flavour::V4,
-        ),
+/// Compare with a v5 golden file, never rewritten (it is the v5 record).
+fn check_v5(embedded: &str, actual: &str) {
+    assert_eq!(
+        embedded, actual,
+        "a scripted-commander deathmatch diverged from SIM_VERSION 5 (SIM_SPEC §0.4)"
     );
 }
 
 #[test]
-fn v4_compat_convoy_escort_seed29() {
-    let cat = asset_catalogue();
-    check_v4(
-        include_str!("golden/v4/convoy_escort_s29.txt"),
-        &mission_trace("convoy_escort_s29", &convoy_config(&cat, 29), Flavour::V4),
+fn v5_compat_duel_fighter_seed7() {
+    check_v5(
+        include_str!("golden/v5/duel_fighter_s7.txt"),
+        &duel_trace(Flavour::V5),
+    );
+}
+
+#[test]
+fn v5_compat_2v2_mixed_seed11() {
+    check_v5(
+        include_str!("golden/v5/2v2_mixed_s11.txt"),
+        &mixed_2v2_trace(Flavour::V5),
+    );
+}
+
+#[test]
+fn v5_compat_3v3_mixed_seed13() {
+    check_v5(
+        include_str!("golden/v5/3v3_mixed_s13.txt"),
+        &mixed_3v3_trace(Flavour::V5),
+    );
+}
+
+#[test]
+fn v5_compat_3v3_random_actions_seed17() {
+    check_v5(
+        include_str!("golden/v5/3v3_random_s17.txt"),
+        &random_3v3_trace(Flavour::V5),
     );
 }
 
