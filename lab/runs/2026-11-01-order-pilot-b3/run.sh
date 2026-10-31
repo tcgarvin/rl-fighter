@@ -18,7 +18,7 @@
 # Knobs (environment): THREADS (12, evals), ARM_THREADS (6 sim + 6 torch per arm,
 # two arms at once), N_UPDATES (300), EVAL_UPDATES (the hundreds, then the fifties),
 # ARMS ("transit reward"), V1 (fleet pilot v1), W1_400 (run 1's w1_400), KL_COEFF
-# (0.1), NEW_INPUT_LR_MULT (10), PY, RUN, SMOKE.
+# (0.1), NEW_INPUT_LR_MULT (3), PY, RUN, SMOKE.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
@@ -78,7 +78,7 @@ else
 fi
 ARMS=${ARMS:-"transit reward"}
 KL_COEFF=${KL_COEFF:-0.1}
-NEW_INPUT_LR_MULT=${NEW_INPUT_LR_MULT:-10}
+NEW_INPUT_LR_MULT=${NEW_INPUT_LR_MULT:-3}
 export RUN THREADS V1 W1_400 N_SIZE N_ORDERS_MIN N_ORDERS_MAX N_ORDERS_SCRIPTED \
     N_MISSIONS N_MISSIONS_W1 N_FLEET SMOKE
 # (start update, scripted, self-play, frozen pool): run 1's bands.

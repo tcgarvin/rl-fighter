@@ -74,6 +74,11 @@ so v1 vs v1 and script vs script are re-measured, not copied from run 1.
   `W1_400`), actor and fleet critic, widened 403 → 583 with the 180 new first-layer
   columns zero (`widen_actor`, `widen_critic`), so update 0 is exactly `w1_400` on
   the v5 prefix (tested). Fresh optimisers.
+- **Amended 2026-10-31 by the team lead, before launch: 3×, not 10×** (`NEW_INPUT_LR_MULT=3`
+  in `run.sh`). The probe in §7 put 10× at approx_kl 0.07–0.15 per update, past this
+  plan's own 0.05 threshold, and B2b showed how fast a pilot loses its combat flying
+  once ordered rows move. 3× (approx_kl 0.016–0.027) still moves the new columns 3×
+  faster than run 1. The paragraph below describes the mechanism; read its 10 as 3.
 - **New inputs at 10× step size** (`new_input_lr_mult: 10`, both arms): Adam's step
   is elementwise, so `NewInputAdam` scales the step of columns 403–582 of the
   actor's first layer and of the fleet critic's base and encoder first layers by
