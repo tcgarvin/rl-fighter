@@ -97,6 +97,7 @@ ppo_arm() {  # ppo_arm NAME: new run, or resume an existing one
             --n-updates "$N_UPDATES" --seed 0 \
             --sim-threads "$ARM_THREADS" --torch-threads "$ARM_THREADS" \
             --set rosters=orders_v1 --set critic=fleet --set learner_side=random \
+            --set obs_dim=403 \
             --set "order_reward_weight=$w" \
             --set "kl_anchor=$V1" --set "kl_anchor_coeff=$KL_COEFF" \
             --set "pool_seed=[$V1]" --set pool_seed_p=0.5 \

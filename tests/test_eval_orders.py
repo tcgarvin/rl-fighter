@@ -126,7 +126,8 @@ def test_attack_instance_measures_close_response_and_damage_share() -> None:
     assert d["damage_target"].tolist()[0] == pytest.approx(30.0)
     out = summarise(tracker.done, tracker.duty_sum, tracker.duty_ticks, {3: "fighter"})
     assert out.attack.damage_share == pytest.approx(0.75)
-    assert out.attack.close == Timing(1, 3.0, 1.0)
+    assert out.attack.close == Timing(1, 3.0, 1.0)  # started 40 m outside range
+    assert out.attack.in_range_at_start == 0.0
     assert out.attack.target_damage_per_min == pytest.approx(30.0 / (5 / 30 / 60))
     assert out.guard.time_inside == pytest.approx(0.5)
     assert out.response.n == 2  # both start outside their radius
@@ -253,6 +254,7 @@ def _kind(
         live_ticks=10_000,
         response=Timing(100, response, 0.9),
         close=Timing(80, close, 0.9),
+        in_range_at_start=0.6,
         damage_share=share,
         target_damage_per_min=10.0,
         time_inside=inside,

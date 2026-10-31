@@ -18,8 +18,10 @@ order's, read from ``mission_state`` when the instance starts. Per instance, fro
 first tick:
 
 - *attack*: **time to close**, ticks until the target is inside the ship's gun range
-  (its longest present weapon), for targets nearer than ``CLOSE_FROM_M`` at the
-  start; **damage share**, hull + shield damage the ship dealt to its ordered
+  (its longest present weapon), for instances whose target starts outside gun range
+  by at most ``CLOSE_FROM_M`` (250 m to close; most attack targets start inside a
+  gun range already, and those say nothing about closing: their share is reported
+  as ``in_range_at_start``); **damage share**, hull + shield damage the ship dealt to its ordered
   target over all it dealt during attack instances (pooled), and damage on the
   target per minute of attack order;
 - *guard*: **time within** the guard radius (``GUARD_PRESENCE`` 90 m + the ward's
@@ -69,7 +71,8 @@ DEFAULT_MISSIONS: tuple[str, ...] = (CARRIER_BATTLE, CONVOY_ESCORT)
 DEFAULT_COMMANDERS: tuple[str, ...] = (RANDOM, SCRIPTED)
 KINDS: tuple[str, ...] = ("none", "attack", "guard", "hold")
 NONE, ATTACK, GUARD, HOLD = range(4)
-# Attack instances count for time to close when the target starts nearer than this.
+# Attack instances count for time to close when the target starts outside gun range
+# by at most this (metres to close).
 CLOSE_FROM_M = 250.0
 RESPONSE_DEG = 30.0
 NO_TARGET = -1
@@ -108,6 +111,7 @@ class Instances:
     hull: list[int] = field(default_factory=list)
     live_ticks: list[int] = field(default_factory=list)
     start_dist: list[float] = field(default_factory=list)
+    start_gap: list[float] = field(default_factory=list)  # dist - gun range
     start_outside: list[bool] = field(default_factory=list)
     close_tick: list[int] = field(default_factory=list)  # -1: never
     response_tick: list[int] = field(default_factory=list)  # -1: never
@@ -124,6 +128,7 @@ class Instances:
         """Every list as a numpy array (typed, also when empty)."""
         dtypes = {
             "start_dist": np.float64,
+            "start_gap": np.float64,
             "damage_total": np.float64,
             "damage_target": np.float64,
             "start_outside": np.bool_,
@@ -156,6 +161,7 @@ class OrderTracker:
         self.live = np.zeros(shape, dtype=np.int64)
         self.started = np.zeros(shape, dtype=bool)
         self.start_dist = np.zeros(shape, dtype=np.float64)
+        self.start_gap = np.zeros(shape, dtype=np.float64)
         self.start_outside = np.zeros(shape, dtype=bool)
         self.close_tick = np.full(shape, -1, dtype=np.int64)
         self.response_tick = np.full(shape, -1, dtype=np.int64)
@@ -187,6 +193,7 @@ class OrderTracker:
             (self.live, 0),
             (self.started, False),
             (self.start_dist, 0.0),
+            (self.start_gap, 0.0),
             (self.start_outside, False),
             (self.close_tick, -1),
             (self.response_tick, -1),
@@ -233,6 +240,7 @@ class OrderTracker:
         first = on & ~self.started
         self.started[first] = True
         self.start_dist[first] = dist[first]
+        self.start_gap[first] = dist[first] - gun_range[first]
         self.start_outside[first] = margin[first] > 0.0
         closing = on & (self.close_tick < 0) & (dist < gun_range)
         self.close_tick[closing] = self.ticks[closing]
@@ -274,6 +282,7 @@ class OrderTracker:
             d.hull.extend(self.hull[record].tolist())
             d.live_ticks.extend(self.live[record].tolist())
             d.start_dist.extend(self.start_dist[record].tolist())
+            d.start_gap.extend(self.start_gap[record].tolist())
             d.start_outside.extend(self.start_outside[record].tolist())
             d.close_tick.extend(self.close_tick[record].tolist())
             d.response_tick.extend(self.response_tick[record].tolist())
@@ -316,6 +325,7 @@ class KindSummary:
     response: Timing
     # attack only (zeros otherwise)
     close: Timing
+    in_range_at_start: float
     damage_share: float
     target_damage_per_min: float
     # guard / hold only: share of live instance ticks inside the radius
@@ -340,10 +350,12 @@ def summarise_kind(arr: Mapping[str, NDArray[Any]], kind: int) -> KindSummary:
     total_live = int(arr["live_ticks"][sel].sum())
     response = censored_median(arr["response_tick"][sel & arr["start_outside"]])
     close = Timing(0, None, 0.0)
-    share = rate = inside = 0.0
+    share = rate = inside = in_range = 0.0
     if kind == ATTACK:
-        near = arr["start_dist"][sel] < CLOSE_FROM_M
+        gap = arr["start_gap"][sel]
+        near = (gap > 0.0) & (gap <= CLOSE_FROM_M)
         close = censored_median(arr["close_tick"][sel][near])
+        in_range = float(np.mean(gap <= 0.0)) if gap.size else 0.0
         dealt = float(arr["damage_total"][sel].sum())
         on_target = float(arr["damage_target"][sel].sum())
         share = on_target / dealt if dealt > 0 else 0.0
@@ -356,6 +368,7 @@ def summarise_kind(arr: Mapping[str, NDArray[Any]], kind: int) -> KindSummary:
         live_ticks=total_live,
         response=response,
         close=close,
+        in_range_at_start=in_range,
         damage_share=share,
         target_damage_per_min=rate,
         time_inside=inside,
