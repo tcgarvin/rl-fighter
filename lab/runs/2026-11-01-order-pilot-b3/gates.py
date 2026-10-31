@@ -231,7 +231,7 @@ def main() -> int:
     sub = p.add_subparsers(dest="command")
     sizing = sub.add_parser("size", help="the following eval's n (prints it)")
     sizing.add_argument("--low", type=int, default=96)
-    sizing.add_argument("--high", type=int, default=384)
+    sizing.add_argument("--high", type=int, default=480)
     sub.add_parser("bounds", help="the teacher-first O bounds")
     judge = sub.add_parser("gates", help="the gate table (default)")
     judge.add_argument("names", nargs="*")

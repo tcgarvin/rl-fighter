@@ -152,7 +152,7 @@ instances' ticks too: censoring cuts a rate's numerator and denominator together
 
 **Sizing** (before the teacher is measured): n per random-commander scenario is the
 smallest multiple of 6 (twice the 3 default rosters) at which the sizing run's
-defended ward-minutes per match give `1.3 × 300` ward-minutes, clamped to 96–384
+defended ward-minutes per match give `1.3 × 300` ward-minutes, clamped to 96–480 (the SMOKE run saw ≈ 0.4 defended ward-minutes per match, which asks for ≈ 480)
 (`order_gates_b3.orders_n`; `eval/n_orders.txt`).
 
 **Teacher-first rule.** The teacher is measured first. Every O bound it cannot meet
@@ -203,8 +203,8 @@ failed checks.
 |---|---|---|
 | baseline | sizing ≈ 15 s; teacher (followed only) ≈ 1.5 min; `w1_400` ≈ 3.5 min; script vs script ≈ 1.5 min, v1 vs v1 ≈ 3.4 min, v1 deathmatch ≈ 1 min (run 1's rates) | **≈ 12 min** |
 | **PPO, two arms at once** (6 sim + 6 torch each) | B2b: 21 s/update with the anchor cache (403 wide); 583 inputs add ≈ 2 % to a minibatch's forward + backward (measured, actor + fleet critic); allow 10 % for the wider buffers and the transit flag | 300 updates at ≈ 23 s ≈ **1.9 h**, allow **2.2 h** |
-| gate evals per candidate (12 threads) | following at n = 240 (two passes) + 96 scripted: 1 152 matches ≈ 3.3 min (run 1: 384 matches in 57 s, + 15 % for positions); missions vs v1 3.4 min, vs `w1_400` 1.7 min; deathmatch ≈ 2 min | **≈ 10.5 min** (12 min at n = 384); the 6 hundreds ≈ 1.1 h, all 12 ≈ 2.1–2.4 h |
-| **total** | | **≈ 4.5–4.8 h** |
+| gate evals per candidate (12 threads) | following at n = 240 (two passes) + 96 scripted: 1 152 matches ≈ 3.3 min (run 1: 384 matches in 57 s, + 15 % for positions); missions vs v1 3.4 min, vs `w1_400` 1.7 min; deathmatch ≈ 2 min | **≈ 10.5 min** at n = 240, **≈ 13 min** at n = 480 (2 112 following matches ≈ 6 min); the 6 hundreds ≈ 1.1–1.3 h, all 12 ≈ 2.1–2.6 h |
+| **total** | | **≈ 4.5–5.0 h** (5.0 h when the sizing asks for n = 480) |
 
 `EVAL_UPDATES` runs the hundreds first ("100 200 300 50 150 250"): about 3.5 h into
 the night the gates can already pick among them, and the rest is resumable
@@ -218,7 +218,7 @@ plus the buffers), inside 29 GB.
 | risk | signal | response |
 |---|---|---|
 | the pull reaches combat flying again (B2b) | `beta_rows_share` > 0.3; M vs `w1_400` well below ½ at update 50; `vs_scripted_win` drops | the transit flag is the sim's; β is 0.05 (B2b: 0.1); the `reward` arm is the control |
-| the 10× columns blow up | `approx_kl` > 0.05 or `kl_anchor` > 0.5 after the warm-up; explained variance falls | a rerun at `NEW_INPUT_LR_MULT=3` |
+| the 10× columns move the policy too fast | `approx_kl` > 0.05 or `kl_anchor` > 0.5 after the warm-up; explained variance falls. A probe at small sizes (32 envs × 64 steps, minibatch 1024, LR 1e-4 held, from `w1_400`, updates 2–5) gave approx_kl 0.07–0.15 at 10×, against 0.016–0.027 at 3× and 0.011–0.016 at 1×; KL to `w1_400` on ordered rows reached 0.27 at 10× and 0.05 at 3× after four updates | a rerun at `NEW_INPUT_LR_MULT=3` |
 | defend never pays against winning | defend hull lost ≈ hidden in both arms | the teacher-first bound shows what the teacher reaches; reported per arm |
 | too few defended ward-minutes | O "defended ward-minutes" fails | the sizing rule (1.3 × 300) should prevent it; rerun the eval with `N_ORDERS_MAX` higher |
 | go-to farming by re-staging | arrivals per minute ≫ the teacher's (gates.md) | the sim pays a point within 40 m once |
