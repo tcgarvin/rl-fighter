@@ -18,7 +18,8 @@ WASM build it will run against (``--wasm-sim-version`` / ``--wasm-obs-dim``, whi
 ``scripts/build_site.sh`` reads from the freshly built bundle). SIM_VERSION 5: a
 pilot reads the obs prefix of its own sim version (``--wasm-pilot-obs-dims``, the
 build's ``pilotObsDimsJson()``: 385 for a v3/v4 pilot, 403 for v5), so a v3/v4
-checkpoint exports into a v5 bundle.
+checkpoint exports into a v5 bundle. The manifest records both widths
+(``obs_dim``, the pilot's; ``sim_obs_dim``, the build's).
 
     python -m tools.export_policy --checkpoint X.pt --out web/public/bundle/policy \\
         --wasm-sim-version 5 --wasm-obs-dim 403 --wasm-pilot-compat 3,4,5 \\
@@ -45,7 +46,6 @@ from spacefight.rl.spike_policy import (
     HEAD_CHOICES,
     HEAD_GROUPS,
     N_LOGITS,
-    OBS_DIM,
     SLEW_HOLD,
     THROTTLE_HOLD,
     FIRE_NONE,
@@ -181,6 +181,30 @@ def head_layout() -> list[dict[str, Any]]:
     return heads
 
 
+def check_obs_dim(
+    obs_dim: int,
+    sim_version: int,
+    wasm_sim_version: int,
+    wasm_obs_dim: int,
+    wasm_pilot_obs_dims: Mapping[int, int] | None = None,
+) -> None:
+    """A pilot's width must be the one a pilot of its sim version reads in this
+    build (``wasm_pilot_obs_dims``, the build's ``pilotObsDimsJson()``; without it
+    the build's ``OBS_DIM``), a prefix of the build's obs.
+
+    Raises:
+        ExportError: It is not.
+    """
+    dims = dict(wasm_pilot_obs_dims) if wasm_pilot_obs_dims else {}
+    want = dims.get(sim_version, wasm_obs_dim)
+    if obs_dim != want or obs_dim > wasm_obs_dim:
+        raise ExportError(
+            f"checkpoint obs_dim {obs_dim} != the obs width a sim_version "
+            f"{sim_version} pilot reads in this wasm ({want}; wasm OBS_DIM "
+            f"{wasm_obs_dim}, sim_version {wasm_sim_version})"
+        )
+
+
 def export(
     checkpoint: Path,
     out_dir: Path,
@@ -207,14 +231,6 @@ def export(
     obs_dim = int(linears[0].in_features)
     eval_summary = summarize_eval(eval_json) if eval_json is not None else None
     sim_version = checkpoint_sim_version(meta, eval_summary)
-    dims = dict(wasm_pilot_obs_dims) if wasm_pilot_obs_dims else {}
-    want_dim = dims.get(sim_version.version, wasm_obs_dim)
-    if obs_dim != want_dim or obs_dim != OBS_DIM:
-        raise ExportError(
-            f"checkpoint obs_dim {obs_dim} != the obs width a sim_version "
-            f"{sim_version.version} pilot reads in this wasm ({want_dim}; wasm OBS_DIM "
-            f"{wasm_obs_dim}, spike_policy OBS_DIM {OBS_DIM})"
-        )
     if int(linears[-1].out_features) != N_LOGITS:
         raise ExportError(f"checkpoint has {linears[-1].out_features} logits")
     compat = list(wasm_pilot_compat) if wasm_pilot_compat else [wasm_sim_version]
@@ -224,6 +240,13 @@ def export(
             f"does not fly in wasm sim_version {wasm_sim_version} "
             f"(pilot-compatible versions {compat})"
         )
+    check_obs_dim(
+        obs_dim,
+        sim_version.version,
+        wasm_sim_version,
+        wasm_obs_dim,
+        wasm_pilot_obs_dims,
+    )
 
     layers = []
     chunks: list[np.ndarray] = []
@@ -254,6 +277,7 @@ def export(
         "sim_version": sim_version.version,
         "sim_version_source": sim_version.source,
         "obs_dim": obs_dim,
+        "sim_obs_dim": wasm_obs_dim,
         "action_width": ACTION_WIDTH,
         "n_logits": N_LOGITS,
         "hidden": [int(layer.out_features) for layer in linears[:-1]],
@@ -313,7 +337,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 else None
             ),
             (
-                {int(k): int(v) for k, v in json.loads(args.wasm_pilot_obs_dims).items()}
+                {
+                    int(k): int(v)
+                    for k, v in json.loads(args.wasm_pilot_obs_dims).items()
+                }
                 if args.wasm_pilot_obs_dims
                 else None
             ),

@@ -45,6 +45,7 @@ import torch
 from numpy.typing import NDArray
 
 from spacefight.env.rosters import (
+    RosterDistribution,
     RosterSampler,
     hull_names_by_id,
     resolve_distribution,
@@ -239,7 +240,10 @@ def make_env(
             n_threads=n_threads,
             reaction_ticks=reaction_ticks,
         )
-    sampler = RosterSampler(resolve_distribution(rosters), seed)
+    distribution = resolve_distribution(rosters)
+    if not isinstance(distribution, RosterDistribution):
+        raise ValueError(f"BC collects fleet rosters only, not {rosters!r}")
+    sampler = RosterSampler(distribution, seed)
     return RustVecEnv(
         assets_dir,
         n_envs,

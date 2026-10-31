@@ -22,6 +22,11 @@ describe each env's *current* match and change on the step that rebuilds it (for
 done env the step's returned arrays already belong to the new match; ``StepInfo``
 carries ``prev_team`` for the finished one). Without a sampler they never change.
 
+Missions and orders (SIM_VERSION 5). A ``Roster`` names its mission and each team's
+commander mode (``"random"`` among them); ``set_next_roster`` passes both to the sim,
+with the match's clock (``time_limit_s=None``: the mission's default). The env also
+exports ``order_rewards`` beside ``rewards``.
+
 The extension is built with
 ``uv run maturin develop -m crates/sim-py/Cargo.toml --release``.
 """
@@ -36,13 +41,15 @@ import numpy as np
 import rlf_sim
 from numpy.typing import NDArray
 
-from spacefight.env.rosters import MAX_FLEET_SHIPS, Roster, RosterSampler
+from spacefight.env.rosters import DEATHMATCH, SCRIPTED, Roster, Sampler
 
 SIM_VERSION: int = int(rlf_sim.SIM_VERSION)
 OBS_DIM: int = rlf_sim.OBS_DIM
 # SIM_VERSION 5: sim version -> the obs width a pilot of that version consumes
 # (``obs[..., :width]``; v3/v4 pilots read the 385-float prefix, SIM_SPEC §0.3).
-PILOT_OBS_DIMS: dict[int, int] = {int(k): int(v) for k, v in rlf_sim.PILOT_OBS_DIMS.items()}
+PILOT_OBS_DIMS: dict[int, int] = {
+    int(k): int(v) for k, v in rlf_sim.PILOT_OBS_DIMS.items()
+}
 # Slots a stage B training env pads its rosters to (SIM_SPEC §10.1).
 MAX_TRAIN_SHIPS: int = int(rlf_sim.MAX_TRAIN_SHIPS)
 ACTION_WIDTH: int = rlf_sim.ACTION_WIDTH
@@ -54,6 +61,7 @@ ACTION_LAYOUT: dict[str, tuple[int, int]] = dict(rlf_sim.ACTION_LAYOUT)
 
 # Number of fixed-width records in each obs block (SIM_SPEC §7.2), from the sim.
 OBS_SLOTS: dict[str, int] = dict(rlf_sim.OBS_SLOTS)
+
 
 # Default reaction delay in ticks (SIM_SPEC §5 stage 3; MatchConfig default).
 DEFAULT_REACTION_TICKS = 2
@@ -193,11 +201,13 @@ class RustVecEnv:
         reaction_ticks: Ticks between choosing an action and the sim applying it,
             ``0..=MAX_REACTION_TICKS`` (a hull's own value overrides it).
         copy_outputs: Return owned copies instead of buffer views.
-        max_ships: Ship slots per match (default: the size of ``fleets``, or
-            ``MAX_FLEET_SHIPS`` (8) with a sampler).
+        max_ships: Ship slots per match (default: the size of ``fleets``, or the
+            sampler's ``max_ships``).
         roster_sampler: Draw every env's roster per episode (module docstring);
             each roster's arena radius is the shared ``arena_radius_for`` rule and
             ``arena_radius`` is ignored.
+        commanders: Each team's commander mode of the constructor's first build
+            (a queued ``Roster`` names its own).
 
     Raises:
         ValueError: Invalid arguments or assets (from ``rlf_sim``), or a sampled
@@ -217,10 +227,14 @@ class RustVecEnv:
         reaction_ticks: int = DEFAULT_REACTION_TICKS,
         copy_outputs: bool = False,
         max_ships: int | None = None,
-        roster_sampler: RosterSampler | None = None,
+        roster_sampler: Sampler | None = None,
+        commanders: Sequence[str] = (SCRIPTED, SCRIPTED),
     ) -> None:
         if max_ships is None and roster_sampler is not None:
-            max_ships = MAX_FLEET_SHIPS
+            max_ships = roster_sampler.max_ships
+        modes = tuple(commanders)
+        if len(modes) != 2:
+            raise ValueError(f"commanders must name two modes, got {modes}")
         self._env = rlf_sim.VecEnv(
             str(assets_dir),
             n_envs,
@@ -232,12 +246,15 @@ class RustVecEnv:
             record_events=record_events,
             reaction_ticks=reaction_ticks,
             max_ships=max_ships,
+            commanders=list(modes),
         )
         self.fleets: tuple[tuple[str, ...], ...] = tuple(tuple(t) for t in fleets)
         self.reaction_ticks = reaction_ticks
+        self.time_limit_s = time_limit_s
         self.copy_outputs = copy_outputs
         self.roster_sampler = roster_sampler
-        fixed = Roster.of(fleets[0], fleets[1])
+        self.commanders: tuple[str, str] = (modes[0], modes[1])
+        fixed = Roster.of(fleets[0], fleets[1], commanders=self.commanders)
         # Roster of each env's current match and of its queued next match.
         self.rosters: list[Roster] = [fixed] * n_envs
         self._next: list[Roster] = [fixed] * n_envs
@@ -313,37 +330,32 @@ class RustVecEnv:
         i: int,
         roster: Roster,
         arena_radius: float | None = None,
-        mission: str | dict | None = None,
-        commanders: Sequence[str] | None = None,
         time_limit_s: float | None = None,
     ) -> None:
-        """Queue ``roster`` for env ``i``'s next match.
+        """Queue ``roster`` (teams, mission, commanders) for env ``i``'s next match.
 
         Args:
             i: Env index.
-            roster: The teams.
+            roster: The match.
             arena_radius: Arena radius in metres; ``None`` uses the shared rule
                 (``roster.arena_radius``). Overrides are for surveys only: training
                 and the live page use the rule.
-            mission: ``None`` (deathmatch), a mission name or a spec dict
-                (SIM_SPEC §10.3), passed to ``rlf_sim``.
-            commanders: Two commander modes (``"scripted"``, ``"random"``,
-                ``"external"``); ``None`` keeps the env's.
-            time_limit_s: Match clock; ``None`` is the mission's default when a
-                mission is given, else the env's ``time_limit_s``.
+            time_limit_s: The match's clock; ``None`` is the mission's default for
+                a mission roster, else the env's ``time_limit_s``.
 
         Raises:
-            ValueError: The roster does not fit ``n_ships`` or the mission, or names
+            ValueError: The roster does not fit ``n_ships`` or its mission, or names
                 unknown hulls or commander modes.
             IndexError: ``i`` out of range.
         """
         radius = roster.arena_radius if arena_radius is None else arena_radius
+        mission = None if roster.mission == DEATHMATCH else roster.mission
         self._env.set_next_roster(
             i,
             roster.fleets(),
             radius,
             mission=mission,
-            commanders=None if commanders is None else list(commanders),
+            commanders=list(roster.commanders),
             time_limit_s=time_limit_s,
         )
         self._next[i] = roster
@@ -366,9 +378,17 @@ class RustVecEnv:
         return self._env.act_mask
 
     @property
+    def end_reason(self) -> NDArray[np.int8]:
+        """[N] ``rlf_sim.END_REASONS`` code of a match that ended on the last step,
+        0 while running (view)."""
+        return self._env.end_reason
+
+    @property
     def order_rewards(self) -> NDArray[np.float32]:
-        """[N, S] order reward of the last step (view; SIM_SPEC §8, v5)."""
-        return self._env.order_rewards
+        """[N, S] order reward of the last step (SIM_SPEC §8, v5; view, or a copy
+        with ``copy_outputs``), alongside ``rewards``: the trainer weights it by
+        ``w``. ``StepInfo.order_rewards`` is the same buffer."""
+        return self._out(self._env.order_rewards)
 
     # -- stepping -------------------------------------------------------------
 

@@ -24,6 +24,14 @@ different, per-row mask; they are excluded from losses with ``masked_mean``.
 
 The module does not import ``rlf_sim`` so checkpoints can be loaded without the
 extension; ``tests/test_spike_policy.py`` checks the constants against it.
+
+Obs width. A net's input width is its ``obs_dim``: 385 for pilots of SIM_VERSION 3
+and 4, 403 for SIM_VERSION 5, whose obs appends an 18-float order block and keeps the
+first 385 floats exactly (``PILOT_OBS_DIMS``). A narrower pilot flies a wider sim on
+the prefix ``obs[..., :obs_dim]`` (``fit_obs``), and ``widen_actor`` /
+``widen_critic`` turn a 385-wide net into a 403-wide one whose new input columns are
+zero, so it computes exactly what the narrow net did on the prefix (stage B's warm
+start, ``docs/M3_PLAN.md`` "Stage B decisions"). Checkpoints record ``obs_dim``.
 """
 
 from __future__ import annotations
@@ -31,16 +39,20 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TypeVar
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# The policy's input width: the SIM_VERSION 3/4 obs. A v5 sim obs (403 floats)
-# starts with these 385 unchanged and appends the order block (SIM_SPEC §0.3), so this
-# policy reads the prefix (``policy_obs``; ``rlf_sim.PILOT_OBS_DIMS[4]``).
+# Width of a SIM_VERSION 3/4 pilot's obs (fleet pilot v1); the default net width.
 OBS_DIM = 385
+# SIM_VERSION 5: the v4 obs plus the 18-float order block at the end.
+ORDER_BLOCK_WIDTH = 18
+ORDER_OBS_DIM = OBS_DIM + ORDER_BLOCK_WIDTH
+# Pilot obs width per sim version (mirrors ``rlf_sim.PILOT_OBS_DIMS`` from v5 on).
+PILOT_OBS_DIMS: dict[int, int] = {2: OBS_DIM, 3: OBS_DIM, 4: OBS_DIM, 5: ORDER_OBS_DIM}
 ACTION_WIDTH = 21
 N_LOGITS = 61
 HIDDEN = 256
@@ -76,19 +88,6 @@ _ACTOR_OUTPUT_GAIN = 0.01
 _CRITIC_OUTPUT_GAIN = 1.0
 _HIDDEN_GAIN = math.sqrt(2.0)
 _CHECKPOINT_FORMAT = "spike_policy/1"
-
-
-def policy_obs(obs: np.ndarray) -> np.ndarray:
-    """The part of a sim obs ``[..., OBS_DIM or wider]`` this policy reads: its first
-    ``OBS_DIM`` floats (a view). SIM_VERSION 5 appends the 18-float order block
-    after the v4 obs, which a v4-shaped policy does not see.
-
-    Raises:
-        ValueError: The last axis is narrower than ``OBS_DIM``.
-    """
-    if obs.shape[-1] < OBS_DIM:
-        raise ValueError(f"obs last axis must be >= {OBS_DIM}, got shape {obs.shape}")
-    return obs[..., :OBS_DIM]
 
 
 def _flatten_leading(arr: np.ndarray, width: int, name: str) -> np.ndarray:
@@ -262,18 +261,81 @@ class _HeadLogSoftmax:
         )
 
 
+# Public name of the per-head log-softmax bundle (``SpikeActor.head_log_softmax``).
+HeadLogSoftmax = _HeadLogSoftmax
+
+
+def head_kl(
+    reference: HeadLogSoftmax, current: HeadLogSoftmax, valid: torch.Tensor
+) -> torch.Tensor:
+    """[B] ``KL(reference || current)`` summed over each row's unmasked heads.
+
+    The heads are independent categoricals, so the joint KL is the sum of the per-head
+    KLs. Masked heads contribute exactly 0 (and no gradient).
+
+    Args:
+        reference: The anchor's heads (e.g. frozen fleet pilot v1), usually computed
+            without gradient.
+        current: The trained actor's heads.
+        valid: [B, 21] ``HeadMasks.head_valid()``.
+    """
+
+    def kl(ref: torch.Tensor, cur: torch.Tensor) -> torch.Tensor:
+        return (ref.exp() * (ref - cur)).sum(-1)
+
+    per_head = torch.cat(
+        [
+            kl(reference.ternary, current.ternary),
+            kl(reference.fire, current.fire),
+            kl(reference.power, current.power)[:, None],
+        ],
+        dim=-1,
+    )
+    return torch.where(valid, per_head, 0.0).sum(-1)
+
+
 def _hold_row(device: torch.device) -> torch.Tensor:
     return torch.tensor(HOLD_ROW, dtype=torch.int64, device=device)
 
 
-def _check_obs(obs: torch.Tensor) -> None:
-    if obs.dim() != 2 or obs.shape[1] != OBS_DIM:
-        raise ValueError(f"obs must be [B, {OBS_DIM}], got {tuple(obs.shape)}")
+ObsT = TypeVar("ObsT", np.ndarray, torch.Tensor)
 
 
-def _mlp(hidden: int, out_dim: int, output_gain: float) -> nn.Sequential:
+def policy_obs(obs: np.ndarray, obs_dim: int = OBS_DIM) -> np.ndarray:
+    """``fit_obs`` for a numpy obs, by default to a SIM_VERSION 3/4 pilot's 385."""
+    return fit_obs(obs, obs_dim)
+
+
+def _check_obs(obs: torch.Tensor, obs_dim: int) -> None:
+    if obs.dim() != 2 or obs.shape[1] != obs_dim:
+        raise ValueError(f"obs must be [B, {obs_dim}], got {tuple(obs.shape)}")
+
+
+def fit_obs(obs: ObsT, obs_dim: int) -> ObsT:
+    """``obs[..., :obs_dim]`` (a view): what a net of width ``obs_dim`` sees of a
+    wider obs, for numpy arrays and torch tensors alike. The one place obs are cut
+    to a net's width: PPO, the snapshot pool, the KL anchor, BC and ``act_numpy``
+    all key it by the net's (the checkpoint's) ``obs_dim``.
+
+    The sim keeps every older pilot's obs as a prefix of the newer one
+    (``PILOT_OBS_DIMS``), so a narrow net flies a wider sim on the prefix.
+
+    Raises:
+        ValueError: ``obs`` is narrower than ``obs_dim``.
+    """
+    if obs.shape[-1] < obs_dim:
+        raise ValueError(
+            f"obs has {obs.shape[-1]} features, the net needs {obs_dim}: an older "
+            "sim cannot feed a newer pilot"
+        )
+    return obs if obs.shape[-1] == obs_dim else obs[..., :obs_dim]
+
+
+def _mlp(
+    hidden: int, out_dim: int, output_gain: float, obs_dim: int = OBS_DIM
+) -> nn.Sequential:
     net = nn.Sequential(
-        nn.Linear(OBS_DIM, hidden),
+        nn.Linear(obs_dim, hidden),
         nn.Tanh(),
         nn.Linear(hidden, hidden),
         nn.Tanh(),
@@ -292,12 +354,14 @@ class SpikeActor(nn.Module):
 
     Args:
         hidden: Width of both hidden layers.
+        obs_dim: Input width (``PILOT_OBS_DIMS`` of the sim it flies).
     """
 
-    def __init__(self, hidden: int = HIDDEN) -> None:
+    def __init__(self, hidden: int = HIDDEN, obs_dim: int = OBS_DIM) -> None:
         super().__init__()
         self.hidden = hidden
-        self.net = _mlp(hidden, N_LOGITS, _ACTOR_OUTPUT_GAIN)
+        self.obs_dim = obs_dim
+        self.net = _mlp(hidden, N_LOGITS, _ACTOR_OUTPUT_GAIN, obs_dim)
 
     @property
     def logits_layer(self) -> nn.Linear:
@@ -308,8 +372,8 @@ class SpikeActor(nn.Module):
         return layer
 
     def forward(self, obs: torch.Tensor) -> torch.Tensor:
-        """Return raw logits [B, 61] for obs [B, 385]."""
-        _check_obs(obs)
+        """Return raw logits [B, 61] for obs [B, obs_dim]."""
+        _check_obs(obs, self.obs_dim)
         out: torch.Tensor = self.net(obs)
         return out
 
@@ -318,6 +382,10 @@ class SpikeActor(nn.Module):
             raise ValueError(
                 f"masks have {masks.batch_size} rows, obs has {obs.shape[0]}"
             )
+        return _HeadLogSoftmax.from_logits(self(obs))
+
+    def head_log_softmax(self, obs: torch.Tensor) -> HeadLogSoftmax:
+        """Every head's log-probabilities (no masking; see ``head_kl``)."""
         return _HeadLogSoftmax.from_logits(self(obs))
 
     def sample(
@@ -379,13 +447,27 @@ class SpikeActor(nn.Module):
             ``(log_prob [B, 21], entropy [B, 21], label_log_prob [B, 21])``, all
             exactly 0 where masked.
         """
+        log_prob, entropy, label_log_prob, _ = self.evaluate_with_heads(
+            obs, masks, actions, labels
+        )
+        return log_prob, entropy, label_log_prob
+
+    def evaluate_with_heads(
+        self,
+        obs: torch.Tensor,
+        masks: HeadMasks,
+        actions: torch.Tensor,
+        labels: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, HeadLogSoftmax]:
+        """``evaluate_heads_and_labels`` plus the heads' log-softmax (one forward),
+        for a KL term on the same pass (``head_kl``)."""
         heads = self._heads(obs, masks)
         valid = masks.head_valid()
         safe = _checked_actions(actions, valid)
         safe_labels = _checked_actions(labels, valid)
         log_prob, entropy = _masked_head_terms(heads, valid, safe)
         label_log_prob = torch.where(valid, heads.gather(safe_labels), 0.0)
-        return log_prob, entropy, label_log_prob
+        return log_prob, entropy, label_log_prob, heads
 
     def evaluate(
         self, obs: torch.Tensor, masks: HeadMasks, actions: torch.Tensor
@@ -440,16 +522,18 @@ class SpikeCritic(nn.Module):
 
     Args:
         hidden: Width of both hidden layers.
+        obs_dim: Input width.
     """
 
-    def __init__(self, hidden: int = HIDDEN) -> None:
+    def __init__(self, hidden: int = HIDDEN, obs_dim: int = OBS_DIM) -> None:
         super().__init__()
         self.hidden = hidden
-        self.net = _mlp(hidden, 1, _CRITIC_OUTPUT_GAIN)
+        self.obs_dim = obs_dim
+        self.net = _mlp(hidden, 1, _CRITIC_OUTPUT_GAIN, obs_dim)
 
     def forward(self, obs: torch.Tensor) -> torch.Tensor:
-        """Return values [B] for obs [B, 385]."""
-        _check_obs(obs)
+        """Return values [B] for obs [B, obs_dim]."""
+        _check_obs(obs, self.obs_dim)
         out: torch.Tensor = self.net(obs).squeeze(-1)
         return out
 
@@ -483,15 +567,19 @@ class FleetCritic(nn.Module):
     Args:
         hidden: Width of the spike critic's hidden layers.
         context: Width of the per-ship embedding.
+        obs_dim: Input width of the base critic and the encoder.
     """
 
-    def __init__(self, hidden: int = HIDDEN, context: int = CONTEXT_DIM) -> None:
+    def __init__(
+        self, hidden: int = HIDDEN, context: int = CONTEXT_DIM, obs_dim: int = OBS_DIM
+    ) -> None:
         super().__init__()
         self.hidden = hidden
         self.context = context
-        self.base = SpikeCritic(hidden)
+        self.obs_dim = obs_dim
+        self.base = SpikeCritic(hidden, obs_dim)
         self.encoder = nn.Sequential(
-            nn.Linear(OBS_DIM, context),
+            nn.Linear(obs_dim, context),
             nn.Tanh(),
             nn.Linear(context, context),
             nn.Tanh(),
@@ -514,7 +602,7 @@ class FleetCritic(nn.Module):
     @classmethod
     def from_spike(cls, spike: SpikeCritic, context: int = CONTEXT_DIM) -> FleetCritic:
         """A fleet critic whose base is a copy of ``spike`` (same values at first)."""
-        critic = cls(hidden=spike.hidden, context=context)
+        critic = cls(hidden=spike.hidden, context=context, obs_dim=spike.obs_dim)
         critic.base.load_state_dict(spike.state_dict())
         return critic
 
@@ -528,15 +616,17 @@ class FleetCritic(nn.Module):
         """Values of selected ships of a batch of matches.
 
         Args:
-            obs: [G, S, 385] observations of every slot of G matches.
+            obs: [G, S, obs_dim] observations of every slot of G matches.
             team: [G, S] team of each slot (-1 = padding).
             rows: [K, 2] int64 ``(match, slot)`` pairs to value.
 
         Returns:
             [K] values.
         """
-        if obs.dim() != 3 or obs.shape[-1] != OBS_DIM:
-            raise ValueError(f"obs must be [G, S, {OBS_DIM}], got {tuple(obs.shape)}")
+        if obs.dim() != 3 or obs.shape[-1] != self.obs_dim:
+            raise ValueError(
+                f"obs must be [G, S, {self.obs_dim}], got {tuple(obs.shape)}"
+            )
         if team.shape != obs.shape[:2]:
             raise ValueError(
                 f"team must be {tuple(obs.shape[:2])}, got {tuple(team.shape)}"
@@ -561,7 +651,7 @@ class FleetCritic(nn.Module):
         ally_pool = (ally[..., None] * group).sum(1) / n_ally.clamp(min=1.0)
         enemy_pool = (enemy[..., None] * group).sum(1) / n_enemy.clamp(min=1.0)
         own = obs[g, s]
-        _check_obs(own)
+        _check_obs(own, self.obs_dim)
         trunk = self.base.net[:-1]
         head = self.base.net[-1]
         hidden = trunk(own)
@@ -680,8 +770,8 @@ def act_numpy(
 
     Args:
         actor: The policy.
-        obs: [..., 385] float observations, or a wider sim obs whose first 385
-            floats are read (``policy_obs``; e.g. ``env.obs`` of shape [N, S, 403]).
+        obs: [..., D] float observations (e.g. ``env.obs`` of shape [N, S, D]) with
+            ``D >= actor.obs_dim``; the actor sees ``obs[..., :actor.obs_dim]``.
         masks: Masks for the flattened rows (``HeadMasks.from_numpy`` of the env
             masks); moved to the actor's device.
         deterministic: Argmax instead of sampling.
@@ -689,13 +779,12 @@ def act_numpy(
     Returns:
         int8 actions of shape ``obs.shape[:-1] + (21,)``.
     """
-    obs = policy_obs(np.asarray(obs, dtype=np.float32))
-    flat = _flatten_leading(np.ascontiguousarray(obs), OBS_DIM, "obs")
+    arr = np.asarray(obs, dtype=np.float32)
+    flat = arr.reshape(-1, arr.shape[-1])
     device = next(actor.parameters()).device
     with torch.no_grad():
-        out = actor.sample(
-            torch.from_numpy(flat).to(device), masks.to(device), deterministic
-        )
+        inputs = fit_obs(torch.from_numpy(flat).to(device), actor.obs_dim)
+        out = actor.sample(inputs, masks.to(device), deterministic)
     actions = out.actions.to(torch.int8).cpu().numpy()
     return actions.reshape(*obs.shape[:-1], ACTION_WIDTH)
 
@@ -726,6 +815,60 @@ def as_critic_kind(critic: Critic, kind: str) -> Critic:
     raise ValueError("a fleet critic cannot be turned back into a spike critic")
 
 
+def _widen_first_layer(layer: nn.Linear, obs_dim: int) -> nn.Linear:
+    """A copy of ``layer`` with ``obs_dim`` inputs: the old columns first, the new
+    ones zero, so it computes the same on any input whose prefix matches."""
+    if obs_dim < layer.in_features:
+        raise ValueError(f"cannot narrow a layer from {layer.in_features} to {obs_dim}")
+    wide = nn.Linear(obs_dim, layer.out_features)
+    with torch.no_grad():
+        wide.weight.zero_()
+        wide.weight[:, : layer.in_features] = layer.weight
+        wide.bias.copy_(layer.bias)
+    return wide
+
+
+def widen_actor(actor: SpikeActor, obs_dim: int) -> SpikeActor:
+    """A new actor of input width ``obs_dim`` that equals ``actor`` on the prefix.
+
+    The extra first-layer columns are zero, so on any obs whose first
+    ``actor.obs_dim`` floats match, the logits are identical (stage B's warm start:
+    update 0 is exactly fleet pilot v1). ``actor`` is not modified.
+
+    Raises:
+        ValueError: ``obs_dim`` is narrower than the actor.
+    """
+    wide = SpikeActor(hidden=actor.hidden, obs_dim=obs_dim)
+    state = {k: v.clone() for k, v in actor.state_dict().items()}
+    first = _widen_first_layer(actor.net[0], obs_dim)  # type: ignore[arg-type]
+    state["net.0.weight"] = first.weight.detach()
+    wide.load_state_dict(state)
+    return wide
+
+
+def widen_critic(critic: Critic, obs_dim: int) -> Critic:
+    """``critic`` with input width ``obs_dim`` and zero new columns (base critic and,
+    for a fleet critic, the per-ship encoder), same values on the prefix.
+
+    Raises:
+        ValueError: ``obs_dim`` is narrower than the critic.
+    """
+    state = {k: v.clone() for k, v in critic.state_dict().items()}
+    wide: Critic
+    if isinstance(critic, FleetCritic):
+        wide = FleetCritic(critic.hidden, critic.context, obs_dim)
+        firsts = {"base.net.0": critic.base.net[0], "encoder.0": critic.encoder[0]}
+    else:
+        wide = SpikeCritic(critic.hidden, obs_dim)
+        firsts = {"net.0": critic.net[0]}
+    for prefix, layer in firsts.items():
+        state[f"{prefix}.weight"] = _widen_first_layer(
+            layer, obs_dim  # type: ignore[arg-type]
+        ).weight.detach()
+    wide.load_state_dict(state)
+    return wide
+
+
 def save_policy(
     path: Path, actor: SpikeActor, critic: Critic, meta: dict[str, object]
 ) -> None:
@@ -733,10 +876,14 @@ def save_policy(
 
     ``meta`` must hold only plain types (str, int, float, bool, lists, dicts) so the
     file loads with ``weights_only=True``. A fleet critic is stored with
-    ``critic_kind`` "fleet"; older files without the key hold a spike critic.
+    ``critic_kind`` "fleet"; older files without the key hold a spike critic. The
+    actor's and critic's input widths are recorded as ``obs_dim`` and
+    ``critic_obs_dim`` (older files are 385 wide).
     """
     payload = {
         "format": _CHECKPOINT_FORMAT,
+        "obs_dim": actor.obs_dim,
+        "critic_obs_dim": critic.obs_dim,
         "actor_hidden": actor.hidden,
         "critic_hidden": critic.hidden,
         "critic_kind": critic_kind(critic),
@@ -760,15 +907,23 @@ def load_policy(path: Path) -> tuple[SpikeActor, Critic, dict[str, object]]:
     payload = torch.load(path, map_location="cpu", weights_only=True)
     if not isinstance(payload, dict) or payload.get("format") != _CHECKPOINT_FORMAT:
         raise ValueError(f"{path} is not a {_CHECKPOINT_FORMAT} checkpoint")
-    actor = SpikeActor(hidden=int(payload["actor_hidden"]))
+    obs_dim = int(payload.get("obs_dim", OBS_DIM))
+    critic_obs_dim = int(payload.get("critic_obs_dim", obs_dim))
+    stored = int(payload["actor"]["net.0.weight"].shape[1])
+    if stored != obs_dim:
+        raise ValueError(f"{path}: obs_dim {obs_dim} but the actor takes {stored}")
+    actor = SpikeActor(hidden=int(payload["actor_hidden"]), obs_dim=obs_dim)
     kind = payload.get("critic_kind", CRITIC_SPIKE)
     critic: Critic
     if kind == CRITIC_SPIKE:
-        critic = SpikeCritic(hidden=int(payload["critic_hidden"]))
+        critic = SpikeCritic(
+            hidden=int(payload["critic_hidden"]), obs_dim=critic_obs_dim
+        )
     elif kind == CRITIC_FLEET:
         critic = FleetCritic(
             hidden=int(payload["critic_hidden"]),
             context=int(payload["critic_context"]),
+            obs_dim=critic_obs_dim,
         )
     else:
         raise ValueError(f"{path} has unknown critic kind {kind!r}")

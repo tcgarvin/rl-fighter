@@ -134,6 +134,7 @@ def test_minibatches_keep_groups_whole_and_cover_every_row() -> None:
         old_log_prob=zeros,
         advantages=zeros,
         returns=zeros,
+        anchor_rows=torch.ones(b, dtype=torch.bool),
     )
     chunks = batch.minibatches(3)
     seen = torch.cat(chunks).sort().values

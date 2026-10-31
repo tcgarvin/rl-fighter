@@ -88,6 +88,14 @@ uv run python -m spacefight.eval.fleet --a <checkpoint.pt> --b script --out flee
 PYTHONPATH=. uv run python tools/fleet_survey.py --n-per-roster 128
 nohup lab/runs/2026-10-30-fleet-pilot/run.sh > lab/runs/2026-10-30-fleet-pilot/run.out 2>&1 &
 
+# Stage B (orders, SIM_VERSION 5): mission eval (rlf.eval.mission/1; carrier + convoy,
+# live default rosters, capital ships by script), order-following eval
+# (rlf.eval.orders/1; blank:<ckpt> zeroes the order block), and the order pilot run
+# (rosters orders_v1, arms w1 / w03; SMOKE=1 for tiny sizes into smoke/)
+uv run python -m spacefight.eval.missions --a <checkpoint.pt> --b <v1.pt> --out missions.json
+uv run python -m spacefight.eval.orders --a <checkpoint.pt> --out orders.json
+nohup lab/runs/2026-10-31-order-pilot/run.sh > lab/runs/2026-10-31-order-pilot/run.out 2>&1 &
+
 # Deploy dist/ (rl-fighter.tcgarvin.com); needs NETLIFY_AUTH_TOKEN in .env
 scripts/deploy.sh            # or --build (current champion) / <checkpoint.pt> <run-id> to rebuild first
 

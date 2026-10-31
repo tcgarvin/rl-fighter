@@ -26,11 +26,14 @@ from spacefight.env.rust_env import (
     ACTION_HIGHS,
     ACTION_LAYOUT,
     ACTION_WIDTH,
+    OBS_LAYOUT,
     RustVecEnv,
 )
 
 THROTTLE_HOLD = 1
 SLEW_HOLD = 1
+# make_controller prefix of a policy flown with the obs order block zeroed.
+BLANK_ORDERS_PREFIX = "blank:"
 
 
 def idle_actions(n_rows: int) -> NDArray[np.int8]:
@@ -115,23 +118,31 @@ class Policy:
     torch and the policy module are imported on construction, not with this module,
     so the scripted and random controllers work without loading torch.
 
+    A policy narrower than the sim's obs (fleet pilot v1, 385 floats, in a
+    SIM_VERSION 5 sim of 403) flies on the prefix ``obs[..., :actor.obs_dim]``.
+
     Args:
         path: Checkpoint written by ``spike_policy.save_policy``.
         sample: Sample from the head distributions (the eval's primary numbers);
             ``False`` takes the argmax of every head.
+        blank_orders: Zero the obs order block (SIM_VERSION 5) before the policy
+            sees it: stage B's "same pilot with orders blanked" baseline.
 
     Raises:
         FileNotFoundError: ``path`` does not exist.
         ValueError: ``path`` is not a spike-policy checkpoint.
     """
 
-    def __init__(self, path: Path, sample: bool = True) -> None:
+    def __init__(
+        self, path: Path, sample: bool = True, blank_orders: bool = False
+    ) -> None:
         if not path.is_file():
             raise FileNotFoundError(f"policy checkpoint not found: {path}")
         from spacefight.rl import spike_policy
 
         self.path = path
         self.sample = sample
+        self.blank_orders = blank_orders
         self._spike = spike_policy
         actor, _critic, meta = spike_policy.load_policy(path)
         self.actor = actor.eval()
@@ -140,7 +151,8 @@ class Policy:
     @property
     def label(self) -> str:
         mode = "" if self.sample else ":argmax"
-        return f"policy:{self.path.name}{mode}"
+        blank = ":blank_orders" if self.blank_orders else ""
+        return f"policy:{self.path.name}{mode}{blank}"
 
     def reset(self, seed: int) -> None:
         """Seed torch's global RNG, which the actor samples from."""
@@ -153,6 +165,9 @@ class Policy:
         if not rows.any():
             return np.zeros((0, ACTION_WIDTH), dtype=np.int8)
         obs = np.ascontiguousarray(env.obs[rows], dtype=np.float32)
+        if self.blank_orders:
+            offset, width = OBS_LAYOUT["order"]
+            obs[:, offset : offset + width] = 0.0
         masks = self._spike.HeadMasks.from_numpy(
             env.thruster_mask[rows], env.turret_mask[rows], env.fixed_turret[rows]
         )
@@ -217,7 +232,8 @@ class PerHull:
 
 
 def make_controller(spec: str, sample: bool = True, seed: int = 0) -> Controller:
-    """Build a controller from a CLI spec: ``script``, ``random`` or a checkpoint path.
+    """Build a controller from a CLI spec: ``script``, ``random``, a checkpoint path,
+    or ``blank:<checkpoint>`` (the policy with the obs order block zeroed).
 
     Raises:
         FileNotFoundError: ``spec`` is neither keyword nor an existing file.
@@ -226,4 +242,7 @@ def make_controller(spec: str, sample: bool = True, seed: int = 0) -> Controller
         return Scripted()
     if spec == "random":
         return RandomController(seed)
+    if spec.startswith(BLANK_ORDERS_PREFIX):
+        path = Path(spec.removeprefix(BLANK_ORDERS_PREFIX))
+        return Policy(path, sample=sample, blank_orders=True)
     return Policy(Path(spec), sample=sample)

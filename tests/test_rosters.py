@@ -61,8 +61,10 @@ def test_hull_costs_come_from_the_yaml() -> None:
 
 
 def test_fleet_rosters_draw_strike_craft_only() -> None:
-    """Capital ships (SIM_VERSION 4) never enter a training or eval roster."""
+    """Capital ships (SIM_VERSION 4) never enter a fleet (deathmatch) roster."""
     for name, dist in ROSTER_PRESETS.items():
+        if not isinstance(dist, RosterDistribution):
+            continue  # mission mixes: tests/test_orders_training.py
         for roster in RosterSampler(dist, 0).sample_many(300):
             hulls = set(roster.teams[0]) | set(roster.teams[1])
             assert hulls <= set(FLEET_HULLS), (name, hulls)

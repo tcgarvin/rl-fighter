@@ -28,7 +28,9 @@ export function createPolicy(manifest, weightsBuffer, expect) {
   if (manifest.format !== MANIFEST_FORMAT) throw new Error(`policy manifest format ${manifest.format}, expected ${MANIFEST_FORMAT}`);
   const flies = expect.pilotCompat ? expect.pilotCompat.includes(manifest.sim_version) : expect.simVersion === manifest.sim_version;
   if (!flies) throw new Error(`policy is for sim_version ${manifest.sim_version}, this build is ${expect.simVersion} (flies pilots of ${expect.pilotCompat ?? [expect.simVersion]})`);
-  if (expect.obsDim !== manifest.obs_dim) throw new Error(`policy obs_dim ${manifest.obs_dim} != sim OBS_DIM ${expect.obsDim}`);
+  // A narrower pilot (385 floats, SIM_VERSION 3/4) flies a wider sim (403, v5) on the
+  // obs prefix: forward() reads only the first layers[0].in floats of each obs.
+  if (manifest.obs_dim > expect.obsDim) throw new Error(`policy obs_dim ${manifest.obs_dim} > sim OBS_DIM ${expect.obsDim}`);
   if (expect.actionWidth !== manifest.action_width) throw new Error(`policy action_width ${manifest.action_width} != sim ACTION_WIDTH ${expect.actionWidth}`);
   if (weightsBuffer.byteLength !== manifest.weights_floats * 4) throw new Error(`weights.bin has ${weightsBuffer.byteLength} bytes, manifest says ${manifest.weights_floats * 4}`);
   // The manifest promises little-endian f32; a Float32Array uses the platform order,

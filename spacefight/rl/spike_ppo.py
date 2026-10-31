@@ -30,6 +30,24 @@ bootstraps through real rewards. The cost is that the carried rows were sampled 
 the previous update's actor; PPO's ratio uses their stored behaviour log-probs, and
 their values are recomputed with the current critic before GAE.
 
+Missions and orders (M3 stage B, ``lab/runs/2026-10-31-order-pilot/plan.md``). With
+the ``orders_v1`` rosters an env plays deathmatches, carrier battles and convoys, each
+team under a scripted or random commander. Capital ships (carriers, freighters) are
+never learner or snapshot rows: they keep their script's actions. With
+``learner_side = "random"`` the learner's team is drawn per episode (a convoy's
+transports are always team 0, so a fixed side would only ever defend); every
+"team 0" above then means "the learner's team of that env". The step reward is the
+team reward plus ``order_reward_weight * env.order_rewards`` (SIM_VERSION 5); GAE
+runs on the sum and both parts are logged. A frozen ``kl_anchor`` actor (fleet pilot
+v1) adds ``kl_anchor_coeff * KL(anchor || pi)`` on the rows whose obs has no order
+(``has_order = 0``), so unordered behaviour stays v1's.
+
+Obs width. Every net sees ``fit_obs(obs, net.obs_dim)``: the learner, the anchor and
+each snapshot (a 385-wide v1 in the 403-wide SIM_VERSION 5 obs reads the prefix).
+The learner trains at ``config.obs_dim``; 0 keeps the init's width (a fleet run from
+v1 stays 385 wide and never sees orders), a wider value widens the init with zero
+input columns (``widen_actor``), so update 0 is the init exactly.
+
 Script labels. ``env.scripted_actions()`` is called every step before the learner's
 actions overwrite the action buffer, so team-1 scripted rows are already in place
 and the labels of every row are stored for the auxiliary loss
@@ -54,11 +72,20 @@ import yaml  # type: ignore[import-untyped]
 from numpy.typing import NDArray
 
 from spacefight.env.rosters import (
-    RosterSampler,
+    CONVOY_ESCORT,
+    Roster,
+    capital_hull_ids,
     hull_names_by_id,
+    make_sampler,
     resolve_distribution,
 )
-from spacefight.env.rust_env import OBS_LAYOUT, SIM_VERSION, RustVecEnv, StepInfo
+from spacefight.env.rust_env import (
+    OBS_DIM,
+    OBS_LAYOUT,
+    SIM_VERSION,
+    RustVecEnv,
+    StepInfo,
+)
 from spacefight.rl.credit import (
     HIT_DAMAGE_MILLI,
     HIT_DAMAGE_SCALE,
@@ -85,8 +112,6 @@ from spacefight.rl.spike_policy import (
     HEAD_GROUPS,
     N_THRUSTERS,
     N_TURRETS,
-    OBS_DIM,
-    policy_obs,
     Critic,
     FleetCritic,
     HeadMasks,
@@ -94,9 +119,13 @@ from spacefight.rl.spike_policy import (
     SpikeCritic,
     as_critic_kind,
     critic_kind,
+    fit_obs,
+    head_kl,
     load_policy,
     mean_head_entropy,
     save_policy,
+    widen_actor,
+    widen_critic,
 )
 
 # Reward weights mirrored from crates/sim/src/reward.rs (rlf_sim does not export
@@ -110,6 +139,9 @@ ARENA_PENALTY = -0.002
 _ARENA_MARGIN_COL = OBS_LAYOUT["self"][0] + 19
 _MAIN_ENGINE_LEVEL_COL = OBS_LAYOUT["thrusters"][0] + 6
 _FIRE_COL = HEAD_GROUPS["fire"].start
+# has_order, the order block's first float (SIM_VERSION 5).
+HAS_ORDER_COL: int = OBS_LAYOUT["order"][0]
+LEARNER_SIDES = ("team0", "random")
 
 INIT_SCRATCH = "scratch"
 _CHECKPOINT_PREFIX = "ppo"
@@ -132,6 +164,11 @@ LOG_KEYS: tuple[str, ...] = (
     "sim_steps_per_s",
     "env_seed",
     "reward_mean",
+    "reward_team",
+    "reward_order",
+    "reward_order_weighted",
+    "order_reward_weight",
+    "has_order_share",
     "reward_damage_dealt",
     "reward_damage_taken",
     "reward_fire_cost",
@@ -167,6 +204,10 @@ LOG_KEYS: tuple[str, ...] = (
     "value_loss",
     "explained_variance",
     "aux_script_nll",
+    "kl_anchor",
+    "kl_anchor_ordered",
+    "kl_anchor_share",
+    "kl_anchor_coeff",
     "beta",
     "actor_lr",
     "critic_lr",
@@ -183,6 +224,8 @@ LOG_KEYS: tuple[str, ...] = (
     "snapshot_pool",
     "ships_per_match",
     "vs_scripted_win_by_class",
+    "win_by_class",
+    "episodes_by_class",
     "hull_samples",
     "hull_hit_rate",
     "hull_damage_dealt",
@@ -196,6 +239,9 @@ PPO_METRIC_KEYS: tuple[str, ...] = (
     "approx_kl",
     "clip_fraction",
     "aux_script_nll",
+    "kl_anchor",
+    "kl_anchor_ordered",
+    "kl_anchor_share",
     "entropy_mean",
 ) + tuple(f"entropy_{name}" for name in HEAD_GROUPS)
 
@@ -274,6 +320,20 @@ class PPOConfig:
     # Scripted steps on both sides before the first rollout of a segment, so short
     # test rollouts start past the arrival + control lock (0 for real runs).
     env_warmup_steps: int = 0
+    # Stage B (module docstring). learner_side: "team0" (the learner is team 0) or
+    # "random" (drawn per episode). pool_seed_p: a snapshot env plays a pool_seed
+    # entry with this probability (0 = uniform over the whole pool).
+    learner_side: str = "team0"
+    pool_seed_p: float = 0.0
+    # Step reward = team reward + order_reward_weight * order_rewards (SIM_VERSION 5).
+    order_reward_weight: float = 0.0
+    # Frozen actor (a checkpoint path, "" = none) and the weight of
+    # KL(anchor || pi) on rows without an order (has_order = 0).
+    kl_anchor: str = ""
+    kl_anchor_coeff: float = 0.0
+    # The learner's obs width: 0 = the init's (scratch: the sim's OBS_DIM); wider
+    # than the init widens it with zero input columns (stage B: 403).
+    obs_dim: int = 0
     # §7 risk responses (all off by default).
     entropy_floor: float = 0.0
     entropy_floor_coeff: float = 0.0
@@ -326,6 +386,18 @@ class PPOConfig:
         elif self.roster_overrides:
             raise ValueError("roster_overrides needs a rosters preset")
         OpponentSchedule(self.opponent_bands)
+        if self.learner_side not in LEARNER_SIDES:
+            raise ValueError(
+                f"learner_side must be one of {LEARNER_SIDES}, got {self.learner_side}"
+            )
+        if not 0.0 <= self.pool_seed_p <= 1.0:
+            raise ValueError(f"pool_seed_p must be in [0, 1], got {self.pool_seed_p}")
+        if self.kl_anchor_coeff < 0.0 or (
+            self.kl_anchor_coeff > 0 and not self.kl_anchor
+        ):
+            raise ValueError("kl_anchor_coeff must be >= 0 and needs a kl_anchor")
+        if not 0 <= self.obs_dim <= OBS_DIM:
+            raise ValueError(f"obs_dim must be in 0..={OBS_DIM}, got {self.obs_dim}")
 
     def roster_distribution(self) -> dict[str, object]:
         """The roster distribution (preset + overrides) as a plain dict.
@@ -455,7 +527,7 @@ class PPOBatch:
     (views of the rollout buffer, not copies).
     """
 
-    obs: torch.Tensor  # [G, S, 385] every group of the update
+    obs: torch.Tensor  # [G, S, D] every group of the update
     team: torch.Tensor  # [G, S] int64, -1 = padding
     rows: torch.Tensor  # [B, 2] int64 (group, slot) of each training row
     masks: HeadMasks  # B rows
@@ -464,6 +536,7 @@ class PPOBatch:
     old_log_prob: torch.Tensor  # [B]
     advantages: torch.Tensor  # [B]
     returns: torch.Tensor  # [B]
+    anchor_rows: torch.Tensor  # [B] bool: no order in the obs (KL anchor applies)
 
     @property
     def size(self) -> int:
@@ -486,7 +559,7 @@ class PPOBatch:
     def group_view(
         self, idx: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """``(obs [U, S, 385], team [U, S], rows [K, 2])`` for the rows ``idx``,
+        """``(obs [U, S, D], team [U, S], rows [K, 2])`` for the rows ``idx``,
         re-indexed into the U groups they touch."""
         rows = self.rows[idx]
         groups, local = torch.unique(rows[:, 0], return_inverse=True)
@@ -508,6 +581,7 @@ class UpdateSettings:
     minibatch: int
     entropy_floor: float
     entropy_floor_coeff: float
+    kl_anchor_coeff: float = 0.0
 
 
 def ppo_update(
@@ -517,15 +591,20 @@ def ppo_update(
     critic_opt: torch.optim.Optimizer,
     batch: PPOBatch,
     settings: UpdateSettings,
+    anchor: SpikeActor | None = None,
 ) -> dict[str, float]:
     """Run the clipped PPO epochs on ``batch`` (minibatches of whole groups).
 
     With ``actor_frozen`` only the critic is trained; the actor's diagnostics
-    (entropy, script NLL) are computed without gradient on the first epoch.
+    (entropy, script NLL) are computed without gradient on the first epoch. With an
+    ``anchor`` actor, ``settings.kl_anchor_coeff * KL(anchor || actor)`` (mean over
+    the minibatch's ``anchor_rows``) joins the actor loss.
 
     Returns:
         Mean diagnostics: pg_loss, value_loss, approx_kl, clip_fraction,
-        aux_script_nll, entropy_mean and entropy_<group>.
+        aux_script_nll, entropy_mean and entropy_<group>; with an anchor also
+        kl_anchor (on anchor rows), kl_anchor_ordered (on the other rows) and
+        kl_anchor_share.
     """
     if batch.size == 0:
         raise ValueError("PPO batch is empty (no unmasked learner rows)")
@@ -553,9 +632,13 @@ def ppo_update(
                 critic_opt.step()
                 if epoch == 0:
                     with torch.no_grad():
-                        _actor_terms(actor, obs, masks, batch, idx, adv, settings, add)
+                        _actor_terms(
+                            actor, obs, masks, batch, idx, adv, settings, add, anchor
+                        )
                 continue
-            actor_loss = _actor_terms(actor, obs, masks, batch, idx, adv, settings, add)
+            actor_loss = _actor_terms(
+                actor, obs, masks, batch, idx, adv, settings, add, anchor
+            )
             loss = actor_loss + settings.vf_coeff * value_loss
             actor_opt.zero_grad(set_to_none=True)
             critic_opt.zero_grad(set_to_none=True)
@@ -576,9 +659,10 @@ def _actor_terms(
     adv: torch.Tensor,
     settings: UpdateSettings,
     add: Callable[[str, float], None],
+    anchor: SpikeActor | None = None,
 ) -> torch.Tensor:
     """Actor loss of one minibatch; records its diagnostics through ``add``."""
-    head_lp, head_ent, label_lp = actor.evaluate_heads_and_labels(
+    head_lp, head_ent, label_lp, heads = actor.evaluate_with_heads(
         obs, masks, batch.actions[idx], batch.labels[idx]
     )
     valid = masks.head_valid()
@@ -596,6 +680,8 @@ def _actor_terms(
         per_head = head_ent.sum(0) / valid.sum(0).clamp(min=1)
         shortfall = (settings.entropy_floor - per_head).clamp(min=0.0)
         loss = loss + settings.entropy_floor_coeff * shortfall[valid.any(0)].sum()
+    if anchor is not None:
+        loss = loss + _anchor_term(anchor, obs, heads, valid, batch, idx, settings, add)
     with torch.no_grad():
         add("pg_loss", float(pg_loss))
         add("approx_kl", float(((ratio - 1.0) - log_ratio).mean()))
@@ -609,6 +695,33 @@ def _actor_terms(
     return loss
 
 
+def _anchor_term(
+    anchor: SpikeActor,
+    obs: torch.Tensor,
+    heads: object,
+    valid: torch.Tensor,
+    batch: PPOBatch,
+    idx: torch.Tensor,
+    settings: UpdateSettings,
+    add: Callable[[str, float], None],
+) -> torch.Tensor:
+    """``kl_anchor_coeff * mean KL(anchor || actor)`` over the minibatch's anchor
+    rows (0 when it has none); logs the KL on both row sets."""
+    with torch.no_grad():
+        reference = anchor.head_log_softmax(fit_obs(obs, anchor.obs_dim))
+    kl = head_kl(reference, heads, valid)  # type: ignore[arg-type]
+    rows = batch.anchor_rows[idx]
+    n_rows = int(rows.sum())
+    anchored = kl[rows].mean() if n_rows else kl.sum() * 0.0
+    with torch.no_grad():
+        add("kl_anchor_share", n_rows / max(int(rows.numel()), 1))
+        if n_rows:
+            add("kl_anchor", float(anchored))
+        if n_rows < rows.numel():
+            add("kl_anchor_ordered", float(kl[~rows].mean()))
+    return settings.kl_anchor_coeff * anchored
+
+
 # ---------------------------------------------------------------------------
 # Rollout storage
 # ---------------------------------------------------------------------------
@@ -617,13 +730,20 @@ def _actor_terms(
 class RolloutStorage:
     """``[n_steps + t_tail, R]`` buffers; see the module docstring for the tail."""
 
-    def __init__(self, n_steps: int, t_tail: int, n_envs: int, n_ships: int) -> None:
+    def __init__(
+        self,
+        n_steps: int,
+        t_tail: int,
+        n_envs: int,
+        n_ships: int,
+        obs_dim: int = OBS_DIM,
+    ) -> None:
         self.n_steps = n_steps
         self.t_tail = t_tail
         self.length = n_steps + t_tail
         rows = n_envs * n_ships
         length = self.length
-        self.obs = np.zeros((length, rows, OBS_DIM), dtype=np.float32)
+        self.obs = np.zeros((length, rows, obs_dim), dtype=np.float32)
         self.actions = np.zeros((length, rows, ACTION_WIDTH), dtype=np.int8)
         self.labels = np.zeros((length, rows, ACTION_WIDTH), dtype=np.int8)
         self.log_prob = np.zeros((length, rows), dtype=np.float32)
@@ -632,6 +752,10 @@ class RolloutStorage:
         self.dones = np.zeros((length, rows), dtype=np.bool_)
         self.act_mask = np.zeros((length, rows), dtype=np.bool_)
         self.learner = np.zeros((length, rows), dtype=np.bool_)
+        # The env obs showed an order (has_order; the KL anchor skips these rows).
+        self.has_order = np.zeros((length, rows), dtype=np.bool_)
+        # Strike craft on the learner's side of their env (logged stats).
+        self.side = np.zeros((length, rows), dtype=np.bool_)
         # Each slot's match before the step (rosters change at resets): team (-1 =
         # padding), hull id and head masks.
         self.team = np.zeros((length, rows), dtype=np.int8)
@@ -646,6 +770,8 @@ class RolloutStorage:
         self.fire_cost = np.zeros((length, rows), dtype=np.float32)
         self.arena = np.zeros((length, rows), dtype=np.float32)
         self.shaping = np.zeros((length, rows), dtype=np.float32)
+        self.team_reward = np.zeros((length, rows), dtype=np.float32)
+        self.order_reward = np.zeros((length, rows), dtype=np.float32)
         self.shots = np.zeros((length, rows), dtype=np.int32)
         self.hits = np.zeros((length, rows), dtype=np.int32)
         self.outside = np.zeros((length, rows), dtype=np.bool_)
@@ -696,16 +822,26 @@ class EpisodeTally:
     ships: list[int] = field(default_factory=list)
     # Roster size class -> [wins, draws, losses] against the script.
     scripted_by_class: dict[str, list[int]] = field(default_factory=dict)
+    # Class -> [wins, draws, losses] against every opponent.
+    by_class: dict[str, list[int]] = field(default_factory=dict)
 
     def add(
-        self, kind: int, winner: int, length: int, size_class: str, n_ships: int
+        self,
+        kind: int,
+        winner: int,
+        length: int,
+        size_class: str,
+        n_ships: int,
+        learner_team: int = 0,
     ) -> None:
-        """Record one finished episode; winner is the sim's (0, 1, -1 draw)."""
+        """Record one finished episode; winner is the sim's (0, 1, -1 draw) and
+        ``learner_team`` the learner's side of it."""
         name = KIND_NAMES[OpponentKind(kind)]
-        slot = 0 if winner == 0 else (1 if winner == -1 else 2)
+        slot = 0 if winner == learner_team else (1 if winner == -1 else 2)
         self.outcomes[name][slot] += 1
         self.lengths.append(length)
         self.ships.append(n_ships)
+        self.by_class.setdefault(size_class, [0, 0, 0])[slot] += 1
         if kind == OpponentKind.SCRIPTED:
             self.scripted_by_class.setdefault(size_class, [0, 0, 0])[slot] += 1
 
@@ -729,7 +865,22 @@ class EpisodeTally:
             klass: (win + 0.5 * draw) / (win + draw + loss)
             for klass, (win, draw, loss) in sorted(self.scripted_by_class.items())
         }
+        out["win_by_class"] = {
+            klass: (win + 0.5 * draw) / (win + draw + loss)
+            for klass, (win, draw, loss) in sorted(self.by_class.items())
+        }
+        out["episodes_by_class"] = {
+            klass: sum(counts) for klass, counts in sorted(self.by_class.items())
+        }
         return out
+
+
+def episode_class(roster: Roster, learner_team: int) -> str:
+    """The class an episode is tallied under: the roster's class, with the
+    learner's side for a convoy (``convoy_escort/defend`` or ``/attack``)."""
+    if roster.mission == CONVOY_ESCORT:
+        return f"{roster.klass}/{'defend' if learner_team == 0 else 'attack'}"
+    return roster.klass
 
 
 def checkpoint_path(run_dir: Path, tag: str, update: int) -> Path:
@@ -778,6 +929,7 @@ class SpikeTrainer:
         for _, path in self.pool.entries:
             if not Path(path).is_file():
                 raise FileNotFoundError(f"pool_seed checkpoint {path} not found")
+        self.anchor = self._load_anchor(config.kl_anchor)
         self.next_update = 0
         self.elapsed = 0.0
         self.actor: SpikeActor
@@ -792,7 +944,7 @@ class SpikeTrainer:
         self.env_seed = config.seed + ENV_SEED_STRIDE * self.next_update
         sampler = None
         if config.rosters:
-            sampler = RosterSampler(
+            sampler = make_sampler(
                 resolve_distribution(config.roster_distribution()), self.env_seed
             )
         self.env = RustVecEnv(
@@ -810,8 +962,17 @@ class SpikeTrainer:
         self.n_envs, self.n_ships = self.env.n_envs, self.env.n_ships
         self.rows = self.n_envs * self.n_ships
         self.hull_names = hull_names_by_id(Path(config.assets_dir))
+        self.capital_ids = np.asarray(
+            capital_hull_ids(Path(config.assets_dir)), dtype=np.int64
+        )
+        self.obs_dim = self.actor.obs_dim
+        if self.critic.obs_dim != self.obs_dim or self.obs_dim > OBS_DIM:
+            raise ValueError(
+                f"nets take {self.actor.obs_dim} / {self.critic.obs_dim} obs floats, "
+                f"the sim gives {OBS_DIM}"
+            )
         self.storage = RolloutStorage(
-            config.n_steps, config.t_tail, self.n_envs, self.n_ships
+            config.n_steps, config.t_tail, self.n_envs, self.n_ships, self.obs_dim
         )
         self.credit = RustCreditAdapter(
             self.n_envs,
@@ -820,8 +981,17 @@ class SpikeTrainer:
             credit_dead_shooters=config.credit_dead_shooters,
         )
         self.schedule = OpponentSchedule(config.opponent_bands)
-        self.opponents = OpponentAssigner(self.n_envs, self.schedule, self.rng)
+        self.opponents = OpponentAssigner(
+            self.n_envs,
+            self.schedule,
+            self.rng,
+            n_seeds=len(config.pool_seed),
+            seed_p=config.pool_seed_p,
+        )
         self.opponents.assign_all(self.next_update, len(self.pool))
+        # The learner's team in each env's current match (module docstring).
+        self.learner_team = np.zeros(self.n_envs, dtype=np.int8)
+        self._draw_learner_sides(np.arange(self.n_envs))
         self.log_path = run_dir / "log.jsonl"
         self._collected = range(0)
         for _ in range(config.env_warmup_steps):
@@ -837,15 +1007,52 @@ class SpikeTrainer:
 
     def _initial_nets(self) -> tuple[SpikeActor, Critic]:
         """Actor and critic of a new run; a spike critic from the init checkpoint
-        becomes the base of a fleet critic when ``config.critic`` is "fleet"."""
+        becomes the base of a fleet critic when ``config.critic`` is "fleet". An
+        init narrower than the sim's obs is widened with zero input columns, so it
+        acts and values exactly as the init on the obs prefix."""
+        width = self.config.obs_dim
         if self.config.init == INIT_SCRATCH:
-            fresh: Critic = SpikeCritic()
-            return SpikeActor(), as_critic_kind(fresh, self.config.critic)
+            width = width or OBS_DIM
+            fresh: Critic = SpikeCritic(obs_dim=width)
+            return SpikeActor(obs_dim=width), as_critic_kind(fresh, self.config.critic)
         path = Path(self.config.init)
         if not path.is_file():
             raise FileNotFoundError(f"init policy {path} not found")
         actor, critic, _ = load_policy(path)
+        width = width or actor.obs_dim
+        if width < actor.obs_dim:
+            raise ValueError(f"init {path} is {actor.obs_dim} wide, obs_dim {width}")
+        if actor.obs_dim < width:
+            print(
+                f"init {path.name}: widening the actor and critic from "
+                f"{actor.obs_dim} to {width} obs floats (new columns zero)",
+                flush=True,
+            )
+            actor = widen_actor(actor, width)
+            critic = widen_critic(critic, width)
         return actor, as_critic_kind(critic, self.config.critic)
+
+    @staticmethod
+    def _load_anchor(path: str) -> SpikeActor | None:
+        """The frozen KL-anchor actor, or None without one.
+
+        Raises:
+            FileNotFoundError: ``path`` is set but missing.
+        """
+        if not path:
+            return None
+        if not Path(path).is_file():
+            raise FileNotFoundError(f"kl_anchor checkpoint {path} not found")
+        anchor, _, _ = load_policy(Path(path))
+        anchor.eval()
+        for param in anchor.parameters():
+            param.requires_grad_(False)
+        return anchor
+
+    def _draw_learner_sides(self, envs: NDArray[np.integer]) -> None:
+        """The learner's team for ``envs``' next episode (``config.learner_side``)."""
+        if self.config.learner_side == "random" and len(envs):
+            self.learner_team[envs] = self.rng.integers(0, 2, size=len(envs))
 
     def _make_optimisers(self) -> None:
         self.actor_opt = torch.optim.Adam(
@@ -872,6 +1079,7 @@ class SpikeTrainer:
         meta = {
             "kind": "spike_ppo",
             "sim_version": SIM_VERSION,
+            "obs_dim": self.actor.obs_dim,
             "update": self.next_update,
             "config": self.config.to_dict(),
         }
@@ -979,6 +1187,7 @@ class SpikeTrainer:
             minibatch=cfg.minibatch,
             entropy_floor=cfg.entropy_floor,
             entropy_floor_coeff=cfg.entropy_floor_coeff,
+            kl_anchor_coeff=cfg.kl_anchor_coeff,
         )
         metrics: dict[str, float | None] = dict.fromkeys(PPO_METRIC_KEYS)
         if batch.size:
@@ -990,6 +1199,7 @@ class SpikeTrainer:
                     self.critic_opt,
                     batch,
                     settings,
+                    self.anchor,
                 )
             )
         else:
@@ -1019,6 +1229,8 @@ class SpikeTrainer:
             "critic_lr": cfg.critic_lr * lr_scale,
             "actor_frozen": settings.actor_frozen,
             "snapshot_pool": self.pool.updates(),
+            "order_reward_weight": cfg.order_reward_weight,
+            "kl_anchor_coeff": cfg.kl_anchor_coeff,
         }
         row.update(reward_stats)
         row.update(tally.log_fields())
@@ -1048,19 +1260,26 @@ class SpikeTrainer:
         for b in collect:
             kinds = self.opponents.kinds
             team = env.team.reshape(rows)
+            hull = env.hull_id.reshape(rows)
             store.team[b] = team
-            store.hull[b] = env.hull_id.reshape(rows)
+            store.hull[b] = hull
             store.thruster[b] = env.thruster_mask.reshape(rows, N_THRUSTERS)
             store.turret[b] = env.turret_mask.reshape(rows, N_TURRETS)
             store.fixed[b] = env.fixed_turret.reshape(rows, N_TURRETS)
             masks = store.masks(slice(b, b + 1))
             self_play_env = np.repeat(kinds == OpponentKind.SELF, n_ships)
-            learner = (team == 0) | ((team == 1) & self_play_env)
+            side = np.repeat(self.learner_team, n_ships)
+            # Strike craft only: capital ships keep their script's actions.
+            pilot = (team >= 0) & ~np.isin(hull, self.capital_ids)
+            own = pilot & (team == side)
+            learner = own | (pilot & (team == 1 - side) & self_play_env)
             store.learner[b] = learner
+            store.side[b] = own
             policy_np = np.flatnonzero(learner)
             policy_rows = torch.from_numpy(policy_np)
-            obs_now = policy_obs(env.obs).reshape(rows, OBS_DIM)
-            store.obs[b] = obs_now
+            env_obs = env.obs.reshape(rows, OBS_DIM)
+            store.has_order[b] = env_obs[:, HAS_ORDER_COL] > 0.5
+            store.obs[b] = fit_obs(env_obs, self.obs_dim)
             store.act_mask[b] = env.act_mask.reshape(rows)
             # Script labels for every row (each hull's own script); team-1 scripted
             # rows keep them as their actions.
@@ -1071,7 +1290,7 @@ class SpikeTrainer:
             with torch.no_grad():
                 out = self.actor.sample(obs_t[policy_rows], masks.index(policy_rows))
                 values = self.critic.forward_set(
-                    obs_t.reshape(n_envs, n_ships, OBS_DIM),
+                    obs_t.reshape(n_envs, n_ships, self.obs_dim),
                     torch.from_numpy(team.astype(np.int64)).reshape(n_envs, n_ships),
                     _pairs(policy_np, n_ships),
                 )
@@ -1079,10 +1298,15 @@ class SpikeTrainer:
                 for index, envs in snapshot_groups(
                     kinds, self.opponents.snapshot
                 ).items():
-                    snap_np = _team_rows(envs, team, n_ships, 1)
+                    snap_np = _team_rows(
+                        envs, team, n_ships, 1 - self.learner_team[envs]
+                    )
+                    snap_np = snap_np[pilot[snap_np]]
                     snap_rows = torch.from_numpy(snap_np)
-                    snap = self.pool.actor(index).sample(
-                        obs_t[snap_rows], masks.index(snap_rows)
+                    snap_actor = self.pool.actor(index)
+                    snap = snap_actor.sample(
+                        fit_obs(obs_t[snap_rows], snap_actor.obs_dim),
+                        masks.index(snap_rows),
                     )
                     actions[snap_np] = snap.actions.to(torch.int8).numpy()
             store.log_prob[b] = 0.0
@@ -1106,14 +1330,17 @@ class SpikeTrainer:
                 lengths = info.prev_tick[done_envs].astype(np.int64) + 1
                 for env_id, length in zip(done_envs, lengths):
                     roster = rosters[int(env_id)]
+                    learner_team = int(self.learner_team[env_id])
                     tally.add(
                         int(kinds[env_id]),
                         int(info.winner[env_id]),
                         int(length),
-                        roster.size_class,
+                        episode_class(roster, learner_team),
                         roster.n_ships,
+                        learner_team,
                     )
                 self.opponents.assign(done_envs, update, len(self.pool))
+                self._draw_learner_sides(done_envs)
         store.filled = store.length
         self._collected = collect
         return tally, len(collect)
@@ -1166,7 +1393,7 @@ class SpikeTrainer:
             decided = done_rows & (win_rows >= 0) & (team >= 0)
             terminal[decided] = np.where(team[decided] == win_rows[decided], 1, -1)
 
-        next_obs = policy_obs(self.env.obs).reshape(rows, OBS_DIM)
+        next_obs = self.env.obs.reshape(rows, OBS_DIM)
         outside = (next_obs[:, _ARENA_MARGIN_COL] < 0.0) & prev_alive & ~done_rows
         store.outside[b] = outside
         store.arena[b] = ARENA_PENALTY * outside
@@ -1184,7 +1411,10 @@ class SpikeTrainer:
             shaping -= cfg.tick_cost * prev_alive
         if cfg.extra_arena_penalty:
             shaping -= cfg.extra_arena_penalty * outside
-        store.rewards[b] = raw + shaping
+        store.team_reward[b] = raw + shaping
+        order = store.order_reward[b]
+        order[:] = info.order_rewards.reshape(rows)
+        store.rewards[b] = store.team_reward[b] + cfg.order_reward_weight * order
 
     # -- GAE + batch ---------------------------------------------------------
 
@@ -1209,7 +1439,7 @@ class SpikeTrainer:
             real = np.flatnonzero(team_now.reshape(-1) >= 0)
             last_values = np.zeros(self.rows, dtype=np.float32)
             last_values[real] = self._values(
-                policy_obs(self.env.obs).reshape(1, self.rows, OBS_DIM),
+                fit_obs(self.env.obs, self.obs_dim).reshape(1, self.rows, self.obs_dim),
                 team_now,
                 real,
             ).numpy()
@@ -1230,8 +1460,14 @@ class SpikeTrainer:
         stats["explained_variance"] = (
             float(1.0 - np.var(rets - values) / var) if var > 0 else 0.0
         )
+        anchor_rows = ~store.has_order[:n].reshape(-1)[flat]
+        stats["has_order_share"] = (
+            float(1.0 - anchor_rows.mean()) if flat.size else None
+        )
         batch = PPOBatch(
-            obs=torch.from_numpy(store.obs[:n].reshape(n * n_envs, n_ships, OBS_DIM)),
+            obs=torch.from_numpy(
+                store.obs[:n].reshape(n * n_envs, n_ships, self.obs_dim)
+            ),
             team=torch.from_numpy(
                 store.team[:n].reshape(n * n_envs, n_ships).astype(np.int64)
             ),
@@ -1246,6 +1482,7 @@ class SpikeTrainer:
             old_log_prob=torch.from_numpy(store.log_prob[:n].reshape(-1)[flat]),
             advantages=torch.from_numpy(advantages[:n].reshape(-1)[flat]),
             returns=torch.from_numpy(rets),
+            anchor_rows=torch.from_numpy(anchor_rows),
         )
         return batch, stats
 
@@ -1259,7 +1496,7 @@ class SpikeTrainer:
         length = obs.shape[0]
         groups = length * self.n_envs
         return self.critic.forward_set(
-            torch.from_numpy(obs).reshape(groups, self.n_ships, OBS_DIM),
+            torch.from_numpy(obs).reshape(groups, self.n_ships, self.obs_dim),
             torch.from_numpy(team.astype(np.int64)).reshape(groups, self.n_ships),
             _pairs(flat, self.n_ships),
         )
@@ -1268,14 +1505,14 @@ class SpikeTrainer:
         """Reward split and behaviour stats over the learner's team-0 rows of the
         newly collected steps (before credit is injected), overall and per hull."""
         store = self.storage
-        team0 = store.team[new] == 0
+        team0 = store.side[new]
         active = store.act_mask[new] & team0
         samples = max(int(team0.sum()), 1)
 
         def mean(arr: NDArray[np.generic]) -> float:
             return float(arr[new][team0].sum()) / samples
 
-        credit = self.credit.credit[store.team == 0]
+        credit = self.credit.credit[store.side]
         shots = int(store.shots[new][team0].sum())
         hits = int(store.hits[new][team0].sum())
         n_active = max(int(active.sum()), 1)
@@ -1299,6 +1536,10 @@ class SpikeTrainer:
             )
         return {
             "reward_mean": mean(store.rewards),
+            "reward_team": mean(store.team_reward),
+            "reward_order": mean(store.order_reward),
+            "reward_order_weighted": self.config.order_reward_weight
+            * mean(store.order_reward),
             "reward_damage_dealt": mean(store.dealt),
             "reward_damage_taken": -mean(store.taken),
             "reward_fire_cost": mean(store.fire_cost),
@@ -1328,11 +1569,16 @@ def _pairs(flat: NDArray[np.int64], n_ships: int) -> torch.Tensor:
 
 
 def _team_rows(
-    envs: NDArray[np.int64], team: NDArray[np.int8], n_ships: int, which: int
+    envs: NDArray[np.int64],
+    team: NDArray[np.int8],
+    n_ships: int,
+    which: int | NDArray[np.integer],
 ) -> NDArray[np.int64]:
-    """Flat rows of every ship of team ``which`` in ``envs`` (``team`` is [N * S])."""
+    """Flat rows of every ship of team ``which`` in ``envs`` (``team`` is [N * S];
+    ``which`` is one team or one per env)."""
     rows = (envs[:, None] * n_ships + np.arange(n_ships)[None, :]).reshape(-1)
-    return rows[team[rows] == which]
+    wanted = np.repeat(np.broadcast_to(np.asarray(which), envs.shape), n_ships)
+    return rows[team[rows] == wanted]
 
 
 def _pool_name(path: str, ckpt_dir: Path) -> str:

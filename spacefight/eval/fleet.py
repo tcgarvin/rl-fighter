@@ -456,9 +456,20 @@ def _block(obs: NDArray[np.float32], name: str) -> NDArray[np.float32]:
 
 
 class _FleetTracker:
-    """Accumulates ``FleetRecords`` step by step for the still-running matches."""
+    """Accumulates ``FleetRecords`` step by step for the still-running matches.
 
-    def __init__(self, env: RustVecEnv, entry: NDArray[np.int64]) -> None:
+    ``a_team`` (default: alternating inside each roster's block of envs) is side
+    ``a``'s team per env; ``scripted`` ([N, S] bool, default none) marks slots the
+    sim's scripts fly whatever their side (capital ships in a mission).
+    """
+
+    def __init__(
+        self,
+        env: RustVecEnv,
+        entry: NDArray[np.int64],
+        a_team: NDArray[np.int64] | None = None,
+        scripted: NDArray[np.bool_] | None = None,
+    ) -> None:
         n, s = env.n_envs, env.n_ships
         self.radius = env.arena_radius.astype(np.float64).copy()
         self.stuck_ticks = int(round(STUCK_SECONDS * TICK_HZ))
@@ -466,9 +477,13 @@ class _FleetTracker:
         self.in_range = np.zeros((n, s), dtype=bool)
         self.slow_run = np.zeros((n, s), dtype=np.int64)
         team = env.team.astype(np.int64).copy()
-        # Alternate a's side inside each roster's block of envs.
-        block_start = np.searchsorted(entry, entry, side="left")
-        a_team = (np.arange(n) - block_start) % 2
+        if a_team is None:
+            # Alternate a's side inside each roster's block of envs.
+            block_start = np.searchsorted(entry, entry, side="left")
+            a_team = (np.arange(n) - block_start) % 2
+        self.scripted = (
+            np.zeros((n, s), dtype=bool) if scripted is None else scripted.copy()
+        )
         self.a_rows = team == a_team[:, None]
         self.b_rows = team == (1 - a_team)[:, None]
 
@@ -511,8 +526,11 @@ class _FleetTracker:
         n, s = env.n_envs, env.n_ships
         decide = self.running[:, None] & env.act_mask
         actions = idle_actions(n * s).reshape(n, s, -1)
+        by_script = decide & self.scripted
+        if by_script.any():
+            actions[by_script] = env.scripted_actions()[by_script]
         for ctrl, side in ((a, self.a_rows), (b, self.b_rows)):
-            rows = decide & side
+            rows = decide & side & ~self.scripted
             if rows.any():
                 actions[rows] = ctrl.act(env, rows)
         offset, width = ACTION_LAYOUT["fire"]
