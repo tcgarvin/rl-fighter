@@ -28,6 +28,7 @@ health. A candidate passes when every check passes.
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from typing import Any, Self
@@ -57,6 +58,7 @@ __all__ = [
     "check",
     "failures",
     "markdown",
+    "orders_n",
     "pick",
     "teacher_bounds",
 ]
@@ -74,6 +76,8 @@ TEACHER_FACTOR = 1.05  # "<=" bounds: teacher x this
 # Sample sizes O needs to judge at all.
 MIN_INSTANCES = 30
 MIN_WARD_MINUTES = 300.0
+# Sizing the following eval: this many times MIN_WARD_MINUTES, from a small run.
+SIZE_MARGIN = 1.3
 # M: also against run 1's w1_400 (the init).
 MIN_MISSION_WIN_MEAN_VS_W1 = 0.45
 
@@ -342,6 +346,21 @@ def _following(
         need = bound.need(hid)
         text = bound.text if need is None else f"{bound.text} -> {bound.op} {need:.3f}"
         c.add("O", name, value, text, _passes(bound, hid))
+
+
+def orders_n(sizing: OrdersResult, block: int, low: int, high: int) -> int:
+    """Matches per random-commander scenario so that a pilot like the one in
+    ``sizing`` (a small followed run) defends ``SIZE_MARGIN x MIN_WARD_MINUTES``
+    ward-minutes: a multiple of ``block`` (twice the default rosters), clamped to
+    ``[low, high]``."""
+    f = sizing.by_commander[RANDOM][FOLLOWED]
+    scenarios = len(sizing.config.missions)
+    per_match = f.defend.ward_minutes / (sizing.config.n_per_scenario * scenarios)
+    if per_match <= 0.0:
+        return high
+    need = SIZE_MARGIN * MIN_WARD_MINUTES / per_match / scenarios
+    n = block * math.ceil(need / block)
+    return int(min(max(n, low), high))
 
 
 def _passes(bound: Bound, hidden: float | None) -> Callable[[float], bool]:

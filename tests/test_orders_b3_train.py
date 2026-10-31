@@ -41,6 +41,7 @@ from spacefight.rl.spike_ppo import (
     first_layer_weights,
     transit_rows,
 )
+from tools.export_policy import ExportError, export
 
 ASSETS = str(Path(__file__).resolve().parent.parent / "assets")
 THREADS = 2
@@ -372,3 +373,44 @@ def test_v6_env_exports_the_order_bindings() -> None:
     for key in ("standing_kind", "effective_kind", "target", "radius", "arrived"):
         assert np.asarray(tracks[key]).shape == (n, s), key
     assert np.asarray(tracks["point"]).shape == (n, s, 2)
+
+
+# ------------------------------------------------------------------ export
+
+
+def test_export_takes_a_583_wide_v6_pilot_into_a_v6_build_only(tmp_path: Path) -> None:
+    actor = widen_actor(SpikeActor(), V6_OBS_DIM)
+    path = tmp_path / "b3.pt"
+    save_policy(path, actor, SpikeCritic(obs_dim=V6_OBS_DIM), {"sim_version": 6})
+    manifest = export(
+        path,
+        tmp_path / "out",
+        wasm_sim_version=6,
+        wasm_obs_dim=V6_OBS_DIM,
+        wasm_pilot_compat=[3, 4, 5, 6],
+        wasm_pilot_obs_dims=PILOT_OBS_DIMS,
+    )
+    assert manifest["obs_dim"] == V6_OBS_DIM and manifest["sim_version"] == 6
+    assert manifest["layers"][0]["in"] == V6_OBS_DIM
+    with pytest.raises(ExportError):  # a v6 pilot in a v5 build
+        export(
+            path,
+            tmp_path / "o2",
+            wasm_sim_version=5,
+            wasm_obs_dim=ORDER_OBS_DIM,
+            wasm_pilot_compat=[3, 4, 5],
+            wasm_pilot_obs_dims=PILOT_OBS_DIMS,
+        )
+    # A v5 pilot (w1_400's width) still exports into a v6 build, on its prefix.
+    v5 = tmp_path / "w1.pt"
+    narrow = widen_actor(SpikeActor(), ORDER_OBS_DIM)
+    save_policy(v5, narrow, SpikeCritic(obs_dim=ORDER_OBS_DIM), {"sim_version": 5})
+    manifest = export(
+        v5,
+        tmp_path / "o3",
+        wasm_sim_version=6,
+        wasm_obs_dim=V6_OBS_DIM,
+        wasm_pilot_compat=[3, 4, 5, 6],
+        wasm_pilot_obs_dims=PILOT_OBS_DIMS,
+    )
+    assert manifest["obs_dim"] == ORDER_OBS_DIM

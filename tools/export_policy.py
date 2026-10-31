@@ -17,13 +17,15 @@ The export refuses a checkpoint whose obs_dim or sim_version does not match the
 WASM build it will run against (``--wasm-sim-version`` / ``--wasm-obs-dim``, which
 ``scripts/build_site.sh`` reads from the freshly built bundle). SIM_VERSION 5: a
 pilot reads the obs prefix of its own sim version (``--wasm-pilot-obs-dims``, the
-build's ``pilotObsDimsJson()``: 385 for a v3/v4 pilot, 403 for v5), so a v3/v4
-checkpoint exports into a v5 bundle. The manifest records both widths
-(``obs_dim``, the pilot's; ``sim_obs_dim``, the build's).
+build's ``pilotObsDimsJson()``: 385 for a v3/v4 pilot, 403 for v5, 583 for v6), so
+an older checkpoint exports into a newer bundle. The manifest records both widths
+(``obs_dim``, the pilot's; ``sim_obs_dim``, the build's). A SIM_VERSION 6 pilot (run
+B3) exports with 583 inputs and ``sim_version`` 6 into a v6 build only.
 
     python -m tools.export_policy --checkpoint X.pt --out web/public/bundle/policy \\
-        --wasm-sim-version 5 --wasm-obs-dim 403 --wasm-pilot-compat 3,4,5 \\
-        --wasm-pilot-obs-dims '{"3": 385, "4": 385, "5": 403}' [--eval-json x.json]
+        --wasm-sim-version 6 --wasm-obs-dim 583 --wasm-pilot-compat 3,4,5,6 \\
+        --wasm-pilot-obs-dims '{"3": 385, "4": 385, "5": 403, "6": 583}' \\
+        [--eval-json x.json]
 """
 
 from __future__ import annotations

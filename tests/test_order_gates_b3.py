@@ -4,7 +4,9 @@ the checks against the hidden pass, M against v1 and w1_400, and the pick."""
 from __future__ import annotations
 
 import dataclasses
+import importlib.util
 from pathlib import Path
+from types import ModuleType
 
 import numpy as np
 import pytest
@@ -223,3 +225,74 @@ def test_an_unjudgeable_defend_fails_and_a_missing_hidden_pass_is_an_error(
             _evals(_orders(_follow()), _missions({CARRIER_BATTLE: 0.6}), 1),
             baselines,
         )
+
+
+def test_orders_n_sizes_the_eval_for_the_ward_minutes() -> None:
+    # 0.5 ward-minutes per match: 390 minutes over two missions = 390 per mission.
+    sizing = dataclasses.replace(
+        _orders(_follow(minutes=0.5 * 2 * 48)),
+        config=OrdersEvalConfig(n_per_scenario=48),
+    )
+    assert G.orders_n(sizing, 6, 96, 480) == 390
+    assert G.orders_n(sizing, 6, 96, 300) == 300
+    rich = dataclasses.replace(sizing, by_commander={RANDOM: {FOLLOWED: _follow()}})
+    assert G.orders_n(rich, 6, 96, 480) == 96
+    none = dataclasses.replace(
+        sizing, by_commander={RANDOM: {FOLLOWED: _follow(minutes=0.0)}}
+    )
+    assert G.orders_n(none, 6, 96, 480) == 480
+
+
+def _run_gates_module() -> ModuleType:
+    path = REPO / "lab/runs/2026-11-01-order-pilot-b3/gates.py"
+    spec = importlib.util.spec_from_file_location("b3_gates", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_run_gates_size_fix_bounds_first_and_judge_candidates(tmp_path: Path) -> None:
+    gates = _run_gates_module()
+    out = tmp_path / "eval"
+    out.mkdir()
+    sizing = dataclasses.replace(
+        _orders(_follow(minutes=0.5 * 2 * 48)),
+        config=OrdersEvalConfig(n_per_scenario=48),
+    )
+    (out / "sizing_w1_400_orders.json").write_text(sizing.to_json())
+    assert gates.size(out, 96, 480) == 390
+    teacher = _orders(_follow(share=0.60, close=90.0, hull_lost=0.05, threat=0.80))
+    w1 = _orders(_follow(), _follow(share=0.45, hull_lost=0.12, threat=0.60))
+    (out / "teacher_orders.json").write_text(teacher.to_json())
+    (out / "w1_400_orders.json").write_text(w1.to_json())
+    gates.write_bounds(out)
+    assert (out / "o_bounds.md").is_file()
+    v1 = _missions({CARRIER_BATTLE: 0.5, CONVOY_ESCORT: 0.5}, 0.02)
+    (out / "v1_vs_v1_missions.json").write_text(v1.to_json())
+    fleet = (FLEET_EVAL / "warm_400_fleet_vs_script.json").read_text()
+    (out / "v1_fleet_vs_script.json").write_text(fleet)
+    cand = _orders(
+        _follow(share=0.55, hull_lost=0.08, threat=0.70),
+        _follow(share=0.45, hull_lost=0.12, threat=0.60),
+    )
+    files = {
+        "_orders.json": cand.to_json(),
+        "_missions_vs_v1.json": _missions(
+            {CARRIER_BATTLE: 0.6, CONVOY_ESCORT: 0.55}
+        ).to_json(),
+        "_missions_vs_w1_400.json": _missions(
+            {CARRIER_BATTLE: 0.5, CONVOY_ESCORT: 0.5}
+        ).to_json(),
+        "_fleet_vs_script.json": fleet,
+        "_fleet_vs_v1.json": (FLEET_EVAL / "warm_600_fleet_vs_ref.json").read_text(),
+    }
+    for suffix, text in files.items():
+        (out / f"transit_100{suffix}").write_text(text)
+    assert gates.candidates(out) == ["transit_100"]
+    assert gates.gates(out, []) == 0
+    assert "pick: transit_100" in (out / "gates.md").read_text()
+    # Once a candidate is judged, a different teacher cannot move the bounds.
+    (out / "teacher_orders.json").write_text(_orders(_follow(share=0.1)).to_json())
+    with pytest.raises(SystemExit, match="keep it"):
+        gates.write_bounds(out)
