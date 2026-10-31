@@ -6,7 +6,7 @@
 | Branch | `m3-orders-run` (merged after WP-B1's `m3-orders-sim`, SIM_VERSION 5) |
 | Question | Starting from fleet pilot v1 with the new order inputs zeroed, does PPO with a small order reward teach the pilot to fly attack, guard and hold orders (from a random and from the scripted commander), without losing what v1 wins? Which order reward weight, 1 or 0.3? |
 | Scenario | rosters `orders_v1`: deathmatch 0.4 (`fleet_v1` draws) / carrier battle 0.3 / convoy 0.3, each team's commander scripted or random with p = ½, padded to 12 ships; arena 450 m; clocks 90 / 150 / 120 s; `reaction_ticks` 2; `SIM_VERSION` 5 |
-| Status | **planned**: gates fixed below before any eval of an order pilot |
+| Status | **planned**: gates fixed below before any eval of an order pilot; `SMOKE=1` passes every stage on SIM_VERSION 5 |
 | Ships | the pick replaces fleet pilot v1 on the live page, where the stage B page draws the commander's orders and shows the ships flying them |
 
 ## 1. Why, and what would count
@@ -52,6 +52,14 @@ the gates read (v5 keeps v4's first 385 obs floats, so v1's numbers should repea
 | v1 vs v1: win of side a / time limit / stalemate / median length | 0.496 / 0.019 / 0.000 / 115 s | 0.502 / 0.000 / 0.000 / 68 s |
 | script vs script: win of side a / time limit / stalemate / median length | 0.443 / 0.174 / 0.000 / 134 s | 0.496 / 0.000 / 0.000 / 68 s |
 
+v1's following on SIM_VERSION 5 (the baseline stage's exact eval, run once while
+sizing the budget; the stage reruns it): random commander, attack ticks to gun range
+343 (0.53 reached, 549 instances), damage share on the target 0.391, guard time
+within 0.180, hold time inside 0.101, response 37 ticks; scripted commander, 370
+(0.70) / 0.455 / 0.203 / 0.002 / 26. So v1 already points at its order's target fast
+(response is no discriminator), mostly fights its attack target, and seldom keeps
+station.
+
 Deathmatch (`fleet_v1`, 64 per roster): v1 vs the script 0.889 (time limit 0.001,
 as in the fleet run), v1 vs v1 0.485. Script vs script is the same controller on both
 sides, so its side-a win rate measures only seed luck: 0.443 at seed 300000, 0.532
@@ -86,7 +94,10 @@ at seed 12345 (n = 516). That spread (±0.05) is why M below bounds each mission
 - **Policy and critic**: v1's `SpikeActor` and `FleetCritic`, widened to 403 inputs
   with the 18 new first-layer columns zero (`widen_actor`, `widen_critic`): at update
   0 the pilot is v1 (tested to float32 round-off on any obs whose first 385 floats
-  match). Checkpoints record `obs_dim` 403 and `sim_version` 5.
+  match). The trainer's `obs_dim = 403` asks for the widening (0, a fleet run's
+  default, keeps the init's width); every net, the learner, the anchor and each
+  pool entry, sees `obs[..., :its obs_dim]` (`fit_obs`). Checkpoints record
+  `obs_dim` 403 and `sim_version` 5.
 - **Reward**: team reward (SIM_SPEC §8, unchanged) `+ w × order_rewards`; credit and
   GAE on the sum; `reward_team`, `reward_order` (unweighted) and
   `reward_order_weighted` are logged apart.
@@ -98,7 +109,7 @@ at seed 12345 (n = 516). That spread (±0.05) is why M below bounds each mission
   long before 400 updates of drift would add up. It never touches rows with an
   order. `kl_anchor` (unordered rows) and `kl_anchor_ordered` (ordered rows, not
   penalised) are logged every update; ordered rows should drift, unordered not.
-- **Samples**: 256 envs × 128 steps (≈ 110 k learner rows per update, measured on v4);
+- **Samples**: 256 envs × 128 steps (≈ 110 k learner rows per update, measured on v5);
   credit adapter, tail and minibatches of whole matches as in the fleet run.
 
 ## 4. Method
@@ -130,9 +141,16 @@ Encoded in `spacefight/eval/order_gates.py`; `gates.py` applies them to the JSON
   side's, n = 96 per scenario (a carrier battle under the random commander gives each
   ship an order change every 3–8 slow ticks, so thousands of instances), seed
   400000. Pooled over both missions per commander mode. Order
-  instance: from a change of a ship's order (kind, target or point) to the next.
-  Attack: *ticks to gun range* (median over instances whose target started under
-  250 m, never-reached counted as last) and *damage share on the target* (pooled
+  instance: the sim's (a change of the ship's effective order's kind, target or
+  point, read from the obs: kind and instance age), until the order changes, clears
+  (a dead target reads as no order at once), or the ship dies or leaves.
+  Attack: *ticks to gun range* (median over instances whose target starts outside
+  the ship's longest gun range by at most 250 m, never-reached counted as last;
+  **amended 2026-10-30, before any order pilot was evaluated**: the decisions said
+  "targets under 250 m", but with the gunship's 340 m torpedo and the fighter's 220
+  m gauss nearly every such target starts inside range, and v1 measured 0 ticks in
+  the smoke; the share in range at the start is reported) and *damage share on the
+  target* (pooled
   damage to the ordered target / all damage dealt under attack orders). Guard: *time
   within* 90 m + the ward's bound (share of live instance ticks). Hold: *time
   inside* the radius. *Response*: ticks to the nose within 30° of the target point,
@@ -149,7 +167,7 @@ Encoded in `spacefight/eval/order_gates.py`; `gates.py` applies them to the JSON
 | gate | check | bound |
 |---|---|---|
 | **O following, random commander** | attack / guard / hold instances | ≥ 30 each |
-| | attack: median ticks to gun range (targets < 250 m) | ≤ 150 |
+| | attack: median ticks to gun range (targets 0–250 m outside it) | ≤ 150 |
 | | attack: damage share on the target | ≥ v1's + 0.10 |
 | | guard: time within | ≥ max(0.50, v1's + 0.15) |
 | | hold: time inside | ≥ max(0.40, v1's + 0.15) |
@@ -187,31 +205,37 @@ highest mean mission win vs v1; ties by the deathmatch win vs v1. If none passes
 nothing is promoted, the live page keeps v1, and `results.md` names the failed
 checks.
 
-## 6. Budget (measured on this laptop, 16 cores, no GPU, otherwise idle)
+## 6. Budget (measured on this laptop, 16 cores, no GPU)
 
-Measured 2026-10-30 on SIM_VERSION 4 with this branch's code and the `orders_v1`
-mix minus the random commander (not in v4) and with one clock per env; the order
-block adds 18 floats per row, and the random commander is the same script with a
-different order source, so v5 should cost the same. **Re-measure on v5** with
-`SMOKE=1` then the first 10 updates of the real run, and amend this table.
+Measured 2026-10-30 at 20:00–20:18 on SIM_VERSION 5 (this branch merged with WP-B1),
+with the run's exact config and sizes, the machine otherwise quiet (load 0.5–1.5
+before each measurement; 12–13 while the measured jobs ran). PPO: 12 updates per arm
+with the actor training from update 0 (no warm-up), so every update paid a full PPO
+step.
 
 | stage | measured | estimate |
 |---|---|---|
-| PPO, one arm alone, 6 sim + 6 torch | 17–21 s/update, ≈ 110 k samples (rollout 2.8 s, PPO 14 s) | |
-| **PPO, two arms at once** (6 + 6 each) | **29 s/update** mean of updates 2–8, ≈ 112 k samples, PPO ≈ 22 s | 400 updates ≈ **3.2 h** (the first 20 critic-only updates are faster; samples per update grew 1.9× over the fleet run, so allow 3.5 h) |
-| baseline (v4 timings) | missions v1 vs v1 4.5 min, script vs script 1.5 min, `fleet_v1` 0.9 min; following not runnable on v4 (≈ 1.5 min estimated) | **≈ 9 min** |
-| gate evals per candidate (12 threads) | missions vs v1 (1032 matches) 4.5 min, fleet vs script 0.9 min, fleet vs v1 1.05 min, following ≈ 1.5 min (estimate) | **≈ 8 min**; 16 candidates ≈ 2.1 h, the 8 hundreds ≈ 1.1 h |
-| secondary (blanked following, passing candidates only) | ≈ 1.5 min each | ≤ 25 min |
-| **total** | | **≈ 5.7 h** (PPO 3.3 h + evals 2.1 h + baseline and secondary), at the edge of a 6 h night |
+| **PPO, two arms at once** (6 sim + 6 torch each) | **23.7 s/update** (updates 2–12, both arms; rollout 4.0 s, GAE 0.6 s, PPO 19.1 s), ≈ 109 k samples per update | 400 updates ≈ **2.6 h**; the fleet run's samples per update grew 1.9× as its pilots learned to survive, so allow **3 h** |
+| baseline | v1 following 57 s; missions (1032 matches, two pilots) 203 s, script vs script ≈ 90 s (v4); `fleet_v1` ≈ 55 s (v4) | **≈ 7 min** |
+| gate evals per candidate (12 threads) | following 57 s, missions vs v1 203 s, deathmatch vs the script ≈ 55 s and vs v1 ≈ 65 s (v4 timings, the deathmatch is unchanged in v5) | **≈ 6.5 min**; 16 candidates ≈ **1.7 h**, the 8 hundreds ≈ 0.9 h |
+| secondary (blanked following, passing candidates only) | ≈ 1 min each | ≤ 16 min |
+| **total** | | **≈ 4.6–5.0 h**: fits a 6 h night |
 
 The eval stage runs the 100-update checkpoints first (`EVAL_UPDATES` "100 200 300
 400 50 150 250 350"), so if the night runs short the gates can already pick among
-the even hundreds, and the rest are resumable (`run.sh eval gates`).
-**The cut, if the v5 re-measure is slower**: above 33 s/update, evaluate the hundreds
-on the night (`EVAL_UPDATES="100 200 300 400"`, ≈ 1.1 h, total ≈ 4.8 h) and the
-fifties the next day; above 40 s/update, also stop at 300 updates (`N_UPDATES=300`,
-checkpoints and gates unchanged). Dropping an arm is not proposed: the two arms run
-in parallel, so one arm alone saves only ≈ 40 % of the PPO wall time.
+the even hundreds, and the rest are resumable (`run.sh eval gates secondary`). If
+the run turns out slower than 33 s/update (a loaded machine), evaluate the hundreds
+on the night (`EVAL_UPDATES="100 200 300 400"`) and the fifties the next day; above
+40 s/update, also stop at 300 updates (`N_UPDATES=300`). Dropping an arm is not
+proposed: the arms run in parallel, so one arm alone saves only ≈ 40 % of the PPO
+wall time.
+
+What the timing slice showed (12 updates, not an eval): the order reward per
+learner row (unweighted, ≈ 0.0012 per step) is ≈ 4× the team reward's per-step mean
+(≈ 0.0003, terminal included), mostly guard and hold shaping and presence; 80 % of
+learner rows carry an order, so the KL anchor sees ≈ 20 %; the KL to v1 after 12
+updates was 0.013 on unordered and 0.018 on ordered rows; explained variance 0.93.
+The `w03` arm is the guard against the order reward swamping the team reward.
 
 Memory: two arms ≈ 3 GB each (403-wide obs over 12 slots × 256 envs × 168 steps ≈
 0.8 GB per arm plus the buffers), well inside 29 GB.
@@ -220,7 +244,7 @@ Memory: two arms ≈ 3 GB each (403-wide obs over 12 slots × 256 envs × 168 st
 
 | risk | signal | response |
 |---|---|---|
-| presence farming: pilots park on hold or guard points instead of fighting | engine duty under hold/guard ≪ under none; M or D fails while O passes | the presence term is capped per instance; pick `w03`; lower `w` |
+| presence farming: pilots park on hold or guard points instead of fighting (the order reward is ≈ 4× the team reward per step at `w = 1`, §6) | engine duty under hold/guard ≪ under none; M or D fails while O passes | the presence term is capped per instance; pick `w03`; lower `w` |
 | the order reward is too weak to matter (H0) | `reward_order_weighted` ≪ `reward_team` in the log, O fails, with ≈ blank | a later arm with `w` 3 |
 | the anchor stops unordered learning, or does not hold | `kl_anchor` ≈ 0 with D falling, or `kl_anchor` > 0.5 | change `KL_COEFF` (0.03 / 0.3) in a rerun |
 | the critic cannot value long missions | explained variance < 0.5 after warm-up | longer warm-up; it is logged per update |
