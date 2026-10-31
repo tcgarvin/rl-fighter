@@ -1,8 +1,10 @@
 # Order pilot B2b: pilots follow orders, and stop winning
 
-Run 2026-10-31, plan: `plan.md` (gates and pick rule fixed in §5 before any candidate was
+Run 2026-10-31, M3 stage B, `SIM_VERSION` 5, plan: `plan.md` (gates and pick rule fixed in §5 before any candidate was
 evaluated; two O bounds amended from the teacher at 04:55, also before). **Nothing
 promoted.** Fleet pilot v1 stays the champion.
+
+<!-- summary: Pulling the pilot toward the order-following scripts taught it to follow orders at the scripts' level, but also overwrote its combat flying: it won 0–4 % of carrier battles against fleet pilot v1, against 79 % before. -->
 
 Verdict: **FAIL.** The script pull taught following: from update 100 on, every `pull`
 candidate and most `pull_dagger` candidates pass gate O, at the teacher's level. But no

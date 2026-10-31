@@ -1,9 +1,11 @@
 # Order pilot: stronger in missions, but it does not visibly follow orders
 
-Run 2026-10-30/31, plan: `plan.md` (gates fixed in §5 before any order pilot was
+Run 2026-10-30/31, M3 stage B, `SIM_VERSION` 5, plan: `plan.md` (gates fixed in §5 before any order pilot was
 evaluated). **Nothing promoted.** No candidate passes gate O (order-following); every
 candidate passes M (missions), D (deathmatch) and H (health). Fleet pilot v1 stays the
 champion.
+
+<!-- summary: Training on missions with orders in the obs made a much stronger mission pilot (0.79 of carrier battles won against fleet pilot v1), but it barely followed its orders: guards and holds stayed where v1 would have flown. -->
 
 Verdict: **FAIL on the question asked** ("do pilots follow orders?"), with a large
 side result: training on the missions makes a much better mission pilot. The best
