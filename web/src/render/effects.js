@@ -46,11 +46,11 @@
 //       points fixed on the hull where it burned; heat 0..1, call every frame to keep them
 //
 // drawOrders(orders): each order is {kind, team, x2, y2, radius?, x1?, y1?, progress?}.
-//   kind 'attack' | 'guard' | 'hold' | 'jump'. With x1, y1 a faint dashed line crawls
+//   kind 'attack' | 'defend' | 'goto' | 'jump'. With x1, y1 a faint dashed line crawls
 //   from the squad (x1, y1) toward the target (x2, y2) and stops at its marker:
-//   attack = four corner brackets, guard = a thin ring round the ward, hold = a ring
+//   attack = four corner brackets, defend = a thin ring round the ward, goto = a ring
 //   with inward ticks, jump = a slowly turning dashed ring with a brighter arc for
-//   `progress` (0..1, e.g. the escort's hold time). radius is the marker's (metres).
+//   `progress` (0..1, e.g. the jump charge). radius is the marker's (metres).
 export const JUMP_OUT_DISTANCE = 900;
 export const JUMP_OUT_DURATION = 0.09;
 const JUMP_OUT_TAIL = 0.16, QUICK_OUT_TAIL = 0.10;
@@ -491,7 +491,7 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
   }
   const TAU=Math.PI*2;
   function order(o) {
-    const c=team[o.team] || white, x=o.x2, z=-o.y2, r=o.radius ?? (o.kind==='attack'?10:o.kind==='guard'?24:40);
+    const c=team[o.team] || white, x=o.x2, z=-o.y2, r=o.radius ?? (o.kind==='attack'?10:o.kind==='defend'?24:40);
     if(o.x1!==undefined && o.y1!==undefined) {
       const sx=o.x1, sz=-o.y1, dx=x-sx, dz=z-sz, d=Math.hypot(dx,dz);
       const from=8, to=d-r-3;
@@ -513,9 +513,9 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
     if(o.kind==='attack') {
       // Corner brackets: four short arcs at the diagonals.
       for(let i=0;i<4;i++) { const a=Math.PI/4+i*Math.PI/2; arc(x,z,r,a-.32,a+.32,c,.6,4); }
-    } else if(o.kind==='guard') {
+    } else if(o.kind==='defend') {
       arc(x,z,r,0,TAU,c,.38,40);
-    } else if(o.kind==='hold') {
+    } else if(o.kind==='goto') {
       arc(x,z,r,0,TAU,c,.4,48);
       for(let i=0;i<4;i++) {
         const a=i*Math.PI/2+Math.PI/4, ca=Math.cos(a), sa=Math.sin(a);

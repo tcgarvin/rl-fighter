@@ -80,7 +80,7 @@ export interface SimLayout {
   /** Sim versions whose pilots this build flies (v4; just simVersion before). */
   pilotCompat: number[];
   /** v5: per pilot-compatible sim version, the obs prefix width its pilots read
-   * (sim::PILOT_OBS_DIMS: 385 for v3/v4, 403 for v5). Older wasm: OBS_DIM for all. */
+   * (sim::PILOT_OBS_DIMS: 385 for v3/v4, 403 for v5, 583 for v6). Older wasm: OBS_DIM for all. */
   pilotObsDims: Record<number, number>;
   obsDim: number;
   actionWidth: number;
@@ -170,8 +170,8 @@ export const JUMP_IDLE = 0;
 export const JUMP_CHARGING = 1;
 export const JUMP_DEPARTED = 2;
 
-/** Squad order kinds (SIM_SPEC §5.9 and the `Order` event). */
-export const ORDER_KINDS = ["none", "attack", "guard", "hold"] as const;
+/** Squad order kinds (SIM_SPEC §5.9 and the `Order` event; v6: defend and go-to). */
+export const ORDER_KINDS = ["none", "attack", "defend", "goto"] as const;
 export type OrderKind = (typeof ORDER_KINDS)[number];
 
 /** `EndReason` codes (SIM_SPEC §5.8). */
@@ -233,9 +233,9 @@ export interface SquadState {
   /** Bitmask over ship slots. */
   mask: number;
   order: OrderKind;
-  /** Attack target or guard ward slot, or -1. */
+  /** Attack target or defend ward slot, or -1. */
   target: number;
-  /** Hold point, or the target's position. */
+  /** Go-to point, or the target's position. */
   x: number;
   y: number;
   radius: number;

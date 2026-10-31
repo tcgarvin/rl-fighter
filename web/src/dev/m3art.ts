@@ -35,7 +35,7 @@ interface HullModel {
   dispose(): void;
 }
 interface Order {
-  kind: "attack" | "guard" | "hold" | "jump";
+  kind: "attack" | "defend" | "goto" | "jump";
   team: number;
   x2: number;
   y2: number;
@@ -304,23 +304,23 @@ const SCENES: Record<string, () => Scene> = {
   orders: () => {
     const carrier = new Ship("carrier", 0, -140, 0, 0.1, 6);
     const enemy = new Ship("carrier", 1, 170, -30, Math.PI, 6);
-    const guard = [new Ship("fighter", 0, -110, 40, 0.2, 30), new Ship("fighter", 0, -120, -40, -0.3, 30)];
+    const defenders = [new Ship("fighter", 0, -110, 40, 0.2, 30), new Ship("fighter", 0, -120, -40, -0.3, 30)];
     const strike = [new Ship("fighter", 0, -10, 40, -0.1, 45), new Ship("fighter", 0, -20, 55, -0.1, 45), new Ship("bomber", 0, -30, 30, -0.1, 30)];
     const holders = [new Ship("fighter", 1, 60, -110, 2.5, 20), new Ship("gunship", 1, 75, -120, 2.7, 10)];
-    const ships = [carrier, enemy, ...guard, ...strike, ...holders];
+    const ships = [carrier, enemy, ...defenders, ...strike, ...holders];
     const jumpPoint: [number, number] = [-40, -170];
     const orders = (t: number): Order[] => {
       const [sx, sy] = centroid(strike);
-      const [gx, gy] = centroid(guard);
+      const [gx, gy] = centroid(defenders);
       const [hx, hy] = centroid(holders);
       return [
         { kind: "attack", team: 0, x1: sx, y1: sy, x2: enemy.x, y2: enemy.y, radius: 28 },
-        { kind: "guard", team: 0, x1: gx, y1: gy, x2: carrier.x, y2: carrier.y, radius: 30 },
-        { kind: "hold", team: 1, x1: hx, y1: hy, x2: 70, y2: -60, radius: 36 },
+        { kind: "defend", team: 0, x1: gx, y1: gy, x2: carrier.x, y2: carrier.y, radius: 30 },
+        { kind: "goto", team: 1, x1: hx, y1: hy, x2: 70, y2: -60, radius: 36 },
         { kind: "jump", team: 0, x1: carrier.x, y1: carrier.y, x2: jumpPoint[0], y2: jumpPoint[1], radius: 50, progress: Math.min(1, 0.35 + t * 0.1) },
       ];
     };
-    return { ships, events: [], orders, frame: [jumpPoint], caption: "orders: attack (brackets), guard (ring), hold (ticked ring), jump point (progress arc)" };
+    return { ships, events: [], orders, frame: [jumpPoint], caption: "orders: attack (brackets), defend (ring), go to (ticked ring), jump point (progress arc)" };
   },
   // Shield impacts: a single hit on each shield, then sustained fire on the gunship and
   // the carrier (several hits a second from a narrow arc), as in a capital-ship fight.

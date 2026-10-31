@@ -608,12 +608,14 @@
             <strong>Orders (M3, stage B).</strong>
             <a class="code-link" href="https://github.com/tcgarvin/rl-fighter/blob/main/docs/M3_PLAN.md"><code>docs/M3_PLAN.md</code></a>
             adds carriers and a scripted commander that gives each squad an order: attack a
-            target, guard a ship, hold a point. Stage B adds an order block to the pilot's
+            target, defend a ship, go to a point. Stage B adds an order block to the pilot's
             observation: the kind of order, and the target's relative position and
-            velocity. That takes the observation from 385 to about 397 numbers. The new
-            inputs start with zero weights, so before its first update the new pilot is
-            exactly fleet pilot v1, and it learns to follow orders from there. Until then (stage A),
-            v1 will see a carrier as just a big enemy ship.
+            velocity (385 to 403 numbers), and then what a defender needs to judge threats:
+            each nearby ship's class and weapon reach, and the ships nearest the order's
+            target or point (583 numbers). The new inputs start with zero weights, so before
+            its first update a new pilot flies exactly like the one it starts from, and it
+            learns to follow orders from there. Until then, v1 reads only the first 385
+            numbers and sees a carrier as just a big enemy ship.
           </p>
           <p>
             <strong>Attention (M4, after the carriers).</strong>
@@ -631,7 +633,7 @@
       <footer class="page-footer">
         This page describes champion <code data-fact="champion.id">2026-10-30-fleet-pilot-v1</code>
         (trained in sim version <span data-fact="champion.sim_version">3</span>, flying
-        in sim version <span data-fact="sim.version">5</span>; hulls
+        in sim version <span data-fact="sim.version">6</span>; hulls
         <span data-fact="champion.hulls">fighter, strafer, gunship</span>). Its numbers are
         checked against the sim, the policy code, the hull files and the exported champion
         weights by <code>tools/pilot_facts.py</code> on every site build.
