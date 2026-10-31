@@ -117,8 +117,14 @@ def build_mission_env(
     n_threads: int,
     reaction_ticks: int = 2,
     assets_dir: Path = ASSETS,
+    hide_a: bool = False,
 ) -> MissionEnv:
     """The env of one mission (module docstring for the layout).
+
+    Args:
+        hide_a: Hide side ``a``'s orders from its pilots' obs (SIM_VERSION 6, the
+            order eval's hidden pass); the other side, the rewards and the scripts
+            are unaffected, and the matches are otherwise the same for a seed.
 
     Raises:
         ValueError: ``n`` is not a positive multiple of twice the roster count.
@@ -147,7 +153,12 @@ def build_mission_env(
     )
     for i, k in enumerate(entry):
         roster = rosters[int(k)][1]
-        env.set_next_roster(i, Roster(roster.teams, mission, modes))
+        hide = (hide_a and a_team[i] == 0, hide_a and a_team[i] == 1)
+        env.set_next_roster(
+            i,
+            Roster(roster.teams, mission, modes),
+            hide_orders=hide if hide_a else None,
+        )
     env.reset()
     capital = np.isin(env.hull_id, capital_hull_ids(assets_dir))
     return MissionEnv(

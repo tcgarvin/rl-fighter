@@ -25,7 +25,7 @@ sys.path.insert(0, str(ROOT))
 from spacefight.eval import order_gates  # noqa: E402
 from spacefight.eval.fleet import FleetResult  # noqa: E402
 from spacefight.eval.missions import MissionResult  # noqa: E402
-from spacefight.eval.orders import KINDS, OrdersResult  # noqa: E402
+from spacefight.eval.orders_v1 import KINDS, OrdersResult  # noqa: E402
 
 # Amendment of 2026-10-31 04:55, before any B2b candidate was evaluated (plan.md §5):
 # the teacher itself scores guard 0.386 and attack share v1 + 0.074 under the random

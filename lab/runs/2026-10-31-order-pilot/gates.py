@@ -23,7 +23,7 @@ sys.path.insert(0, str(ROOT))
 from spacefight.eval import order_gates  # noqa: E402
 from spacefight.eval.fleet import FleetResult  # noqa: E402
 from spacefight.eval.missions import MissionResult  # noqa: E402
-from spacefight.eval.orders import KINDS, OrdersResult  # noqa: E402
+from spacefight.eval.orders_v1 import KINDS, OrdersResult  # noqa: E402
 
 # A candidate needs every one of these (eval.sh writes them); "_orders_blank" is
 # the secondary baseline, reported when present.
