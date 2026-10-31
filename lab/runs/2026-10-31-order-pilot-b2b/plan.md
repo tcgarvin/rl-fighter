@@ -164,7 +164,16 @@ evals and seeds, against the baselines of §2 measured on this branch:
 | | per mission and deathmatch: outside-arena share | ≤ 0.02 |
 | | deathmatch time-limit rate | ≤ v1 vs script's + 0.10 |
 
-With §2's v1, the random-commander bounds come to: attack share ≥ 0.499, guard ≥
+**Amended 2026-10-31 04:55 by the team lead, before any B2b candidate was evaluated.**
+Two random-commander bounds are set from the teacher's §2 scores instead of run 1's:
+guard time within ≥ **max(0.35, v1's + 0.15)** (the script scores 0.386: it leaves its
+ward to fight within 180 m + bound, which a viewer reads as guarding) and attack damage
+share ≥ **v1's + 0.05** (the script: + 0.074). A bound the teacher cannot reach would
+only measure noise around the teacher. Every other bound is run 1's. Run 1 fails even
+the amended bounds (its best guard was 0.23), so its verdict stands. `gates.py` sets
+the two constants; the user may restore 0.50 / 0.10.
+
+Before the amendment, with §2's v1, the random-commander bounds came to: attack share ≥ 0.499, guard ≥
 0.50, hold ≥ 0.408; scripted: attack share ≥ 0.505, guard ≥ 0.303, hold ≥ 0.102.
 
 **M is also measured against `w1_400`** (`<name>_missions_vs_w1_400.json`, the same

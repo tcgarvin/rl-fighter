@@ -27,6 +27,13 @@ from spacefight.eval.fleet import FleetResult  # noqa: E402
 from spacefight.eval.missions import MissionResult  # noqa: E402
 from spacefight.eval.orders import KINDS, OrdersResult  # noqa: E402
 
+# Amendment of 2026-10-31 04:55, before any B2b candidate was evaluated (plan.md §5):
+# the teacher itself scores guard 0.386 and attack share v1 + 0.074 under the random
+# commander, so these two bounds are set from the teacher, not from run 1. Every
+# other bound is run 1's. Run 1's own gates.py is unaffected (separate process).
+order_gates.MIN_GUARD_WITHIN_RANDOM = 0.35
+order_gates.MIN_ATTACK_SHARE_GAIN_RANDOM = 0.05
+
 # A candidate needs every one of these (eval.sh writes them); "_orders_blank" is
 # the secondary baseline, reported when present.
 SUFFIXES = (

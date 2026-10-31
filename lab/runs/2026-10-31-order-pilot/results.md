@@ -129,3 +129,24 @@ review feared, but it did not get the pilots moving either.
 - **Shipping w1_400 anyway** (orders barely followed, missions much stronger) would need
   the user to waive gate O, as they waived engine duty for fleet pilot v1. It is not
   promoted by this run's rule.
+
+## Corrections (2026-10-31, while preparing run B2b)
+
+Measured on the B2b branch; see `../2026-10-31-order-pilot-b2b/plan.md` §1–2.
+
+- **The shaping term pays nothing net.** It is potential-based with the trainer's γ,
+  so its expected sum is zero, and "given back when the ship leaves" undersells it.
+  The "order reward ≈ 4× team reward per step" seen in the timing slice was mostly the
+  neutral −(1 − γ)Φ term. The real pay for following was only arrival (0.1) plus
+  presence (≤ 0.09): even smaller than this write-up said.
+- **The lever is the presence rate, not its cap.** Ships stay inside a radius for more
+  than 300 ticks in under 10 % of orders, so a higher cap pays almost nothing extra.
+- **"The gate bounds stand" was wrong for two bounds.** The order-following script
+  itself scores guard time within 0.386 (bound 0.50) and attack share v1 + 0.074
+  (margin + 0.10) under the random commander. B2b sets those two from the teacher
+  (0.35 and + 0.05) before any of its candidates is evaluated. Run 1 still fails them.
+- **Holds were partly geometry.** With hold points drawn near the fight, v1 with no
+  training at all goes from 0.10 to 0.26 hold time inside, and w1_400 to 0.31.
+- **Advisory deathmatch orders** show in the obs (about 20 % of ordered training rows)
+  but the scripts ignore them, so a plain `has_order` mask would pull those rows toward
+  labels that don't follow the order. B2b excludes them.
