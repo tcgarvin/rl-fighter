@@ -53,6 +53,21 @@ actions overwrite the action buffer, so team-1 scripted rows are already in plac
 and the labels of every row are stored for the auxiliary loss
 ``beta * mean(-log pi(a_script | s))`` (joint over the row's valid heads) on the
 batch rows. The script NLL is logged every update, also when ``beta`` is 0.
+
+Ordered rows (run B2b, ``lab/runs/2026-10-31-order-pilot-b2b/plan.md``). With
+``beta_rows = "ordered"`` the pull's mean runs over the *pulled* rows only: rows whose
+obs shows an order that the row's script flies (``RustVecEnv.scripted_order_rows``:
+``has_order`` and not the scripted commander's advisory deathmatch orders), so the
+label is the order-following script's action for that ship. ``"all"`` is every batch
+row (the fleet run). Rows with an advisory deathmatch order get neither the pull nor
+the KL anchor (which stays on ``has_order = 0`` rows). ``beta_heads = "movement"``
+restricts the pull to the thruster and power heads: an order says where to fly, and
+the pilot already aims and fires better than the script does.
+
+Anchor cache. The frozen anchor's per-head log-softmax is computed once per sample
+at rollout time (learner rows, ``[rows, N_LOGITS]`` float32) and read back in every
+minibatch of every epoch, instead of running the anchor net each time; the loss is
+the same up to float round-off between batch shapes (tested).
 """
 
 from __future__ import annotations
@@ -80,6 +95,7 @@ from spacefight.env.rosters import (
     resolve_distribution,
 )
 from spacefight.env.rust_env import (
+    HAS_ORDER_COL,
     OBS_DIM,
     OBS_LAYOUT,
     SIM_VERSION,
@@ -110,10 +126,13 @@ from spacefight.rl.spike_policy import (
     CRITIC_KINDS,
     CRITIC_SPIKE,
     HEAD_GROUPS,
+    HEAD_SETS,
+    N_LOGITS,
     N_THRUSTERS,
     N_TURRETS,
     Critic,
     FleetCritic,
+    HeadLogSoftmax,
     HeadMasks,
     SpikeActor,
     SpikeCritic,
@@ -121,6 +140,7 @@ from spacefight.rl.spike_policy import (
     critic_kind,
     fit_obs,
     head_kl,
+    head_set_columns,
     load_policy,
     mean_head_entropy,
     save_policy,
@@ -139,9 +159,9 @@ ARENA_PENALTY = -0.002
 _ARENA_MARGIN_COL = OBS_LAYOUT["self"][0] + 19
 _MAIN_ENGINE_LEVEL_COL = OBS_LAYOUT["thrusters"][0] + 6
 _FIRE_COL = HEAD_GROUPS["fire"].start
-# has_order, the order block's first float (SIM_VERSION 5).
-HAS_ORDER_COL: int = OBS_LAYOUT["order"][0]
 LEARNER_SIDES = ("team0", "random")
+# Rows the script pull applies to (module docstring, "Ordered rows").
+BETA_ROWS = ("all", "ordered")
 
 INIT_SCRATCH = "scratch"
 _CHECKPOINT_PREFIX = "ppo"
@@ -169,6 +189,7 @@ LOG_KEYS: tuple[str, ...] = (
     "reward_order_weighted",
     "order_reward_weight",
     "has_order_share",
+    "beta_rows_share",
     "reward_damage_dealt",
     "reward_damage_taken",
     "reward_fire_cost",
@@ -204,6 +225,7 @@ LOG_KEYS: tuple[str, ...] = (
     "value_loss",
     "explained_variance",
     "aux_script_nll",
+    "aux_script_nll_pulled",
     "kl_anchor",
     "kl_anchor_ordered",
     "kl_anchor_share",
@@ -239,6 +261,7 @@ PPO_METRIC_KEYS: tuple[str, ...] = (
     "approx_kl",
     "clip_fraction",
     "aux_script_nll",
+    "aux_script_nll_pulled",
     "kl_anchor",
     "kl_anchor_ordered",
     "kl_anchor_share",
@@ -302,6 +325,11 @@ class PPOConfig:
     beta_decay_start: int = 30
     beta_decay_end: int = 700
     beta_floor: float = 0.0
+    # Which batch rows the pull averages over: "all", or "ordered" (rows whose obs
+    # shows an order their script flies; module docstring), and which heads it
+    # covers: "all", or "movement" (thrusters and power, not aim and fire).
+    beta_rows: str = "all"
+    beta_heads: str = "all"
     # Opponents: (start_update, scripted, self, snapshot) rows.
     opponent_bands: list[list[float]] = field(
         default_factory=lambda: [list(band) for band in DEFAULT_BANDS]
@@ -398,6 +426,14 @@ class PPOConfig:
             raise ValueError("kl_anchor_coeff must be >= 0 and needs a kl_anchor")
         if not 0 <= self.obs_dim <= OBS_DIM:
             raise ValueError(f"obs_dim must be in 0..={OBS_DIM}, got {self.obs_dim}")
+        if self.beta_rows not in BETA_ROWS:
+            raise ValueError(
+                f"beta_rows must be one of {BETA_ROWS}, got {self.beta_rows}"
+            )
+        if self.beta_heads not in HEAD_SETS:
+            raise ValueError(
+                f"beta_heads must be one of {tuple(HEAD_SETS)}, got {self.beta_heads}"
+            )
 
     def roster_distribution(self) -> dict[str, object]:
         """The roster distribution (preset + overrides) as a plain dict.
@@ -537,6 +573,10 @@ class PPOBatch:
     advantages: torch.Tensor  # [B]
     returns: torch.Tensor  # [B]
     anchor_rows: torch.Tensor  # [B] bool: no order in the obs (KL anchor applies)
+    pull_rows: torch.Tensor  # [B] bool: rows the script pull averages over
+    # [B, N_LOGITS] the anchor's per-head log-softmax cached at rollout time; None:
+    # not cached, ``ppo_update`` runs the anchor net on each minibatch.
+    anchor_reference: torch.Tensor | None = None
 
     @property
     def size(self) -> int:
@@ -582,6 +622,8 @@ class UpdateSettings:
     entropy_floor: float
     entropy_floor_coeff: float
     kl_anchor_coeff: float = 0.0
+    # Head set of the script pull (``HEAD_SETS``).
+    beta_heads: str = "all"
 
 
 def ppo_update(
@@ -673,7 +715,11 @@ def _actor_terms(
     pg_loss = -torch.min(ratio * mb_adv, ratio.clamp(1.0 - clip, 1.0 + clip) * mb_adv)
     pg_loss = pg_loss.mean()
     entropy = mean_head_entropy(head_ent, valid).mean()
-    script_nll = -label_lp.sum(-1).mean()
+    row_nll = -label_lp.sum(-1)
+    pulled = batch.pull_rows[idx]
+    n_pulled = int(pulled.sum())
+    pull_nll = -label_lp[:, head_set_columns(settings.beta_heads)].sum(-1)
+    script_nll = pull_nll[pulled].mean() if n_pulled else pull_nll.sum() * 0.0
     loss = pg_loss - settings.ent_coeff * entropy + settings.beta * script_nll
     if settings.entropy_floor_coeff > 0.0:
         # Hinge on each valid head's batch-mean entropy (plan §7 entropy floor).
@@ -686,7 +732,9 @@ def _actor_terms(
         add("pg_loss", float(pg_loss))
         add("approx_kl", float(((ratio - 1.0) - log_ratio).mean()))
         add("clip_fraction", float(((ratio - 1.0).abs() > clip).float().mean()))
-        add("aux_script_nll", float(script_nll))
+        add("aux_script_nll", float(row_nll.mean()))
+        if n_pulled:
+            add("aux_script_nll_pulled", float(script_nll))
         add("entropy_mean", float(entropy))
         for name, cols in HEAD_GROUPS.items():
             group_valid = valid[:, cols]
@@ -706,9 +754,13 @@ def _anchor_term(
     add: Callable[[str, float], None],
 ) -> torch.Tensor:
     """``kl_anchor_coeff * mean KL(anchor || actor)`` over the minibatch's anchor
-    rows (0 when it has none); logs the KL on both row sets."""
-    with torch.no_grad():
-        reference = anchor.head_log_softmax(fit_obs(obs, anchor.obs_dim))
+    rows (0 when it has none); logs the KL on both row sets. The anchor's heads come
+    from ``batch.anchor_reference`` when the rollout cached them."""
+    if batch.anchor_reference is not None:
+        reference = HeadLogSoftmax.from_flat(batch.anchor_reference[idx])
+    else:
+        with torch.no_grad():
+            reference = anchor.head_log_softmax(fit_obs(obs, anchor.obs_dim))
     kl = head_kl(reference, heads, valid)  # type: ignore[arg-type]
     rows = batch.anchor_rows[idx]
     n_rows = int(rows.sum())
@@ -737,6 +789,7 @@ class RolloutStorage:
         n_envs: int,
         n_ships: int,
         obs_dim: int = OBS_DIM,
+        anchor_cache: bool = False,
     ) -> None:
         self.n_steps = n_steps
         self.t_tail = t_tail
@@ -754,6 +807,13 @@ class RolloutStorage:
         self.learner = np.zeros((length, rows), dtype=np.bool_)
         # The env obs showed an order (has_order; the KL anchor skips these rows).
         self.has_order = np.zeros((length, rows), dtype=np.bool_)
+        # ... that the row's script flies (the "ordered" script pull's rows).
+        self.scripted_order = np.zeros((length, rows), dtype=np.bool_)
+        # The frozen anchor's per-head log-softmax of each learner row (rollout
+        # cache; zero rows wide without an anchor).
+        self.anchor_logp = np.zeros(
+            (length, rows if anchor_cache else 0, N_LOGITS), dtype=np.float32
+        )
         # Strike craft on the learner's side of their env (logged stats).
         self.side = np.zeros((length, rows), dtype=np.bool_)
         # Each slot's match before the step (rosters change at resets): team (-1 =
@@ -972,7 +1032,12 @@ class SpikeTrainer:
                 f"the sim gives {OBS_DIM}"
             )
         self.storage = RolloutStorage(
-            config.n_steps, config.t_tail, self.n_envs, self.n_ships, self.obs_dim
+            config.n_steps,
+            config.t_tail,
+            self.n_envs,
+            self.n_ships,
+            self.obs_dim,
+            anchor_cache=self.anchor is not None,
         )
         self.credit = RustCreditAdapter(
             self.n_envs,
@@ -1188,6 +1253,7 @@ class SpikeTrainer:
             entropy_floor=cfg.entropy_floor,
             entropy_floor_coeff=cfg.entropy_floor_coeff,
             kl_anchor_coeff=cfg.kl_anchor_coeff,
+            beta_heads=cfg.beta_heads,
         )
         metrics: dict[str, float | None] = dict.fromkeys(PPO_METRIC_KEYS)
         if batch.size:
@@ -1279,6 +1345,7 @@ class SpikeTrainer:
             policy_rows = torch.from_numpy(policy_np)
             env_obs = env.obs.reshape(rows, OBS_DIM)
             store.has_order[b] = env_obs[:, HAS_ORDER_COL] > 0.5
+            store.scripted_order[b] = env.scripted_order_rows().reshape(rows)
             store.obs[b] = fit_obs(env_obs, self.obs_dim)
             store.act_mask[b] = env.act_mask.reshape(rows)
             # Script labels for every row (each hull's own script); team-1 scripted
@@ -1295,6 +1362,12 @@ class SpikeTrainer:
                     _pairs(policy_np, n_ships),
                 )
                 actions[policy_np] = out.actions.to(torch.int8).numpy()
+                if self.anchor is not None:
+                    reference = self.anchor.head_log_softmax(
+                        fit_obs(obs_t[policy_rows], self.anchor.obs_dim)
+                    )
+                    store.anchor_logp[b] = 0.0
+                    store.anchor_logp[b, policy_np] = reference.flat().numpy()
                 for index, envs in snapshot_groups(
                     kinds, self.opponents.snapshot
                 ).items():
@@ -1464,6 +1537,16 @@ class SpikeTrainer:
         stats["has_order_share"] = (
             float(1.0 - anchor_rows.mean()) if flat.size else None
         )
+        if cfg.beta_rows == "ordered":
+            pull_rows = store.scripted_order[:n].reshape(-1)[flat]
+        else:
+            pull_rows = np.ones(flat.size, dtype=np.bool_)
+        stats["beta_rows_share"] = float(pull_rows.mean()) if flat.size else None
+        anchor_reference = None
+        if self.anchor is not None:
+            anchor_reference = torch.from_numpy(
+                store.anchor_logp[:n].reshape(-1, N_LOGITS)[flat]
+            )
         batch = PPOBatch(
             obs=torch.from_numpy(
                 store.obs[:n].reshape(n * n_envs, n_ships, self.obs_dim)
@@ -1483,6 +1566,8 @@ class SpikeTrainer:
             advantages=torch.from_numpy(advantages[:n].reshape(-1)[flat]),
             returns=torch.from_numpy(rets),
             anchor_rows=torch.from_numpy(anchor_rows),
+            pull_rows=torch.from_numpy(pull_rows),
+            anchor_reference=anchor_reference,
         )
         return batch, stats
 

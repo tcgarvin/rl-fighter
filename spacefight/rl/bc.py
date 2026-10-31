@@ -28,6 +28,14 @@ its own hull's script; rows carry their hull id, the head masks are read per ste
 (they change when a match is rebuilt), and ``bc_eval`` breaks agreement down by
 hull. DAgger rounds in fleet mode are scored on the fleet eval
 (``spacefight.eval.fleet``) instead of the fighter duel.
+
+Orders (run B2b, ``lab/runs/2026-10-31-order-pilot-b2b``): ``collect_on_policy``
+also takes the stage B mission mix (``rosters="orders_v1"``), stores obs at the
+actor's width, flies strike craft only (capital ships keep their scripts), and with
+``keep="ordered"`` keeps only rows whose obs shows an order their script flies
+(``RustVecEnv.scripted_order_rows``), so every label is the order-following script's
+action. ``ordered_dagger_round`` is one such round fine-tuning a PPO checkpoint's
+actor (its critic is kept as it is).
 """
 
 from __future__ import annotations
@@ -45,9 +53,9 @@ import torch
 from numpy.typing import NDArray
 
 from spacefight.env.rosters import (
-    RosterDistribution,
-    RosterSampler,
+    capital_hull_ids,
     hull_names_by_id,
+    make_sampler,
     resolve_distribution,
 )
 from spacefight.env.rust_env import SIM_VERSION, RustVecEnv
@@ -66,6 +74,7 @@ from spacefight.rl.spike_policy import (
     SpikeActor,
     SpikeCritic,
     act_numpy,
+    head_set_columns,
     load_policy,
     save_policy,
 )
@@ -229,8 +238,8 @@ def make_env(
     assets_dir: Path,
     rosters: str = "",
 ) -> RustVecEnv:
-    """The collection env: fighter duels, or a roster preset's fleets (the roster
-    sampler is seeded with ``seed`` too)."""
+    """The collection env: fighter duels, or a roster preset's fleets or mission
+    mix (the roster sampler is seeded with ``seed`` too)."""
     if not rosters:
         return RustVecEnv(
             assets_dir,
@@ -240,10 +249,7 @@ def make_env(
             n_threads=n_threads,
             reaction_ticks=reaction_ticks,
         )
-    distribution = resolve_distribution(rosters)
-    if not isinstance(distribution, RosterDistribution):
-        raise ValueError(f"BC collects fleet rosters only, not {rosters!r}")
-    sampler = RosterSampler(distribution, seed)
+    sampler = make_sampler(resolve_distribution(rosters), seed)
     return RustVecEnv(
         assets_dir,
         n_envs,
@@ -356,9 +362,11 @@ def collect(
     return BCDataset(holdout=holdout, stats=stats, **out)
 
 
-def _empty_buffers(n_rows: int, obs_dtype: str) -> dict[str, np.ndarray]:
+def _empty_buffers(
+    n_rows: int, obs_dtype: str, obs_dim: int = OBS_DIM
+) -> dict[str, np.ndarray]:
     return {
-        "obs": np.empty((n_rows, OBS_DIM), dtype=obs_dtype),
+        "obs": np.empty((n_rows, obs_dim), dtype=obs_dtype),
         "labels": np.empty((n_rows, ACTION_WIDTH), dtype=np.int8),
         "executed": np.empty((n_rows, ACTION_WIDTH), dtype=np.int8),
         "noised": np.empty(n_rows, dtype=np.bool_),
@@ -387,6 +395,8 @@ class TrainConfig:
         throttle_change_weight: Loss weight of throttle heads whose label is
             increase/decrease (§7 mitigation for a "hold" collapse; 1.0 = off).
         seed: Torch seed (init and shuffling).
+        heads: Head set the loss covers (``HEAD_SETS``: "all", or "movement" to
+            fine-tune where a pilot flies without touching its aim and fire).
     """
 
     epochs: int = 8
@@ -397,6 +407,10 @@ class TrainConfig:
     fire_pos_weight: float = 1.0
     throttle_change_weight: float = 1.0
     seed: int = 0
+    heads: str = "all"
+
+    def __post_init__(self) -> None:
+        head_set_columns(self.heads)
 
 
 @dataclass
@@ -430,13 +444,18 @@ def bc_loss(
     labels: torch.Tensor,
     config: TrainConfig,
 ) -> torch.Tensor:
-    """Mean over rows of the (weighted) per-head CE averaged over valid heads."""
+    """Mean over rows of the (weighted) per-head CE averaged over the valid heads
+    of ``config.heads``."""
     ce = actor.head_cross_entropy(obs, masks, labels, config.label_smoothing)
     weights = head_weights(
         labels, config.fire_pos_weight, config.throttle_change_weight
     )
-    n_valid = masks.head_valid().sum(-1).clamp(min=1)
-    return ((ce * weights).sum(-1) / n_valid).mean()
+    if config.heads == "all":
+        n_valid = masks.head_valid().sum(-1).clamp(min=1)
+        return ((ce * weights).sum(-1) / n_valid).mean()
+    cols = head_set_columns(config.heads)
+    n_valid = (masks.head_valid() & cols).sum(-1).clamp(min=1)
+    return ((ce * weights)[:, cols].sum(-1) / n_valid).mean()
 
 
 def train(
@@ -689,6 +708,7 @@ def collect_on_policy(
     obs_dtype: str = "float16",
     assets_dir: Path = DEFAULT_ASSETS,
     rosters: str = "",
+    keep: str = "all",
 ) -> BCDataset:
     """Collect ``n_rows`` rows of ``actor`` flying against the script (DAgger).
 
@@ -717,13 +737,19 @@ def collect_on_policy(
         reaction_ticks: Sim reaction delay.
         obs_dtype: Storage dtype of the observations, one of OBS_DTYPES.
         assets_dir: Asset directory for the sim.
-        rosters: Roster preset for fleets ("" = fighter duels).
+        rosters: Roster preset for fleets or the stage B mission mix ("" = fighter
+            duels). Capital ships always fly their scripts and are never rows.
+        keep: "all" learner rows, or "ordered": only rows whose obs shows an order
+            their script flies (module docstring). Obs are stored at the actor's
+            width (``actor.obs_dim``).
 
     Returns:
         The dataset with its stats.
     """
     if n_rows <= 0:
         raise ValueError(f"n_rows must be positive, got {n_rows}")
+    if keep not in KEEP_ROWS:
+        raise ValueError(f"keep must be one of {KEEP_ROWS}, got {keep!r}")
     if n_envs < 2:
         raise ValueError(f"n_envs must be >= 2 to alternate sides, got {n_envs}")
     if not 0.0 <= beta <= 1.0:
@@ -738,8 +764,10 @@ def collect_on_policy(
     held_env = holdout_envs(n_envs, holdout_frac)
     env_of_slot = np.repeat(np.arange(n_envs, dtype=np.int32), env.n_ships)
     ship_of_slot = np.tile(np.arange(env.n_ships, dtype=np.int8), n_envs)
+    capital_ids = np.asarray(capital_hull_ids(assets_dir), dtype=np.int64)
+    width = actor.obs_dim
 
-    out = _empty_buffers(n_rows, obs_dtype)
+    out = _empty_buffers(n_rows, obs_dtype, width)
     filled = 0
     step = 0
     actor.eval()
@@ -747,33 +775,40 @@ def collect_on_policy(
         flat_thruster, flat_turret, flat_fixed = _flat_masks(env)
         hull_of_slot = env.hull_id.reshape(-1)
         learner_slot = (env.team == learner_team[:, None]).reshape(-1)
+        learner_slot &= ~np.isin(hull_of_slot, capital_ids)
         labels = env.scripted_actions().reshape(-1, ACTION_WIDTH).copy()
-        learn = np.flatnonzero(learner_slot & env.act_mask.reshape(-1))
-        obs = policy_obs(env.obs).reshape(-1, OBS_DIM)[learn]
+        flies = np.flatnonzero(learner_slot & env.act_mask.reshape(-1))
+        if keep == "ordered":
+            learn = flies[env.scripted_order_rows().reshape(-1)[flies]]
+        else:
+            learn = flies
+        obs = policy_obs(env.obs, width).reshape(-1, width)[flies]
         policy = act_numpy(
             actor,
             obs,
             HeadMasks.from_numpy(
-                flat_thruster[learn], flat_turret[learn], flat_fixed[learn]
+                flat_thruster[flies], flat_turret[flies], flat_fixed[flies]
             ),
             deterministic=not sample,
         )
-        scripted = np.less(rng.random(learn.size), beta)
+        scripted = np.less(rng.random(flies.size), beta)
         executed = labels.copy()
-        executed[learn[~scripted]] = policy[~scripted]
+        executed[flies[~scripted]] = policy[~scripted]
+        # Rows of ``learn`` within ``flies`` (both ascending).
+        at = np.searchsorted(flies, learn)
         n_keep = min(learn.size, n_rows - filled)
-        keep = learn[:n_keep]
+        kept, kept_at = learn[:n_keep], at[:n_keep]
         rows = slice(filled, filled + n_keep)
-        out["obs"][rows] = obs[:n_keep]
-        out["labels"][rows] = labels[keep]
-        out["executed"][rows] = executed[keep]
-        out["noised"][rows] = scripted[:n_keep]
-        out["thruster"][rows] = flat_thruster[keep]
-        out["turret"][rows] = flat_turret[keep]
-        out["fixed_turret"][rows] = flat_fixed[keep]
-        out["env_index"][rows] = env_of_slot[keep]
-        out["ship"][rows] = ship_of_slot[keep]
-        out["hull"][rows] = hull_of_slot[keep]
+        out["obs"][rows] = obs[kept_at]
+        out["labels"][rows] = labels[kept]
+        out["executed"][rows] = executed[kept]
+        out["noised"][rows] = scripted[kept_at]
+        out["thruster"][rows] = flat_thruster[kept]
+        out["turret"][rows] = flat_turret[kept]
+        out["fixed_turret"][rows] = flat_fixed[kept]
+        out["env_index"][rows] = env_of_slot[kept]
+        out["ship"][rows] = ship_of_slot[kept]
+        out["hull"][rows] = hull_of_slot[kept]
         out["step"][rows] = step
         filled += n_keep
         env.step(executed.reshape(env.actions.shape))
@@ -902,6 +937,8 @@ class AggregateDataset:
 
 
 DAGGER_MODES = ("finetune", "scratch")
+# ``collect_on_policy`` row filters.
+KEEP_ROWS = ("all", "ordered")
 
 
 @dataclass(frozen=True)
@@ -1282,3 +1319,96 @@ def _write_dagger_eval(
     path = out_dir / DAGGER_EVAL_NAME
     path.write_text(json.dumps(report, indent=2) + "\n")
     return path
+
+
+# ------------------------------------------------------------ ordered DAgger (B2b)
+
+ORDERED_DAGGER_NAME = "dagger_ordered.pt"
+ORDERED_DAGGER_EVAL = "dagger_ordered.json"
+
+
+@dataclass(frozen=True)
+class OrderedDaggerResult:
+    """Paths and the report of ``ordered_dagger_round``."""
+
+    checkpoint: Path
+    eval_path: Path
+    report: dict[str, object]
+
+
+def ordered_dagger_round(
+    init: Path,
+    out_dir: Path,
+    n_rows: int,
+    train_config: TrainConfig,
+    n_threads: int,
+    seed: int = 1,
+    n_envs: int = 256,
+    rosters: str = "orders_v1",
+) -> OrderedDaggerResult:
+    """One DAgger round on ordered rows only (module docstring, "Orders").
+
+    ``init``'s actor flies one side of the mission mix against the script (sampled
+    actions); every kept row is a strike craft whose obs shows an order its script
+    flies, labelled with that script's action. The actor is then fine-tuned on the
+    non-held-out rows. The checkpoint keeps ``init``'s critic and obs width, so PPO
+    can start from it (``--init``) as it would from ``init``.
+
+    Args:
+        init: A ``save_policy`` checkpoint (an order pilot's PPO checkpoint).
+        out_dir: Output directory (``dagger_ordered.pt``, ``dagger_ordered.json``).
+        n_rows: Ordered rows to collect.
+        train_config: Fine-tuning settings.
+        n_threads: Sim and torch threads.
+        seed: Env seed (torch and the mixing RNG are seeded from it too).
+        n_envs: Parallel matches.
+        rosters: The mission mix.
+    """
+    if n_threads > 0:
+        torch.set_num_threads(n_threads)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    actor, critic, meta = load_policy(init)
+    start = time.perf_counter()
+    dataset = collect_on_policy(
+        actor,
+        n_rows,
+        n_envs=n_envs,
+        n_threads=n_threads,
+        seed=seed,
+        rosters=rosters,
+        keep="ordered",
+    )
+    before = agreement_summary(bc_eval(actor, dataset))
+    actor, log = train(dataset, train_config, actor=actor)
+    after = agreement_summary(bc_eval(actor, dataset))
+    report: dict[str, object] = {
+        "init": str(init),
+        "rosters": rosters,
+        "n_rows": n_rows,
+        "seed": seed,
+        "n_envs": n_envs,
+        "collect": asdict(dataset.stats),
+        "holdout_agreement_before": before,
+        "holdout_agreement_after": after,
+        "train": _train_report(train_config, log),
+        "wall_s": time.perf_counter() - start,
+    }
+    checkpoint = out_dir / ORDERED_DAGGER_NAME
+    save_policy(
+        checkpoint,
+        actor,
+        critic,
+        {
+            "source": "bc_dagger_ordered",
+            "sim_version": SIM_VERSION,
+            "obs_dim": actor.obs_dim,
+            "init": str(init),
+            "init_meta": json.loads(json.dumps(meta, default=str)),
+            "holdout_agreement": after,
+        },
+    )
+    eval_path = out_dir / ORDERED_DAGGER_EVAL
+    eval_path.write_text(json.dumps(report, indent=2) + "\n")
+    return OrderedDaggerResult(
+        checkpoint=checkpoint, eval_path=eval_path, report=report
+    )

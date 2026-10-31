@@ -71,6 +71,27 @@ HEAD_GROUPS: dict[str, slice] = {
     "power": slice(20, 21),
 }
 HEAD_CHOICES: dict[str, int] = {"throttle": 3, "slew": 3, "fire": 2, "power": 7}
+# Head sets an imitation term can be restricted to: every head, or "movement" (the
+# thrusters and the power split: where the ship flies, not how it aims and shoots).
+HEAD_SETS: dict[str, tuple[str, ...]] = {
+    "all": tuple(HEAD_GROUPS),
+    "movement": ("throttle", "power"),
+}
+
+
+def head_set_columns(name: str) -> torch.Tensor:
+    """[21] bool: the action columns of the head set ``name`` (``HEAD_SETS``).
+
+    Raises:
+        ValueError: Unknown head set.
+    """
+    if name not in HEAD_SETS:
+        raise ValueError(f"head set must be one of {tuple(HEAD_SETS)}, got {name!r}")
+    cols = torch.zeros(ACTION_WIDTH, dtype=torch.bool)
+    for group in HEAD_SETS[name]:
+        cols[HEAD_GROUPS[group]] = True
+    return cols
+
 
 # The 14 three-way heads (throttle then slew) are contiguous in both the action
 # row and the logits, so they share one [B, 14, 3] log_softmax.
@@ -213,6 +234,29 @@ class _HeadLogSoftmax:
                 logits[:, _FIRE_LOGITS].reshape(batch, N_TURRETS, 2), dim=-1
             ),
             power=F.log_softmax(logits[:, _POWER_LOGITS], dim=-1),
+        )
+
+    def flat(self) -> torch.Tensor:
+        """[B, N_LOGITS] every head's log-probabilities in one row (ternary heads,
+        then fire, then power): what a rollout caches of a frozen actor."""
+        batch = self.power.shape[0]
+        return torch.cat(
+            [self.ternary.reshape(batch, -1), self.fire.reshape(batch, -1), self.power],
+            dim=-1,
+        )
+
+    @classmethod
+    def from_flat(cls, flat: torch.Tensor) -> _HeadLogSoftmax:
+        """Inverse of ``flat`` (the values are already log-probabilities)."""
+        if flat.dim() != 2 or flat.shape[1] != N_LOGITS:
+            raise ValueError(f"flat must be [B, {N_LOGITS}], got {tuple(flat.shape)}")
+        batch = flat.shape[0]
+        n_ternary = _N_TERNARY * 3
+        n_fire = N_TURRETS * 2
+        return cls(
+            ternary=flat[:, :n_ternary].reshape(batch, _N_TERNARY, 3),
+            fire=flat[:, n_ternary : n_ternary + n_fire].reshape(batch, N_TURRETS, 2),
+            power=flat[:, n_ternary + n_fire :],
         )
 
     def gather(self, actions: torch.Tensor) -> torch.Tensor:

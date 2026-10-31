@@ -58,6 +58,8 @@ HIT_FIELDS: int = rlf_sim.HIT_FIELDS
 MAX_REACTION_TICKS: int = rlf_sim.MAX_REACTION_TICKS
 OBS_LAYOUT: dict[str, tuple[int, int]] = dict(rlf_sim.OBS_LAYOUT)
 ACTION_LAYOUT: dict[str, tuple[int, int]] = dict(rlf_sim.ACTION_LAYOUT)
+# has_order, the order block's first float (SIM_VERSION 5).
+HAS_ORDER_COL: int = OBS_LAYOUT["order"][0]
 
 # Number of fixed-width records in each obs block (SIM_SPEC §7.2), from the sim.
 OBS_SLOTS: dict[str, int] = dict(rlf_sim.OBS_SLOTS)
@@ -479,6 +481,20 @@ class RustVecEnv:
         else:
             self._env.scripted_actions(team=team)
         return self._out(self._env.actions)
+
+    def scripted_order_rows(self) -> NDArray[np.bool_]:
+        """[N, S] bool, owned: slots of the current matches whose obs shows an order
+        (``has_order``) that the slot's script flies, so ``scripted_actions()`` is an
+        order-following label there (``Roster.scripts_follow_orders``: not the
+        scripted commander's advisory deathmatch orders). Capital ships' waypoints
+        read as holds and count too; callers keep the rows they train."""
+        follows = np.asarray(
+            [r.scripts_follow_orders() for r in self.rosters], dtype=np.bool_
+        )
+        team = np.asarray(self._env.team, dtype=np.int64)
+        by_slot = np.take_along_axis(follows, np.clip(team, 0, 1), axis=1)
+        has_order = self._env.obs[..., HAS_ORDER_COL] > 0.5
+        return has_order & by_slot & (team >= 0)
 
     def events(self) -> NDArray[np.float32]:
         """Copied ``[E, 9]`` events of the last step (needs ``record_events``)."""

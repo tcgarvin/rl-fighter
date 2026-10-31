@@ -189,6 +189,7 @@ def _anchor_batch(n: int, anchored: torch.Tensor) -> PPOBatch:
         advantages=zeros,
         returns=zeros,
         anchor_rows=anchored,
+        pull_rows=torch.ones(n, dtype=torch.bool),
     )
 
 

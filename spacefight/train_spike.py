@@ -5,6 +5,7 @@ through ``args.func(args)``::
 
     python -m spacefight.train_spike bc --out DIR --rows 2000000
     python -m spacefight.train_spike dagger --out DIR --init DIR/bc.pt --threads 4
+    python -m spacefight.train_spike dagger-ordered --init ppo.pt --out DIR
     python -m spacefight.train_spike ppo --run-dir RUN --init bc.pt
     python -m spacefight.train_spike ppo --run-dir RUN --init scratch
     python -m spacefight.train_spike ppo --run-dir RUN --resume
@@ -228,6 +229,72 @@ def run_dagger(args: argparse.Namespace) -> int:
     return 0
 
 
+def add_dagger_ordered_parser(subparsers: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]
+    """Register the ``dagger-ordered`` subcommand (run B2b)."""
+    parser = subparsers.add_parser(
+        "dagger-ordered",
+        help="one DAgger round on ordered rows, fine-tuning a PPO checkpoint",
+        description=(
+            "The checkpoint's actor flies one side of the mission mix against the "
+            "script; rows whose obs shows an order their script flies are labelled "
+            "with the script's action, and the actor is fine-tuned on them. The "
+            "critic is kept. Writes dagger_ordered.pt and dagger_ordered.json."
+        ),
+    )
+    parser.add_argument("--init", type=Path, required=True, help="PPO checkpoint")
+    parser.add_argument("--out", type=Path, required=True, help="output directory")
+    parser.add_argument("--rows", type=int, default=1_500_000)
+    parser.add_argument("--seed", type=int, default=1)
+    parser.add_argument("--threads", type=int, default=8, help="sim + torch threads")
+    parser.add_argument("--n-envs", type=int, default=256)
+    parser.add_argument("--rosters", default="orders_v1")
+    parser.add_argument("--epochs", type=int, default=2)
+    parser.add_argument("--batch-size", type=int, default=4096)
+    parser.add_argument("--lr", type=float, default=1e-4)
+    parser.add_argument("--lr-final", type=float, default=1e-5)
+    parser.add_argument("--label-smoothing", type=float, default=0.02)
+    parser.add_argument(
+        "--heads",
+        choices=("all", "movement"),
+        default="movement",
+        help="heads fine-tuned (movement: thrusters and power, not aim and fire)",
+    )
+    parser.set_defaults(func=run_dagger_ordered)
+
+
+def run_dagger_ordered(args: argparse.Namespace) -> int:
+    """Run the ``dagger-ordered`` subcommand and print its summary."""
+    from spacefight.rl import bc
+
+    config = bc.TrainConfig(
+        epochs=args.epochs,
+        batch_size=args.batch_size,
+        lr=args.lr,
+        lr_final=args.lr_final,
+        label_smoothing=args.label_smoothing,
+        seed=args.seed,
+        heads=args.heads,
+    )
+    result = bc.ordered_dagger_round(
+        args.init,
+        args.out,
+        args.rows,
+        config,
+        n_threads=args.threads,
+        seed=args.seed,
+        n_envs=args.n_envs,
+        rosters=args.rosters,
+    )
+    report = result.report
+    print(
+        f"ordered DAgger ({report['wall_s']:.0f}s, {args.rows} rows): agreement "
+        f"before {json.dumps(report['holdout_agreement_before'])} after "
+        f"{json.dumps(report['holdout_agreement_after'])} -> {result.checkpoint}",
+        flush=True,
+    )
+    return 0
+
+
 # --------------------------------------------------------------------------- ppo
 
 
@@ -346,6 +413,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     add_bc_parser(subparsers)
     add_dagger_parser(subparsers)
+    add_dagger_ordered_parser(subparsers)
     add_ppo_parser(subparsers)
     return parser
 
