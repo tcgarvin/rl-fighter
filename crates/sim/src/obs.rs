@@ -344,6 +344,33 @@ fn clamp_record(out: &mut [f32]) {
     }
 }
 
+/// The rotation into an observer's body frame, `rot(-heading, ·)` with its sine and
+/// cosine computed once per observer (v6: the obs writes many more records per
+/// observer). `apply` is the same arithmetic as `math::rot`, so results are bitwise
+/// identical.
+#[derive(Clone, Copy)]
+struct Body {
+    s: f32,
+    c: f32,
+}
+
+impl Body {
+    #[inline]
+    fn of(observer: &Ship) -> Body {
+        let theta = -observer.heading;
+        Body {
+            s: libm::sinf(theta),
+            c: libm::cosf(theta),
+        }
+    }
+
+    /// World-frame vector into the observer's body frame.
+    #[inline]
+    fn apply(self, v: Vec2) -> Vec2 {
+        Vec2::new(self.c * v.x - self.s * v.y, self.s * v.x + self.c * v.y)
+    }
+}
+
 /// World-frame vector into the observer's body frame.
 #[inline]
 fn to_body(observer: &Ship, v: Vec2) -> Vec2 {
@@ -447,11 +474,23 @@ pub fn write_ship(
     arena_radius: f32,
     out: &mut [f32],
 ) {
+    write_ship_in(cat, Body::of(observer), observer, other, arena_radius, out);
+}
+
+/// [`write_ship`] with the observer's frame already computed.
+fn write_ship_in(
+    cat: &Catalogue,
+    body: Body,
+    observer: &Ship,
+    other: &Ship,
+    arena_radius: f32,
+    out: &mut [f32],
+) {
     let out = &mut out[..SHIP_W];
     let hull = cat.hull(other.hull);
     let delta = other.pos - observer.pos;
-    let rel_pos = to_body(observer, delta);
-    let rel_vel = to_body(observer, other.vel - observer.vel);
+    let rel_pos = body.apply(delta);
+    let rel_vel = body.apply(other.vel - observer.vel);
     let rel_heading = other.heading - observer.heading;
     out[ship_f::PRESENT] = 1.0;
     out[ship_f::IS_ENEMY] = bit(other.team != observer.team);
@@ -508,9 +547,21 @@ pub fn write_projectile(
     arena_radius: f32,
     out: &mut [f32],
 ) {
+    write_projectile_in(Body::of(observer), observer, p, threat, arena_radius, out);
+}
+
+/// [`write_projectile`] with the observer's frame already computed.
+fn write_projectile_in(
+    body: Body,
+    observer: &Ship,
+    p: &Projectile,
+    threat: Threat,
+    arena_radius: f32,
+    out: &mut [f32],
+) {
     let out = &mut out[..PROJ_W];
-    let rel_pos = to_body(observer, p.pos - observer.pos);
-    let rel_vel = to_body(observer, p.vel - observer.vel);
+    let rel_pos = body.apply(p.pos - observer.pos);
+    let rel_vel = body.apply(p.vel - observer.vel);
     out[proj_f::PRESENT] = 1.0;
     out[proj_f::REL_POS_X] = rel_pos.x / arena_radius;
     out[proj_f::REL_POS_Y] = rel_pos.y / arena_radius;
@@ -700,6 +751,7 @@ impl Match {
             return;
         }
         let hull = cat.hull(me.hull);
+        let body = Body::of(me);
         let radius = self.cfg.arena_radius;
 
         write_self(self, cat, me, &mut out[SELF_OFF..SELF_OFF + SELF_WIDTH]);
@@ -727,7 +779,14 @@ impl Match {
         let view = OrderView::of(self, me);
         for (k, &i) in near_ships.indices().iter().enumerate() {
             let o = SHIPS_OFF + k * SHIP_W;
-            write_ship(cat, me, &self.ships[i], radius, &mut out[o..o + SHIP_W]);
+            write_ship_in(
+                cat,
+                body,
+                me,
+                &self.ships[i],
+                radius,
+                &mut out[o..o + SHIP_W],
+            );
             let o = SHIP_EXTRAS_OFF + k * SHIP_EXTRA_W;
             write_ship_extras(self, &view, &self.ships[i], &mut out[o..o + SHIP_EXTRA_W]);
         }
@@ -741,7 +800,7 @@ impl Match {
             for (k, &i) in around.indices().iter().enumerate() {
                 let o = ORDER_SHIPS_OFF + k * ORDER_SHIP_W;
                 let other = &self.ships[i];
-                write_ship(cat, me, other, radius, &mut out[o..o + SHIP_W]);
+                write_ship_in(cat, body, me, other, radius, &mut out[o..o + SHIP_W]);
                 let e = o + SHIP_W;
                 write_ship_extras(self, &view, other, &mut out[e..e + SHIP_EXTRA_W]);
             }
@@ -756,7 +815,7 @@ impl Match {
         for (k, &i) in threats.indices().iter().enumerate() {
             let o = PROJ_OFF + k * PROJ_W;
             let p = &self.projectiles[i];
-            write_projectile(me, p, threat(me, p), radius, &mut out[o..o + PROJ_W]);
+            write_projectile_in(body, me, p, threat(me, p), radius, &mut out[o..o + PROJ_W]);
         }
 
         let d = usize::from(me.reaction_ticks).min(N_PENDING_SLOTS);
