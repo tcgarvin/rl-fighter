@@ -351,6 +351,112 @@ parallel against the interface below; the run follows.
     ≤ 1 %, outside arena ≤ 0.02. Reported: engine duty per hull *and per order kind*
     (the direct readout of farming), passes, length.
 
+#### Stage B3: orders redesigned (user, team lead and Fable, 2026-10-31)
+
+Run 1 (`lab/runs/2026-10-31-order-pilot/results.md`) made a strong mission pilot that
+barely followed orders; B2b (`…-b2b/results.md`) followed them at the teacher's level
+and lost every carrier battle, because the script pull overwrote combat flying. The
+review that followed changes the orders, the obs and the recipe. Where this list and
+"Stage B decisions" disagree, this list wins.
+
+**Orders (SIM_VERSION 6): attack, defend, go-to, none.** Hold is gone; return to carrier
+waits for docking (Later).
+- *Attack* `target`: unchanged. Damage to the target pays `0.01·hull + 0.005·shield` on
+  top of the team reward.
+- *Defend* `ward` (was guard): **no location reward.** Pays `0.01·hull + 0.005·shield`
+  for damage dealt to the ward's **threat set**, and every defender of the ward pays
+  `−0.5 ×` the ward's hull fraction lost each tick, and `−0.3` once if it dies (shared,
+  not split; fractions, so a freighter and a carrier weigh the same). Threat set: enemies
+  within *their own* longest weapon range + 40 m + the ward's bound radius of the ward,
+  or that damaged the ward in the last 150 ticks (a per-ship "last hit by" record,
+  hashed). No fixed guard radius: a gunship's torpedo (340 m) outranges the old 180 m.
+  Both ward terms use each defender's *standing* order on the step the damage lands (the
+  effective order is already none on the tick the ward dies). Docked reserves are not
+  earning and pay nothing.
+- *Go-to* `point` (replaces hold): potential shaping as now (nets zero), arrival bonus
+  `0.2`, no presence term. **Completes per ship on arrival** (inside the radius): from
+  then on that ship's effective order is none (obs `has_order = 0`, no order reward),
+  while the squad's standing order lasts until the commander changes it. A re-issued
+  point within 40 m of the last go-to point is the same instance and pays nothing twice
+  (else re-staging a screen farms 0.2 a slow tick); gates.md reports arrivals per minute. Capital ships' waypoints
+  read as go-to (radius 25 m), completing per waypoint.
+- Order block layout unchanged (18 floats), kind one-hot read as attack/defend/go-to.
+  Feature 9 (radius) is 0 for attack and defend, the arrival radius for go-to.
+
+**Obs: what a pilot needs to judge threats.** The first 403 floats stay exactly v5's
+(frozen v1 runs on `[:385]`, run 1's w1_400 on `[:403]`, both exact). Two tail blocks:
+- `ship_extras`, one record per existing ship slot (the 7 nearest self, same order):
+  hull-class one-hot (fixed order, 6 slots: fighter, strafer, gunship, carrier,
+  freighter, spare), longest weapon range / R, distance from that ship to my order point
+  (target, ward or go-to point) / R (0 without an order), is my order's target or ward,
+  damaged my ward in the last 150 ticks. 10 floats × 7.
+- `order_ships`: the **5 ships nearest my order point** (ward, attack target or go-to
+  point; allies and enemies; excluding self and the order's own ship, already in the
+  order block), each as the 12-float ship record (relative to self) + the 10
+  extras. All zero without an order. 22 floats × 5. Why a second block and not
+  re-selecting the 7 slots by the ward: the v5 prefix stays exact for every pilot, and a
+  defender still sees what is near itself.
+- `OBS_DIM` 403 → 583. The browser actor's first layer grows to 583 × 256; fine on a
+  phone (WP checks the JS inference time at 18 ships).
+
+**Teachers (`scripted/orders.rs`).** The scripted defender engages its ward's threat
+set (recent hitters of the ward first, then nearest the ward), and stations near the
+ward only when the set is empty. Go-to: fly to the point; after arrival the script falls
+back to its role. The **scripted commander** issues go-to where it issued hold (convoy
+flank screen, attacker wave 2's staging point) and defend where it issued guard. Waves
+that used to wait at a hold now fight on arrival, so the mission balance must be
+re-measured (survey: carrier battles 98 % carrier kill and about 50/50, convoy attackers
+win 52–62 % on every default roster); the WP retunes the commander's timing (e.g. issue
+wave 2's go-to later) if it drifts out.
+
+**Random commander:** kinds none/attack/defend/go-to; go-to points drawn near the
+action as in B2b (20 % far); defend wards: a capital ship when the team has one, 50 %,
+else any own ship.
+
+**The run (`lab/runs/2026-11-01-order-pilot-b3`):**
+- Init: run 1's **w1_400** (the best mission pilot), first-layer columns for the 180
+  new inputs zeroed, so update 0 is exactly w1_400.
+- KL anchor on `has_order = 0` rows to **w1_400** on `obs[:403]` (it is stronger than v1
+  in missions and plays v1's deathmatch); frozen pool: v1 and w1_400.
+- **The script pull only on transit rows**: a go-to not yet arrived, or a defend whose
+  threat set is empty. **Attack rows are never pulled** (closing through an enemy's guns
+  is where v1's evasive flying lives, and it is what B2b destroyed; attack already
+  closes in 92–100 ticks). Never on combat rows. Movement heads only.
+- **The new first-layer columns (actor and critic) get their own parameter group at
+  10× the LR**, in both arms: run 1 showed 400 updates at 1e-4 barely move zeroed
+  columns. The fleet critic reads all 583 inputs, its new columns zeroed too.
+- **Arms: `transit` (β 0.05 → 0 over updates 30–300) and `reward` (β 0).** The second
+  says whether the new rewards and inputs are enough on their own. 300–400 updates,
+  checkpoints every 50.
+- Order reward weight `w = 1`.
+
+**Gates (the run's plan fixes the numbers before any eval; per order, on the same
+definitions as the reward):**
+- O, under the random commander, against the same pilot **with its order hidden by the
+  sim** (no order block, no `order_ships`, no order extras; not zeroed floats only): a
+  per-team obs flag in the match config, so followed and hidden runs are the same
+  matches with paired seeds, each pilot evaluated as both teams. Instances cut short by
+  death, a new order or the match end are censored (excluded), not counted either way.
+  Go-to near and far draws are reported separately (only far ones test following against
+  the fight). Defend needs ≥ 300 defended ward-minutes per candidate (one torpedo volley
+  is 55 hp). Expect the defend threat-set share to saturate late in carrier battles
+  (380 m reach in a 450 m arena); the teacher-first rule below covers it.
+  attack: median time to gun range ≤ 150 ticks (targets under 250 m out), damage share
+  on target ≥ hidden + 0.05; defend: ward hull lost per defended minute ≤ 0.8 × hidden,
+  and share of the defender's damage on the threat set ≥ hidden + 0.05; go-to: ≥ 0.7 of
+  instances arrive within 1.5 × (straight-line distance / speed cap + 60 ticks). The
+  teacher is measured first; a bound it cannot meet is set from it before any candidate
+  is evaluated, and the plan says so.
+- M: mission win vs v1 as now (each ≥ 0.47, mean ≥ 0.52) **and** mean vs w1_400 ≥ 0.45.
+- D and H as in run 1.
+- Pick: among candidates that pass everything, the highest mean mission win vs v1.
+
+**Work packages.** WP-B3-sim (Rust, bindings, goldens with v5 compat, SIM_SPEC, scripted
+commander and teachers, mission balance re-measure, web overlay labels, a transit-row
+mask for Python) and WP-B3-train (widening to 583, anchor on `[:403]`, transit-row pull,
+the eval's hidden-order mode and defend/go-to metrics, gates, run dir), in parallel
+against the interface above; the run follows.
+
 ### Later (not M3)
 
 - Docking and repair, flown by the pilot (the story demo's return-to-bay).
