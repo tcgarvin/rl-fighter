@@ -317,13 +317,18 @@ class OrderTracker:
         measured_live = self.measured & live
         self._duty(measured_live, tracks.effective, engine_level)
         self.tally.ship_ticks += int(measured_live.sum())
-        # Close what ended: death or departure, a new order, the order going away.
+        # Close what ended: death or departure, the order going away on its own
+        # (the same standing instance, whatever the sim then shows as its target),
+        # a new order.
         self.close(self.open & ~live, CENSORED)
         running = self.open & live
-        self.close(running & self._new_order(tracks), CENSORED)
-        gone = self.open & live & (tracks.effective == NONE)
+        same = (tracks.instance_start == self.instance_start) & (
+            tracks.standing == self.kind
+        )
+        gone = running & same & (tracks.effective == NONE)
         self.close(gone & (self.kind == GOTO) & tracks.arrived, COMPLETED)
         self.close(gone, ENDED)
+        self.close(self.open & live & self._new_order(tracks), CENSORED)
         self.close(self.open & (tracks.effective != self.kind), CENSORED)
         # Open what started (or a running order seen for the first time).
         opening = measured_live & ~self.open & (tracks.effective != NONE)

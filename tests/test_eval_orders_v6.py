@@ -148,10 +148,21 @@ def test_attack_censored_before_closing_is_excluded_but_a_dead_target_is_never()
     _observe(tracker, new, pos)
     tracker.finish()
     arr = _arrays(tracker)
-    assert arr["outcome"].tolist() == [CENSORED, ENDED, CENSORED]
+    assert sorted(arr["outcome"].tolist()) == [ENDED, CENSORED, CENSORED]
     s = summarise(tracker.tally).attack
     assert s.instances == 3 and s.censored == 2
     assert s.close.n == 1 and s.close.median is None and s.close.reached == 0.0
+
+
+def test_a_dead_target_ends_the_instance_whatever_target_the_sim_shows() -> None:
+    tracker = _tracker()
+    attack = _tracks([ATTACK, NONE, NONE, NONE], target=[3, -1, -1, -1], start=[60] * S)
+    _observe(tracker, attack, [(0.0, 0.0)] * S)
+    cleared = _tracks(
+        [NONE] * S, target=[-1] * S, standing=[ATTACK, 0, 0, 0], start=[60] * S
+    )
+    _observe(tracker, cleared, [(0.0, 0.0)] * S)
+    assert _arrays(tracker)["outcome"].tolist() == [ENDED]
 
 
 def test_death_and_match_end_censor_open_instances() -> None:
