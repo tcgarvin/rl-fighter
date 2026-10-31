@@ -38,6 +38,7 @@ scripts/check.sh
 uv run maturin develop -m crates/sim-py/Cargo.toml --release
 uv run python -m pytest tests/test_rust_env.py -v
 uv run python -m pytest tests/test_rust_missions.py -v   # v4 missions + commander API, v5 orders/random commander
+uv run python -m pytest tests/test_rust_orders_v6.py -v  # v6 orders: defend / go-to, hidden orders, transit, threat sets
 # Mission timeline diagnostic (carrier battle, convoy escort, stub commanders)
 cargo test -p sim --test missions timeline -- --ignored --nocapture
 uv run python tools/bench_env.py --assert-floors   # v5: + 12-slot carrier/convoy training shapes

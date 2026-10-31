@@ -131,6 +131,35 @@ still pass too. So fleet pilot v1 (v3) flies a v5 bundle unchanged on the obs pr
   random squad does not idle for up to 16 s.
 - *Shaping γ = 0.99*, the trainer's PPO γ.
 
+### 0.4 v6 changes (SIM_VERSION 5 → 6, M3 stage B3 / WP-B3-sim)
+
+The M3 plan's "Stage B3: orders redesigned" is the spec; this table is the diff and
+the reasons (`lab/runs/2026-10-31-order-pilot{,-b2b}/results.md`: run 1 barely
+followed orders, B2b followed them and lost its fights).
+
+| # | change | why | sections |
+|---|---|---|---|
+| 1 | Orders **attack / defend / go-to / none**: `Order::Guard` → `Defend { ward }`, `Order::Hold` → `GoTo { point, radius }` (kind codes 2 and 3 unchanged; JSON `"defend"`, `"goto"`). Capital waypoints read as go-to of 25 m | hold rewarded parking; a defender should fight what threatens its ward, not hold a ring | §5.9, §10.3 |
+| 2 | **Go-to completes per ship on arrival**: once inside the radius its *effective* order is none (obs `has_order = 0`, no order reward, the script falls back to its role) while the squad's standing order lasts. A point re-issued within `GOTO_SAME_POINT = 40` m of the instance's first point is the same instance | waves that used to wait at a hold fight on arrival; re-staging a screen cannot farm the arrival bonus | §5.9, §8 |
+| 3 | Order instances are keyed on the **standing** order (v5: the valid one): a target or ward that dies does not start an instance; `OrderTrack` loses `presence_ticks` | the trainer's instance bookkeeping (censoring by death) needs the instance to outlive its target | §5.9 |
+| 4 | **Threat set** of a ward: enemies within their own longest weapon range + `THREAT_MARGIN = 40` m + the ward's bound radius of it, or that damaged it in the last `RECENT_HIT_TICKS = 150` ticks (`Match.hit_by`, hashed) | no fixed guard ring: reach differs by hull (a torpedo rack would outrange any ring) | §5.9 |
+| 5 | **Order reward**: defend pays damage on the ward's threat set, `−0.5 ×` the ward's hull fraction lost per step and `−0.3` on its death, to every defender via its standing order; no location terms. Go-to: shaping as before until arrival, arrival `0.2`, no presence. Attack unchanged | rewards what defending is for; presence paid for parking | §8 |
+| 6 | Obs `OBS_DIM` 403 → **583**: `ship_extras` (7 × 10, per `ships` slot: hull-class one-hot, reach, distance to my order point, is my order ship, hit my ward) and `order_ships` (5 × 22: the ships nearest my order point, record + extras). The first 403 floats are v5's | a defender must judge threats round its ward, which may be far from itself | §7.2 |
+| 7 | **Hidden-order mode** (`MatchConfig.hide_orders[team]`): that team's obs shows no order (block, `order_ships`, order extras zero), exactly as without one; rewards and scripts unchanged | the order-following gates compare a pilot with its order hidden by the sim, on paired seeds | §7.2, §10 |
+| 8 | Scripts: a defender engages its ward's threat set (recent hitters first, then nearest the ward), stations on the ward only with the set empty; a go-to flies to the point (0.9 of its speed cap). Scripted commander: defend for guard, go-to for hold. Random commander: defend wards a capital ship with probability 0.5 when the team has one | the scripts are the order-following teacher | §5.9, §11 |
+| 9 | `PILOT_COMPAT_VERSIONS = [3, 4, 5, 6]`, `PILOT_OBS_DIMS = {3: 385, 4: 385, 5: 403, 6: 583}`; bindings: `order_transit`, `ward_threat`, `ward_hull_lost`, `order_tracks()`, `hide_orders` | frozen v1 and v5 pilots fly on their prefix; the trainer's transit-row pull and the eval's defend metrics | §10 |
+| 10 | State hash appends `hit_by` (the match's slots, row by row) | determinism | §12 |
+
+**Compatibility.** Under the scripted commander a deathmatch is unchanged: the
+`v5_compat_*` replays render the four deathmatch scenarios as v5 did (v5's order
+tracks, keyed on the valid order, rebuilt by the test; the aux digest over the first
+403 obs floats plus the order rewards) and match the v5 traces kept in
+`tests/golden/v5/` bit for bit; `v3_compat_*` and the deathmatch `v4_compat_*` still
+pass. The missions change by design (the scripted commander's orders and the
+order-following scripts), so the v4 mission traces are no longer replayed. Fleet pilot
+v1 flies the missions exactly as before: it does not read orders, and the mission
+survey's live mode is bit-identical between v5 and v6.
+
 ---
 
 ## 1. Conventions
@@ -770,30 +799,49 @@ waypoint: Unset | At(pos) }` for the team's own carriers and transports in the m
 `MAX_SQUADS = 4`): members are restricted to own strike craft in the match (bits for
 other slots, capital ships, dead or departed ships are dropped) and removed from the
 team's other squads; the order is sanitised: `Attack { target }` needs an active enemy,
-`Guard { ward }` an own ship in the match, `Hold { point, radius }` finite (point
-clamped into `0.95 R`, radius into `[10, R]`), else `Order::None`. Any drop makes the
+`Defend { ward }` an own ship in the match, `GoTo { point, radius }` finite (point
+clamped into `0.95 R`, radius into `[10, R]`), else `Order::None` (v6; v5's `Guard`
+and `Hold`). Any drop makes the
 outcome `Sanitized`.
 
 **State** (hashed): `CommandState { squads: [[Squad { members, order }; 4]; 2],
 waypoints: [Waypoint; MAX_SHIPS] }`. Setup sets the carriers' and transports' first
 waypoints. Pilots do not see orders in stage A; v5 adds the obs block (below, §7.2).
 
-**A ship's own order (v5, `order.rs`).** The *standing* order of slot `s` is its
-waypoint as `Hold { point, radius: CAPITAL_WAYPOINT_RADIUS = 25 }` if it has one
-(capital ships), else its squad's order, else none. The *effective* order is the
-standing one with an attack on a target that is not active, or a guard of a ward that
-is not active (dead, docked, not yet arrived, jumped out), replaced by none at once,
-not at the next slow tick. The obs block and the guard/hold reward terms use the
-effective order; hit credit uses the standing one. Order geometry: attack → the
-target's position, radius 0; guard → the ward's position, radius `GUARD_PRESENCE =
-90` m + the ward's bound radius; hold → its point and radius.
+**A ship's own order (v5, v6; `order.rs`).** The *standing* order of slot `s` is its
+waypoint as `GoTo { point, radius: CAPITAL_WAYPOINT_RADIUS = 25 }` if it has one
+(capital ships), else its squad's order, else none. The *valid* order is the standing
+one with an attack on a target that is not active, or a defend of a ward that is not
+active (dead, docked, not yet arrived, jumped out), replaced by none at once, not at
+the next slow tick. The *effective* order is the valid one, except that a go-to the
+ship has **completed** (arrived in during its current instance) is none: the ship
+flies its role again while the squad's standing go-to lasts until the commander
+changes it. The obs, the go-to shaping and the scripts use the effective order; hit
+credit and the defend penalties the standing one. Order geometry: attack → the
+target's position, defend → the ward's, go-to → its point; radius 0 for attack and
+defend, the go-to radius for go-to.
 
-**Order instances (v5).** `Match.order_tracks[s]` (`OrderTrack`, hashed): the
-instance's key `(kind, target, point)`, its `start_tick`, `arrived`,
-`presence_ticks` and `last_phi`. Stage 13b compares each ship's effective order with
-its key; a different kind, target or hold point (a radius change alone is not)
-starts a new instance at this tick with Φ reset to its current value. Setup starts
-every ship's instance at tick 0 (only capital waypoints exist then).
+**Order instances (v5, v6).** `Match.order_tracks[s]` (`OrderTrack`, hashed): the
+instance's key `(kind, target, point)`, its `start_tick`, `arrived` and `last_phi`.
+Stage 13b compares each ship's *standing* order with its key (v6; v5 used the
+effective order, so a dead target started an empty instance): a different kind or
+target, or a go-to point more than `GOTO_SAME_POINT = 40` m from the instance's first
+point, starts a new instance at this tick with Φ reset to its current value (a radius
+change or a smaller move is the same instance, completed or not). Setup starts every
+ship's instance at tick 0 (only capital waypoints exist then).
+
+**Threat sets and hits (v6).** `Match.hit_by[w][e]` is the tick `e` last damaged `w`
+(hull or shield, enemies only; 0 never; hashed over the match's slots), updated at
+stage 13b from the step's HitRecords. Ward `w`'s *threat set* among candidate slots:
+the enemies `e` of `w` with `|e − w| ≤ reach(e) + THREAT_MARGIN (40 m) + bound(w)`,
+`reach` the longest weapon range of `e`'s hull (`Match.ship_reach`, from the
+catalogue at setup), or with `tick − hit_by[w][e] < RECENT_HIT_TICKS (150)`. The reward
+and `Match.ward_threat` (output) use the ships active after stage 2 as candidates, for
+every such ward; the scripts and the transit flag the ships active now.
+`Match.hull_lost[s]` (output) is the hull fraction `s` lost in the step, measured
+from its hp at the end of the previous step's stage 13b (a death counts the rest of
+its hull). `Match::order_transit(s)`: the effective order is a go-to (not arrived), or
+a defend whose ward's threat set is empty.
 
 **Random commander (v5, `CommanderMode::Random`, `"random"`,
 `scripted/random_commander.rs`).** Stage B trains pilots on any order. Per team, on
@@ -807,10 +855,12 @@ every slow tick:
   not docked, plus the reserves this tick's launches will take (the first in the
   hangar), as the scripted commander does.
 - *Orders*: a squad with members draws when `tick ≥ next_draw` or when its order was
-  cleared (target or ward gone): kind uniform over none / attack / guard / hold;
-  attack → a uniformly drawn active enemy (capital ships included); guard → a
-  uniformly drawn own active ship not in the squad (capital ships included); hold →
-  a point near the squad's fight (below) and a radius uniform in `[70, 150)` m. A
+  cleared (target or ward gone): kind uniform over none / attack / defend / go-to;
+  attack → a uniformly drawn active enemy (capital ships included); defend → with
+  an active own capital ship and probability `DEFEND_CAPITAL_P = 0.5` (one `uniform`,
+  drawn only when the team has one) a uniformly drawn capital ship, else a uniformly
+  drawn own active ship not in the squad (capital ships included); go-to → a point
+  near the squad's fight (below) and a radius uniform in `[70, 150)` m. A
   kind with no valid target becomes none. Then `next_draw = tick + 60 · (3 + u%6)`
   (3–8 slow ticks). Squads with no members get `Order::None`. A command is sent only
   when membership or order changes, so every `Order` event is a real change.
@@ -820,18 +870,18 @@ every slow tick:
   drew none), then per
   squad in index order: kind, target or point (`uniform` angle, `uniform` radius
   fraction, `range` radius), timer. Team 1's draws do not depend on team 0's mode.
-- *Hold points near the action* (`hold_point`; since the order pilot's run B2b, no
+- *Go-to points near the action* (`goto_point`, v6 names; since the order pilot's run B2b, no
   `SIM_VERSION` bump: the obs layout and every scripted-commander match are
   unchanged, only the random commander's draws move). Run 1 drew hold points
   uniformly over the disc of `0.7 R`, usually away from the fight, so a pilot paid
   for following one lost its fight, and ignored holds (`lab/runs/2026-10-31-order-pilot/
   results.md`). Now: `c` = the centroid of the squad's active members (all still
   launching: of the team's active ships), `e` = the centroid of the
-  `HOLD_NEAREST_ENEMIES = 2` active enemies nearest `c` (ties to the lower slot); the
-  point is `c + f · (e − c) + j`, `f` uniform in `[HOLD_LERP_MIN, HOLD_LERP_MAX) =
-  [0.25, 0.75)`, `j` uniform over a disc of `HOLD_JITTER = 60` m, scaled back onto
-  the disc of `HOLD_POINT_FRAC · R = 0.7 R` if outside it. With probability
-  `HOLD_FAR_P = 0.2`, or with no active own ship or enemy, the point is the old
+  `GOTO_NEAREST_ENEMIES = 2` active enemies nearest `c` (ties to the lower slot); the
+  point is `c + f · (e − c) + j`, `f` uniform in `[GOTO_LERP_MIN, GOTO_LERP_MAX) =
+  [0.25, 0.75)`, `j` uniform over a disc of `GOTO_JITTER = 60` m, scaled back onto
+  the disc of `GOTO_POINT_FRAC · R = 0.7 R` if outside it. With probability
+  `GOTO_FAR_P = 0.2`, or with no active own ship or enemy, the point is the old
   uniform draw over the `0.7 R` disc instead (a *far* point): the scripted
   commander's own holds (a convoy's staging and screening points) are not always at
   the fight, and a hold must keep meaning "go to the point", not "go and fight";
@@ -856,8 +906,8 @@ squads. A learned commander will flatten it.
 Deterministic, no rng, and stateless: what it remembers between slow ticks is the
 command state itself, which is also its hysteresis. An order changes only for a
 clearly better one (an attack target is kept unless another is nearer than `0.6 ×`
-its distance `− 30 m`; a guard's ward unless another transport has 2 more threats; a
-hold point while the new one is within 120 m), squad membership moves only when a
+its distance `− 30 m`; a defended ward unless another transport has 2 more threats; a
+go-to point while the new one is within 120 m), squad membership moves only when a
 squad is the wrong size (the members furthest from the ward leave first), and a squad
 command or waypoint that changes nothing (a waypoint within 20 m of the current one)
 is not sent. So every `Order` event is a real change, for the web's command log.
@@ -870,7 +920,7 @@ those.
   per slow tick while ≥ `THREAT_COUNT = 2` enemy strike craft are within
   `THREAT_RADIUS = 200` m of the carrier; empty the hangar (one per bay per slow tick)
   in the last `LATE_TICKS = 1800` (60 s). A ship launched this slow tick is put in the
-  guard at once. **Squads**: squad 0 *guards* the carrier, `⌈n/3⌉` of the wing (`⌈n/2⌉`
+  defence at once. **Squads**: squad 0 *defends* the carrier, `⌈n/3⌉` of the wing (`⌈n/2⌉`
   while threatened, until no enemy strike craft is within 280 m); squad 1 *strikes*
   the enemy carrier, unless the enemy strike craft within 220 m of it outnumber the
   strike squad (`2·escort > strikers` to turn away from the carrier, `escort >
@@ -883,17 +933,22 @@ those.
   + 2, or own carrier hull fraction ≥ the enemy's + 0.2) → the standoff point; else
   patrol `(side · 0.6 R, ±60 m)`, switching every 20 s.
 - *Convoy escort, defenders.* Transports keep the jump point setup gave them (the
-  transport is a sitting duck: never re-routed). Squad 0 *guards* the most threatened
+  transport is a sitting duck: never re-routed). Squad 0 *defends* the most threatened
   transport that is not charging (most enemies within 220 m; the lead transport, the
   one furthest along the route, while none is threatened), `⌈n/2⌉` of the escort.
   Squad 1 *intercepts* the enemy nearest any transport; before the attackers arrive it
-  *holds* 120 m off the lead transport toward their side (radius 80 m).
+  *goes to* a point 120 m off the lead transport toward their side (radius 80 m; v6:
+  arrived, its ships fly their role).
 - *Convoy escort, attackers.* Two **waves**: wave 1 (squad 0, the first `⌈n/2⌉` in slot
   order) attacks the transport scoring highest on route progress + hull fraction lost
   (+ 0.2 while it charges its jump), switching only for a score 0.25 higher; wave 2
-  (squad 1) *holds* a staging point 150 m ahead of the lead transport along the route
-  and 110 m toward the attackers' side (radius 60 m), and goes in on the same target
-  once wave 1 is down to half wave 2's size, or at 30 s; once in, it stays in.
+  (squad 1) *goes to* a staging point 150 m ahead of the lead transport along the
+  route and 110 m toward the attackers' side (radius 60 m), and goes in on the same
+  target once wave 1 is down to half wave 2's size, or at 30 s; once in, it stays in.
+  v6: a go-to completes on arrival, so an order-following wave 2 fights from the
+  staging point on instead of waiting there. The timing was left as it was: the live
+  configuration (pilot v1, which does not read orders) is bit-identical to v5, and
+  script vs script moved within its noise (WP-B3-sim report).
 - *Deathmatch.* The fleet split in slot order into two squads: squad 0 attacks the
   enemy nearest its centroid, squad 1 the most damaged enemy (hull + shield fraction
   lost) within 300 m of its centroid (switching for 0.2 more damage). These orders are
@@ -1009,7 +1064,7 @@ zero unused slots), and the consts `THROTTLE_DECREASE = 0`, `THROTTLE_HOLD = 1`,
 
 ### 7.2 Observation (fixed vector for the spike)
 
-`OBS_DIM = 403` `f32` (v5; 385 in v2–v4, 204 in v1), body frame of the observing ship (relative
+`OBS_DIM = 583` `f32` (v6; 403 in v5, 385 in v2–v4, 204 in v1), body frame of the observing ship (relative
 vectors rotated by `-heading`, so forward = +x). Scales: `R` = arena radius,
 `VS = 100` m/s, `OM = 4` rad/s, `L = 20` m, `A = 100` m/s², `HP = 400`, `DMG = 60`,
 `T_H = 2.0` s (threat horizon). Values are clamped to `[-5, 5]` after scaling. Absent
@@ -1041,30 +1096,56 @@ entities/slots are all-zero with `present = 0`. Blocks (offset: width — featur
 373: 6   turret slot j: arc/(2π)  (0 for fixed guns)
 379: 6   turret slot j: weapon range/R
 385: 18  v5 order block (below); 385 = OBS_DIM_V4, the obs of a v3/v4 pilot
-403 = OBS_DIM
+403: 70  v6 ship_extras, 7 × 10, one per `ships` slot (below); 403 = OBS_DIM_V5
+473: 110 v6 order_ships, 5 × 22 (below)
+583 = OBS_DIM
 ```
 
 **Order block (v5, `write_order`).** The ship's effective order (§5.9), body frame,
-clamped like the rest. A ship with no order gets 18 zeros (mission and age included),
-so an order-less row is a v4 obs padded with zeros.
+clamped like the rest. A ship with no order (v6: or a completed go-to, or on a
+hidden-order team) gets 18 zeros (mission and age included), so an order-less row is
+a v4 obs padded with zeros.
 
 | offset | feature |
 |---|---|
 | 0 | has_order (1) |
-| 1–3 | kind one-hot: attack, guard, hold |
-| 4–5 | target point − own position, body, / R (attack: the target; guard: the ward; hold: the point) |
-| 6–7 | target point velocity − own velocity, body, / VS (hold: −own velocity) |
+| 1–3 | kind one-hot: attack, defend, go-to (v5: attack, guard, hold) |
+| 4–5 | target point − own position, body, / R (attack: the target; defend: the ward; go-to: the point) |
+| 6–7 | target point velocity − own velocity, body, / VS (go-to: −own velocity) |
 | 8 | (distance − radius) / R: negative inside the radius |
-| 9 | radius / R (attack 0; guard `GUARD_PRESENCE` 90 m + the ward's bound radius; hold its radius; a capital waypoint 25 m) |
-| 10 | target hp / max hp (0 for hold) |
-| 11 | target bound radius / L (0 for hold) |
-| 12–13 | sin, cos of (target heading − own heading) (0 for hold) |
+| 9 | radius / R (v6: attack and defend 0; go-to its radius; a capital waypoint 25 m) |
+| 10 | target hp / max hp (0 for go-to) |
+| 11 | target bound radius / L (0 for go-to) |
+| 12–13 | sin, cos of (target heading − own heading) (0 for go-to) |
 | 14 | ticks since this ship's order instance started / 300, at most 1 |
 | 15–17 | mission one-hot: deathmatch, carrier battle, convoy escort |
 
 Pilots see their order in every mission, the scripted deathmatch commander's advisory
 orders included. A pilot of sim version `v` reads `obs[..., :PILOT_OBS_DIMS[v]]`:
-385 for v3/v4 (no order block), 403 for v5 (`sim::pilot_obs_dim`).
+385 for v3/v4 (no order block), 403 for v5, 583 for v6 (`sim::pilot_obs_dim`).
+
+**Ship extras (v6, `write_ship_extras`).** One 10-float record per `ships` slot, same
+order (zero for an empty slot), so a pilot can judge threats:
+
+| offset | feature |
+|---|---|
+| 0–5 | hull class one-hot: fighter, strafer, gunship, carrier, freighter, spare (from the catalogue role: fighter, skirmisher, anchor, carrier, transport, other; `order::hull_class`) |
+| 6 | the ship's longest weapon range / R |
+| 7 | the ship's distance to my order point (target, ward or go-to point) / R; 0 without an order |
+| 8 | 1 if it is my order's target or ward |
+| 9 | 1 if my order is a defend and it damaged my ward in the last 150 ticks |
+
+**Order ships (v6).** The `N_ORDER_SHIPS = 5` active ships nearest my order point,
+allies and enemies, excluding me and the order's own ship (already in the order
+block), nearest first (ties to the lower slot), each the 12-float `ships` record
+(relative to me) followed by its 10 extras. All zero without an order. A second block
+rather than re-selecting the 7 `ships` slots by the order point: the v5 prefix stays
+exact, and a defender still sees what is near itself.
+
+**Hidden-order mode (v6).** `MatchConfig.hide_orders[team]`: that team's ships see
+no order: the order block, `order_ships` and extras 7–9 are zero, exactly as for a
+ship without one. Everything else (rewards, tracks, scripts, the commander) is
+unchanged: the order-following eval's control arm on paired seeds.
 
 **Threat score (projectile ordering).** For a live projectile with `team !=
 observer.team` (own and allied shots are not listed; the ship knows its own fire from
@@ -1118,45 +1199,32 @@ still penalises its target, while hits from projectiles of an already-dead shoot
 credit nobody in `rewards` (the HitRecord keeps the credit). Rewards are not
 normalised in the sim. Weights are the named consts in `reward.rs`.
 
-**Order reward (v5, `order_rewards[N, S] f32`, stage 13b).** A separate buffer, so the
-trainer weights it (`w`) and `rewards` stays exactly v4's. The same ships earn it as
-earn `rewards`; per ship and step, summed in this order:
+**Order reward (v5, v6; `order_rewards[N, S] f32`, stage 13b).** A separate buffer, so
+the trainer weights it (`w`) and `rewards` stays exactly v4's. The same ships earn it
+as earn `rewards` (docked reserves earn nothing); per ship and step, summed in this
+order:
 
 | term | value |
 |---|---|
 | attack | `+0.01 ·` hull `+ 0.005 ·` shield damage the ship dealt to its ordered target, when it lands (`HitRecord`s of this step; no retroactive credit: flight time is short next to GAE's horizon) |
-| guard, damage | the same weights on damage dealt to enemies within `ORDER_GUARD_DAMAGE_RADIUS` (180 m) + the ward's bound radius of the ward (the target's position after the step) |
-| guard, hold: shaping | `γΦ′ − Φ`, `Φ = −K · max(0, d − radius) / R`, `K = 1.0`, `γ = 0.99`; on the step an instance starts, 0 (Φ is reset to Φ′: no reward for the jump) |
-| guard, hold: arrival | `+0.1` once per instance, the first step inside the radius (`d ≤ radius`) |
-| guard, hold: presence | `+0.0009` per step inside, for at most 300 steps per instance (≤ 0.27; B2b, was `0.0003`, ≤ 0.09) |
+| defend, damage | the same weights on damage dealt to the ward's **threat set** (§5.9; candidates: the ships on the field this step, positions after the step) |
+| defend, ward hull | `DEFEND_HULL_LOSS_WEIGHT = −0.5 ×` the ward's hull fraction lost this step (`Match.hull_lost`; fractions, so a freighter and a carrier weigh the same) |
+| defend, ward death | `DEFEND_WARD_DEATH = −0.3` once, on the step the ward dies |
+| go-to: shaping | `γΦ′ − Φ`, `Φ = −K · max(0, d − radius) / R`, `K = 1.0`, `γ = 0.99`, until arrival; on the step an instance starts, 0 (Φ is reset to Φ′: no reward for the jump) |
+| go-to: arrival | `ORDER_ARRIVAL_BONUS = +0.2` once per instance, the first step inside the radius (`d ≤ radius`); the go-to is then complete for that ship |
 
-`d` is the distance to the order point, `radius` the order radius (§5.9). Hit credit
-uses the standing order, the other terms the effective one, so the hit that kills an
-attack target is paid. Consts: `ORDER_HULL_WEIGHT`, `ORDER_SHIELD_WEIGHT`,
-`ORDER_GUARD_DAMAGE_RADIUS`, `ORDER_SHAPING_K`, `ORDER_SHAPING_GAMMA`,
-`ORDER_ARRIVAL_BONUS`, `ORDER_PRESENCE_REWARD`, `ORDER_PRESENCE_CAP_TICKS`. Why
-capped: an uncapped presence term under the scripted commander's carrier guard pays
-more than winning, and v1 already coasts.
-
-*Presence on the scale of a kill (run B2b, no `SIM_VERSION` bump).* Run 1's pilots
-ignored holds: a held order paid at most 0.19 (arrival 0.1 + presence 0.09), against
-about 0.8 for a fighter kill's damage reward plus the terminal ±1, and the shaping
-term pays nothing net (it is potential-based with the trainer's γ). B2b raises the
-per-instance presence ceiling to 0.27, so a held order pays 0.37 with the arrival
-bonus: about half a fighter kill. It raises the **rate** (0.0003 → 0.0009 per step)
-and keeps the 300-step cap, rather than raising the cap at the old rate (900 steps ×
-0.0003 = 0.27 too), because a random-commander order lasts 180–480 steps: measured on
-the stage B training mix with order-following scripted pilots and the new hold
-points, a guard or hold instance has its ship inside for a median of about 100 steps
-and more than 300 steps in under 10 % of instances, so a 900-step cap at 0.0003 would
-pay 0.036 per hold instance on average (0.035 at run 1's setting), the 0.0009 rate
-0.10. Under γ = 0.99 per step it is the rate the critic sees (a stay inside is worth
-about `rate / (1 − γ)`), so only the rate makes holding compete with fighting. The
-cap still bounds what a scripted commander's all-match carrier guard can farm (0.27
-per instance, as the 900-step cap would). The v4-compat traces are unchanged; the v5
-golden traces whose ships hold or guard (both scripted missions and the three random
-ones) change only in the order-reward part of their aux digest, not the state hash. Capital ships' waypoint holds are paid too
-(they are what their obs shows); stage B trains strike rows only.
+`d` is the distance to the go-to point, `radius` its radius (§5.9). Hit credit and both
+ward terms use the *standing* order: the hit that kills an attack target is paid, and
+every defender of a ward pays the whole of its loss and death (shared, not split),
+although the effective order is already none on that tick. Shaping and arrival use
+the standing go-to (a go-to is never invalid). Defend has no location term at all, and
+no order pays a presence term (v6; v5 paid `0.0009` per step inside for at most 300
+steps, which rewarded parking). Consts in `reward.rs`: `ORDER_HULL_WEIGHT`,
+`ORDER_SHIELD_WEIGHT`, `DEFEND_HULL_LOSS_WEIGHT`, `DEFEND_WARD_DEATH`,
+`ORDER_SHAPING_K`, `ORDER_SHAPING_GAMMA`, `ORDER_ARRIVAL_BONUS`; in `order.rs`:
+`THREAT_MARGIN`, `RECENT_HIT_TICKS`, `GOTO_SAME_POINT`, `CAPITAL_WAYPOINT_RADIUS`.
+Capital ships' waypoints are paid as go-to too (they are what their obs shows); stage
+B trains strike rows only.
 
 **Retroactive projectile credit**: the sim attributes every hit to `owner` and records
 `fire_tick` and `decision_tick` (projectiles carry all three). `decision_tick` is
@@ -1204,7 +1272,7 @@ pub enum Event {
 
 v4 flat encodings (kinds 8–12): `Launch` = `[8, ship, carrier, mouth.x, mouth.y,
 dir.x, dir.y, bay]`; `Order` = `[9, team, squad, point.x, point.y, target (−1 none),
-radius, kind]` (kind 0 none, 1 attack, 2 guard, 3 hold; point = the hold point, or the
+radius, kind]` (kind 0 none, 1 attack, 2 defend, 3 go-to (v5: guard, hold); point = the go-to point, or the
 target's position when the order was given), emitted once per changed squad per slow
 tick; `JumpCharge` = `[10, ship, 0, x, y, 0, 0, until]`; `JumpOut` = `[11, ship, 0, x,
 y, 0, 0, heading]`; `MatchEnd` = `[12, winner (−1 draw), reason, 0, 0, 0, 0, 0]`,
@@ -1277,10 +1345,26 @@ env.set_next_roster(i, fleets, arena_radius, mission=None, commanders=None, time
     # is given, else the constructor's time_limit_s. Both stick with the roster like
     # the other fields, so one env mixes 90 s deathmatch, 150 s carrier, 120 s convoy.
 env.mission_state(i): + "commanders", "time_limit_ticks"
-rlf_sim.OBS_DIM == 403, OBS_DIM_V4 == 385, OBS_LAYOUT/OBS_SLOTS + "order"
-rlf_sim.PILOT_COMPAT_VERSIONS == [3, 4, 5]
-rlf_sim.PILOT_OBS_DIMS == {3: 385, 4: 385, 5: 403}   # sim version -> obs width its pilot reads
+rlf_sim.OBS_DIM_V4 == 385, OBS_LAYOUT/OBS_SLOTS + "order"
 rlf_sim.MAX_TRAIN_SHIPS == 12, rlf_sim.COMMANDER_MODES == ["scripted", "external", "random"]
+# v6:
+rlf_sim.SIM_VERSION == 6, OBS_DIM == 583, OBS_DIM_V5 == 403
+rlf_sim.PILOT_COMPAT_VERSIONS == [3, 4, 5, 6]
+rlf_sim.PILOT_OBS_DIMS == {3: 385, 4: 385, 5: 403, 6: 583}   # sim version -> obs width its pilot reads
+rlf_sim.OBS_LAYOUT/OBS_SLOTS + "ship_extras" (403, 70; 7) + "order_ships" (473, 110; 5)
+rlf_sim.SHIP_EXTRA_W == 10, N_ORDER_SHIPS == 5, ORDER_KINDS == ["attack", "defend", "goto"]
+rlf_sim.HULL_CLASSES == ["fighter", "strafer", "gunship", "carrier", "freighter", "spare"]
+VecEnv(..., hide_orders=[False, False])   # per team, hidden-order mode (§7.2)
+env.set_next_roster(..., hide_orders=None) # None keeps the env's setting
+env.order_transit  [N,S] bool    # effective order a go-to not yet arrived, or a defend whose
+                                 # ward's threat set is empty; as of the obs (rebuilt match)
+env.ward_threat    [N,S,S] bool  # [i, w, e]: e in w's threat set in the last step (every w on
+                                 # the field; the finished match on a done step, like rewards)
+env.ward_hull_lost [N,S] f32     # hull fraction each ship lost in the last step (a death counts)
+env.order_tracks() -> dict of new arrays: standing_kind, effective_kind [N,S] int8
+    # (0 none, 1 attack, 2 defend, 3 goto), target [N,S] int16 (-1), point [N,S,2] f32,
+    # radius [N,S] f32 (the standing go-to's), arrived [N,S] bool, instance_start [N,S] u32
+env.mission_state(i)["squads"][t][k]["order"]["kind"] in "none" | "attack" | "defend" | "goto"
 ```
 
 v5 Python side: `RustVecEnv` exposes `order_rewards` (property and `StepInfo.order_rewards`,
@@ -1360,7 +1444,7 @@ command_results_json(team): string;  // JSON array of outcomes of the last slow 
 commander_obs_json(team): string; mission_state_json(): string;  // the §10.3 views
 squads(): Float32Array;     // SQUAD_STRIDE = 9 per squad, team 0's 4 then team 1's:
     // [team, index, n_members, members_mask, order_kind, target (-1), point.x, point.y, radius]
-    // (point = hold point or the target's current position: draw a line to it)
+    // (point = go-to point or the target's current position: draw a line to it)
 team_state(team): Float32Array;  // TEAM_STRIDE = 8: [carrier_slot (-1), hp, max_hp, shield,
                                  //  max_shield, hangar_count, bays, bays_ready]
 hangar_hulls(team): Uint16Array; // docked reserves' hull ids, launch order
@@ -1394,7 +1478,7 @@ v5 additions:
 // config_json "commanders" also takes "random".
 order_rewards(): Float32Array;     // last step's order reward per ship (§8)
 // module: pilotObsDim(version): number (throws for a version this build does not fly);
-// pilotObsDimsJson(): string  // {"3":385,"4":385,"5":403}
+// pilotObsDimsJson(): string  // {"3":385,"4":385,"5":403,"6":583}
 // obsLayoutJson(): string     // {"blocks": [[name, offset, width], ...], "slots": [[name, n], ...]}
 // MAX_TRAIN_SHIPS(): number   // 12
 ```
@@ -1420,8 +1504,8 @@ Both bindings parse missions and commands with the same serde structs (PyO3 pass
 {"kind": "launch", "hull": "fighter" | null, "bay": 0 | null}
 {"kind": "waypoint", "ship": 0, "pos": [x, y] | null}            // null unsets
 {"kind": "squad", "squad": 0, "members": [1, 2, 3],
- "order": {"kind": "none"} | {"kind": "attack", "target": 9} | {"kind": "guard", "ward": 0}
-        | {"kind": "hold", "point": [x, y], "radius": 50}}
+ "order": {"kind": "none"} | {"kind": "attack", "target": 9} | {"kind": "defend", "ward": 0}
+        | {"kind": "goto", "point": [x, y], "radius": 50}}
 ```
 
 **Default rosters** (WP-S2, `mission::default_rosters(kind)`, as `MissionRosterView`
@@ -1523,13 +1607,16 @@ after target selection (manoeuvre, deconfliction, turrets, power) is unchanged:
   gun range is fought first while the target is more than twice that away
   (self-defence on a strike run). A target that died since the slow tick falls back
   to the role's own choice until the commander re-tasks the squad.
-- *Guard* `ward`: the enemy nearest the ward within 180 m plus the ward's bound
-  radius; *Hold* `point, radius`: the enemy nearest the point within `radius + 120`
-  m. With nobody there the pilot keeps station: it wants the ward's velocity (0 for a
-  hold) plus `0.5/s ×` the offset to its station (capped at `0.6 ×` its speed cap),
-  where the station is on a ring round the ward (bound radius + 45 m) or the point
-  (`radius/2`), at angle `slot × 2.4 rad` so a squad spreads; it turns its nose along
-  the missing velocity, burns within 0.5 rad of it and coasts under 4 m/s missing.
+- *Defend* `ward` (v6): the ward's threat set among the active ships (§5.9): the
+  recent hitters of the ward first, then the others, each nearest the ward first
+  (`scripted::orders::defend_target`). With the set empty the pilot keeps station: it
+  wants the ward's velocity plus `0.5/s ×` the offset to its station on a ring round
+  the ward (bound radius + 45 m; capped at `0.6 ×` its speed cap), at angle `slot ×
+  2.4 rad` so a squad spreads; it turns its nose along the missing velocity, burns
+  within 0.5 rad of it and coasts under 4 m/s missing.
+- *Go-to* `point, radius` (v6): flies to its station at `radius/2` from the point (the
+  same ring rule, at most `0.9 ×` its speed cap) without engaging; once it has arrived
+  the order is complete and the pilot flies its role (*None*).
 - *None*: exactly the pre-order behaviour.
 
 Pilots follow orders in every mission **except a deathmatch whose team has the
@@ -1601,7 +1688,12 @@ draws 0.016, median 1492 ticks, hit rate 0.46, 4.9 passes per match
   `assigned` flags, per slot its squad, per team and squad `next_draw` then `drawn`)
   and then every slot's `OrderTrack` (kind, target, point, start tick, arrived,
   presence ticks, last Φ). `order_rewards` is an output, not hashed. The v4 hash is
-  the v5 one without those two (`v4_state_hash`).
+  the v5 one without those two (`v4_state_hash`). v6: the `OrderTrack` loses the
+  presence counter (kind, target, point, start tick, arrived, last Φ), and `hit_by`
+  is appended, the match's slots × slots as `u32` row by row (ward-major).
+  `ward_threat`, `hull_lost` and the hp marks are outputs or copies, not hashed. The
+  v5 hash is rebuilt by the test (`v5_state_hash` with `V5Tracks`, v5's
+  valid-order-keyed instances).
 - Native test (`crates/sim/tests/determinism.rs`): four golden scenarios, embedded
   with `include_str!` so the same binary runs under wasmtime:
   v4 adds `carrier_battle_s23` (two carriers with six-ship wings, scripted commanders, to
@@ -1612,6 +1704,9 @@ draws 0.016, median 1492 ticks, hit rate 0.46, 4.9 passes per match
   sides) and `3v3_random_commander_s41` (random v scripted in a deathmatch), digests
   `order_rewards` too, and the `v4_compat_*` replays of all six v4 traces kept in
   `tests/golden/v4/` (§0.3; the v3 and v4 flavours digest the first 385 obs floats).
+  v6 regenerates every current trace and adds the `v5_compat_*` replays of the four
+  deathmatch traces kept in `tests/golden/v5/` (§0.4; the first 403 obs floats and the
+  order rewards); the v4 mission replays are retired (v6 changes the missions).
   The node smoke runs `carrier_battle_random_s31` through the wasm-pack bundle. The v3 scenarios:
   `duel_fighter_s7` (1v1 fighter, seed 7), `2v2_mixed_s11` (fighter+strafer vs
   gunship+fighter), `3v3_mixed_s13`, all 3000 ticks with the scripted controller
@@ -1675,6 +1770,17 @@ script they run ≈ 1,060–1,090 steps/s (carrier) and 1,050–1,090 (convoy), 
 match-ticks/s. v4 on the same machine and minute: carrier 490 / 1,117, convoy 622 /
 1,118 (labels / scripted play), so the order block, order tracks and order reward
 cost within noise.
+
+v6 (583-float obs: five more ship records and seven extras records per observer;
+threat sets for every ship each step) measured 2026-10-31, v5 and v6 back to back on
+the same minute (the machine was intermittently loaded, so absolute numbers drift by
+2×; the paired ratio is the result): 1v1 5,356 → 4,879, single-thread 2,097 → 1,878,
+4v4 1,023 → 879, 4v4 @12 + labels 775 → 696, carrier @12 + labels 492 → 425, convoy
+@12 + labels 607 → 506 steps/s: 10–17 % slower. In a quiet run v6 gave 1v1 10,281,
+2v2 5,919, single-thread 2,446, 4v4 1,829, 4v4 @12 1,447, carrier 880, convoy 527,
+every floor met; floors unchanged. The body-frame rotation is computed once per
+observer (it was two `sinf`/`cosf` per record), which took the obs from +42 % to
++21 % over v5 in a native profile of carrier battles.
 
 ## 14. Work packages
 
