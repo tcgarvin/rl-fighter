@@ -13,7 +13,7 @@
 //! - **Carrier battle.** *Launches*: keep `WING_BASE` strike craft in space or on
 //!   the way, one more every `WING_GROWTH_TICKS`, one launch per slow tick; scramble
 //!   (one per bay) while enemy strike craft threaten the carrier; empty the hangar
-//!   in the last `LATE_TICKS`. *Squads*: squad 0 **guards** the carrier (a third of
+//!   in the last `LATE_TICKS`. *Squads*: squad 0 **defends** the carrier (a third of
 //!   the wing, half while it is threatened; new launches join it), squad 1
 //!   **strikes**: the enemy carrier, unless the enemy strike craft near it outnumber
 //!   the strike squad, in which case it attacks the enemy strike craft nearest
@@ -23,13 +23,13 @@
 //!   to `STANDOFF` of the enemy carrier (its flak range); when its wing is spent,
 //!   close on the enemy carrier itself.
 //! - **Convoy escort, defenders.** Transports fly to the jump point (setup's
-//!   waypoint, never changed: the transport is a sitting duck). Squad 0 **guards**
+//!   waypoint, never changed: the transport is a sitting duck). Squad 0 **defends**
 //!   the most threatened transport (the lead one while none is threatened), half
-//!   the escort; squad 1 **intercepts** the enemy nearest the convoy, or holds a
+//!   the escort; squad 1 **intercepts** the enemy nearest the convoy, or goes to a
 //!   point off the convoy's flank on the attackers' side before they arrive.
 //! - **Convoy escort, attackers.** Two **waves**: wave 1 (squad 0, the first half)
 //!   attacks the transport that scores highest on route progress plus damage taken
-//!   (the lead or the most damaged one); wave 2 (squad 1) holds a staging point
+//!   (the lead or the most damaged one); wave 2 (squad 1) goes to a staging point
 //!   ahead of the convoy on the attackers' side, and goes in on the same target
 //!   once wave 1 is down to half its size, or at `WAVE_TWO_TICKS`.
 //! - **Deathmatch.** Two squads (the fleet split in slot order): squad 0 attacks
@@ -57,7 +57,7 @@ pub const LATE_TICKS: u32 = 1800;
 /// `THREAT_COUNT` of them make the commander scramble and retreat.
 pub const THREAT_RADIUS: f32 = 200.0;
 pub const THREAT_COUNT: usize = 2;
-/// A threatened carrier's guard stays at half the wing until no enemy strike craft
+/// A threatened carrier's defence stays at half the wing until no enemy strike craft
 /// is within this distance (m).
 pub const THREAT_CLEAR_RADIUS: f32 = 280.0;
 /// Enemy strike craft within this distance of their carrier escort it (m).
@@ -88,14 +88,14 @@ pub const STICKY_FRAC: f32 = 0.6;
 pub const STICKY_METRES: f32 = 30.0;
 /// Enemies within this distance of a transport threaten it (m).
 pub const CONVOY_THREAT_RADIUS: f32 = 220.0;
-/// The guard moves to another transport only if it has this many more threats.
+/// The defence moves to another transport only if it has this many more threats.
 pub const WARD_SWITCH_MARGIN: usize = 2;
-/// Before the attackers arrive, the intercept squad holds this far off the lead
-/// transport toward the attackers' side (m), within `INTERCEPT_HOLD_RADIUS`.
-pub const INTERCEPT_HOLD_OFFSET: f32 = 120.0;
-pub const INTERCEPT_HOLD_RADIUS: f32 = 80.0;
-/// A hold point is kept while the one it would now pick is within this (m).
-pub const HOLD_SLACK: f32 = 120.0;
+/// Before the attackers arrive, the intercept squad goes this far off the lead
+/// transport toward the attackers' side (m), within `INTERCEPT_GOTO_RADIUS`.
+pub const INTERCEPT_GOTO_OFFSET: f32 = 120.0;
+pub const INTERCEPT_GOTO_RADIUS: f32 = 80.0;
+/// A go-to point is kept while the one it would now pick is within this (m).
+pub const GOTO_SLACK: f32 = 120.0;
 /// Attackers' target score: route progress plus this × the hull fraction lost,
 /// plus `CHARGING_BONUS` for a transport charging its jump; a new target must beat
 /// the current one by `TARGET_SWITCH_MARGIN`.
@@ -105,7 +105,7 @@ pub const TARGET_SWITCH_MARGIN: f32 = 0.25;
 /// Wave 2 goes in at this tick (30 s) at the latest.
 pub const WAVE_TWO_TICKS: u32 = 900;
 /// Wave 2 stages this far ahead of the lead transport along the route and this far
-/// toward the attackers' side (m), holding within `STAGING_RADIUS`.
+/// toward the attackers' side (m), arriving within `STAGING_RADIUS`.
 pub const STAGING_AHEAD: f32 = 150.0;
 pub const STAGING_SIDE: f32 = 110.0;
 pub const STAGING_RADIUS: f32 = 60.0;
@@ -114,7 +114,7 @@ pub const FOCUS_REACH: f32 = 300.0;
 /// Deathmatch: a new focus target must be this much more damaged (fraction).
 pub const FOCUS_SWITCH_MARGIN: f32 = 0.2;
 
-const GUARD: usize = 0;
+const DEFEND: usize = 0;
 const STRIKE: usize = 1;
 const INTERCEPT: usize = 1;
 const WAVE_ONE: usize = 0;
@@ -261,14 +261,14 @@ fn clamp_disc(p: Vec2, r: f32) -> Vec2 {
     if len > r { p * (r / len) } else { p }
 }
 
-/// `hold` at `want`, or the current hold order if its point is within `HOLD_SLACK`.
-fn sticky_hold(current: Order, want: Vec2, radius: f32) -> Order {
-    if let Order::Hold { point, .. } = current
-        && (point - want).length() <= HOLD_SLACK
+/// A go-to `want`, or the current go-to order if its point is within `GOTO_SLACK`.
+fn sticky_goto(current: Order, want: Vec2, radius: f32) -> Order {
+    if let Order::GoTo { point, .. } = current
+        && (point - want).length() <= GOTO_SLACK
     {
         return current;
     }
-    Order::Hold {
+    Order::GoTo {
         point: want,
         radius,
     }
@@ -391,27 +391,27 @@ fn carrier_battle(m: &Match, cat: &Catalogue, team: u8, out: &mut Vec<Command>) 
             hull: None,
             bay: None,
         });
-        // The launched ship joins the wing (the guard) this slow tick.
+        // The launched ship joins the wing (the defence) this slow tick.
         wing |= 1 << slot;
     }
 
-    // Squads: guard the carrier, strike the enemy.
+    // Squads: defend the carrier, strike the enemy.
     let squads = &m.command.squads[t];
     let n = count(wing);
-    let guarded = count(squads[GUARD].members & wing);
-    let alarmed = threats >= THREAT_COUNT || (lingering > 0 && 2 * guarded >= n && n > 1);
-    let want_guard = match n {
+    let defending = count(squads[DEFEND].members & wing);
+    let alarmed = threats >= THREAT_COUNT || (lingering > 0 && 2 * defending >= n && n > 1);
+    let want_defend = match n {
         0 => 0,
         1 => usize::from(alarmed),
         _ if alarmed => n.div_ceil(2),
         _ => n.div_ceil(3),
     };
     let home_dist = |s: usize| (m.ships[s].pos - carrier.pos).length();
-    let (guard, strike) = split(squads, wing, (GUARD, STRIKE), want_guard, home_dist);
-    let guard_order = if guard == 0 {
+    let (defend, strike) = split(squads, wing, (DEFEND, STRIKE), want_defend, home_dist);
+    let defend_order = if defend == 0 {
         Order::None
     } else {
-        Order::Guard { ward: own }
+        Order::Defend { ward: own }
     };
     let strike_order = if strike == 0 || foe == NONE || !m.ships[usize::from(foe)].active() {
         Order::None
@@ -436,7 +436,7 @@ fn carrier_battle(m: &Match, cat: &Catalogue, team: u8, out: &mut Vec<Command>) 
             .map_or(attack(usize::from(foe)), attack)
         }
     };
-    set_squad(m, team, GUARD, guard, guard_order, out);
+    set_squad(m, team, DEFEND, defend, defend_order, out);
     set_squad(m, team, STRIKE, strike, strike_order, out);
 
     // The carrier's waypoint.
@@ -518,8 +518,8 @@ fn convoy_defence(m: &Match, cat: &Catalogue, ce: &ConvoyEscort, out: &mut Vec<C
         .max_by(|&a, &b| threat(a).cmp(&threat(b)).then(b.cmp(&a)))
         .filter(|&s| threat(s) > 0)
         .unwrap_or(lead);
-    let ward = match squads[GUARD].order {
-        Order::Guard { ward } => {
+    let ward = match squads[DEFEND].order {
+        Order::Defend { ward } => {
             let w = usize::from(ward);
             let ok = convoy & (1 << w) != 0 && !charging(w);
             if ok && threat(most) < threat(w) + WARD_SWITCH_MARGIN {
@@ -532,17 +532,17 @@ fn convoy_defence(m: &Match, cat: &Catalogue, ce: &ConvoyEscort, out: &mut Vec<C
     };
     let pool = own_wing(m, cat, 0);
     let ward_pos = m.ships[ward].pos;
-    let (guard, intercept) = split(
+    let (defend, intercept) = split(
         squads,
         pool,
-        (GUARD, INTERCEPT),
+        (DEFEND, INTERCEPT),
         count(pool).div_ceil(2),
         |s| (m.ships[s].pos - ward_pos).length(),
     );
-    let guard_order = if guard == 0 {
+    let defend_order = if defend == 0 {
         Order::None
     } else {
-        Order::Guard {
+        Order::Defend {
             ward: ward as ShipIdx,
         }
     };
@@ -554,12 +554,12 @@ fn convoy_defence(m: &Match, cat: &Catalogue, ce: &ConvoyEscort, out: &mut Vec<C
     let intercept_order = if intercept == 0 {
         Order::None
     } else if foes == 0 {
-        let at = m.ships[lead].pos + attackers_side(ce) * INTERCEPT_HOLD_OFFSET;
-        sticky_hold(squads[INTERCEPT].order, at, INTERCEPT_HOLD_RADIUS)
+        let at = m.ships[lead].pos + attackers_side(ce) * INTERCEPT_GOTO_OFFSET;
+        sticky_goto(squads[INTERCEPT].order, at, INTERCEPT_GOTO_RADIUS)
     } else {
         sticky_nearest(squads[INTERCEPT].order, foes, convoy_dist).map_or(Order::None, attack)
     };
-    set_squad(m, 0, GUARD, guard, guard_order, out);
+    set_squad(m, 0, DEFEND, defend, defend_order, out);
     set_squad(m, 0, INTERCEPT, intercept, intercept_order, out);
 }
 
@@ -620,7 +620,7 @@ fn convoy_attack(m: &Match, cat: &Catalogue, ce: &ConvoyEscort, out: &mut Vec<Co
     } else {
         let at =
             m.ships[lead].pos + ce.route_dir() * STAGING_AHEAD + attackers_side(ce) * STAGING_SIDE;
-        sticky_hold(squads[WAVE_TWO].order, at, STAGING_RADIUS)
+        sticky_goto(squads[WAVE_TWO].order, at, STAGING_RADIUS)
     };
     set_squad(m, 1, WAVE_ONE, one, order_one, out);
     set_squad(m, 1, WAVE_TWO, two, order_two, out);

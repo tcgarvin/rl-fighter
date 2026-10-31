@@ -39,22 +39,28 @@ pub use rng::Pcg32;
 /// v5 (M3 stage B): the order block appended to the obs (`OBS_DIM` 403), order
 /// instances and the order reward, the random commander. The first 385 obs floats
 /// and every v4 trajectory are unchanged (SIM_SPEC §0.3).
-pub const SIM_VERSION: u32 = 5;
+/// v6 (M3 stage B3): orders redesigned (attack, defend, go-to), the defend and go-to
+/// rewards, the threat blocks appended to the obs (`OBS_DIM` 583), hidden-order mode.
+/// The first 403 obs floats and every deathmatch trajectory under the scripted
+/// commander are unchanged (SIM_SPEC §0.4).
+pub const SIM_VERSION: u32 = 6;
 
 /// Sim versions whose trained pilots fly correctly in this build: their obs prefix
 /// and action layout, and deathmatch trajectories with up to 8 ships, are identical
-/// (SIM_SPEC §0.2, §0.3; proven by `tests/determinism.rs::v3_compat_*` and
-/// `v4_compat_*`). The bundle and the champion registry accept a pilot whose
+/// (SIM_SPEC §0.2–§0.4; proven by `tests/determinism.rs::v3_compat_*`,
+/// `v4_compat_*` and `v5_compat_*`). The bundle and the champion registry accept a pilot whose
 /// `sim_version` is in this list; it reads the first [`pilot_obs_dim`] floats of the
 /// obs.
-pub const PILOT_COMPAT_VERSIONS: &[u32] = &[3, 4, 5];
+pub const PILOT_COMPAT_VERSIONS: &[u32] = &[3, 4, 5, 6];
 
 /// `(sim version, obs width)` for every pilot-compatible version: a pilot of that
-/// version consumes `obs[..width]` (v3 and v4 pilots the 385-float prefix).
+/// version consumes `obs[..width]` (v3 and v4 pilots the 385-float prefix, v5 pilots
+/// the 403-float one).
 pub const PILOT_OBS_DIMS: &[(u32, usize)] = &[
     (3, obs::OBS_DIM_V4),
     (4, obs::OBS_DIM_V4),
-    (5, obs::OBS_DIM),
+    (5, obs::OBS_DIM_V5),
+    (6, obs::OBS_DIM),
 ];
 
 /// Whether a pilot trained under sim `version` flies in this build.

@@ -12,7 +12,7 @@ use crate::events::{EventBuf, HitRecord};
 use crate::hash::{StateHash, StateHasher};
 use crate::math::Vec2;
 use crate::mission::MissionState;
-use crate::order::OrderTracks;
+use crate::order::{HitBy, OrderTracks};
 use crate::power;
 use crate::rng::Pcg32;
 use crate::scripted::random_commander::RandomCommander;
@@ -328,6 +328,25 @@ pub struct Match {
     pub order_tracks: OrderTracks,
     /// v5, per slot: the order reward of the last step (SIM_SPEC §8; output only).
     pub order_rewards: [f32; MAX_SHIPS],
+    /// v6, `[ward][hitter]`: the tick `hitter` last damaged `ward`, 0 never (hashed,
+    /// the first `ships.len()` rows and columns; `order` module).
+    pub hit_by: HitBy,
+    /// v6, per slot: the longest weapon range of its hull (m) and its obs hull class
+    /// (`order::hull_class`). Derived from the catalogue at setup; not hashed.
+    pub ship_reach: [f32; MAX_SHIPS],
+    pub ship_class: [u8; MAX_SHIPS],
+    /// v6, per slot: hp and alive at the end of the last order-reward stage (or setup):
+    /// what this step's hull loss and deaths are measured from. Not hashed (a copy of
+    /// ship state).
+    pub hp_mark: [f32; MAX_SHIPS],
+    pub alive_mark: [bool; MAX_SHIPS],
+    /// v6, per slot `w`: its threat set in the last step (bit `e` = slot `e`; enemies on
+    /// the field that step), computed for every ship that was active after stage 2.
+    /// Output only.
+    pub ward_threat: [u32; MAX_SHIPS],
+    /// v6, per slot: the hull fraction it lost in the last step (deaths count the rest
+    /// of the hull). Output only.
+    pub hull_lost: [f32; MAX_SHIPS],
 }
 
 /// `winner` before the match is over.
@@ -369,7 +388,8 @@ impl Match {
     /// FNV-1a 64 over the simulation state in SIM_SPEC §12 order: tick, rng state,
     /// every ship, every projectile pool slot, `proj_next`, phase, winner, then (v4)
     /// both teams' reserves (count, then slots), the mission state and the command
-    /// state, then (v5) the random commander's state and every slot's order track.
+    /// state, then (v5) the random commander's state and every slot's order track,
+    /// then (v6) `hit_by` over the match's slots (row by row).
     pub fn state_hash(&self) -> u64 {
         let mut h = StateHasher::new();
         h.write_u32(self.tick);
@@ -387,6 +407,10 @@ impl Match {
         self.command.hash_into(&mut h);
         self.random_commander.hash_into(&mut h);
         self.order_tracks.hash_into(&mut h);
+        let n = self.ships.len();
+        for row in &self.hit_by[..n] {
+            row[..n].hash_into(&mut h);
+        }
         h.finish()
     }
 }

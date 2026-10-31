@@ -44,11 +44,11 @@ const _: () = assert!(SHIP_STRIDE == 29);
 /// carrier, 2 transport; `parent` the carrier a docked ship waits in, else -1; `jump`
 /// 0 idle, 1 charging (until tick `charge_until`), 2 jumped out (escaped); `squad`
 /// its squad index in its team or -1, `order_kind` that squad's order (0 none, 1
-/// attack, 2 guard, 3 hold).
+/// attack, 2 defend, 3 go-to; v5: guard, hold).
 pub const SHIP_EXT_STRIDE: usize = 10;
 /// v4: floats per squad in `squads()`, team 0's `MAX_SQUADS` then team 1's:
 /// `[team, index, n_members, members_mask, order_kind, target, point.x, point.y,
-/// radius]`; `target` the attacked or guarded slot or -1; `point` the hold point or
+/// radius]`; `target` the attacked or defended slot or -1; `point` the go-to point or
 /// the target's position now; `members_mask` bit `s` = slot `s` (exact in f32).
 pub const SQUAD_STRIDE: usize = 9;
 /// v4: floats in `team_state(team)`: `[carrier_slot, carrier_hp, carrier_max_hp,
@@ -80,6 +80,9 @@ struct ConfigJson {
     /// v4: `["scripted", "external"]`; absent is both scripted.
     #[serde(default)]
     commanders: Option<Vec<String>>,
+    /// v6: `[team 0, team 1]` hidden-order mode; absent is both false.
+    #[serde(default)]
+    hide_orders: [bool; 2],
 }
 
 fn default_arena_radius() -> f32 {
@@ -126,6 +129,7 @@ pub fn parse_config(cat: &Catalogue, config_json: &str) -> Result<MatchConfig, S
         fleets: [resolve(0)?, resolve(1)?],
         mission,
         commanders,
+        hide_orders: raw.hide_orders,
     })
 }
 
@@ -312,11 +316,11 @@ impl MatchCore {
             for (k, sq) in self.m.command.squads[usize::from(team)].iter().enumerate() {
                 let (target, point, radius) = match sq.order {
                     Order::None => (NONE, [0.0, 0.0], 0.0),
-                    Order::Attack { target } | Order::Guard { ward: target } => {
+                    Order::Attack { target } | Order::Defend { ward: target } => {
                         let p = self.m.ships()[usize::from(target)].pos;
                         (target, [p.x, p.y], 0.0)
                     }
-                    Order::Hold { point, radius } => (NONE, [point.x, point.y], radius),
+                    Order::GoTo { point, radius } => (NONE, [point.x, point.y], radius),
                 };
                 out.extend_from_slice(&[
                     f32::from(team),

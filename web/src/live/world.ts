@@ -64,7 +64,7 @@ const QUICK_JUMP_GAP = 0.11;
 // takes in the jump point itself once the lead is this close to it (metres).
 const CONVOY_LOOKAHEAD = 110;
 const CONVOY_SHOW_JUMP = 230;
-// Order markers: an attack or guard ring this much larger than the target's hull.
+// Order markers: an attack or defend ring this much larger than the target's hull.
 const MARK_PAD = 6;
 const WAYPOINT_MARK = 14;
 const WAYPOINT_MIN_DIST = 30;
@@ -99,7 +99,7 @@ interface DamageFx {
 }
 
 interface Order {
-  kind: "attack" | "guard" | "hold" | "jump";
+  kind: "attack" | "defend" | "goto" | "jump";
   team: number;
   x2: number;
   y2: number;
@@ -578,7 +578,7 @@ export class World {
   }
 
   private nextOrder(): Order {
-    const o = this.orderPool[this.orders.length] ?? { kind: "hold", team: 0, x2: 0, y2: 0 };
+    const o = this.orderPool[this.orders.length] ?? { kind: "goto", team: 0, x2: 0, y2: 0 };
     this.orderPool[this.orders.length] = o;
     this.orders.push(o);
     delete o.x1;
@@ -612,7 +612,7 @@ export class World {
       o.team = sq.team;
       o.x2 = tx;
       o.y2 = ty;
-      o.radius = sq.order === "hold" ? sq.radius : (target?.hull.radius ?? 8) + MARK_PAD;
+      o.radius = sq.order === "goto" ? sq.radius : (target?.hull.radius ?? 8) + MARK_PAD;
       if (n > 0) {
         o.x1 = sx / n;
         o.y1 = sy / n;
@@ -624,7 +624,7 @@ export class World {
       const d = this.views[i]!.drawn;
       if (Math.hypot(s.waypointX - d.x, s.waypointY - d.y) < WAYPOINT_MIN_DIST) continue;
       const o = this.nextOrder();
-      Object.assign(o, { kind: "hold", team: s.team, x2: s.waypointX, y2: s.waypointY, radius: WAYPOINT_MARK, x1: d.x, y1: d.y });
+      Object.assign(o, { kind: "goto", team: s.team, x2: s.waypointX, y2: s.waypointY, radius: WAYPOINT_MARK, x1: d.x, y1: d.y });
     }
     const c = m.convoy;
     if (c) {

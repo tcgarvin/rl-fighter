@@ -39,9 +39,9 @@ pub const LAUNCH_LOCK_TICKS: u32 = 15;
 /// A launched ship appears this far beyond its own bound radius out of the bay
 /// mouth, so it does not overlap the carrier's collision circles.
 pub const LAUNCH_CLEARANCE: f32 = 1.0;
-/// Hold orders' radius is clamped to `[MIN_HOLD_RADIUS, arena radius]`.
-pub const MIN_HOLD_RADIUS: f32 = 10.0;
-/// Waypoints and hold points are clamped inside this fraction of the arena radius.
+/// Go-to orders' radius is clamped to `[MIN_GOTO_RADIUS, arena radius]`.
+pub const MIN_GOTO_RADIUS: f32 = 10.0;
+/// Waypoints and go-to points are clamped inside this fraction of the arena radius.
 pub const POINT_LIMIT_FRAC: f32 = 0.95;
 
 const _: () = assert!(MAX_SHIPS <= 32, "squad member masks are u32");
@@ -88,20 +88,22 @@ pub enum Order {
     None,
     /// Attack an active enemy ship.
     Attack { target: ShipIdx },
-    /// Guard an own ship that is still in the match.
-    Guard { ward: ShipIdx },
-    /// Hold a point (inside `POINT_LIMIT_FRAC` of the arena) within `radius`.
-    Hold { point: Vec2, radius: f32 },
+    /// v6 (was guard): defend an own ship that is still in the match against its
+    /// threat set (`order::threat_set`).
+    Defend { ward: ShipIdx },
+    /// v6 (replaces hold): go to a point (inside `POINT_LIMIT_FRAC` of the arena),
+    /// arriving within `radius`; completes per ship on arrival (`order` module).
+    GoTo { point: Vec2, radius: f32 },
 }
 
 impl Order {
-    /// 0 none, 1 attack, 2 guard, 3 hold.
+    /// 0 none, 1 attack, 2 defend, 3 go-to.
     pub fn kind(&self) -> u8 {
         match self {
             Order::None => 0,
             Order::Attack { .. } => 1,
-            Order::Guard { .. } => 2,
-            Order::Hold { .. } => 3,
+            Order::Defend { .. } => 2,
+            Order::GoTo { .. } => 3,
         }
     }
 
@@ -109,17 +111,17 @@ impl Order {
         match self {
             Order::None => "none",
             Order::Attack { .. } => "attack",
-            Order::Guard { .. } => "guard",
-            Order::Hold { .. } => "hold",
+            Order::Defend { .. } => "defend",
+            Order::GoTo { .. } => "goto",
         }
     }
 
-    /// The ship the order is about, `NONE` for none and hold.
+    /// The ship the order is about, `NONE` for none and go-to.
     pub fn target(&self) -> ShipIdx {
         match *self {
             Order::Attack { target } => target,
-            Order::Guard { ward } => ward,
-            Order::None | Order::Hold { .. } => NONE,
+            Order::Defend { ward } => ward,
+            Order::None | Order::GoTo { .. } => NONE,
         }
     }
 }
@@ -129,7 +131,7 @@ impl StateHash for Order {
         h.write_u8(self.kind());
         h.write_u8(self.target());
         let (point, radius) = match *self {
-            Order::Hold { point, radius } => (point, radius),
+            Order::GoTo { point, radius } => (point, radius),
             _ => (Vec2::ZERO, 0.0),
         };
         h.write_vec2(point);
@@ -253,7 +255,7 @@ pub enum Refusal {
     ShipLost,
     /// Waypoints are for capital ships (carrier, transport) only.
     NotCapital,
-    /// A non-finite waypoint, hold point or radius.
+    /// A non-finite waypoint, go-to point or radius.
     BadPoint,
     /// Squad index `>= MAX_SQUADS`.
     NoSuchSquad,
@@ -420,8 +422,8 @@ impl Match {
         ship.team == team && self.in_match(s) && !is_capital_ship(cat.hull(ship.hull))
     }
 
-    /// `order` if it is valid for `team` now, else `Order::None`; hold points are
-    /// clamped into the arena and their radius into `[MIN_HOLD_RADIUS, R]`.
+    /// `order` if it is valid for `team` now, else `Order::None`; go-to points are
+    /// clamped into the arena and their radius into `[MIN_GOTO_RADIUS, R]`.
     fn sanitize_order(&self, team: u8, order: Order) -> Order {
         let n = self.ships.len();
         let radius = self.cfg.arena_radius;
@@ -435,7 +437,7 @@ impl Match {
                     Order::None
                 }
             }
-            Order::Guard { ward } => {
+            Order::Defend { ward } => {
                 let w = usize::from(ward);
                 if w < n && self.ships[w].team == team && self.in_match(w) {
                     order
@@ -443,13 +445,13 @@ impl Match {
                     Order::None
                 }
             }
-            Order::Hold { point, radius: r } => {
+            Order::GoTo { point, radius: r } => {
                 if !finite(point) || !r.is_finite() {
                     return Order::None;
                 }
-                Order::Hold {
+                Order::GoTo {
                     point: clamp_to_disc(point, POINT_LIMIT_FRAC * radius),
-                    radius: r.clamp(MIN_HOLD_RADIUS, radius),
+                    radius: r.clamp(MIN_GOTO_RADIUS, radius),
                 }
             }
         }
@@ -459,9 +461,9 @@ impl Match {
     fn emit_order(&mut self, team: u8, k: usize) {
         let order = self.command.squads[usize::from(team)][k].order;
         let (point, radius) = match order {
-            Order::Hold { point, radius } => (point, radius),
+            Order::GoTo { point, radius } => (point, radius),
             Order::Attack { target } => (self.ships[usize::from(target)].pos, 0.0),
-            Order::Guard { ward } => (self.ships[usize::from(ward)].pos, 0.0),
+            Order::Defend { ward } => (self.ships[usize::from(ward)].pos, 0.0),
             Order::None => (Vec2::ZERO, 0.0),
         };
         self.events.push(Event::Order {

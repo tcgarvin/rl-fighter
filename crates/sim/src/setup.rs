@@ -7,7 +7,7 @@ use crate::command::{CommandState, CommanderMode};
 use crate::data::{Catalogue, HullId};
 use crate::events::EventBuf;
 use crate::mission::{self, Mission, MissionState};
-use crate::order::OrderTrack;
+use crate::order::{self, OrderTrack};
 use crate::rng::Pcg32;
 use crate::scripted::random_commander::RandomCommander;
 use crate::state::{
@@ -62,6 +62,11 @@ pub struct MatchConfig {
     pub mission: Mission,
     /// v4: who commands each team on the slow tick (SIM_SPEC §5.9).
     pub commanders: [CommanderMode; 2],
+    /// v6, per team: hidden-order mode. A hidden team's pilots see no order: their obs
+    /// has the `order` block, `order_ships` and the order-dependent `ship_extras`
+    /// zeroed, exactly as a ship without an order (SIM_SPEC §7.2). Rewards, scripts and
+    /// the commander are unaffected (the order-following eval's control arm).
+    pub hide_orders: [bool; 2],
 }
 
 impl Default for MatchConfig {
@@ -74,6 +79,7 @@ impl Default for MatchConfig {
             fleets: [Vec::new(), Vec::new()],
             mission: Mission::Deathmatch,
             commanders: [CommanderMode::Scripted; 2],
+            hide_orders: [false; 2],
         }
     }
 }
@@ -202,9 +208,21 @@ impl Match {
             random_commander: RandomCommander::new(cfg.seed),
             order_tracks: [OrderTrack::default(); MAX_SHIPS],
             order_rewards: [0.0; MAX_SHIPS],
+            hit_by: [[0; MAX_SHIPS]; MAX_SHIPS],
+            ship_reach: [0.0; MAX_SHIPS],
+            ship_class: [0; MAX_SHIPS],
+            hp_mark: [0.0; MAX_SHIPS],
+            alive_mark: [false; MAX_SHIPS],
+            ward_threat: [0; MAX_SHIPS],
+            hull_lost: [0.0; MAX_SHIPS],
         };
+        for (s, ship) in m.ships.iter().enumerate() {
+            let def = cat.hull(ship.hull);
+            m.ship_reach[s] = order::hull_reach(cat, def);
+            m.ship_class[s] = order::hull_class(def);
+        }
         m.setup_mission(cat);
-        m.init_order_tracks(cat);
+        m.init_order_tracks();
         Ok(m)
     }
 }

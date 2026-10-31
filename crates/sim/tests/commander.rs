@@ -75,7 +75,7 @@ fn carrier_commander_guards_strikes_and_paces_launches() {
                 let own = m.carrier_of(team);
                 let foe = m.carrier_of(1 - team);
                 let [guard, strike, ..] = m.command.squads[usize::from(team)];
-                assert_eq!(guard.order, Order::Guard { ward: own }, "team {team}");
+                assert_eq!(guard.order, Order::Defend { ward: own }, "team {team}");
                 assert!(!guard.is_empty() && !strike.is_empty());
                 // The enemy carrier, or (its escort outnumbering the strike) an enemy.
                 let Order::Attack { target } = strike.order else {
@@ -160,7 +160,7 @@ fn convoy_commanders_guard_intercept_and_send_waves() {
         scripted_step(&mut m, &cat);
     }
     let [guard, intercept, ..] = m.command.squads[0];
-    let Order::Guard { ward } = guard.order else {
+    let Order::Defend { ward } = guard.order else {
         panic!("defenders guard: {:?}", guard.order)
     };
     assert!(
@@ -169,14 +169,14 @@ fn convoy_commanders_guard_intercept_and_send_waves() {
     );
     assert!(matches!(
         intercept.order,
-        Order::Attack { .. } | Order::Hold { .. }
+        Order::Attack { .. } | Order::GoTo { .. }
     ));
     let [one, two, ..] = m.command.squads[1];
     let Order::Attack { target } = one.order else {
         panic!("wave 1 attacks: {:?}", one.order)
     };
     assert!(m.mission.transports & (1 << target) != 0, "at a transport");
-    assert!(matches!(two.order, Order::Hold { .. }), "wave 2 stages");
+    assert!(matches!(two.order, Order::GoTo { .. }), "wave 2 stages");
     assert_eq!(one.len() + two.len(), 6);
     // Wave 2 goes in by 30 s, on a transport.
     while m.tick() < 30 * 31 && m.phase() == MatchPhase::Running {
@@ -255,28 +255,41 @@ fn scripted_pilot_attacks_its_ordered_target_not_the_nearest() {
     assert!(n.ships[0].heading.abs() < 0.3, "{}", n.ships[0].heading);
 }
 
+/// v6: a go-to flies the pilot to the point, past the enemies; once it has arrived
+/// the order is complete and it falls back to its role (fights the nearest enemy).
 #[test]
-fn scripted_pilot_holds_a_point_with_nobody_near_it() {
+fn scripted_pilot_flies_to_a_goto_point_then_falls_back_to_its_role() {
     let cat = asset_catalogue();
     let mut m = ordered_duel(&cat);
-    // Enemies far from the hold point: the pilot keeps station rather than fighting.
     let point = Vec2::new(-250.0, -200.0);
     m.submit_command(
         0,
         Command::Squad {
             squad: 0,
             members: 1,
-            order: Order::Hold {
+            order: Order::GoTo {
                 point,
                 radius: 40.0,
             },
         },
     );
-    while m.tick() < 30 * 40 {
+    while m.tick() < 30 * 20 && !m.order_track(0).arrived {
         step_ship0(&mut m, &cat);
     }
-    let d = (m.ships[0].pos - point).length();
-    assert!(d < 60.0, "kept station {d} m from the hold point");
+    assert!(m.order_track(0).arrived, "never arrived");
+    assert!((m.ships[0].pos - point).length() <= 40.0);
+    assert_eq!(sim::order::effective_order(&m, 0), Order::None);
+    assert!(matches!(m.command.squads[0][0].order, Order::GoTo { .. }));
+    let enemy = |m: &Match| (m.ships[1].pos - m.ships[0].pos).length();
+    let before = enemy(&m);
+    for _ in 0..240 {
+        step_ship0(&mut m, &cat);
+    }
+    assert!(
+        enemy(&m) < before - 100.0,
+        "back to its role: {before} -> {}",
+        enemy(&m)
+    );
 }
 
 /// In a deathmatch under the scripted commander the orders exist but are only

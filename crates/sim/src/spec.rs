@@ -123,15 +123,23 @@ pub fn parse_commanders(names: &[String]) -> Result<[CommanderMode; 2], String> 
     Ok([one(&names[0])?, one(&names[1])?])
 }
 
-/// `{"kind": "none"}`, `{"kind": "attack", "target": slot}`, `{"kind": "guard",
-/// "ward": slot}`, `{"kind": "hold", "point": [x, y], "radius": r}`.
+/// `{"kind": "none"}`, `{"kind": "attack", "target": slot}`, `{"kind": "defend",
+/// "ward": slot}`, `{"kind": "goto", "point": [x, y], "radius": r}` (v6).
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum OrderSpec {
     None {},
-    Attack { target: u8 },
-    Guard { ward: u8 },
-    Hold { point: [f32; 2], radius: f32 },
+    Attack {
+        target: u8,
+    },
+    Defend {
+        ward: u8,
+    },
+    #[serde(rename = "goto")]
+    GoTo {
+        point: [f32; 2],
+        radius: f32,
+    },
 }
 
 impl From<Order> for OrderSpec {
@@ -139,8 +147,8 @@ impl From<Order> for OrderSpec {
         match o {
             Order::None => OrderSpec::None {},
             Order::Attack { target } => OrderSpec::Attack { target },
-            Order::Guard { ward } => OrderSpec::Guard { ward },
-            Order::Hold { point, radius } => OrderSpec::Hold {
+            Order::Defend { ward } => OrderSpec::Defend { ward },
+            Order::GoTo { point, radius } => OrderSpec::GoTo {
                 point: [point.x, point.y],
                 radius,
             },
@@ -153,8 +161,8 @@ impl From<OrderSpec> for Order {
         match o {
             OrderSpec::None {} => Order::None,
             OrderSpec::Attack { target } => Order::Attack { target },
-            OrderSpec::Guard { ward } => Order::Guard { ward },
-            OrderSpec::Hold { point, radius } => Order::Hold {
+            OrderSpec::Defend { ward } => Order::Defend { ward },
+            OrderSpec::GoTo { point, radius } => Order::GoTo {
                 point: v(point),
                 radius,
             },
@@ -585,7 +593,7 @@ mod tests {
     fn command_specs_parse() {
         let cmds = CommandSpec::parse_list(
             r#"[{"kind": "launch", "hull": "fighter"}, {"kind": "waypoint", "ship": 0, "pos": null},
-                {"kind": "squad", "squad": 1, "members": [2, 3], "order": {"kind": "hold", "point": [1, 2], "radius": 30}}]"#,
+                {"kind": "squad", "squad": 1, "members": [2, 3], "order": {"kind": "goto", "point": [1, 2], "radius": 30}}]"#,
         )
         .unwrap();
         assert_eq!(cmds.len(), 3);

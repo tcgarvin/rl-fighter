@@ -93,8 +93,8 @@ export class CommandLog {
         const head = `${this.who(team)} › squad ${e.b + 1}${size}`;
         const target = e.f5 >= 0 ? (m.labels[e.f5] ?? `ship ${e.f5}`) : "";
         if (kind === "attack") return [team, `${head} · attack → ${target}`];
-        if (kind === "guard") return [team, `${head} · guard → ${target}`];
-        if (kind === "hold") return [team, `${head} · hold{ ${fmtPoint(e.x, e.y)} r${Math.round(e.f6)}}`];
+        if (kind === "defend") return [team, `${head} · defend → ${target}`];
+        if (kind === "goto") return [team, `${head} · go to{ ${fmtPoint(e.x, e.y)} r${Math.round(e.f6)}}`];
         return [team, `${head} · stand down`];
       }
       case "jumpCharge": {

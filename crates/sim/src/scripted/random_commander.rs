@@ -14,22 +14,24 @@
 //! - **Orders.** A squad with members draws a new order when its timer runs out (every
 //!   `REDRAW_MIN_SLOW_TICKS..=REDRAW_MAX_SLOW_TICKS` slow ticks, drawn each time) or
 //!   when its order was cleared because its target or ward is gone: a kind uniform
-//!   over none / attack / guard / hold, then a valid target. Attack: a uniformly drawn
-//!   active enemy (capital ships included). Guard: a uniformly drawn own active ship
-//!   that is not in the squad (capital ships included). Hold: a point near the
-//!   squad's fight ([`hold_point`]) and a radius in `[HOLD_RADIUS_MIN,
-//!   HOLD_RADIUS_MAX)`. A kind with no valid target becomes none.
-//! - **Hold points near the action** (after the order pilot's run 1, whose holds were
-//!   uniform over the disc of `HOLD_POINT_FRAC` R: usually away from the fight, so
+//!   over none / attack / defend / go-to (v6; v5's guard and hold), then a valid
+//!   target. Attack: a uniformly drawn active enemy (capital ships included). Defend:
+//!   when the team has an active capital ship, with probability
+//!   `DEFEND_CAPITAL_P` a uniformly drawn one of those; otherwise a uniformly drawn
+//!   own active ship that is not in the squad (capital ships included). Go-to: a
+//!   point near the squad's fight ([`goto_point`]) and a radius in
+//!   `[GOTO_RADIUS_MIN, GOTO_RADIUS_MAX)`. A kind with no valid target becomes none.
+//! - **Go-to points near the action** (B2b, after the order pilot's run 1, whose holds
+//!   were uniform over the disc of `GOTO_POINT_FRAC` R: usually away from the fight, so
 //!   following one cost the pilot its fight and was rationally ignored). The point
-//!   lies between the squad's centroid and its `HOLD_NEAREST_ENEMIES` nearest enemies,
-//!   a fraction in `[HOLD_LERP_MIN, HOLD_LERP_MAX)` of the way, plus a jitter uniform
-//!   over a disc of `HOLD_JITTER` m, clamped into the disc of `HOLD_POINT_FRAC` R.
+//!   lies between the squad's centroid and its `GOTO_NEAREST_ENEMIES` nearest enemies,
+//!   a fraction in `[GOTO_LERP_MIN, GOTO_LERP_MAX)` of the way, plus a jitter uniform
+//!   over a disc of `GOTO_JITTER` m, clamped into the disc of `GOTO_POINT_FRAC` R.
 //!   (A squad whose members are all still launching uses its team's active ships.)
-//!   With probability `HOLD_FAR_P` (or with no active own ship or enemy) it is
-//!   the old uniform draw over that disc instead: the scripted commander's own holds
-//!   (a convoy's staging and screening points) are not always at the fight, and a
-//!   hold must keep meaning "go to the point", not "go and fight".
+//!   With probability `GOTO_FAR_P` (or with no active own ship or enemy) it is
+//!   the old uniform draw over that disc instead: the scripted commander's own go-to
+//!   points (a convoy's staging and screening points) are not always at the fight,
+//!   and a go-to must keep meaning "go to the point", not "go and fight".
 //!
 //! Its rng is its own: one PCG32 stream per team, seeded from the match seed on
 //! streams that differ from the match stream (`RANDOM_COMMAND_STREAMS`), so drawing
@@ -54,22 +56,25 @@ pub const UNASSIGNED_FRAC: f32 = 0.15;
 /// A squad's order lasts this many slow ticks (inclusive range, drawn per order).
 pub const REDRAW_MIN_SLOW_TICKS: u32 = 3;
 pub const REDRAW_MAX_SLOW_TICKS: u32 = 8;
-/// Hold points lie within this fraction of the arena radius.
-pub const HOLD_POINT_FRAC: f32 = 0.7;
-/// Chance that a hold point is drawn uniformly over the disc of `HOLD_POINT_FRAC` R
+/// Go-to points lie within this fraction of the arena radius.
+pub const GOTO_POINT_FRAC: f32 = 0.7;
+/// Chance that a go-to point is drawn uniformly over the disc of `GOTO_POINT_FRAC` R
 /// (a far point) instead of near the squad's fight (module docs).
-pub const HOLD_FAR_P: f32 = 0.2;
-/// A near hold point lies this fraction of the way from the squad's centroid to its
+pub const GOTO_FAR_P: f32 = 0.2;
+/// A near go-to point lies this fraction of the way from the squad's centroid to its
 /// nearest enemies (uniform in `[MIN, MAX)`).
-pub const HOLD_LERP_MIN: f32 = 0.25;
-pub const HOLD_LERP_MAX: f32 = 0.75;
-/// Jitter of a near hold point: uniform over a disc of this radius, metres.
-pub const HOLD_JITTER: f32 = 60.0;
-/// A near hold point aims at the centroid of this many enemies nearest the squad.
-pub const HOLD_NEAREST_ENEMIES: usize = 2;
-/// Hold radius range, metres.
-pub const HOLD_RADIUS_MIN: f32 = 70.0;
-pub const HOLD_RADIUS_MAX: f32 = 150.0;
+pub const GOTO_LERP_MIN: f32 = 0.25;
+pub const GOTO_LERP_MAX: f32 = 0.75;
+/// Jitter of a near go-to point: uniform over a disc of this radius, metres.
+pub const GOTO_JITTER: f32 = 60.0;
+/// A near go-to point aims at the centroid of this many enemies nearest the squad.
+pub const GOTO_NEAREST_ENEMIES: usize = 2;
+/// Go-to radius range, metres.
+pub const GOTO_RADIUS_MIN: f32 = 70.0;
+pub const GOTO_RADIUS_MAX: f32 = 150.0;
+/// v6: a defend order wards one of the team's capital ships with this probability
+/// when it has one on the field.
+pub const DEFEND_CAPITAL_P: f32 = 0.5;
 /// PCG stream selectors of team 0's and team 1's draws (not `rng::MATCH_STREAM`).
 pub const RANDOM_COMMAND_STREAMS: [u64; 2] = [0x0c0d_e5a1_7e00_0001, 0x0c0d_e5a1_7e00_0002];
 
@@ -160,17 +165,17 @@ fn active_centroid(m: &Match, mask: u32) -> Option<Vec2> {
     (n > 0.0).then(|| sum / n)
 }
 
-/// Centroid of the (at most) `HOLD_NEAREST_ENEMIES` active enemies of `team`
+/// Centroid of the (at most) `GOTO_NEAREST_ENEMIES` active enemies of `team`
 /// nearest `from` (ties to the lower slot), `None` with no active enemy.
 fn nearest_enemies_centroid(m: &Match, team: u8, from: Vec2) -> Option<Vec2> {
-    let mut best: [(f32, usize); HOLD_NEAREST_ENEMIES] = [(f32::INFINITY, 0); HOLD_NEAREST_ENEMIES];
+    let mut best: [(f32, usize); GOTO_NEAREST_ENEMIES] = [(f32::INFINITY, 0); GOTO_NEAREST_ENEMIES];
     for (s, ship) in m.ships.iter().enumerate() {
         if ship.team == team || !ship.active() {
             continue;
         }
         let d = (ship.pos - from).length();
         if let Some(k) = best.iter().position(|&(bd, _)| d < bd) {
-            best.copy_within(k..HOLD_NEAREST_ENEMIES - 1, k + 1);
+            best.copy_within(k..GOTO_NEAREST_ENEMIES - 1, k + 1);
             best[k] = (d, s);
         }
     }
@@ -181,12 +186,12 @@ fn nearest_enemies_centroid(m: &Match, team: u8, from: Vec2) -> Option<Vec2> {
     active_centroid(m, mask)
 }
 
-/// A hold point for a squad of `team` with members `members` (module docs). Draws,
+/// A go-to point for a squad of `team` with members `members` (module docs). Draws,
 /// in order: one `uniform` (far or near); far: [`uniform_in_disc`]; near: the lerp
 /// fraction, then the jitter's [`uniform_in_disc`].
-pub fn hold_point(m: &Match, team: u8, members: u32, rng: &mut Pcg32) -> Vec2 {
-    let reach = HOLD_POINT_FRAC * m.cfg.arena_radius;
-    let far = rng.uniform() < HOLD_FAR_P;
+pub fn goto_point(m: &Match, team: u8, members: u32, rng: &mut Pcg32) -> Vec2 {
+    let reach = GOTO_POINT_FRAC * m.cfg.arena_radius;
+    let far = rng.uniform() < GOTO_FAR_P;
     // Reserves launching this tick are not active yet: the team's ships stand in.
     let own = mask_of(m, |s| m.ships[s].team == team);
     let fight = active_centroid(m, members)
@@ -195,8 +200,8 @@ pub fn hold_point(m: &Match, team: u8, members: u32, rng: &mut Pcg32) -> Vec2 {
     let Some((squad, foes)) = fight.filter(|_| !far) else {
         return uniform_in_disc(rng, reach);
     };
-    let along = rng.range(HOLD_LERP_MIN, HOLD_LERP_MAX);
-    let point = squad + (foes - squad) * along + uniform_in_disc(rng, HOLD_JITTER);
+    let along = rng.range(GOTO_LERP_MIN, GOTO_LERP_MAX);
+    let point = squad + (foes - squad) * along + uniform_in_disc(rng, GOTO_JITTER);
     let r = point.length();
     if r > reach {
         point * (reach / r)
@@ -206,7 +211,7 @@ pub fn hold_point(m: &Match, team: u8, members: u32, rng: &mut Pcg32) -> Vec2 {
 }
 
 /// A random order for a squad of `team` with members `members` (module docs).
-fn draw_order(m: &Match, team: u8, members: u32, rng: &mut Pcg32) -> Order {
+fn draw_order(m: &Match, cat: &Catalogue, team: u8, members: u32, rng: &mut Pcg32) -> Order {
     match below(rng, 4) {
         1 => {
             let foes = mask_of(m, |s| m.ships[s].team != team && m.ships[s].active());
@@ -216,12 +221,20 @@ fn draw_order(m: &Match, team: u8, members: u32, rng: &mut Pcg32) -> Order {
             let own = mask_of(m, |s| {
                 m.ships[s].team == team && m.ships[s].active() && members & (1 << s) == 0
             });
-            pick(rng, own).map_or(Order::None, |ward| Order::Guard { ward })
+            let capital = mask_of(m, |s| {
+                own & (1 << s) != 0 && is_capital_ship(cat.hull(m.ships[s].hull))
+            });
+            let pool = if capital != 0 && rng.uniform() < DEFEND_CAPITAL_P {
+                capital
+            } else {
+                own
+            };
+            pick(rng, pool).map_or(Order::None, |ward| Order::Defend { ward })
         }
         3 => {
-            let point = hold_point(m, team, members, rng);
-            let radius = rng.range(HOLD_RADIUS_MIN, HOLD_RADIUS_MAX);
-            Order::Hold { point, radius }
+            let point = goto_point(m, team, members, rng);
+            let radius = rng.range(GOTO_RADIUS_MIN, GOTO_RADIUS_MAX);
+            Order::GoTo { point, radius }
         }
         _ => Order::None,
     }
@@ -272,7 +285,7 @@ pub fn commands(m: &Match, cat: &Catalogue, team: u8, st: &mut RandomCommander) 
         } else if m.tick >= st.next_draw[t][k] || (st.drawn[t][k] != 0 && cur.order == Order::None)
         {
             let rng = &mut st.rng[t];
-            let order = draw_order(m, team, members, rng);
+            let order = draw_order(m, cat, team, members, rng);
             let span = (REDRAW_MAX_SLOW_TICKS - REDRAW_MIN_SLOW_TICKS + 1) as usize;
             let slow_ticks = REDRAW_MIN_SLOW_TICKS + below(rng, span) as u32;
             st.next_draw[t][k] = m.tick + slow_ticks * crate::command::COMMAND_TICKS;

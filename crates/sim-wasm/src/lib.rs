@@ -33,8 +33,9 @@ pub fn pilot_compatible(version: u32) -> bool {
 }
 
 /// v5: the obs width a pilot trained under sim `version` consumes (`obs[:width]`,
-/// `sim::PILOT_OBS_DIMS`: 385 for v3 and v4 pilots, 403 for v5); throws for a version
-/// that does not fly in this build. The live page feeds a policy only that prefix.
+/// `sim::PILOT_OBS_DIMS`: 385 for v3 and v4 pilots, 403 for v5, 583 for v6); throws for
+/// a version that does not fly in this build. The live page feeds a policy only that
+/// prefix.
 #[wasm_bindgen(js_name = pilotObsDim)]
 pub fn pilot_obs_dim(version: u32) -> Result<usize, JsError> {
     sim::pilot_obs_dim(version).ok_or_else(|| {
@@ -45,7 +46,7 @@ pub fn pilot_obs_dim(version: u32) -> Result<usize, JsError> {
     })
 }
 
-/// v5: `sim::PILOT_OBS_DIMS` as JSON, `{"3": 385, "4": 385, "5": 403}`.
+/// v5: `sim::PILOT_OBS_DIMS` as JSON, `{"3": 385, "4": 385, "5": 403, "6": 583}`.
 #[wasm_bindgen(js_name = pilotObsDimsJson)]
 pub fn pilot_obs_dims_json() -> String {
     let body: Vec<String> = sim::PILOT_OBS_DIMS
@@ -388,7 +389,7 @@ impl WasmMatch {
         self.core.head_valid(ship).map_err(js_err)
     }
 
-    /// Ship `ship`'s observation (`OBS_DIM` floats, a copy; v5: a v3/v4 pilot reads
+    /// Ship `ship`'s observation (`OBS_DIM` floats, a copy; a v3/v4/v5 pilot reads
     /// the first `pilotObsDim(version)`).
     pub fn obs(&self, ship: u32) -> Result<Vec<f32>, JsError> {
         self.core.obs(ship).map_err(js_err)

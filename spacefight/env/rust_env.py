@@ -27,6 +27,12 @@ commander mode (``"random"`` among them); ``set_next_roster`` passes both to the
 with the match's clock (``time_limit_s=None``: the mission's default). The env also
 exports ``order_rewards`` beside ``rewards``.
 
+SIM_VERSION 6 (orders redesigned: attack, defend, go-to). The obs grows to 583
+(``ship_extras``, ``order_ships``; the first 403 floats are v5's); a team can be put
+in hidden-order mode (``hide_orders``, per env build or per queued match); the env
+exports ``order_transit``, ``ward_threat`` and ``ward_hull_lost`` and
+``order_tracks()``.
+
 The extension is built with
 ``uv run maturin develop -m crates/sim-py/Cargo.toml --release``.
 """
@@ -60,6 +66,13 @@ OBS_LAYOUT: dict[str, tuple[int, int]] = dict(rlf_sim.OBS_LAYOUT)
 ACTION_LAYOUT: dict[str, tuple[int, int]] = dict(rlf_sim.ACTION_LAYOUT)
 # has_order, the order block's first float (SIM_VERSION 5).
 HAS_ORDER_COL: int = OBS_LAYOUT["order"][0]
+# SIM_VERSION 6: the v5 obs width (the prefix a v5 pilot reads), the per-ship extras
+# record, the ships observed round the order point, and the order kinds in the
+# obs one-hot's order (kind codes 1, 2, 3; 0 is none).
+OBS_DIM_V5: int = int(rlf_sim.OBS_DIM_V5)
+SHIP_EXTRA_W: int = int(rlf_sim.SHIP_EXTRA_W)
+N_ORDER_SHIPS: int = int(rlf_sim.N_ORDER_SHIPS)
+ORDER_KINDS: tuple[str, ...] = tuple(rlf_sim.ORDER_KINDS)
 
 # Number of fixed-width records in each obs block (SIM_SPEC §7.2), from the sim.
 OBS_SLOTS: dict[str, int] = dict(rlf_sim.OBS_SLOTS)
@@ -210,6 +223,9 @@ class RustVecEnv:
             ``arena_radius`` is ignored.
         commanders: Each team's commander mode of the constructor's first build
             (a queued ``Roster`` names its own).
+        hide_orders: Per team, hidden-order mode (SIM_VERSION 6): that team's obs
+            shows no order. The default for every match unless ``set_next_roster``
+            overrides it.
 
     Raises:
         ValueError: Invalid arguments or assets (from ``rlf_sim``), or a sampled
@@ -231,6 +247,7 @@ class RustVecEnv:
         max_ships: int | None = None,
         roster_sampler: Sampler | None = None,
         commanders: Sequence[str] = (SCRIPTED, SCRIPTED),
+        hide_orders: tuple[bool, bool] = (False, False),
     ) -> None:
         if max_ships is None and roster_sampler is not None:
             max_ships = roster_sampler.max_ships
@@ -249,6 +266,7 @@ class RustVecEnv:
             reaction_ticks=reaction_ticks,
             max_ships=max_ships,
             commanders=list(modes),
+            hide_orders=[bool(hide_orders[0]), bool(hide_orders[1])],
         )
         self.fleets: tuple[tuple[str, ...], ...] = tuple(tuple(t) for t in fleets)
         self.reaction_ticks = reaction_ticks
@@ -333,6 +351,7 @@ class RustVecEnv:
         roster: Roster,
         arena_radius: float | None = None,
         time_limit_s: float | None = None,
+        hide_orders: tuple[bool, bool] | None = None,
     ) -> None:
         """Queue ``roster`` (teams, mission, commanders) for env ``i``'s next match.
 
@@ -344,6 +363,8 @@ class RustVecEnv:
                 and the live page use the rule.
             time_limit_s: The match's clock; ``None`` is the mission's default for
                 a mission roster, else the env's ``time_limit_s``.
+            hide_orders: Per team, hidden-order mode for this roster (SIM_VERSION
+                6); ``None`` keeps the env's default.
 
         Raises:
             ValueError: The roster does not fit ``n_ships`` or its mission, or names
@@ -359,6 +380,7 @@ class RustVecEnv:
             mission=mission,
             commanders=list(roster.commanders),
             time_limit_s=time_limit_s,
+            hide_orders=None if hide_orders is None else [bool(h) for h in hide_orders],
         )
         self._next[i] = roster
 
@@ -391,6 +413,33 @@ class RustVecEnv:
         with ``copy_outputs``), alongside ``rewards``: the trainer weights it by
         ``w``. ``StepInfo.order_rewards`` is the same buffer."""
         return self._out(self._env.order_rewards)
+
+    @property
+    def order_transit(self) -> NDArray[np.bool_]:
+        """[N, S] the slot's effective order is a go-to not yet arrived or a defend
+        whose ward has no threat (SIM_VERSION 6), as of the current obs (view, or a
+        copy with ``copy_outputs``). Raw: the trainer picks the rows to pull."""
+        return self._out(self._env.order_transit)
+
+    @property
+    def ward_threat(self) -> NDArray[np.bool_]:
+        """[N, S, S] ``[i, w, e]``: ship ``e`` was in ship ``w``'s threat set in the
+        last step (SIM_VERSION 6; view, or a copy with ``copy_outputs``)."""
+        return self._out(self._env.ward_threat)
+
+    @property
+    def ward_hull_lost(self) -> NDArray[np.float32]:
+        """[N, S] hull fraction each ship lost in the last step (SIM_VERSION 6;
+        view, or a copy with ``copy_outputs``)."""
+        return self._out(self._env.ward_hull_lost)
+
+    def order_tracks(self) -> dict[str, NDArray]:
+        """Every slot's order instance now (SIM_VERSION 6; new arrays):
+        ``standing_kind``/``effective_kind`` [N, S] int8 (0 none, 1 attack, 2
+        defend, 3 goto), ``target`` [N, S] int16 (-1), ``point`` [N, S, 2] f32,
+        ``radius`` [N, S] f32, ``arrived`` [N, S] bool, ``instance_start`` [N, S]
+        uint32."""
+        return dict(self._env.order_tracks())
 
     # -- stepping -------------------------------------------------------------
 

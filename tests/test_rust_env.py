@@ -21,7 +21,8 @@ rlf_sim = pytest.importorskip(
 )
 
 ASSETS = str(Path(__file__).resolve().parent.parent / "assets")
-OBS_DIM = 403
+OBS_DIM = 583
+OBS_DIM_V5 = 403
 OBS_DIM_V4 = 385
 ACTION_WIDTH = 21
 MAX_HITS = 64
@@ -61,11 +62,19 @@ def random_actions(rng, shape):
 def test_module_constants():
     assert rlf_sim.OBS_DIM == OBS_DIM
     assert rlf_sim.ACTION_WIDTH == ACTION_WIDTH
-    assert rlf_sim.SIM_VERSION == 5
-    assert list(rlf_sim.PILOT_COMPAT_VERSIONS) == [3, 4, 5]
+    assert rlf_sim.SIM_VERSION == 6
+    assert list(rlf_sim.PILOT_COMPAT_VERSIONS) == [3, 4, 5, 6]
     assert rlf_sim.pilot_compatible(3) and not rlf_sim.pilot_compatible(2)
-    assert rlf_sim.PILOT_OBS_DIMS == {3: OBS_DIM_V4, 4: OBS_DIM_V4, 5: OBS_DIM}
+    assert rlf_sim.PILOT_OBS_DIMS == {
+        3: OBS_DIM_V4,
+        4: OBS_DIM_V4,
+        5: OBS_DIM_V5,
+        6: OBS_DIM,
+    }
     assert rlf_sim.OBS_DIM_V4 == OBS_DIM_V4
+    assert rlf_sim.OBS_DIM_V5 == OBS_DIM_V5
+    assert rlf_sim.SHIP_EXTRA_W == 10 and rlf_sim.N_ORDER_SHIPS == 5
+    assert list(rlf_sim.ORDER_KINDS) == ["attack", "defend", "goto"]
     assert rlf_sim.MAX_TRAIN_SHIPS == 12
     assert list(rlf_sim.COMMANDER_MODES) == ["scripted", "external", "random"]
     assert rlf_sim.MAX_SHIPS == 20 and rlf_sim.N_NEAR_SHIPS == 7
@@ -82,6 +91,8 @@ def test_module_constants():
         "turret_arc",
         "turret_range",
         "order",
+        "ship_extras",
+        "order_ships",
     ]
     offset = 0
     for off, width in layout.values():
@@ -92,6 +103,8 @@ def test_module_constants():
     assert layout["projectiles"] == (221, 64)
     assert layout["pending"] == (285, 88)
     assert layout["order"] == (OBS_DIM_V4, 18)
+    assert layout["ship_extras"] == (OBS_DIM_V5, 70)
+    assert layout["order_ships"] == (OBS_DIM_V5 + 70, 110)
     assert rlf_sim.OBS_SLOTS == {
         "self": 1,
         "thrusters": 8,
@@ -102,6 +115,8 @@ def test_module_constants():
         "turret_arc": 6,
         "turret_range": 6,
         "order": 1,
+        "ship_extras": 7,
+        "order_ships": 5,
     }
     for name, (_, width) in layout.items():
         assert width % rlf_sim.OBS_SLOTS[name] == 0, name
