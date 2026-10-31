@@ -1,0 +1,2753 @@
+{
+ "pick": null,
+ "candidates": [
+  {
+   "candidate": "pull_50",
+   "passed": false,
+   "gates": {
+    "O": false,
+    "M": false,
+    "D": false,
+    "H": true
+   },
+   "checks": [
+    {
+     "gate": "O",
+     "name": "random: attack instances",
+     "value": 906.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: guard instances",
+     "value": 892.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: hold instances",
+     "value": 946.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: attack median ticks to gun range",
+     "value": 96.0,
+     "bound": "<= 150",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: attack damage share on target",
+     "value": 0.4559476990653251,
+     "bound": ">= v1 0.399 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: guard time inside",
+     "value": 0.34795715476877687,
+     "bound": ">= max(0.35, v1 0.163 + 0.15)",
+     "passed": false
+    },
+    {
+     "gate": "O",
+     "name": "random: hold time inside",
+     "value": 0.45391105379861296,
+     "bound": ">= max(0.4, v1 0.258 + 0.15)",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: response median ticks",
+     "value": 23.0,
+     "bound": "<= 90",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: attack instances",
+     "value": 2216.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: guard instances",
+     "value": 586.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: hold instances",
+     "value": 246.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: attack damage share on target",
+     "value": 0.47181185672060405,
+     "bound": ">= v1 0.455 + 0.05",
+     "passed": false
+    },
+    {
+     "gate": "O",
+     "name": "scripted: guard time inside",
+     "value": 0.494204921647068,
+     "bound": ">= v1 0.203 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: hold time inside",
+     "value": 0.07301912227270457,
+     "bound": ">= v1 0.002 + 0.1",
+     "passed": false
+    },
+    {
+     "gate": "O",
+     "name": "scripted: response median ticks",
+     "value": 22.0,
+     "bound": "<= 90",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "carrier_battle: win vs v1",
+     "value": 0.003875968992248062,
+     "bound": ">= 0.47",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "convoy_escort: win vs v1",
+     "value": 0.46124031007751937,
+     "bound": ">= 0.47",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs v1",
+     "value": 0.23255813953488372,
+     "bound": ">= 0.52",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs script",
+     "value": 0.69677734375,
+     "bound": ">= 0.85",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs v1",
+     "value": 0.203125,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: time-limit rate",
+     "value": 0.001937984496124031,
+     "bound": "<= v1 0.019 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: outside-arena share",
+     "value": 0.0008141207133496931,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: outside-arena share",
+     "value": 7.294590449523473e-05,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.001 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch outside-arena share",
+     "value": 0.00024497191895966,
+     "bound": "<= 0.02",
+     "passed": true
+    }
+   ]
+  },
+  {
+   "candidate": "pull_100",
+   "passed": false,
+   "gates": {
+    "O": true,
+    "M": false,
+    "D": false,
+    "H": true
+   },
+   "checks": [
+    {
+     "gate": "O",
+     "name": "random: attack instances",
+     "value": 902.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: guard instances",
+     "value": 868.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: hold instances",
+     "value": 959.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: attack median ticks to gun range",
+     "value": 100.0,
+     "bound": "<= 150",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: attack damage share on target",
+     "value": 0.45699698040597825,
+     "bound": ">= v1 0.399 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: guard time inside",
+     "value": 0.4065816941872253,
+     "bound": ">= max(0.35, v1 0.163 + 0.15)",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: hold time inside",
+     "value": 0.4878509666951919,
+     "bound": ">= max(0.4, v1 0.258 + 0.15)",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: response median ticks",
+     "value": 19.0,
+     "bound": "<= 90",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: attack instances",
+     "value": 2419.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: guard instances",
+     "value": 605.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: hold instances",
+     "value": 249.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: attack damage share on target",
+     "value": 0.5123119820916624,
+     "bound": ">= v1 0.455 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: guard time inside",
+     "value": 0.6201515196448573,
+     "bound": ">= v1 0.203 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: hold time inside",
+     "value": 0.14466734535002096,
+     "bound": ">= v1 0.002 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: response median ticks",
+     "value": 20.0,
+     "bound": "<= 90",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "carrier_battle: win vs v1",
+     "value": 0.003875968992248062,
+     "bound": ">= 0.47",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "convoy_escort: win vs v1",
+     "value": 0.42441860465116277,
+     "bound": ">= 0.47",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs v1",
+     "value": 0.21414728682170542,
+     "bound": ">= 0.52",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs script",
+     "value": 0.67822265625,
+     "bound": ">= 0.85",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs v1",
+     "value": 0.2099609375,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: time-limit rate",
+     "value": 0.001937984496124031,
+     "bound": "<= v1 0.019 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: outside-arena share",
+     "value": 0.0010666019349630275,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: outside-arena share",
+     "value": 1.392790637104221e-05,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch time-limit rate",
+     "value": 0.001953125,
+     "bound": "<= v1 0.001 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch outside-arena share",
+     "value": 0.00019232162169587706,
+     "bound": "<= 0.02",
+     "passed": true
+    }
+   ]
+  },
+  {
+   "candidate": "pull_150",
+   "passed": false,
+   "gates": {
+    "O": true,
+    "M": false,
+    "D": false,
+    "H": true
+   },
+   "checks": [
+    {
+     "gate": "O",
+     "name": "random: attack instances",
+     "value": 906.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: guard instances",
+     "value": 836.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: hold instances",
+     "value": 943.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: attack median ticks to gun range",
+     "value": 94.0,
+     "bound": "<= 150",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: attack damage share on target",
+     "value": 0.5308160028198802,
+     "bound": ">= v1 0.399 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: guard time inside",
+     "value": 0.42449758331213433,
+     "bound": ">= max(0.35, v1 0.163 + 0.15)",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: hold time inside",
+     "value": 0.5048358710853408,
+     "bound": ">= max(0.4, v1 0.258 + 0.15)",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: response median ticks",
+     "value": 19.0,
+     "bound": "<= 90",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: attack instances",
+     "value": 2521.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: guard instances",
+     "value": 598.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: hold instances",
+     "value": 226.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: attack damage share on target",
+     "value": 0.5488539749891835,
+     "bound": ">= v1 0.455 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: guard time inside",
+     "value": 0.65009749724884,
+     "bound": ">= v1 0.203 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: hold time inside",
+     "value": 0.16497957973339084,
+     "bound": ">= v1 0.002 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: response median ticks",
+     "value": 19.0,
+     "bound": "<= 90",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "carrier_battle: win vs v1",
+     "value": 0.005813953488372093,
+     "bound": ">= 0.47",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "convoy_escort: win vs v1",
+     "value": 0.4418604651162791,
+     "bound": ">= 0.47",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs v1",
+     "value": 0.2238372093023256,
+     "bound": ">= 0.52",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs script",
+     "value": 0.7099609375,
+     "bound": ">= 0.85",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs v1",
+     "value": 0.2197265625,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.019 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: outside-arena share",
+     "value": 0.0008493934024347535,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: outside-arena share",
+     "value": 1.475277209346595e-05,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.001 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch outside-arena share",
+     "value": 0.00019899575976330768,
+     "bound": "<= 0.02",
+     "passed": true
+    }
+   ]
+  },
+  {
+   "candidate": "pull_200",
+   "passed": false,
+   "gates": {
+    "O": true,
+    "M": false,
+    "D": false,
+    "H": true
+   },
+   "checks": [
+    {
+     "gate": "O",
+     "name": "random: attack instances",
+     "value": 911.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: guard instances",
+     "value": 835.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: hold instances",
+     "value": 959.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: attack median ticks to gun range",
+     "value": 97.0,
+     "bound": "<= 150",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: attack damage share on target",
+     "value": 0.5292838779542204,
+     "bound": ">= v1 0.399 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: guard time inside",
+     "value": 0.40931315483119907,
+     "bound": ">= max(0.35, v1 0.163 + 0.15)",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: hold time inside",
+     "value": 0.5210665503212893,
+     "bound": ">= max(0.4, v1 0.258 + 0.15)",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: response median ticks",
+     "value": 18.0,
+     "bound": "<= 90",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: attack instances",
+     "value": 2458.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: guard instances",
+     "value": 605.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: hold instances",
+     "value": 229.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: attack damage share on target",
+     "value": 0.5614765242057767,
+     "bound": ">= v1 0.455 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: guard time inside",
+     "value": 0.6500157211516867,
+     "bound": ">= v1 0.203 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: hold time inside",
+     "value": 0.16319654427645788,
+     "bound": ">= v1 0.002 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: response median ticks",
+     "value": 19.0,
+     "bound": "<= 90",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "carrier_battle: win vs v1",
+     "value": 0.007751937984496124,
+     "bound": ">= 0.47",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "convoy_escort: win vs v1",
+     "value": 0.4786821705426357,
+     "bound": ">= 0.47",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs v1",
+     "value": 0.2432170542635659,
+     "bound": ">= 0.52",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs script",
+     "value": 0.74267578125,
+     "bound": ">= 0.85",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs v1",
+     "value": 0.236328125,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: time-limit rate",
+     "value": 0.001937984496124031,
+     "bound": "<= v1 0.019 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: outside-arena share",
+     "value": 0.0008921022860672214,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: outside-arena share",
+     "value": 1.6854705880700518e-05,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.001 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch outside-arena share",
+     "value": 0.00029843925894643884,
+     "bound": "<= 0.02",
+     "passed": true
+    }
+   ]
+  },
+  {
+   "candidate": "pull_250",
+   "passed": false,
+   "gates": {
+    "O": true,
+    "M": false,
+    "D": false,
+    "H": true
+   },
+   "checks": [
+    {
+     "gate": "O",
+     "name": "random: attack instances",
+     "value": 894.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: guard instances",
+     "value": 845.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: hold instances",
+     "value": 939.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: attack median ticks to gun range",
+     "value": 97.5,
+     "bound": "<= 150",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: attack damage share on target",
+     "value": 0.4928137629946617,
+     "bound": ">= v1 0.399 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: guard time inside",
+     "value": 0.4060663276182355,
+     "bound": ">= max(0.35, v1 0.163 + 0.15)",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: hold time inside",
+     "value": 0.4894739928458336,
+     "bound": ">= max(0.4, v1 0.258 + 0.15)",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: response median ticks",
+     "value": 18.0,
+     "bound": "<= 90",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: attack instances",
+     "value": 2446.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: guard instances",
+     "value": 607.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: hold instances",
+     "value": 244.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: attack damage share on target",
+     "value": 0.5585580586244085,
+     "bound": ">= v1 0.455 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: guard time inside",
+     "value": 0.644062998725047,
+     "bound": ">= v1 0.203 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: hold time inside",
+     "value": 0.19117514022073456,
+     "bound": ">= v1 0.002 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: response median ticks",
+     "value": 20.0,
+     "bound": "<= 90",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "carrier_battle: win vs v1",
+     "value": 0.013565891472868217,
+     "bound": ">= 0.47",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "convoy_escort: win vs v1",
+     "value": 0.5,
+     "bound": ">= 0.47",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs v1",
+     "value": 0.2567829457364341,
+     "bound": ">= 0.52",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs script",
+     "value": 0.7744140625,
+     "bound": ">= 0.85",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs v1",
+     "value": 0.2890625,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: time-limit rate",
+     "value": 0.001937984496124031,
+     "bound": "<= v1 0.019 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: outside-arena share",
+     "value": 0.0009101066041368748,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: outside-arena share",
+     "value": 4.7292789194246785e-05,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.001 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch outside-arena share",
+     "value": 0.00017245175993653775,
+     "bound": "<= 0.02",
+     "passed": true
+    }
+   ]
+  },
+  {
+   "candidate": "pull_300",
+   "passed": false,
+   "gates": {
+    "O": true,
+    "M": false,
+    "D": false,
+    "H": true
+   },
+   "checks": [
+    {
+     "gate": "O",
+     "name": "random: attack instances",
+     "value": 921.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: guard instances",
+     "value": 852.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: hold instances",
+     "value": 960.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: attack median ticks to gun range",
+     "value": 92.0,
+     "bound": "<= 150",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: attack damage share on target",
+     "value": 0.5114034135619895,
+     "bound": ">= v1 0.399 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: guard time inside",
+     "value": 0.4096744889017518,
+     "bound": ">= max(0.35, v1 0.163 + 0.15)",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: hold time inside",
+     "value": 0.510080223760066,
+     "bound": ">= max(0.4, v1 0.258 + 0.15)",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: response median ticks",
+     "value": 20.0,
+     "bound": "<= 90",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: attack instances",
+     "value": 2455.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: guard instances",
+     "value": 581.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: hold instances",
+     "value": 262.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: attack damage share on target",
+     "value": 0.556348817670026,
+     "bound": ">= v1 0.455 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: guard time inside",
+     "value": 0.640542328042328,
+     "bound": ">= v1 0.203 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: hold time inside",
+     "value": 0.16590223638536392,
+     "bound": ">= v1 0.002 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: response median ticks",
+     "value": 20.0,
+     "bound": "<= 90",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "carrier_battle: win vs v1",
+     "value": 0.03875968992248062,
+     "bound": ">= 0.47",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "convoy_escort: win vs v1",
+     "value": 0.5658914728682171,
+     "bound": ">= 0.47",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs v1",
+     "value": 0.3023255813953488,
+     "bound": ">= 0.52",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs script",
+     "value": 0.81103515625,
+     "bound": ">= 0.85",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs v1",
+     "value": 0.35400390625,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.019 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: outside-arena share",
+     "value": 0.0007963777842453307,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: outside-arena share",
+     "value": 0.0,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.001 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch outside-arena share",
+     "value": 7.930569811440952e-05,
+     "bound": "<= 0.02",
+     "passed": true
+    }
+   ]
+  },
+  {
+   "candidate": "pull_dagger_50",
+   "passed": false,
+   "gates": {
+    "O": false,
+    "M": false,
+    "D": false,
+    "H": true
+   },
+   "checks": [
+    {
+     "gate": "O",
+     "name": "random: attack instances",
+     "value": 877.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: guard instances",
+     "value": 845.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: hold instances",
+     "value": 907.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: attack median ticks to gun range",
+     "value": 89.0,
+     "bound": "<= 150",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: attack damage share on target",
+     "value": 0.4545611769589079,
+     "bound": ">= v1 0.399 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: guard time inside",
+     "value": 0.36369766788423713,
+     "bound": ">= max(0.35, v1 0.163 + 0.15)",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: hold time inside",
+     "value": 0.45396938585331464,
+     "bound": ">= max(0.4, v1 0.258 + 0.15)",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: response median ticks",
+     "value": 22.0,
+     "bound": "<= 90",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: attack instances",
+     "value": 2295.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: guard instances",
+     "value": 595.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: hold instances",
+     "value": 254.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: attack damage share on target",
+     "value": 0.4440350975870409,
+     "bound": ">= v1 0.455 + 0.05",
+     "passed": false
+    },
+    {
+     "gate": "O",
+     "name": "scripted: guard time inside",
+     "value": 0.5073368737949464,
+     "bound": ">= v1 0.203 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: hold time inside",
+     "value": 0.11373661719432064,
+     "bound": ">= v1 0.002 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: response median ticks",
+     "value": 21.0,
+     "bound": "<= 90",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "carrier_battle: win vs v1",
+     "value": 0.001937984496124031,
+     "bound": ">= 0.47",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "convoy_escort: win vs v1",
+     "value": 0.3391472868217054,
+     "bound": ">= 0.47",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs v1",
+     "value": 0.17054263565891473,
+     "bound": ">= 0.52",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs script",
+     "value": 0.521484375,
+     "bound": ">= 0.85",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs v1",
+     "value": 0.080078125,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.019 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: outside-arena share",
+     "value": 0.0006221988824495526,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: outside-arena share",
+     "value": 0.0,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch time-limit rate",
+     "value": 0.0146484375,
+     "bound": "<= v1 0.001 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch outside-arena share",
+     "value": 0.00046995561465278297,
+     "bound": "<= 0.02",
+     "passed": true
+    }
+   ]
+  },
+  {
+   "candidate": "pull_dagger_100",
+   "passed": false,
+   "gates": {
+    "O": false,
+    "M": false,
+    "D": false,
+    "H": true
+   },
+   "checks": [
+    {
+     "gate": "O",
+     "name": "random: attack instances",
+     "value": 874.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: guard instances",
+     "value": 840.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: hold instances",
+     "value": 928.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: attack median ticks to gun range",
+     "value": 95.0,
+     "bound": "<= 150",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: attack damage share on target",
+     "value": 0.4561517168266682,
+     "bound": ">= v1 0.399 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: guard time inside",
+     "value": 0.3960468945204233,
+     "bound": ">= max(0.35, v1 0.163 + 0.15)",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: hold time inside",
+     "value": 0.47722190888763555,
+     "bound": ">= max(0.4, v1 0.258 + 0.15)",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: response median ticks",
+     "value": 20.0,
+     "bound": "<= 90",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: attack instances",
+     "value": 2470.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: guard instances",
+     "value": 603.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: hold instances",
+     "value": 242.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: attack damage share on target",
+     "value": 0.4728698229007205,
+     "bound": ">= v1 0.455 + 0.05",
+     "passed": false
+    },
+    {
+     "gate": "O",
+     "name": "scripted: guard time inside",
+     "value": 0.5902807652474763,
+     "bound": ">= v1 0.203 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: hold time inside",
+     "value": 0.16458771088142057,
+     "bound": ">= v1 0.002 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: response median ticks",
+     "value": 20.0,
+     "bound": "<= 90",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "carrier_battle: win vs v1",
+     "value": 0.0,
+     "bound": ">= 0.47",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "convoy_escort: win vs v1",
+     "value": 0.37209302325581395,
+     "bound": ">= 0.47",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs v1",
+     "value": 0.18604651162790697,
+     "bound": ">= 0.52",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs script",
+     "value": 0.578125,
+     "bound": ">= 0.85",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs v1",
+     "value": 0.0986328125,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: time-limit rate",
+     "value": 0.001937984496124031,
+     "bound": "<= v1 0.019 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: outside-arena share",
+     "value": 0.0011357317824564567,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: outside-arena share",
+     "value": 8.121196814527482e-05,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch time-limit rate",
+     "value": 0.0107421875,
+     "bound": "<= v1 0.001 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch outside-arena share",
+     "value": 0.0006938941494929855,
+     "bound": "<= 0.02",
+     "passed": true
+    }
+   ]
+  },
+  {
+   "candidate": "pull_dagger_150",
+   "passed": false,
+   "gates": {
+    "O": true,
+    "M": false,
+    "D": false,
+    "H": true
+   },
+   "checks": [
+    {
+     "gate": "O",
+     "name": "random: attack instances",
+     "value": 896.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: guard instances",
+     "value": 863.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: hold instances",
+     "value": 954.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: attack median ticks to gun range",
+     "value": 97.0,
+     "bound": "<= 150",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: attack damage share on target",
+     "value": 0.45655392324336636,
+     "bound": ">= v1 0.399 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: guard time inside",
+     "value": 0.4464397114422445,
+     "bound": ">= max(0.35, v1 0.163 + 0.15)",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: hold time inside",
+     "value": 0.5126232818202998,
+     "bound": ">= max(0.4, v1 0.258 + 0.15)",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: response median ticks",
+     "value": 19.0,
+     "bound": "<= 90",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: attack instances",
+     "value": 2475.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: guard instances",
+     "value": 597.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: hold instances",
+     "value": 250.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: attack damage share on target",
+     "value": 0.5120987821297054,
+     "bound": ">= v1 0.455 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: guard time inside",
+     "value": 0.6525469700979095,
+     "bound": ">= v1 0.203 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: hold time inside",
+     "value": 0.1972592255996939,
+     "bound": ">= v1 0.002 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: response median ticks",
+     "value": 22.0,
+     "bound": "<= 90",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "carrier_battle: win vs v1",
+     "value": 0.0,
+     "bound": ">= 0.47",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "convoy_escort: win vs v1",
+     "value": 0.3856589147286822,
+     "bound": ">= 0.47",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs v1",
+     "value": 0.1928294573643411,
+     "bound": ">= 0.52",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs script",
+     "value": 0.6318359375,
+     "bound": ">= 0.85",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs v1",
+     "value": 0.12841796875,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.019 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: outside-arena share",
+     "value": 0.0007134406632854785,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: outside-arena share",
+     "value": 8.711877469517647e-05,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch time-limit rate",
+     "value": 0.0068359375,
+     "bound": "<= v1 0.001 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch outside-arena share",
+     "value": 0.0002882273772041456,
+     "bound": "<= 0.02",
+     "passed": true
+    }
+   ]
+  },
+  {
+   "candidate": "pull_dagger_200",
+   "passed": false,
+   "gates": {
+    "O": true,
+    "M": false,
+    "D": false,
+    "H": true
+   },
+   "checks": [
+    {
+     "gate": "O",
+     "name": "random: attack instances",
+     "value": 895.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: guard instances",
+     "value": 852.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: hold instances",
+     "value": 966.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: attack median ticks to gun range",
+     "value": 90.5,
+     "bound": "<= 150",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: attack damage share on target",
+     "value": 0.5144326744959804,
+     "bound": ">= v1 0.399 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: guard time inside",
+     "value": 0.41072130664132894,
+     "bound": ">= max(0.35, v1 0.163 + 0.15)",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: hold time inside",
+     "value": 0.511924021240555,
+     "bound": ">= max(0.4, v1 0.258 + 0.15)",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: response median ticks",
+     "value": 18.0,
+     "bound": "<= 90",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: attack instances",
+     "value": 2444.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: guard instances",
+     "value": 581.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: hold instances",
+     "value": 250.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: attack damage share on target",
+     "value": 0.523357540768593,
+     "bound": ">= v1 0.455 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: guard time inside",
+     "value": 0.6717244631049542,
+     "bound": ">= v1 0.203 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: hold time inside",
+     "value": 0.1709079305747074,
+     "bound": ">= v1 0.002 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: response median ticks",
+     "value": 20.0,
+     "bound": "<= 90",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "carrier_battle: win vs v1",
+     "value": 0.0,
+     "bound": ">= 0.47",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "convoy_escort: win vs v1",
+     "value": 0.42829457364341084,
+     "bound": ">= 0.47",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs v1",
+     "value": 0.21414728682170542,
+     "bound": ">= 0.52",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs script",
+     "value": 0.6904296875,
+     "bound": ">= 0.85",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs v1",
+     "value": 0.1552734375,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.019 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: outside-arena share",
+     "value": 0.0006562385451725381,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: outside-arena share",
+     "value": 6.025271326894178e-05,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch time-limit rate",
+     "value": 0.00390625,
+     "bound": "<= v1 0.001 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch outside-arena share",
+     "value": 0.0006326813991049601,
+     "bound": "<= 0.02",
+     "passed": true
+    }
+   ]
+  },
+  {
+   "candidate": "pull_dagger_250",
+   "passed": false,
+   "gates": {
+    "O": true,
+    "M": false,
+    "D": false,
+    "H": true
+   },
+   "checks": [
+    {
+     "gate": "O",
+     "name": "random: attack instances",
+     "value": 889.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: guard instances",
+     "value": 873.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: hold instances",
+     "value": 945.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: attack median ticks to gun range",
+     "value": 93.5,
+     "bound": "<= 150",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: attack damage share on target",
+     "value": 0.5040694115895519,
+     "bound": ">= v1 0.399 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: guard time inside",
+     "value": 0.42826042560143773,
+     "bound": ">= max(0.35, v1 0.163 + 0.15)",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: hold time inside",
+     "value": 0.5067708252404556,
+     "bound": ">= max(0.4, v1 0.258 + 0.15)",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: response median ticks",
+     "value": 19.0,
+     "bound": "<= 90",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: attack instances",
+     "value": 2420.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: guard instances",
+     "value": 588.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: hold instances",
+     "value": 283.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: attack damage share on target",
+     "value": 0.5507144998501049,
+     "bound": ">= v1 0.455 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: guard time inside",
+     "value": 0.6768934050815875,
+     "bound": ">= v1 0.203 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: hold time inside",
+     "value": 0.17917608382987465,
+     "bound": ">= v1 0.002 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: response median ticks",
+     "value": 19.0,
+     "bound": "<= 90",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "carrier_battle: win vs v1",
+     "value": 0.003875968992248062,
+     "bound": ">= 0.47",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "convoy_escort: win vs v1",
+     "value": 0.4883720930232558,
+     "bound": ">= 0.47",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs v1",
+     "value": 0.24612403100775193,
+     "bound": ">= 0.52",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs script",
+     "value": 0.76708984375,
+     "bound": ">= 0.85",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs v1",
+     "value": 0.24951171875,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.019 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: outside-arena share",
+     "value": 0.0007238007582036337,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: outside-arena share",
+     "value": 3.0109639533687068e-05,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.001 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch outside-arena share",
+     "value": 0.0006011246093663783,
+     "bound": "<= 0.02",
+     "passed": true
+    }
+   ]
+  },
+  {
+   "candidate": "pull_dagger_300",
+   "passed": false,
+   "gates": {
+    "O": true,
+    "M": false,
+    "D": false,
+    "H": true
+   },
+   "checks": [
+    {
+     "gate": "O",
+     "name": "random: attack instances",
+     "value": 878.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: guard instances",
+     "value": 860.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: hold instances",
+     "value": 951.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: attack median ticks to gun range",
+     "value": 99.0,
+     "bound": "<= 150",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: attack damage share on target",
+     "value": 0.5120446007989983,
+     "bound": ">= v1 0.399 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: guard time inside",
+     "value": 0.44020619383182213,
+     "bound": ">= max(0.35, v1 0.163 + 0.15)",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: hold time inside",
+     "value": 0.4857122827242667,
+     "bound": ">= max(0.4, v1 0.258 + 0.15)",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "random: response median ticks",
+     "value": 19.0,
+     "bound": "<= 90",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: attack instances",
+     "value": 2482.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: guard instances",
+     "value": 613.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: hold instances",
+     "value": 276.0,
+     "bound": ">= 30",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: attack damage share on target",
+     "value": 0.5680682487047134,
+     "bound": ">= v1 0.455 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: guard time inside",
+     "value": 0.674438996997905,
+     "bound": ">= v1 0.203 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: hold time inside",
+     "value": 0.17352215768955367,
+     "bound": ">= v1 0.002 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "O",
+     "name": "scripted: response median ticks",
+     "value": 19.0,
+     "bound": "<= 90",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "carrier_battle: win vs v1",
+     "value": 0.015503875968992248,
+     "bound": ">= 0.47",
+     "passed": false
+    },
+    {
+     "gate": "M",
+     "name": "convoy_escort: win vs v1",
+     "value": 0.5271317829457365,
+     "bound": ">= 0.47",
+     "passed": true
+    },
+    {
+     "gate": "M",
+     "name": "mean mission win vs v1",
+     "value": 0.2713178294573644,
+     "bound": ">= 0.52",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs script",
+     "value": 0.8046875,
+     "bound": ">= 0.85",
+     "passed": false
+    },
+    {
+     "gate": "D",
+     "name": "deathmatch win vs v1",
+     "value": 0.2958984375,
+     "bound": ">= 0.45",
+     "passed": false
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.019 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "carrier_battle: outside-arena share",
+     "value": 0.000684838996950618,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: time-limit rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: stalemate rate",
+     "value": 0.0,
+     "bound": "<= v1 0.000 + 0.05",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "convoy_escort: outside-arena share",
+     "value": 3.434422858795512e-05,
+     "bound": "<= 0.02",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch time-limit rate",
+     "value": 0.001953125,
+     "bound": "<= v1 0.001 + 0.1",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch NaN or stuck matches",
+     "value": 0.0,
+     "bound": "<= 0.01",
+     "passed": true
+    },
+    {
+     "gate": "H",
+     "name": "deathmatch outside-arena share",
+     "value": 0.00033696631249356375,
+     "bound": "<= 0.02",
+     "passed": true
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,51 @@
+{
+  "init": "lab/runs/2026-10-31-order-pilot/w1/checkpoints/ppo_bc_400.pt",
+  "rosters": "orders_v1",
+  "n_rows": 3000000,
+  "seed": 1,
+  "n_envs": 256,
+  "collect": {
+    "env_steps": 6974,
+    "rows": 3000000,
+    "holdout_rows": 136602,
+    "noise_rate": 0.0,
+    "changed_rate": 0.9888966666666666,
+    "fire_rate": 0.18212833333333334,
+    "wall_s": 593.5159830190241
+  },
+  "holdout_agreement_before": {
+    "throttle": 0.5496636182209746,
+    "fire": 0.661842116239687,
+    "fire_recall": 0.8541086236848143,
+    "fire_precision": 0.2537812016088976,
+    "power": 0.4943558659463258,
+    "exact_row": 0.020351092956179265
+  },
+  "holdout_agreement_after": {
+    "throttle": 0.6959386426566401,
+    "fire": 0.8382121078141033,
+    "fire_recall": 0.5600642433380314,
+    "fire_precision": 0.4024921678091065,
+    "power": 0.6233656901070262,
+    "exact_row": 0.11034245472247844
+  },
+  "train": {
+    "config": {
+      "epochs": 1,
+      "batch_size": 4096,
+      "lr": 0.0001,
+      "lr_final": 1e-05,
+      "label_smoothing": 0.02,
+      "fire_pos_weight": 1.0,
+      "throttle_change_weight": 1.0,
+      "seed": 1,
+      "heads": "movement"
+    },
+    "epoch_loss": [
+      0.7259984711858644
+    ],
+    "steps": 700,
+    "wall_s": 96.7015789860161
+  },
+  "wall_s": 697.6332511460641
+}

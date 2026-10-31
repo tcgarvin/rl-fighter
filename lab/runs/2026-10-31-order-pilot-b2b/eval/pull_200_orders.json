@@ -1,0 +1,623 @@
+{
+ "a": "policy:ppo_bc_200.pt",
+ "b": "script",
+ "config": {
+  "missions": [
+   "carrier_battle",
+   "convoy_escort"
+  ],
+  "commanders": [
+   "random",
+   "scripted"
+  ],
+  "n_per_scenario": 96,
+  "seed": 400000,
+  "reaction_ticks": 2,
+  "sim_version": 5
+ },
+ "scenarios": {
+  "carrier_battle/random": {
+   "attack": {
+    "instances": 596,
+    "live_ticks": 138887,
+    "response": {
+     "n": 596,
+     "median": 18.0,
+     "reached": 0.8691275167785235
+    },
+    "close": {
+     "n": 243,
+     "median": 124.0,
+     "reached": 0.7983539094650206
+    },
+    "in_range_at_start": 0.3976510067114094,
+    "damage_share": 0.6750236738749088,
+    "target_damage_per_min": 281.7736721219409,
+    "time_inside": 0.0
+   },
+   "guard": {
+    "instances": 550,
+    "live_ticks": 151965,
+    "response": {
+     "n": 389,
+     "median": 27.0,
+     "reached": 0.9280205655526992
+    },
+    "close": {
+     "n": 0,
+     "median": null,
+     "reached": 0.0
+    },
+    "in_range_at_start": 0.0,
+    "damage_share": 0.0,
+    "target_damage_per_min": 0.0,
+    "time_inside": 0.38257493501793177
+   },
+   "hold": {
+    "instances": 584,
+    "live_ticks": 159317,
+    "response": {
+     "n": 365,
+     "median": 19.0,
+     "reached": 0.947945205479452
+    },
+    "close": {
+     "n": 0,
+     "median": null,
+     "reached": 0.0
+    },
+    "in_range_at_start": 0.0,
+    "damage_share": 0.0,
+    "target_damage_per_min": 0.0,
+    "time_inside": 0.5190657619714155
+   },
+   "response": {
+    "n": 1350,
+    "median": 22.0,
+    "reached": 0.9074074074074074
+   },
+   "engine_duty": {
+    "fighter": {
+     "none": 0.17845886792481647,
+     "attack": 0.35735105107889675,
+     "guard": 0.312729748400662,
+     "hold": 0.37208803761583703
+    },
+    "gunship": {
+     "none": 0.47793579525100593,
+     "attack": 0.4697675724610533,
+     "guard": 0.4681168667698862,
+     "hold": 0.4818782408688888
+    },
+    "strafer": {
+     "none": 0.25045953015484634,
+     "attack": 0.3272359439518424,
+     "guard": 0.3256212829366962,
+     "hold": 0.30404095624329375
+    }
+   },
+   "duty_ticks": {
+    "fighter": {
+     "none": 129775,
+     "attack": 44828,
+     "guard": 58849,
+     "hold": 57636
+    },
+    "gunship": {
+     "none": 111863,
+     "attack": 59864,
+     "guard": 58819,
+     "hold": 63662
+    },
+    "strafer": {
+     "none": 67641,
+     "attack": 34195,
+     "guard": 34297,
+     "hold": 38019
+    }
+   }
+  },
+  "convoy_escort/random": {
+   "attack": {
+    "instances": 315,
+    "live_ticks": 78477,
+    "response": {
+     "n": 315,
+     "median": 14.0,
+     "reached": 0.8984126984126984
+    },
+    "close": {
+     "n": 160,
+     "median": 70.5,
+     "reached": 0.95625
+    },
+    "in_range_at_start": 0.48253968253968255,
+    "damage_share": 0.3632811118576935,
+    "target_damage_per_min": 235.6168049237356,
+    "time_inside": 0.0
+   },
+   "guard": {
+    "instances": 285,
+    "live_ticks": 79965,
+    "response": {
+     "n": 172,
+     "median": 14.5,
+     "reached": 0.9302325581395349
+    },
+    "close": {
+     "n": 0,
+     "median": null,
+     "reached": 0.0
+    },
+    "in_range_at_start": 0.0,
+    "damage_share": 0.0,
+    "target_damage_per_min": 0.0,
+    "time_inside": 0.46012630525855064
+   },
+   "hold": {
+    "instances": 375,
+    "live_ticks": 101974,
+    "response": {
+     "n": 207,
+     "median": 15.0,
+     "reached": 0.9323671497584541
+    },
+    "close": {
+     "n": 0,
+     "median": null,
+     "reached": 0.0
+    },
+    "in_range_at_start": 0.0,
+    "damage_share": 0.0,
+    "target_damage_per_min": 0.0,
+    "time_inside": 0.5241924412105047
+   },
+   "response": {
+    "n": 694,
+    "median": 14.0,
+    "reached": 0.9164265129682997
+   },
+   "engine_duty": {
+    "fighter": {
+     "none": 0.17089184615977512,
+     "attack": 0.3644297078564791,
+     "guard": 0.33540192523815615,
+     "hold": 0.40459563619374084
+    },
+    "gunship": {
+     "none": 0.4207557768305683,
+     "attack": 0.47191324052152955,
+     "guard": 0.43015934271028006,
+     "hold": 0.46577009769115796
+    },
+    "strafer": {
+     "none": 0.22312014625878082,
+     "attack": 0.2784182754326727,
+     "guard": 0.2900213724769314,
+     "hold": 0.26712622209342524
+    }
+   },
+   "duty_ticks": {
+    "fighter": {
+     "none": 85874,
+     "attack": 34854,
+     "guard": 35209,
+     "hold": 41387
+    },
+    "gunship": {
+     "none": 53516,
+     "attack": 24454,
+     "guard": 22926,
+     "hold": 33387
+    },
+    "strafer": {
+     "none": 53209,
+     "attack": 19169,
+     "guard": 21830,
+     "hold": 27200
+    }
+   }
+  },
+  "carrier_battle/scripted": {
+   "attack": {
+    "instances": 1840,
+    "live_ticks": 432506,
+    "response": {
+     "n": 1840,
+     "median": 18.0,
+     "reached": 0.8951086956521739
+    },
+    "close": {
+     "n": 665,
+     "median": 112.0,
+     "reached": 0.8165413533834587
+    },
+    "in_range_at_start": 0.391304347826087,
+    "damage_share": 0.7579857275465073,
+    "target_damage_per_min": 375.522651708878,
+    "time_inside": 0.0
+   },
+   "guard": {
+    "instances": 384,
+    "live_ticks": 347159,
+    "response": {
+     "n": 118,
+     "median": 34.0,
+     "reached": 0.9067796610169492
+    },
+    "close": {
+     "n": 0,
+     "median": null,
+     "reached": 0.0
+    },
+    "in_range_at_start": 0.0,
+    "damage_share": 0.0,
+    "target_damage_per_min": 0.0,
+    "time_inside": 0.6645571625681604
+   },
+   "hold": {
+    "instances": 0,
+    "live_ticks": 0,
+    "response": {
+     "n": 0,
+     "median": null,
+     "reached": 0.0
+    },
+    "close": {
+     "n": 0,
+     "median": null,
+     "reached": 0.0
+    },
+    "in_range_at_start": 0.0,
+    "damage_share": 0.0,
+    "target_damage_per_min": 0.0,
+    "time_inside": 0.0
+   },
+   "response": {
+    "n": 1958,
+    "median": 20.0,
+    "reached": 0.8958120531154239
+   },
+   "engine_duty": {
+    "fighter": {
+     "none": 0.144020018196172,
+     "attack": 0.3535759289284456,
+     "guard": 0.3126982260388514
+    },
+    "gunship": {
+     "none": 0.5019543726874757,
+     "attack": 0.4649353153595371,
+     "guard": 0.4917108545144541
+    },
+    "strafer": {
+     "none": 0.2094846587457132,
+     "attack": 0.3309709692190233,
+     "guard": 0.32965415126578385
+    }
+   },
+   "duty_ticks": {
+    "fighter": {
+     "none": 6859,
+     "attack": 121460,
+     "guard": 222485
+    },
+    "gunship": {
+     "none": 6737,
+     "attack": 220388,
+     "guard": 77109
+    },
+    "strafer": {
+     "none": 4379,
+     "attack": 90658,
+     "guard": 47565
+    }
+   }
+  },
+  "convoy_escort/scripted": {
+   "attack": {
+    "instances": 618,
+    "live_ticks": 197674,
+    "response": {
+     "n": 618,
+     "median": 11.5,
+     "reached": 0.8414239482200647
+    },
+    "close": {
+     "n": 246,
+     "median": 40.0,
+     "reached": 0.959349593495935
+    },
+    "in_range_at_start": 0.6019417475728155,
+    "damage_share": 0.28650939182358887,
+    "target_damage_per_min": 221.95179942733995,
+    "time_inside": 0.0
+   },
+   "guard": {
+    "instances": 221,
+    "live_ticks": 98101,
+    "response": {
+     "n": 78,
+     "median": 130.5,
+     "reached": 0.5512820512820513
+    },
+    "close": {
+     "n": 0,
+     "median": null,
+     "reached": 0.0
+    },
+    "in_range_at_start": 0.0,
+    "damage_share": 0.0,
+    "target_damage_per_min": 0.0,
+    "time_inside": 0.5985565896372106
+   },
+   "hold": {
+    "instances": 229,
+    "live_ticks": 81025,
+    "response": {
+     "n": 229,
+     "median": 22.0,
+     "reached": 0.9737991266375546
+    },
+    "close": {
+     "n": 0,
+     "median": null,
+     "reached": 0.0
+    },
+    "in_range_at_start": 0.0,
+    "damage_share": 0.0,
+    "target_damage_per_min": 0.0,
+    "time_inside": 0.16319654427645788
+   },
+   "response": {
+    "n": 925,
+    "median": 17.0,
+    "reached": 0.8497297297297297
+   },
+   "engine_duty": {
+    "fighter": {
+     "none": 0.1532484437409039,
+     "attack": 0.3719813043278632,
+     "guard": 0.33698404275273075,
+     "hold": 0.4068042336948003
+    },
+    "gunship": {
+     "none": 0.28904428364751816,
+     "attack": 0.43909251826400153,
+     "guard": 0.44216767958230035,
+     "hold": 0.45877532264310916
+    },
+    "strafer": {
+     "none": 0.16874333478712358,
+     "attack": 0.23298984269354506,
+     "guard": 0.2942119735103043,
+     "hold": 0.25065703775421677
+    }
+   },
+   "duty_ticks": {
+    "fighter": {
+     "none": 9974,
+     "attack": 83411,
+     "guard": 29218,
+     "hold": 44242
+    },
+    "gunship": {
+     "none": 5005,
+     "attack": 58463,
+     "guard": 44459,
+     "hold": 17251
+    },
+    "strafer": {
+     "none": 5939,
+     "attack": 55800,
+     "guard": 24424,
+     "hold": 19532
+    }
+   }
+  }
+ },
+ "by_commander": {
+  "random": {
+   "attack": {
+    "instances": 911,
+    "live_ticks": 217364,
+    "response": {
+     "n": 911,
+     "median": 16.0,
+     "reached": 0.8792535675082327
+    },
+    "close": {
+     "n": 403,
+     "median": 97.0,
+     "reached": 0.8610421836228288
+    },
+    "in_range_at_start": 0.4270032930845225,
+    "damage_share": 0.5292838779542204,
+    "target_damage_per_min": 265.10921771774537,
+    "time_inside": 0.0
+   },
+   "guard": {
+    "instances": 835,
+    "live_ticks": 231930,
+    "response": {
+     "n": 561,
+     "median": 24.0,
+     "reached": 0.928698752228164
+    },
+    "close": {
+     "n": 0,
+     "median": null,
+     "reached": 0.0
+    },
+    "in_range_at_start": 0.0,
+    "damage_share": 0.0,
+    "target_damage_per_min": 0.0,
+    "time_inside": 0.40931315483119907
+   },
+   "hold": {
+    "instances": 959,
+    "live_ticks": 261291,
+    "response": {
+     "n": 572,
+     "median": 17.0,
+     "reached": 0.9423076923076923
+    },
+    "close": {
+     "n": 0,
+     "median": null,
+     "reached": 0.0
+    },
+    "in_range_at_start": 0.0,
+    "damage_share": 0.0,
+    "target_damage_per_min": 0.0,
+    "time_inside": 0.5210665503212893
+   },
+   "response": {
+    "n": 2044,
+    "median": 18.0,
+    "reached": 0.9104696673189824
+   },
+   "engine_duty": {
+    "fighter": {
+     "none": 0.1754455897410495,
+     "attack": 0.3604473526692918,
+     "guard": 0.3212166891635033,
+     "hold": 0.38567469912219116
+    },
+    "gunship": {
+     "none": 0.4594325640923453,
+     "attack": 0.4703898614948407,
+     "guard": 0.4574713936939729,
+     "hold": 0.47633668375573046
+    },
+    "strafer": {
+     "none": 0.23842228333874582,
+     "attack": 0.30970004169856374,
+     "guard": 0.311775076203098,
+     "hold": 0.2886454308768143
+    }
+   },
+   "duty_ticks": {
+    "fighter": {
+     "none": 215649,
+     "attack": 79682,
+     "guard": 94058,
+     "hold": 99023
+    },
+    "gunship": {
+     "none": 165379,
+     "attack": 84318,
+     "guard": 81745,
+     "hold": 97049
+    },
+    "strafer": {
+     "none": 120850,
+     "attack": 53364,
+     "guard": 56127,
+     "hold": 65219
+    }
+   }
+  },
+  "scripted": {
+   "attack": {
+    "instances": 2458,
+    "live_ticks": 630180,
+    "response": {
+     "n": 2458,
+     "median": 15.0,
+     "reached": 0.8816110659072417
+    },
+    "close": {
+     "n": 911,
+     "median": 87.0,
+     "reached": 0.8551042810098792
+    },
+    "in_range_at_start": 0.44426362896663957,
+    "damage_share": 0.5614765242057767,
+    "target_damage_per_min": 327.3507569265924,
+    "time_inside": 0.0
+   },
+   "guard": {
+    "instances": 605,
+    "live_ticks": 445260,
+    "response": {
+     "n": 196,
+     "median": 44.0,
+     "reached": 0.7653061224489796
+    },
+    "close": {
+     "n": 0,
+     "median": null,
+     "reached": 0.0
+    },
+    "in_range_at_start": 0.0,
+    "damage_share": 0.0,
+    "target_damage_per_min": 0.0,
+    "time_inside": 0.6500157211516867
+   },
+   "hold": {
+    "instances": 229,
+    "live_ticks": 81025,
+    "response": {
+     "n": 229,
+     "median": 22.0,
+     "reached": 0.9737991266375546
+    },
+    "close": {
+     "n": 0,
+     "median": null,
+     "reached": 0.0
+    },
+    "in_range_at_start": 0.0,
+    "damage_share": 0.0,
+    "target_damage_per_min": 0.0,
+    "time_inside": 0.16319654427645788
+   },
+   "response": {
+    "n": 2883,
+    "median": 19.0,
+    "reached": 0.8810267082899758
+   },
+   "engine_duty": {
+    "fighter": {
+     "none": 0.14948810566621037,
+     "attack": 0.3610694773928003,
+     "guard": 0.31551735410941917,
+     "hold": 0.4068042336948003
+    },
+    "gunship": {
+     "none": 0.4112019458739016,
+     "attack": 0.45951719799005913,
+     "guard": 0.47359227055890146,
+     "hold": 0.45877532264310916
+    },
+    "strafer": {
+     "none": 0.18603411377672077,
+     "attack": 0.2936404931772797,
+     "guard": 0.31762953987376796,
+     "hold": 0.25065703775421677
+    }
+   },
+   "duty_ticks": {
+    "fighter": {
+     "none": 16833,
+     "attack": 204871,
+     "guard": 251703,
+     "hold": 44242
+    },
+    "gunship": {
+     "none": 11742,
+     "attack": 278851,
+     "guard": 121568,
+     "hold": 17251
+    },
+    "strafer": {
+     "none": 10318,
+     "attack": 146458,
+     "guard": 71989,
+     "hold": 19532
+    }
+   }
+  }
+ },
+ "schema": "rlf.eval.orders/1"
+}

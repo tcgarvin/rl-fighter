@@ -1,0 +1,66 @@
+init: lab/runs/2026-10-31-order-pilot-b2b/pull_dagger/dagger/dagger_ordered.pt
+tag: bc
+seed: 0
+assets_dir: assets
+fleets:
+- - fighter
+- - fighter
+n_envs: 256
+reaction_ticks: 2
+arena_radius: 450.0
+time_limit_s: 90.0
+sim_threads: 6
+torch_threads: 6
+n_steps: 128
+t_tail: 40
+n_updates: 300
+gamma: 0.99
+gae_lambda: 0.95
+credit_dead_shooters: false
+epochs: 4
+minibatch: 4096
+clip_eps: 0.2
+early_clip_eps: 0.1
+early_clip_updates: 200
+actor_lr: 0.0001
+critic_lr: 0.0003
+lr_decay: true
+ent_coeff: 0.005
+vf_coeff: 0.5
+max_grad_norm: 0.5
+critic_warmup_updates: 10
+beta_start: 0.1
+beta_end: 0.0
+beta_decay_start: 30
+beta_decay_end: 300
+beta_floor: 0.0
+beta_rows: ordered
+beta_heads: movement
+opponent_bands:
+- - 0
+  - 0.5
+  - 0.25
+  - 0.25
+- - 200
+  - 0.4
+  - 0.3
+  - 0.3
+checkpoint_every: 50
+rosters: orders_v1
+roster_overrides: {}
+max_ships: 0
+critic: fleet
+pool_seed:
+- lab/runs/2026-10-30-fleet-pilot/arm_warm/checkpoints/ppo_bc_400.pt
+- lab/runs/2026-10-31-order-pilot/w1/checkpoints/ppo_bc_400.pt
+env_warmup_steps: 0
+learner_side: random
+pool_seed_p: 0.5
+order_reward_weight: 1.0
+kl_anchor: lab/runs/2026-10-30-fleet-pilot/arm_warm/checkpoints/ppo_bc_400.pt
+kl_anchor_coeff: 0.1
+obs_dim: 403
+entropy_floor: 0.0
+entropy_floor_coeff: 0.0
+tick_cost: 0.0
+extra_arena_penalty: 0.0
