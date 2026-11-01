@@ -1,0 +1,35 @@
+{
+  "schema": "rlf.champion/1",
+  "id": "2026-11-01-v2-f995",
+  "name": "mission pilot \u00b7 long horizon, update 701",
+  "run": "2026-11-01-fighters-v2",
+  "checkpoint": "lab/runs/2026-11-01-fighters-v2/f995/checkpoints/ppo_bc_701.pt",
+  "sim_version": 6,
+  "hulls": [
+    "fighter",
+    "strafer",
+    "gunship"
+  ],
+  "promoted": "2026-11-01",
+  "parent": "2026-11-01-reward-300",
+  "eval_json": "lab/runs/2026-11-01-fighters-v2/eval/f995_701_fleet_vs_script.json",
+  "eval": {
+    "file": "lab/runs/2026-11-01-fighters-v2/eval/f995_701_fleet_vs_script.json",
+    "a": "policy:ppo_bc_701.pt",
+    "b": "script",
+    "n": 1024,
+    "sim_version": 6,
+    "wins": 925,
+    "draws": 1,
+    "losses": 98,
+    "win_rate": 0.90380859375,
+    "hit_rate": 0.28181008556679543,
+    "length_median_ticks": 676.0
+  },
+  "weights": {
+    "sha256": "bf3bd0cb3c27889e9be4915f24c9674f375dd8bc815307596068e1f3ef99cf54",
+    "bytes": 6485365,
+    "url": "https://storage.tcgarvin.com/rl-fighter/champions/2026-11-01-v2-f995/bf3bd0cb3c27889e9be4915f24c9674f375dd8bc815307596068e1f3ef99cf54.pt",
+    "key": "rl-fighter/champions/2026-11-01-v2-f995/bf3bd0cb3c27889e9be4915f24c9674f375dd8bc815307596068e1f3ef99cf54.pt"
+  }
+}
