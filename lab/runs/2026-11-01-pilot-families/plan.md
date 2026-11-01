@@ -18,6 +18,21 @@ the machine is free.**
 5. **Morning:** drill evals on each arm's latest checkpoint, add those that train usefully
    to the population, round robin into a new results directory, report with shadow culls.
 
+## What the measuring found (2026-11-01 evening)
+
+- **Checks:** `scripts/check.sh` and the full pytest suite pass (690 passed, 1 skipped).
+- **Drills:** the script and `transit_300` flip with the order at 0.87 to 1.00; `f995_701`,
+  `reward_300` and `hide_644` at 0.10 to 0.18. Bars are set between them, and `transit_300`
+  passes (`docs/PILOT_TRAINING.md` section 2, `eval/`).
+- **Round robin:** a straight ladder with no cycles: `f995_701` +270, `f995_400` +260,
+  `f99_696` +232, `hide_644` +1, `reward_300` -42, `transit_300` -74, `w1_400` -94, v1 -159,
+  script -394.
+- **Speed:** 36 s an update for `fighters` and `followers`, 42 s for `scratch`, all three
+  running. About 2.8 GB per learner, 13 GB free.
+- **Drill share counts matches, not rows.** Drills are short and small, so 0.10 of matches is
+  about 0.03 of `fighters`' rows and 0.25 is about 0.06 of `followers`'. Read
+  `drill_rows_share` in `log.jsonl` before raising it.
+
 ## Arms
 
 All arms: preset `pilots_v1`, discount 0.995 with order pay following it, no script pull,
