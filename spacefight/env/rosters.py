@@ -34,12 +34,26 @@ freighters plus escorts (team 0, the sim's convoy side) against a strike force.
 Each team's commander is ``random`` with ``random_commander_p``. Matches pad to
 ``MAX_TRAIN_SHIPS`` (12) slots. Capital ships (``CAPITAL_ROLES``) are flown by the
 sim's scripts, never by the learned pilot.
+
+Live rosters (``docs/PILOT_TRAINING.md`` §3, preset ``pilots_v1``,
+``PilotsDistribution``): a training match is drawn the way the live page draws one, so
+pilots train on what they will play. One draw picks the mission by ``mission_weights``.
+A deathmatch is the page's budget draft (``web/src/live/roster.ts``, ``chooseRoster``):
+a size from ``draft_min_per_side..draft_max_per_side``, a budget of that many of the
+cheapest hull, then each side spends it independently. A carrier battle or a convoy is
+one of the sim's own rosters, read from ``rlf_sim.mission_rosters`` at run time and
+never copied here (``web/src/live/missions.ts``, ``fromSim``): the first, the sim's
+default, with ``default_roster_share``, else one of the others uniformly. Both teams
+have ``scripted`` commanders. With ``commander_p`` their orders are shown; otherwise
+they are hidden from both teams (``Roster.hide_orders``), which is "no commander": the
+script's logistics still run, because a carrier or a convoy cannot play without them.
+The condition is always the same on both sides.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Protocol
 
@@ -59,8 +73,9 @@ MAX_PER_SIDE = 4
 # pads every match to its slot count, so it stays at what the rosters need.
 MAX_FLEET_SHIPS: int = 2 * MAX_PER_SIDE
 MAX_SHIPS: int = int(rlf_sim.MAX_SHIPS)
-# Slots per match of a mission training env (SIM_VERSION 5's ``MAX_TRAIN_SHIPS``;
-# live rosters go to 18): carrier + 5 a side, or 4 freighters + 3 escorts v 5.
+# Slots per match of an ``orders_v1`` training env (SIM_VERSION 5's
+# ``MAX_TRAIN_SHIPS``): carrier + 5 a side, or 4 freighters + 3 escorts v 5. Preset
+# ``pilots_v1`` plays the live rosters, which need ``MAX_SHIPS``.
 MAX_TRAIN_SHIPS = 12
 
 DEATHMATCH = "deathmatch"
@@ -96,15 +111,19 @@ class Roster:
         teams: ``(team 0 hulls, team 1 hulls)``.
         mission: One of ``MISSIONS``.
         commanders: Each team's commander mode (``COMMANDER_MODES``).
+        hide_orders: Per team, whether its pilots' obs hide their orders (SIM_VERSION
+            6, ``MatchConfig.hide_orders``). ``RustVecEnv`` applies it when the roster
+            is queued.
 
     Raises:
-        ValueError: An empty team, more than ``MAX_SHIPS`` ships, or an unknown
-            mission or commander mode.
+        ValueError: An empty team, more than ``MAX_SHIPS`` ships, an unknown mission
+            or commander mode, or ``hide_orders`` not two bools.
     """
 
     teams: tuple[tuple[str, ...], tuple[str, ...]]
     mission: str = DEATHMATCH
     commanders: tuple[str, str] = (SCRIPTED, SCRIPTED)
+    hide_orders: tuple[bool, bool] = (False, False)
 
     def __post_init__(self) -> None:
         if len(self.teams) != 2 or any(len(t) == 0 for t in self.teams):
@@ -119,6 +138,10 @@ class Roster:
             raise ValueError(
                 f"commanders must be two of {COMMANDER_MODES}, got {self.commanders}"
             )
+        if len(self.hide_orders) != 2 or any(
+            not isinstance(h, bool) for h in self.hide_orders
+        ):
+            raise ValueError(f"hide_orders must be two bools, got {self.hide_orders}")
 
     @classmethod
     def of(
@@ -127,12 +150,15 @@ class Roster:
         team1: Sequence[str],
         mission: str = DEATHMATCH,
         commanders: Sequence[str] = (SCRIPTED, SCRIPTED),
+        hide_orders: tuple[bool, bool] = (False, False),
     ) -> Roster:
         """Build from two hull-name sequences."""
         pair = tuple(commanders)
         if len(pair) != 2:
             raise ValueError(f"commanders must name two modes, got {pair}")
-        return cls((tuple(team0), tuple(team1)), mission, (pair[0], pair[1]))
+        return cls(
+            (tuple(team0), tuple(team1)), mission, (pair[0], pair[1]), hide_orders
+        )
 
     @property
     def n_ships(self) -> int:
@@ -183,7 +209,7 @@ class Roster:
         )
 
     def swapped(self) -> Roster:
-        """The same match with the teams (and their commanders) exchanged.
+        """The same match with the teams (commanders, hidden orders) exchanged.
 
         Raises:
             ValueError: A convoy, whose transports must be team 0.
@@ -194,6 +220,7 @@ class Roster:
             (self.teams[1], self.teams[0]),
             self.mission,
             (self.commanders[1], self.commanders[0]),
+            (self.hide_orders[1], self.hide_orders[0]),
         )
 
     def cost(self, costs: Mapping[str, float]) -> tuple[float, float]:
@@ -427,18 +454,133 @@ class OrdersDistribution:
         return cls(**kwargs)  # type: ignore[arg-type]
 
 
-Distribution = RosterDistribution | OrdersDistribution
+def live_mission_rosters(mission: str) -> tuple[Roster, ...]:
+    """The sim's rosters of ``mission``, default first (``rlf_sim.mission_rosters``,
+    which the live page plays too), each with scripted commanders and orders shown.
+
+    Raises:
+        ValueError: The sim lists no rosters for ``mission`` (a deathmatch is drafted).
+    """
+    raw = rlf_sim.mission_rosters(mission)
+    if not raw:
+        raise ValueError(f"the sim has no rosters for mission {mission!r}")
+    return tuple(
+        Roster.of(r["fleets"][0], r["fleets"][1], mission=mission) for r in raw
+    )
+
+
+PILOTS_KIND = "pilots"
+
+
+@dataclass(frozen=True)
+class PilotsDistribution:
+    """Live rosters under both-sides conditions (module docstring). Plain types only.
+
+    The roster parameters mirror the live page: ``default_roster_share`` is
+    ``DEFAULT_ROSTER_SHARE`` in ``web/src/live/missions.ts``, the ``draft_*`` values
+    are the bundle's roster rules (``tools/build_bundle.py``: ``MIN_PER_SIDE``,
+    ``max_per_side`` and its default budget). ``tests/test_pilots_rosters.py`` checks
+    them against that code.
+
+    Attributes:
+        kind: Always ``"pilots"`` (tells ``resolve_distribution`` the class apart).
+        mission_weights: Weights of ``MISSIONS`` (deathmatch, carrier, convoy).
+        commander_p: Chance a match has orders shown on both sides (else hidden from
+            both).
+        default_roster_share: Chance a carrier or convoy plays the mission's first
+            roster (else one of the others, uniformly).
+        draft_hulls: Hulls a deathmatch drafts.
+        draft_min_per_side: Fewest ships a drafted side can be held to.
+        draft_max_per_side: Most ships a drafted side can field.
+        draft_budget: Cap on the credits each side spends.
+        max_ships: Slots every roster of a mission with positive weight must fit.
+
+    Raises:
+        ValueError: Bad weights, shares or draft sizes, or a live roster that does not
+            fit ``max_ships``.
+    """
+
+    kind: str = PILOTS_KIND
+    mission_weights: tuple[float, ...] = (0.4, 0.3, 0.3)
+    commander_p: float = 0.5
+    default_roster_share: float = 0.5
+    draft_hulls: tuple[str, ...] = FLEET_HULLS
+    draft_min_per_side: int = 2
+    draft_max_per_side: int = MAX_PER_SIDE
+    draft_budget: float = 40.0
+    max_ships: int = MAX_SHIPS
+
+    def __post_init__(self) -> None:
+        if self.kind != PILOTS_KIND:
+            raise ValueError(f"kind must be {PILOTS_KIND!r}, got {self.kind!r}")
+        if len(self.mission_weights) != len(MISSIONS):
+            raise ValueError(f"mission_weights needs one weight per {MISSIONS}")
+        if any(w < 0 for w in self.mission_weights) or sum(self.mission_weights) <= 0:
+            raise ValueError("mission_weights must be >= 0 with a positive sum")
+        for name in ("commander_p", "default_roster_share"):
+            if not 0.0 <= getattr(self, name) <= 1.0:
+                raise ValueError(f"{name} must be in [0, 1], got {getattr(self, name)}")
+        if not self.draft_hulls:
+            raise ValueError("draft_hulls needs at least one hull")
+        if not 1 <= self.draft_min_per_side <= self.draft_max_per_side <= MAX_PER_SIDE:
+            raise ValueError(
+                "need 1 <= draft_min_per_side <= draft_max_per_side <= "
+                f"{MAX_PER_SIDE}, got {self.draft_min_per_side}, "
+                f"{self.draft_max_per_side}"
+            )
+        if self.draft_budget <= 0:
+            raise ValueError(f"draft_budget must be positive, got {self.draft_budget}")
+        if self.max_ships > MAX_SHIPS:
+            raise ValueError(f"max_ships {self.max_ships} > MAX_SHIPS {MAX_SHIPS}")
+        for mission, weight in zip(MISSIONS, self.mission_weights):
+            if weight <= 0:
+                continue
+            widest = (
+                2 * self.draft_max_per_side
+                if mission == DEATHMATCH
+                else max(r.n_ships for r in live_mission_rosters(mission))
+            )
+            if widest > self.max_ships:
+                raise ValueError(
+                    f"{mission} rosters reach {widest} ships > max_ships "
+                    f"{self.max_ships}"
+                )
+
+    def to_dict(self) -> dict[str, object]:
+        """Plain dict (lists for tuples) for YAML."""
+        return {
+            k: list(v) if isinstance(v, tuple) else v for k, v in asdict(self).items()
+        }
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, object]) -> PilotsDistribution:
+        """Inverse of ``to_dict``.
+
+        Raises:
+            ValueError: Unknown keys.
+        """
+        known = set(cls.__dataclass_fields__)
+        unknown = set(data) - known
+        if unknown:
+            raise ValueError(f"unknown pilots distribution keys: {sorted(unknown)}")
+        kwargs = {k: tuple(v) if isinstance(v, list) else v for k, v in data.items()}
+        return cls(**kwargs)  # type: ignore[arg-type]
+
+
+Distribution = RosterDistribution | OrdersDistribution | PilotsDistribution
 
 # Named distributions for the CLI and configs.
 ROSTER_PRESETS: dict[str, Distribution] = {
     "fleet_v1": RosterDistribution(),
     "orders_v1": OrdersDistribution(),
+    "pilots_v1": PilotsDistribution(),
 }
 
 
 def resolve_distribution(spec: str | Mapping[str, object]) -> Distribution:
-    """A preset name or a ``to_dict`` mapping -> distribution (an
-    ``OrdersDistribution`` when the mapping's ``kind`` is ``"orders"``).
+    """A preset name or a ``to_dict`` mapping -> distribution (the mapping's
+    ``kind`` names an ``OrdersDistribution`` or a ``PilotsDistribution``; without one
+    it is a ``RosterDistribution``).
 
     Raises:
         KeyError: Unknown preset name.
@@ -451,6 +593,8 @@ def resolve_distribution(spec: str | Mapping[str, object]) -> Distribution:
         return ROSTER_PRESETS[spec]
     if spec.get("kind") == ORDERS_KIND:
         return OrdersDistribution.from_dict(spec)
+    if spec.get("kind") == PILOTS_KIND:
+        return PilotsDistribution.from_dict(spec)
     return RosterDistribution.from_dict(spec)
 
 
@@ -468,10 +612,12 @@ class Sampler(Protocol):
 
 
 def make_sampler(distribution: Distribution, seed: int) -> Sampler:
-    """The sampler of ``distribution`` (``RosterSampler`` or
-    ``OrdersRosterSampler``)."""
+    """The sampler of ``distribution`` (``RosterSampler``, ``OrdersRosterSampler``
+    or ``PilotsRosterSampler``)."""
     if isinstance(distribution, OrdersDistribution):
         return OrdersRosterSampler(distribution, seed)
+    if isinstance(distribution, PilotsDistribution):
+        return PilotsRosterSampler(distribution, seed)
     return RosterSampler(distribution, seed)
 
 
@@ -627,3 +773,95 @@ class OrdersRosterSampler:
         d = self.distribution
         p = np.asarray(d.strike_weights, dtype=np.float64)
         return [str(h) for h in self.rng.choice(d.strike_hulls, size=n, p=p / p.sum())]
+
+
+@dataclass
+class PilotsRosterSampler:
+    """Seeded draws from a ``PilotsDistribution`` (module docstring).
+
+    Slot order is the live page's: a mission roster keeps the sim's order (a carrier
+    launches its wing in it), a drafted side its draw order. Neither side is shuffled
+    or swapped; a draft treats the two sides alike, and a convoy must stay team 0.
+
+    Args:
+        distribution: The distribution.
+        seed: Seed of the sampler's own generator.
+        costs: Hull costs for drafts (default: from the asset YAML).
+
+    Raises:
+        ValueError: A draftable hull has no cost, or the budget cannot field
+            ``draft_min_per_side`` of the cheapest hull.
+    """
+
+    distribution: PilotsDistribution
+    seed: int
+    costs: dict[str, float] = field(default_factory=load_hull_costs)
+
+    def __post_init__(self) -> None:
+        self.rng = np.random.default_rng([self.seed, 0x91107])
+        d = self.distribution
+        missing = [h for h in d.draft_hulls if h not in self.costs]
+        if missing:
+            raise ValueError(f"no cost for hulls {missing}")
+        self.cheapest = min(self.costs[h] for h in d.draft_hulls)
+        if d.draft_budget < self.cheapest * d.draft_min_per_side:
+            raise ValueError(
+                f"draft_budget {d.draft_budget} cannot field {d.draft_min_per_side} "
+                f"of the cheapest hull ({self.cheapest})"
+            )
+        self.live: dict[str, tuple[Roster, ...]] = {
+            mission: live_mission_rosters(mission)
+            for mission, weight in zip(MISSIONS, d.mission_weights)
+            if mission != DEATHMATCH and weight > 0
+        }
+
+    @property
+    def max_ships(self) -> int:
+        """Slots of the env: the biggest live roster by default."""
+        return self.distribution.max_ships
+
+    def sample(self) -> Roster:
+        """One roster (the env pads it to ``max_ships``)."""
+        d, rng = self.distribution, self.rng
+        p = np.asarray(d.mission_weights, dtype=np.float64)
+        mission = MISSIONS[int(rng.choice(len(MISSIONS), p=p / p.sum()))]
+        roster = self._draft() if mission == DEATHMATCH else self._live_roster(mission)
+        hidden = not bool(rng.random() < d.commander_p)
+        return replace(roster, hide_orders=(hidden, hidden))
+
+    def sample_many(self, n: int) -> list[Roster]:
+        """``n`` rosters in draw order."""
+        return [self.sample() for _ in range(n)]
+
+    def _live_roster(self, mission: str) -> Roster:
+        """``fromSim`` in ``web/src/live/missions.ts``."""
+        rosters = self.live[mission]
+        rng = self.rng
+        if len(rosters) == 1 or rng.random() < self.distribution.default_roster_share:
+            return rosters[0]
+        return rosters[1 + int(rng.integers(len(rosters) - 1))]
+
+    def _draft(self) -> Roster:
+        """``chooseRoster``'s draft in ``web/src/live/roster.ts``: the two sides share
+        a budget and spend it independently, so they can differ in size."""
+        d = self.distribution
+        size = int(self.rng.integers(d.draft_min_per_side, d.draft_max_per_side + 1))
+        budget = min(d.draft_budget, self.cheapest * size)
+        return Roster.of(self._draft_side(budget), self._draft_side(budget))
+
+    def _draft_side(self, budget: float) -> list[str]:
+        """``draftSide``: spend ``budget`` on random affordable hulls until nothing
+        fits or the side is full, never leaving too little to reach the minimum."""
+        d = self.distribution
+        side: list[str] = []
+        left = budget
+        while len(side) < d.draft_max_per_side:
+            still_needed = max(0, d.draft_min_per_side - len(side) - 1)
+            reserve = self.cheapest * still_needed
+            fits = [h for h in d.draft_hulls if self.costs[h] + reserve <= left]
+            if not fits:
+                break
+            pick = fits[int(self.rng.integers(len(fits)))]
+            side.append(pick)
+            left -= self.costs[pick]
+        return side

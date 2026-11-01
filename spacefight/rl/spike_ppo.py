@@ -38,8 +38,11 @@ never learner or snapshot rows: they keep their script's actions. With
 transports are always team 0, so a fixed side would only ever defend); every
 "team 0" above then means "the learner's team of that env". The step reward is the
 team reward plus ``order_reward_weight * env.order_rewards`` (SIM_VERSION 5); GAE
-runs on the sum and both parts are logged. A frozen ``kl_anchor`` actor (fleet pilot
-v1) adds ``kl_anchor_coeff * KL(anchor || pi)`` on the rows whose obs has no order
+runs on the sum and both parts are logged. The env's go-to shaping uses ``gamma``, so
+the two discounts cannot disagree (``order_shaping_gamma``, SIM_SPEC §8). With orders
+hidden (``Roster.hide_orders``, preset ``pilots_v1``) the sim still computes order pay;
+those rows earn none, since a pilot is only paid for an order it was shown. A frozen
+``kl_anchor`` actor (fleet pilot v1) adds ``kl_anchor_coeff * KL(anchor || pi)`` on the rows whose obs has no order
 (``has_order = 0``), so unordered behaviour stays v1's.
 
 Obs width. Every net sees ``fit_obs(obs, net.obs_dim)``: the learner, the anchor and
@@ -351,8 +354,8 @@ class PPOConfig:
     )
     checkpoint_every: int = 100
     # Fleets: a roster preset of spacefight.env.rosters ("" = the fixed ``fleets``),
-    # field overrides on it, and slots per match (0 = MAX_FLEET_SHIPS with rosters, else
-    # the fleet size).
+    # field overrides on it, and slots per match (0 = the sampler's ``max_ships`` with
+    # rosters, else the fleet size).
     rosters: str = ""
     roster_overrides: dict[str, object] = field(default_factory=dict)
     max_ships: int = 0
@@ -423,6 +426,8 @@ class PPOConfig:
                 raise ValueError(f"{name} must be positive, got {value}")
         if self.t_tail < 0:
             raise ValueError(f"t_tail must be >= 0, got {self.t_tail}")
+        if not 0.0 < self.gamma <= 1.0:
+            raise ValueError(f"gamma must be in (0, 1], got {self.gamma}")
         if len(self.fleets) != 2:
             raise ValueError(f"fleets must have two teams, got {self.fleets}")
         if self.beta_decay_end < self.beta_decay_start:
@@ -839,6 +844,8 @@ class RolloutStorage:
         self.scripted_order = np.zeros((length, rows), dtype=np.bool_)
         # Transit rows whose script flies the order (the "transit" pull's rows).
         self.transit = np.zeros((length, rows), dtype=np.bool_)
+        # The row's team has its orders hidden: it earns no order pay.
+        self.order_hidden = np.zeros((length, rows), dtype=np.bool_)
         # The frozen anchor's per-head log-softmax of each learner row (rollout
         # cache; zero rows wide without an anchor).
         self.anchor_logp = np.zeros(
@@ -1050,6 +1057,7 @@ class SpikeTrainer:
             reaction_ticks=config.reaction_ticks,
             max_ships=config.max_ships or None,
             roster_sampler=sampler,
+            order_shaping_gamma=config.gamma,
         )
         self.n_envs, self.n_ships = self.env.n_envs, self.env.n_ships
         self.rows = self.n_envs * self.n_ships
@@ -1396,6 +1404,7 @@ class SpikeTrainer:
             env_obs = env.obs.reshape(rows, OBS_DIM)
             store.has_order[b] = env_obs[:, HAS_ORDER_COL] > 0.5
             store.scripted_order[b] = env.scripted_order_rows().reshape(rows)
+            store.order_hidden[b] = env.order_hidden_rows().reshape(rows)
             if self.config.beta_rows == "transit":
                 store.transit[b] = transit_rows(env, env_obs)
             store.obs[b] = fit_obs(env_obs, self.obs_dim)
@@ -1542,6 +1551,7 @@ class SpikeTrainer:
         store.team_reward[b] = raw + shaping
         order = store.order_reward[b]
         order[:] = info.order_rewards.reshape(rows)
+        order[store.order_hidden[b]] = 0.0
         store.rewards[b] = store.team_reward[b] + cfg.order_reward_weight * order
 
     # -- GAE + batch ---------------------------------------------------------

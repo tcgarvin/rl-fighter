@@ -63,6 +63,9 @@ pub struct BatchConfig {
     pub base_seed: u64,
     /// Match-wide reaction delay `d` (hulls may override it).
     pub reaction_ticks: u8,
+    /// `MatchConfig.order_shaping_gamma` of every match. It belongs to the batch, not
+    /// to a roster, so no roster swap can lose the trainer's discount.
+    pub order_shaping_gamma: f32,
     /// The roster every env starts with.
     pub roster: Roster,
     /// Buffer slots per match (S); at least the roster's ship count.
@@ -203,6 +206,7 @@ fn match_config(cfg: &BatchConfig, roster: &Roster, index: usize, episode: u32) 
         mission: roster.mission.clone(),
         commanders: roster.commanders,
         hide_orders: roster.hide_orders,
+        order_shaping_gamma: cfg.order_shaping_gamma,
     }
 }
 
@@ -669,6 +673,7 @@ mod tests {
                 n_envs: 8,
                 base_seed: 3,
                 reaction_ticks: 2,
+                order_shaping_gamma: sim::reward::ORDER_SHAPING_GAMMA,
                 roster,
                 n_ships,
                 n_threads,
@@ -765,6 +770,45 @@ mod tests {
         assert_eq!(b.match_at(2).cfg.commanders, [CommanderMode::Scripted; 2]);
         assert_eq!(b.match_at(3).cfg.hide_orders, [true, false]);
         assert_eq!(b.match_at(2).cfg.hide_orders, [false; 2]);
+    }
+
+    #[test]
+    fn order_shaping_gamma_survives_a_roster_swap_and_is_validated() {
+        let cat = catalogue();
+        let roster = duel(&cat);
+        let cfg = |gamma: f32| BatchConfig {
+            n_envs: 2,
+            base_seed: 3,
+            reaction_ticks: 2,
+            order_shaping_gamma: gamma,
+            roster: roster.clone(),
+            n_ships: 2,
+            n_threads: 1,
+            record_events: false,
+        };
+        let mut b = Batch::new(catalogue(), cfg(0.995)).unwrap();
+        let mut o = Owned::new(2, 2);
+        let mut swapped = duel(&cat);
+        swapped.time_limit_ticks = 5;
+        b.set_next_roster(1, swapped).unwrap();
+        b.reset(o.bufs());
+        assert_eq!(b.match_at(1).cfg.time_limit_ticks, 5, "the swap applied");
+        assert_eq!(b.match_at(1).cfg.order_shaping_gamma, 0.995);
+        // ... and through the auto-reset after that match ends.
+        scripted_steps(&mut b, &mut o, 6);
+        assert!(o.episode_count[1] >= 1);
+        assert_eq!(b.match_at(1).cfg.order_shaping_gamma, 0.995);
+        for gamma in [0.0, -0.5, 1.5, f32::NAN, f32::INFINITY] {
+            assert!(
+                matches!(
+                    Batch::new(catalogue(), cfg(gamma)),
+                    Err(BatchError::Setup(
+                        SetupError::InvalidOrderShapingGamma { .. }
+                    ))
+                ),
+                "gamma {gamma} must be rejected"
+            );
+        }
     }
 
     #[test]

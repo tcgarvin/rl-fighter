@@ -2,7 +2,9 @@
 
 Status: **agreed plan, 2026-11-01; being built.** Section 1 is what the code did when the
 plan was written, read from the code and run configs. Sections 2 to 7 are the plan agreed
-with the owner. Section 8 lists what is still open, and section 9 is the build order.
+with the owner. Section 8 lists what is still open, and section 9 is the build order. Build
+items 1 and 2 are written and tested but not yet trained on; section 3 says how they came
+out.
 
 ## The plan in short
 
@@ -45,8 +47,8 @@ Pay per ship (`crates/sim/src/reward.rs`):
 | Order pay, times `order_reward_weight` (0 in `f995`, 1 in `transit`) | below |
 
 Order pay: attack pays damage to the target. Defend pays damage to the ward's threats, with
-penalties for ward damage and death. Go-to pays potential shaping (fixed at discount 0.99,
-`ORDER_SHAPING_GAMMA`) and 0.2 on arrival.
+penalties for ward damage and death. Go-to pays potential shaping (fixed at discount 0.99
+when this was written; it now follows the training discount, section 3) and 0.2 on arrival.
 
 What changes under this plan: training rosters stop at 12 ships and are smaller than live;
 teams draw commanders independently; random orders go; there are no drills.
@@ -129,6 +131,53 @@ and no KL anchor.
 m from the point, the discounted pay is +0.73 to fly there and +1.00 to stay put; with the
 discounts matched it is +0.61 and +0.50. No past run hit this: `f995` had order pay off,
 and runs with order pay trained at 0.99.
+
+**Built:** `MatchConfig.order_shaping_gamma` (default 0.99), set for a whole env by
+`RustVecEnv(order_shaping_gamma=...)`, and the trainer passes its `gamma`. A resumed
+config keeps its own discount; at 0.99 the pay is exactly what it was. `f995`'s config
+(0.995, order pay off) would log a different `reward_order` if resumed but train the same.
+
+### Preset `pilots_v1`
+
+`spacefight/env/rosters.py`; `orders_v1` still works, so old configs resume. Per match:
+
+| Choice | Draw |
+|---|---|
+| Mission | `mission_weights`, default deathmatch 0.4, carrier 0.3, convoy 0.3 |
+| Carrier, convoy | `rlf_sim.mission_rosters` at run time: the first 0.5, the others evenly, as the page |
+| Deathmatch | The page's draft: 2 to 4 of the cheapest hull's worth of credits, the same budget a side, each side spending it independently |
+| Condition | `commander_p`, default 0.5: both teams' orders shown, else hidden from both |
+
+A family sets its own share with `roster_overrides`, e.g. `commander_p: 0.3`.
+`tests/test_pilots_rosters.py` runs the page's own `missionRoster` in Node and compares its
+draws with the sampler's.
+
+Where training still differs from the page:
+
+- **Mission mix.** The page rotates through the three evenly; training defaults to 0.4,
+  0.3, 0.3.
+- **Hidden orders.** The page always shows orders; half of training hides them, by design.
+- **Uncertified hulls.** The page swaps a mission roster's strike craft that the champion
+  is not certified to fly. Training does not, which matters only if a champion is ever
+  certified for fewer than the three strike hulls.
+- **Budget.** The sampler uses the bundle's default budget. A bundle built with
+  `RLF_ROSTER_BUDGET` set lower would draft smaller sides than training does.
+
+How the plan's words came out in code:
+
+- **Order pay only when shown.** The sim pays `order_rewards` whatever the obs shows, so
+  the trainer drops it on hidden rows (`RustVecEnv.order_hidden_rows`). The logged
+  `reward_order` is what was paid. Hidden rows also get no transit pull.
+- **"No commander" still has a commander underneath.** Hidden orders change what pilots
+  see, not what scripts do. In a carrier battle or a convoy, *script-flown strike craft*
+  keep flying the scripted commander's orders, so an enemy script pilot in a no-commander
+  match still follows orders that a learned pilot cannot see. Deathmatch orders are
+  advisory, so scripts ignore them there anyway.
+- **Slots.** Every match pads to 20, the biggest live roster, so a rollout's obs buffer at
+  256 envs is about 2.0 GB against 1.2 GB at 12 slots.
+- **Speed.** Sim alone, on a shared machine (64 envs, 4 threads, random actions): 876
+  steps/s against 1,691 for the 12-slot carrier and 1,938 for the 12-slot convoy. That is
+  a first number; measure again on a free machine before planning a night around it.
 
 ## 4. Families
 

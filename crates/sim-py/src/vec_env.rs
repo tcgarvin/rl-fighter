@@ -330,8 +330,11 @@ impl VecEnv {
     /// logistics with random squads and orders). v6: `hide_orders` is `[team 0,
     /// team 1]` hidden-order mode (default both false): a hidden team's obs shows no
     /// order (SIM_SPEC §7.2); rewards and scripts are unaffected.
+    /// `order_shaping_gamma` is the discount of the go-to order reward's shaping term
+    /// (SIM_SPEC §8), in (0, 1]: a trainer passes its own discount. It holds for every
+    /// match of the env, whatever roster is queued.
     #[new]
-    #[pyo3(signature = (assets_dir, n_envs, fleets, seed, arena_radius=450.0, time_limit_s=90.0, n_threads=0, record_events=false, reaction_ticks=2, max_ships=None, mission=None, commanders=None, hide_orders=None))]
+    #[pyo3(signature = (assets_dir, n_envs, fleets, seed, arena_radius=450.0, time_limit_s=90.0, n_threads=0, record_events=false, reaction_ticks=2, max_ships=None, mission=None, commanders=None, hide_orders=None, order_shaping_gamma=sim::reward::ORDER_SHAPING_GAMMA))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         py: Python<'_>,
@@ -348,6 +351,7 @@ impl VecEnv {
         mission: Option<&Bound<'_, PyAny>>,
         commanders: Option<Vec<String>>,
         hide_orders: Option<Vec<bool>>,
+        order_shaping_gamma: f32,
     ) -> PyResult<Self> {
         if n_envs < 1 {
             return Err(PyValueError::new_err(format!(
@@ -391,6 +395,7 @@ impl VecEnv {
                 n_envs: n,
                 base_seed: seed,
                 reaction_ticks,
+                order_shaping_gamma,
                 roster: Roster {
                     fleets,
                     arena_radius,
@@ -493,6 +498,13 @@ impl VecEnv {
                 },
             )
             .map_err(|e| PyValueError::new_err(e.to_string()))
+    }
+
+    /// The discount of the go-to order reward's shaping term in this env's matches
+    /// (the constructor's `order_shaping_gamma`, as f32).
+    #[getter]
+    fn order_shaping_gamma(&self) -> f32 {
+        self.batch.match_at(0).cfg.order_shaping_gamma
     }
 
     /// Rebuild every match at episode 0 and write the fresh observations. Rewards,

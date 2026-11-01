@@ -129,7 +129,8 @@ still pass too. So fleet pilot v1 (v3) flies a v5 bundle unchanged on the obs pr
   reserves included); the orders change, the membership does not. Three squads.
 - *A cleared order is redrawn at once* (target dead, ward gone), not at its timer, so a
   random squad does not idle for up to 16 s.
-- *Shaping γ = 0.99*, the trainer's PPO γ.
+- *Shaping γ = 0.99*, the trainer's PPO γ. (Since made per match: §8,
+  `MatchConfig.order_shaping_gamma`.)
 
 ### 0.4 v6 changes (SIM_VERSION 5 → 6, M3 stage B3 / WP-B3-sim)
 
@@ -247,6 +248,8 @@ pub struct MatchConfig {
     pub fleets: [Vec<HullId>; 2],                    // team 0, team 1; ≤ MAX_SHIPS total
     pub mission: Mission,                            // v4; default Mission::Deathmatch (§5.10)
     pub commanders: [CommanderMode; 2],              // v4; default [Scripted; 2] (§5.9)
+    pub hide_orders: [bool; 2],                      // v6; default [false; 2] (§7.2)
+    pub order_shaping_gamma: f32,                    // default 0.99; in (0, 1] (§8)
 }
 pub struct Match { /* §3 */ }
 impl Match {
@@ -1210,8 +1213,17 @@ order:
 | defend, damage | the same weights on damage dealt to the ward's **threat set** (§5.9; candidates: the ships on the field this step, positions after the step) |
 | defend, ward hull | `DEFEND_HULL_LOSS_WEIGHT = −0.5 ×` the ward's hull fraction lost this step (`Match.hull_lost`; fractions, so a freighter and a carrier weigh the same) |
 | defend, ward death | `DEFEND_WARD_DEATH = −0.3` once, on the step the ward dies |
-| go-to: shaping | `γΦ′ − Φ`, `Φ = −K · max(0, d − radius) / R`, `K = 1.0`, `γ = 0.99`, until arrival; on the step an instance starts, 0 (Φ is reset to Φ′: no reward for the jump) |
+| go-to: shaping | `γΦ′ − Φ`, `Φ = −K · max(0, d − radius) / R`, `K = 1.0`, `γ = MatchConfig.order_shaping_gamma` (default 0.99), until arrival; on the step an instance starts, 0 (Φ is reset to Φ′: no reward for the jump) |
 | go-to: arrival | `ORDER_ARRIVAL_BONUS = +0.2` once per instance, the first step inside the radius (`d ≤ radius`); the go-to is then complete for that ship |
+
+**Shaping discount.** `MatchConfig.order_shaping_gamma` must be the trainer's discount:
+only then does the shaping leave the optimal policy unchanged. Set below the trainer's
+discount it pays a pilot to stay away from the point: standing still pays `(γ − 1) Φ′ > 0`
+per step, and with shaping at 0.99 under training at 0.995 that outweighs flying there
+(`docs/PILOT_TRAINING.md` §3). A value outside (0, 1], or NaN, is a `SetupError`. It only
+changes `order_rewards`, which no ship observes and no script reads, so it is not in the
+state hash and needs no `SIM_VERSION` bump. The live page reads no rewards and keeps the
+default.
 
 `d` is the distance to the go-to point, `radius` its radius (§5.9). Hit credit and both
 ward terms use the *standing* order: the hit that kills an attack target is paid, and
@@ -1356,6 +1368,10 @@ rlf_sim.SHIP_EXTRA_W == 10, N_ORDER_SHIPS == 5, ORDER_KINDS == ["attack", "defen
 rlf_sim.HULL_CLASSES == ["fighter", "strafer", "gunship", "carrier", "freighter", "spare"]
 VecEnv(..., hide_orders=[False, False])   # per team, hidden-order mode (§7.2)
 env.set_next_roster(..., hide_orders=None) # None keeps the env's setting
+VecEnv(..., order_shaping_gamma=0.99)     # go-to shaping's discount (§8), in (0, 1]; every
+                                          # match of the env, whatever roster is queued
+env.order_shaping_gamma                   # f32, as the sim holds it
+rlf_sim.ORDER_SHAPING_GAMMA == 0.99       # the default (f32)
 env.order_transit  [N,S] bool    # effective order a go-to not yet arrived, or a defend whose
                                  # ward's threat set is empty; as of the obs (rebuilt match)
 env.ward_threat    [N,S,S] bool  # [i, w, e]: e in w's threat set in the last step (every w on

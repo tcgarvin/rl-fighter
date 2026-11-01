@@ -31,7 +31,11 @@ SIM_VERSION 6 (orders redesigned: attack, defend, go-to). The obs grows to 583
 (``ship_extras``, ``order_ships``; the first 403 floats are v5's); a team can be put
 in hidden-order mode (``hide_orders``, per env build or per queued match); the env
 exports ``order_transit``, ``ward_threat`` and ``ward_hull_lost`` and
-``order_tracks()``.
+``order_tracks()``. A ``Roster`` can carry ``hide_orders`` too, and
+``RustVecEnv.rosters`` always holds what each match really has.
+
+Go-to order pay's shaping term must use the trainer's discount, so ``RustVecEnv`` takes
+``order_shaping_gamma`` and applies it to every match of the env (SIM_SPEC §8).
 
 The extension is built with
 ``uv run maturin develop -m crates/sim-py/Cargo.toml --release``.
@@ -40,7 +44,7 @@ The extension is built with
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, replace
 from pathlib import Path
 
 import numpy as np
@@ -84,6 +88,9 @@ OBS_SLOTS: dict[str, int] = dict(rlf_sim.OBS_SLOTS)
 
 # Default reaction delay in ticks (SIM_SPEC §5 stage 3; MatchConfig default).
 DEFAULT_REACTION_TICKS = 2
+# Default discount of go-to order pay's shaping term (MatchConfig default). A trainer
+# passes its own discount instead (SIM_SPEC §8).
+DEFAULT_ORDER_SHAPING_GAMMA: float = float(rlf_sim.ORDER_SHAPING_GAMMA)
 
 # Number of choices of each action head (SIM_SPEC §7.1): values are 0..n-1.
 ACTION_HEAD_CHOICES: dict[str, int] = {"throttle": 3, "slew": 3, "fire": 2, "power": 7}
@@ -228,8 +235,12 @@ class RustVecEnv:
         commanders: Each team's commander mode of the constructor's first build
             (a queued ``Roster`` names its own).
         hide_orders: Per team, hidden-order mode (SIM_VERSION 6): that team's obs
-            shows no order. The default for every match unless ``set_next_roster``
-            overrides it.
+            shows no order. Holds for every match unless ``set_next_roster`` overrides
+            it; a queued ``Roster`` can hide a team on top of it.
+        order_shaping_gamma: Discount of go-to order pay's shaping term, in (0, 1],
+            for every match of the env, whatever roster is queued. A trainer passes
+            its own discount: anything else pays a pilot to stay away from the point
+            (SIM_SPEC §8).
 
     Raises:
         ValueError: Invalid arguments or assets (from ``rlf_sim``), or a sampled
@@ -252,6 +263,7 @@ class RustVecEnv:
         roster_sampler: Sampler | None = None,
         commanders: Sequence[str] = (SCRIPTED, SCRIPTED),
         hide_orders: tuple[bool, bool] = (False, False),
+        order_shaping_gamma: float = DEFAULT_ORDER_SHAPING_GAMMA,
     ) -> None:
         if max_ships is None and roster_sampler is not None:
             max_ships = roster_sampler.max_ships
@@ -271,6 +283,7 @@ class RustVecEnv:
             max_ships=max_ships,
             commanders=list(modes),
             hide_orders=list(_hide_pair(hide_orders)),
+            order_shaping_gamma=order_shaping_gamma,
         )
         self.fleets: tuple[tuple[str, ...], ...] = tuple(tuple(t) for t in fleets)
         self.reaction_ticks = reaction_ticks
@@ -278,7 +291,13 @@ class RustVecEnv:
         self.copy_outputs = copy_outputs
         self.roster_sampler = roster_sampler
         self.commanders: tuple[str, str] = (modes[0], modes[1])
-        fixed = Roster.of(fleets[0], fleets[1], commanders=self.commanders)
+        self._default_hide = _hide_pair(hide_orders)
+        fixed = Roster.of(
+            fleets[0],
+            fleets[1],
+            commanders=self.commanders,
+            hide_orders=self._default_hide,
+        )
         # Roster of each env's current match and of its queued next match.
         self.rosters: list[Roster] = [fixed] * n_envs
         self._next: list[Roster] = [fixed] * n_envs
@@ -308,6 +327,12 @@ class RustVecEnv:
     def dt(self) -> float:
         """Seconds per step."""
         return float(self._env.dt)
+
+    @property
+    def order_shaping_gamma(self) -> float:
+        """Discount of go-to order pay's shaping term in this env's matches, as the
+        sim holds it (f32)."""
+        return float(self._env.order_shaping_gamma)
 
     @property
     def obs_layout(self) -> dict[str, tuple[int, int]]:
@@ -357,7 +382,8 @@ class RustVecEnv:
         time_limit_s: float | None = None,
         hide_orders: tuple[bool, bool] | None = None,
     ) -> None:
-        """Queue ``roster`` (teams, mission, commanders) for env ``i``'s next match.
+        """Queue ``roster`` (teams, mission, commanders, hidden orders) for env
+        ``i``'s next match.
 
         Args:
             i: Env index.
@@ -367,8 +393,9 @@ class RustVecEnv:
                 and the live page use the rule.
             time_limit_s: The match's clock; ``None`` is the mission's default for
                 a mission roster, else the env's ``time_limit_s``.
-            hide_orders: Per team, hidden-order mode for this roster (SIM_VERSION
-                6); ``None`` keeps the env's default.
+            hide_orders: Per team, hidden-order mode for this match (SIM_VERSION 6).
+                ``None``: a team is hidden if the roster or the env hides it, so an
+                eval's hidden env stays hidden and a roster's condition still holds.
 
         Raises:
             ValueError: The roster does not fit ``n_ships`` or its mission, or names
@@ -377,6 +404,13 @@ class RustVecEnv:
         """
         radius = roster.arena_radius if arena_radius is None else arena_radius
         mission = None if roster.mission == DEATHMATCH else roster.mission
+        if hide_orders is None:
+            hide = (
+                roster.hide_orders[0] or self._default_hide[0],
+                roster.hide_orders[1] or self._default_hide[1],
+            )
+        else:
+            hide = _hide_pair(hide_orders)
         self._env.set_next_roster(
             i,
             roster.fleets(),
@@ -384,9 +418,11 @@ class RustVecEnv:
             mission=mission,
             commanders=list(roster.commanders),
             time_limit_s=time_limit_s,
-            hide_orders=None if hide_orders is None else list(_hide_pair(hide_orders)),
+            hide_orders=list(hide),
         )
-        self._next[i] = roster
+        self._next[i] = (
+            roster if hide == roster.hide_orders else replace(roster, hide_orders=hide)
+        )
 
     # -- live buffers ---------------------------------------------------------
 
@@ -549,19 +585,31 @@ class RustVecEnv:
         has_order = self._env.obs[..., HAS_ORDER_COL] > 0.5
         return has_order & by_slot & (team >= 0)
 
+    def order_hidden_rows(self) -> NDArray[np.bool_]:
+        """[N, S] bool, owned: slots of the current matches whose team has its orders
+        hidden (``Roster.hide_orders``). The sim still computes ``order_rewards`` for
+        them (SIM_SPEC §7.2), so a trainer that pays only for orders it shows masks
+        these rows out. Padding is never hidden."""
+        hidden = np.asarray([r.hide_orders for r in self.rosters], dtype=np.bool_)
+        team = np.asarray(self._env.team, dtype=np.int64)
+        by_slot = np.take_along_axis(hidden, np.clip(team, 0, 1), axis=1)
+        return by_slot & (team >= 0)
+
     def transit_rows(self) -> NDArray[np.bool_]:
         """[N, S] bool, owned (SIM_VERSION 6): ``order_transit`` slots whose script
         flies the order (``Roster.scripts_follow_orders``), so ``scripted_actions()``
         is the order-following script's transit flying there: the rows of the
-        transit-only script pull (``docs/M3_PLAN.md`` "Stage B3"). Like the obs, it
-        describes the current matches (a done env's new match after a step)."""
+        transit-only script pull (``docs/M3_PLAN.md`` "Stage B3"). A hidden team has
+        none: its pilots cannot see the order they would be pulled toward. Like the
+        obs, it describes the current matches (a done env's new match after a
+        step)."""
         follows = np.asarray(
             [r.scripts_follow_orders() for r in self.rosters], dtype=np.bool_
         )
         team = np.asarray(self._env.team, dtype=np.int64)
         by_slot = np.take_along_axis(follows, np.clip(team, 0, 1), axis=1)
         transit = np.asarray(self._env.order_transit, dtype=np.bool_)
-        return transit & by_slot & (team >= 0)
+        return transit & by_slot & (team >= 0) & ~self.order_hidden_rows()
 
     def events(self) -> NDArray[np.float32]:
         """Copied ``[E, 9]`` events of the last step (needs ``record_events``)."""

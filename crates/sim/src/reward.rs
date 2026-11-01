@@ -20,8 +20,8 @@
 //!   `DEFEND_HULL_LOSS_WEIGHT` × the ward's hull fraction lost this step and
 //!   `DEFEND_WARD_DEATH` once if the ward died this step. Every defender of the ward
 //!   pays the whole of both (shared, not split). No location term;
-//! - *go-to*: potential shaping `γΦ′ − Φ` with `Φ = −K · max(0, d − radius) / R`
-//!   until arrival, no shaping on the step an instance starts (Φ is reset, so a new
+//! - *go-to*: potential shaping `γΦ′ − Φ` with `Φ = −K · max(0, d − radius) / R` and
+//!   `γ = MatchConfig.order_shaping_gamma` until arrival, no shaping on the step an instance starts (Φ is reset, so a new
 //!   order pays nothing for the jump); a one-shot `ORDER_ARRIVAL_BONUS` the first time
 //!   inside the radius per instance, which completes the order for that ship. No
 //!   presence term (v5 had one).
@@ -62,8 +62,10 @@ pub const DEFEND_HULL_LOSS_WEIGHT: f32 = -0.5;
 pub const DEFEND_WARD_DEATH: f32 = -0.3;
 /// Go-to shaping potential scale `K` (`Φ = −K · max(0, d − radius) / R`).
 pub const ORDER_SHAPING_K: f32 = 1.0;
-/// Discount of the shaping term `γΦ′ − Φ`: the trainer's PPO γ, so the shaping
-/// leaves the optimal policy unchanged.
+/// Default discount of the shaping term `γΦ′ − Φ` (`MatchConfig.order_shaping_gamma`).
+/// A trainer sets the match's value to its own PPO γ: only then does the shaping leave
+/// the optimal policy unchanged. With γ too low for the trainer's discount, the term
+/// pays a pilot to stay away from the point.
 pub const ORDER_SHAPING_GAMMA: f32 = 0.99;
 /// Paid once per go-to instance, the first time inside its radius (v6: 0.2, was 0.1
 /// with a presence term on top).
@@ -224,6 +226,7 @@ impl Match {
             }
         }
         let radius = self.cfg.arena_radius;
+        let gamma = self.cfg.order_shaping_gamma;
         for (s, reward) in r.iter_mut().enumerate().take(n) {
             if earning[s]
                 && let Order::Defend { ward } = standing_order(self, s)
@@ -243,7 +246,7 @@ impl Match {
                 *track = OrderTrack::start(order, tick, phi);
             } else {
                 if earning[s] && place.is_some() && !track.arrived {
-                    *reward += ORDER_SHAPING_GAMMA * phi - track.last_phi;
+                    *reward += gamma * phi - track.last_phi;
                 }
                 track.last_phi = phi;
             }

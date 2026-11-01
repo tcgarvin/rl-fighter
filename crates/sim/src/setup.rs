@@ -8,6 +8,7 @@ use crate::data::{Catalogue, HullId};
 use crate::events::EventBuf;
 use crate::mission::{self, Mission, MissionState};
 use crate::order::{self, OrderTrack};
+use crate::reward::ORDER_SHAPING_GAMMA;
 use crate::rng::Pcg32;
 use crate::scripted::random_commander::RandomCommander;
 use crate::state::{
@@ -67,6 +68,11 @@ pub struct MatchConfig {
     /// zeroed, exactly as a ship without an order (SIM_SPEC §7.2). Rewards, scripts and
     /// the commander are unaffected (the order-following eval's control arm).
     pub hide_orders: [bool; 2],
+    /// Discount of the go-to order reward's shaping term `γΦ′ − Φ` (SIM_SPEC §8), in
+    /// (0, 1]: the trainer's discount. It only changes `order_rewards`, which no ship
+    /// observes and no script reads, so it is not part of the state hash and not a
+    /// SIM_VERSION matter.
+    pub order_shaping_gamma: f32,
 }
 
 impl Default for MatchConfig {
@@ -80,6 +86,7 @@ impl Default for MatchConfig {
             mission: Mission::Deathmatch,
             commanders: [CommanderMode::Scripted; 2],
             hide_orders: [false; 2],
+            order_shaping_gamma: ORDER_SHAPING_GAMMA,
         }
     }
 }
@@ -98,6 +105,8 @@ pub enum SetupError {
     ZeroTimeLimit,
     /// `reaction_ticks` exceeds `MAX_REACTION_TICKS`.
     ReactionTooLong { ticks: u8 },
+    /// `order_shaping_gamma` is not a finite number in (0, 1].
+    InvalidOrderShapingGamma { gamma: f32 },
     /// v4: the fleets or parameters do not fit the mission.
     Mission(String),
 }
@@ -120,6 +129,9 @@ impl fmt::Display for SetupError {
                 f,
                 "reaction_ticks {ticks} exceeds MAX_REACTION_TICKS = {MAX_REACTION_TICKS}"
             ),
+            SetupError::InvalidOrderShapingGamma { gamma } => {
+                write!(f, "order_shaping_gamma must be in (0, 1], got {gamma}")
+            }
             SetupError::Mission(msg) => f.write_str(msg),
         }
     }
@@ -147,6 +159,12 @@ fn validate(cat: &Catalogue, cfg: &MatchConfig) -> Result<(), SetupError> {
     if usize::from(cfg.reaction_ticks) > MAX_REACTION_TICKS {
         return Err(SetupError::ReactionTooLong {
             ticks: cfg.reaction_ticks,
+        });
+    }
+    // The negated range also rejects NaN.
+    if !(cfg.order_shaping_gamma > 0.0 && cfg.order_shaping_gamma <= 1.0) {
+        return Err(SetupError::InvalidOrderShapingGamma {
+            gamma: cfg.order_shaping_gamma,
         });
     }
     let count = cfg.fleets[0].len() + cfg.fleets[1].len();
