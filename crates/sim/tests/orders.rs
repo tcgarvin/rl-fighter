@@ -29,7 +29,7 @@ use sim::scripted::random_commander::{
     self, DEFEND_CAPITAL_P, GOTO_FAR_P, GOTO_JITTER, GOTO_LERP_MAX, GOTO_LERP_MIN, GOTO_POINT_FRAC,
     GOTO_RADIUS_MAX, GOTO_RADIUS_MIN, RANDOM_SQUADS, RandomCommander, UNASSIGNED_FRAC,
 };
-use sim::setup::MatchConfig;
+use sim::setup::{MatchConfig, SetupError};
 use sim::state::{MAX_PROJECTILES, MAX_SHIPS, Match, MatchPhase, NONE, Projectile};
 
 const EPS: f32 = 1e-5;
@@ -435,6 +435,56 @@ fn goto_match(cat: &Catalogue, dist: f32, radius: f32) -> Match {
         },
     );
     m
+}
+
+#[test]
+fn goto_shaping_uses_the_match_s_discount() {
+    let cat = test_catalogue();
+    let mut m = goto_match(&cat, 200.0, 50.0);
+    m.cfg.order_shaping_gamma = 0.995;
+    assert_eq!(refresh(&mut m, &cat)[0], 0.0);
+    let phi = -(200.0 - 50.0) / R;
+    m.ships[0].pos.x = 180.0;
+    let phi2 = -(180.0 - 50.0) / R;
+    assert!(close(refresh(&mut m, &cat)[0], 0.995 * phi2 - phi));
+    // Standing still far out pays only the (1 − γ) drift of the potential.
+    assert!(close(refresh(&mut m, &cat)[0], (0.995 - 1.0) * phi2));
+}
+
+#[test]
+fn order_shaping_gamma_is_validated_and_defaults_to_the_constant() {
+    let cat = test_catalogue();
+    assert_eq!(
+        MatchConfig::default().order_shaping_gamma,
+        ORDER_SHAPING_GAMMA
+    );
+    // A Python 0.99 reaches the sim as exactly the old constant: a gamma-0.99 trainer
+    // keeps the pay it always had.
+    assert_eq!(0.99_f64 as f32, ORDER_SHAPING_GAMMA);
+    let cfg = |gamma: f32| MatchConfig {
+        fleets: [vec![FIGHTER], vec![FIGHTER]],
+        order_shaping_gamma: gamma,
+        ..MatchConfig::default()
+    };
+    for gamma in [
+        0.0,
+        -0.1,
+        1.0001,
+        f32::NAN,
+        f32::INFINITY,
+        f32::NEG_INFINITY,
+    ] {
+        assert!(
+            matches!(
+                cfg(gamma).validate(&cat),
+                Err(SetupError::InvalidOrderShapingGamma { .. })
+            ),
+            "gamma {gamma} must be rejected"
+        );
+    }
+    for gamma in [0.5, 0.995, 1.0] {
+        assert_eq!(cfg(gamma).validate(&cat), Ok(()), "gamma {gamma}");
+    }
 }
 
 #[test]

@@ -120,6 +120,7 @@ fn rlf_sim(m: &Bound<'_, PyModule>) -> PyResult<()> {
     action_layout.set_item("power", (POWER_OFFSET, 1))?;
     m.add("ACTION_LAYOUT", action_layout)?;
 
+    m.add("ORDER_SHAPING_GAMMA", sim::reward::ORDER_SHAPING_GAMMA)?;
     m.add_class::<vec_env::VecEnv>()?;
     m.add_function(wrap_pyfunction!(arena_radius_for, m)?)?;
     m.add_function(wrap_pyfunction!(arena_radius_for_mission, m)?)?;

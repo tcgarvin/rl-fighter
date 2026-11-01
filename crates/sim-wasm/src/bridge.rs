@@ -130,6 +130,8 @@ pub fn parse_config(cat: &Catalogue, config_json: &str) -> Result<MatchConfig, S
         mission,
         commanders,
         hide_orders: raw.hide_orders,
+        // The default: the live page reads no rewards, so no discount applies.
+        ..MatchConfig::default()
     })
 }
 
