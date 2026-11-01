@@ -3,8 +3,8 @@
 Status: **agreed plan, 2026-11-01; being built.** Section 1 is what the code did when the
 plan was written, read from the code and run configs. Sections 2 to 7 are the plan agreed
 with the owner. Section 8 lists what is still open, and section 9 is the build order. Build
-items 1 and 2 are written and tested but not yet trained on; section 3 says how they came
-out.
+items 1 to 3 are written and tested but not yet trained on; sections 2 and 3 say how they
+came out.
 
 ## The plan in short
 
@@ -79,10 +79,91 @@ that didn't do what was asked.
   the match result. A hit on another enemy pays what it always does, so nothing teaches
   a pilot not to shoot. Named-target hits simply pay more.
 - **Enemies** are script pilots.
-- **Build:** the sim has the `external` commander and `submit_command`, per-match clocks
-  and `hide_orders`, and `spacefight/eval/orders.py` has the deadline logic. Drills need a
-  scenario layer, a place in the sampler, and **a way to set start positions**, which the
-  sim does not have yet. That addition must not touch physics or existing pilots.
+
+### What was built
+
+Scenarios are `spacefight/env/drills.py`, `DrillGenerator.generate(kind, seed)`, pure and
+seeded. The sim gained start layouts and drill rules (`MatchConfig.start_layout`, `.drill`;
+SIM_SPEC §5.10). No physics changed, the goldens hold and `SIM_VERSION` is still 6.
+
+- **Mission: a deathmatch under drill rules, with `external` commanders on both teams.**
+  The pilot obs carries the mission as a one-hot, so a new mission would have told pilots
+  they were in a drill. Script followers do follow an `external` commander in a deathmatch;
+  only the scripted commander's orders are advisory there. Drill rules have no winner, so
+  **no match result is paid, by construction**: the sim ends a drill as a draw. It ends on
+  the clock, when team 0 has no strike craft left, or when team 1 is gone and no go-to is
+  open, so killing every enemy on the way does not cut a go-to short.
+- **Wards are freighters.** A capital hull is never a learner row, and the transport
+  script coasts with no waypoint, in any mission, so it needs nothing but a start. They do
+  not fire back, which keeps "who hit the attackers" about the pilots.
+- **Under attack is real, and the groups stay apart.** Each side's enemy group has an
+  `external` attack order on its own side's freighter. A test shows every ward damaged,
+  with its group in its threat set, while the pilots do nothing. The freighters last: with
+  the script flying the pilots, 83 % of wards outlived the 30 s clock in 64 defend drills,
+  and the earliest loss in 64 attack and 64 defend drills was at about 10 s, to two gunships.
+- **Attack drills use the same layout**, one enemy named in one group. A quarter have no
+  freighters, and their groups fly straight at the pilots (`charging`), so attack is not
+  only ever on a busy target. Those groups do not stay apart; the eval reports them
+  separately.
+- **Sides are out of gun range from the start:** 240 to 320 m away, each side's distance
+  drawn on its own, so a pilot that just takes the nearer side fails the swap test.
+- **Variety:** hull mix, squad size 1 to 4, go-to distance about 45 to 690 m to the arrival
+  circle, radius 15 to 80 m, start speed and heading. The whole layout gets a random
+  rotation and, half the time, a mirror, so the named side is not fixed in the world or in
+  the pilot's frame. Go-to enemies start beside the route half the time, else across the
+  arena from it.
+- **Deadline:** from the order, the ship's straight-line time at its speed cap, doubled,
+  plus 10 s. Each ship has its own.
+- **Orders are queued once, when a match is built** (`Roster.opening_orders`, in
+  `RustVecEnv`), and the sim applies them on the first slow tick (tick 60). That is simpler
+  than issuing them on slow ticks, and there is no per-env Python on a step. Standing orders
+  need no repeat.
+- **Nobody flies blind.** Drill rules hold every ship under a control lock until the order
+  lands, so they coast for the first 2 s. Without it the script drifted toward its nearest
+  enemy before it had an order, and momentum alone scored as choosing the wrong side (the
+  script's flip rate on a small sample went from 0.69 to 0.94 on attack).
+
+**Where it differs from the plan above:**
+
+- Go-to pay and the deadline agree, but the eval does not count a ship killed before its
+  deadline as a failure, since fighting on the way is allowed. Such ships are *censored*, and
+  the report gives their count, so a squad that keeps dying on the way still shows.
+- The side chosen comes from where the pilots go, not from damage: the first time a pilot is
+  80 m along the line between the sides from where it was when the order landed. The squad's
+  choice is the side most committed pilots took. It does not depend on where enemies fly.
+- A swap test "flip" means the squad chose the named side both times, not only that the
+  choice changed. `same_side` reports the pilot who picks one side whatever it is told.
+- **Pay:** order pay in a defend drill still includes the ward-loss penalties, as in a match.
+  They are paid but not judged: the eval never looks at whether a ward survived.
+
+### Drills in training
+
+`drill_share` and `drill_weights` in `pilots_v1` (`roster_overrides`, default 0, and at 0 no
+extra number is drawn, so the draws are unchanged). A family's `commander_p` splits what is
+left after drills, so the Fighters row of section 4 is `drill_share: 0.1, commander_p: 0.333`.
+
+- A drill env's enemies are the script and the learner is team 0, the ordered team. It is
+  held out of the opponent quota (`OpponentAssigner.force_scripted`), so the band shares
+  still describe matches.
+- A run with drills must pay for orders: the config refuses `order_reward_weight` 0, and
+  refuses `hide_damage_when_ordered`, which would teach a pilot not to shoot.
+- Logs: `drill_rows_share`, `drill_episodes` and `drill_success` per kind. Success in the log
+  is a running signal: go-to, ships arrived; attack, any damage on the target; defend, the
+  named ward's attackers took more. Side and swap need the eval. Drills are not in the
+  episode tallies, so a draw in a drill does not touch `vs_scripted_*`.
+
+### Drill eval
+
+`spacefight/eval/drills.py`, JSON `rlf.eval.drills/1` and a plain report beside it. Fixed
+seeds, separate from training. The script gets no hidden pass, since it flies orders it
+cannot see. Standard errors treat ships of one squad as independent for go-to, so they are a
+little small there. Attack and defend are per drill.
+
+### Obeying only in drills: what a pilot can see
+
+A drill is not disguised beyond its mission one-hot. A pilot could tell a drill from a match
+by its start (no jump-in), its control lock, or a defend of a freighter under a deathmatch
+one-hot. This stays the owner's call below.
 
 ### Drill gate
 
@@ -93,6 +174,11 @@ and must keep passing to stay. Failing archives it with the reason. The founders
 Bars start lenient ("roughly the appropriate way") and tighten as pilots improve. They come
 from the outcome, and the script pilot's result is a reference rather than a target.
 Numbers get set after measuring the script and the founders on the real drills.
+
+**Built:** `apply_gate` in `spacefight/eval/drills.py` reads `spacefight/eval/drill_bars.yaml`,
+all unset today. A failed bar fails the pilot. Otherwise any unset bar means `report_only`,
+stated plainly, never a pass. `exempt` names pilots it does not judge; the member list that
+decides that comes in a later package.
 
 ### Obeying only in drills
 
@@ -274,7 +360,7 @@ the owner says the machine is free.
 |---|---|---|
 | 1 | Order pay's shaping discount follows the training discount | No |
 | 2 | Live rosters and both-sides commander conditions in training (`pilots_v1`) | Benchmark only |
-| 3 | Sim start positions, drill scenarios, drills in training, drill gate | No |
+| 3 | Sim start positions, drill scenarios, drills in training, drill gate (built) | No |
 | 4 | Population records, family tree, round robin, combat rating, shadow culling | No |
 | 5 | Weighted enemy sampling from the population | No |
 | 6 | Measure the script and founders on the drills, then set the bars | Yes |

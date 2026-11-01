@@ -80,6 +80,15 @@ Reward hiding (run ``lab/runs/2026-11-01-fighters-v2``). With
 ``hide_damage_when_ordered`` a shot chosen under an order earns no team damage reward
 (``RustCreditAdapter.record_step``'s ``unpaid_rows``), only what the order reward pays.
 
+Order drills (``docs/PILOT_TRAINING.md`` section 2). With ``drill_share`` in the
+``pilots_v1`` distribution, some envs play drills (``spacefight.env.drills``). The env
+queues a drill's orders when its match is built. The trainer holds such an env out of the
+opponent quota and has the script fly its enemies (``OpponentAssigner.force_scripted``),
+with the learner on the ordered team, team 0, and logs it apart: drills are not in the
+episode tallies. Drill pay is match pay plus order pay; the sim's drill rules end a drill
+as a draw, so no match result is in it. With ``drill_share`` 0 none of this runs and the
+random draws are unchanged.
+
 Anchor cache. The frozen anchor's per-head log-softmax is computed once per sample
 at rollout time (learner rows, ``[rows, N_LOGITS]`` float32) and read back in every
 minibatch of every epoch, instead of running the anchor net each time; the loss is
@@ -102,6 +111,7 @@ import torch.nn as nn
 import yaml  # type: ignore[import-untyped]
 from numpy.typing import NDArray
 
+from spacefight.env.drills import DrillLedger
 from spacefight.env.rosters import (
     CONVOY_ESCORT,
     Roster,
@@ -271,11 +281,18 @@ LOG_KEYS: tuple[str, ...] = (
     "vs_scripted_win_by_class",
     "win_by_class",
     "episodes_by_class",
+    "drill_rows_share",
+    "drill_episodes",
+    "drill_success",
     "hull_samples",
     "hull_hit_rate",
     "hull_damage_dealt",
 )
 
+
+# Rollout steps between reads of the sim's order tracks for the drill log's go-to arrivals.
+# Under the drill clock's margin, so an arrival on a deadline is seen.
+DRILL_TRACK_EVERY = 15
 
 # Diagnostics returned by ``ppo_update`` (null in the log when it is skipped).
 PPO_METRIC_KEYS: tuple[str, ...] = (
@@ -452,6 +469,16 @@ class PPOConfig:
             self.roster_distribution()
         elif self.roster_overrides:
             raise ValueError("roster_overrides needs a rosters preset")
+        if self.drill_share > 0.0:
+            if self.order_reward_weight <= 0.0:
+                raise ValueError(
+                    "drills need order_reward_weight > 0: order pay is what they teach"
+                )
+            if self.hide_damage_when_ordered:
+                raise ValueError(
+                    "drills cannot run with hide_damage_when_ordered: a hit on another "
+                    "enemy must pay what it always does"
+                )
         OpponentSchedule(self.opponent_bands)
         if self.learner_side not in LEARNER_SIDES:
             raise ValueError(
@@ -483,6 +510,16 @@ class PPOConfig:
             raise ValueError(
                 f"beta_heads must be one of {tuple(HEAD_SETS)}, got {self.beta_heads}"
             )
+
+    @property
+    def drill_share(self) -> float:
+        """The share of drills in the roster distribution; 0 without one."""
+        if not self.rosters:
+            return 0.0
+        share = self.roster_distribution().get("drill_share", 0.0)
+        if not isinstance(share, (int, float)):
+            raise ValueError(f"drill_share must be a number, got {share!r}")
+        return float(share)
 
     def roster_distribution(self) -> dict[str, object]:
         """The roster distribution (preset + overrides) as a plain dict.
@@ -937,6 +974,12 @@ class EpisodeTally:
     scripted_by_class: dict[str, list[int]] = field(default_factory=dict)
     # Class -> [wins, draws, losses] against every opponent.
     by_class: dict[str, list[int]] = field(default_factory=dict)
+    # Drill kind -> [successes, trials, episodes] (``DrillLedger.finish``); drills are
+    # not in any count above.
+    drills: dict[str, list[int]] = field(default_factory=dict)
+    # Rows on the learner's side, and how many of them were in drills.
+    side_rows: int = 0
+    drill_rows: int = 0
 
     def add(
         self,
@@ -958,11 +1001,29 @@ class EpisodeTally:
         if kind == OpponentKind.SCRIPTED:
             self.scripted_by_class.setdefault(size_class, [0, 0, 0])[slot] += 1
 
+    def add_drill(self, kind: str, successes: int, trials: int) -> None:
+        """Record one finished drill (``DrillLedger.finish``)."""
+        tally = self.drills.setdefault(kind, [0, 0, 0])
+        tally[0] += successes
+        tally[1] += trials
+        tally[2] += 1
+
     def log_fields(self) -> dict[str, object]:
         """``vs_<kind>_{win,draw,loss,episodes}``, ``episodes``, mean length, mean
         ships per match, and the win rate (draws ½) against the script per roster
-        size class."""
+        size class; the drills' share of the rollout, and their episodes and success
+        rate per kind."""
         out: dict[str, object] = {}
+        out["drill_rows_share"] = (
+            self.drill_rows / self.side_rows if self.side_rows else 0.0
+        )
+        out["drill_episodes"] = {
+            kind: counts[2] for kind, counts in sorted(self.drills.items())
+        }
+        out["drill_success"] = {
+            kind: counts[0] / counts[1] if counts[1] else None
+            for kind, counts in sorted(self.drills.items())
+        }
         for name, (win, draw, loss) in self.outcomes.items():
             total = win + draw + loss
             out[f"vs_{name}_win"] = win / total if total else None
@@ -1114,10 +1175,18 @@ class SpikeTrainer:
             pfsp_floor=config.enemy_pfsp_floor,
         )
         self.opponents.results.load_state(self._resumed_enemy_results)
-        self.opponents.assign_all(self.next_update, len(self.pool))
         # The learner's team in each env's current match (module docstring).
         self.learner_team = np.zeros(self.n_envs, dtype=np.int8)
-        self._draw_learner_sides(np.arange(self.n_envs))
+        self.drills_on = config.drill_share > 0.0
+        self.drill_ledger = DrillLedger(self.n_envs, self.n_ships)
+        if self.drills_on:
+            drill_envs, match_envs = self._split_drills(np.arange(self.n_envs))
+            self.opponents.assign_all(self.next_update, len(self.pool), drill_envs)
+            self._draw_learner_sides(match_envs)
+            self._note_new_matches(np.arange(self.n_envs))
+        else:
+            self.opponents.assign_all(self.next_update, len(self.pool))
+            self._draw_learner_sides(np.arange(self.n_envs))
         self.log_path = run_dir / "log.jsonl"
         self._collected = range(0)
         for _ in range(config.env_warmup_steps):
@@ -1181,6 +1250,35 @@ class SpikeTrainer:
         """The learner's team for ``envs``' next episode (``config.learner_side``)."""
         if self.config.learner_side == "random" and len(envs):
             self.learner_team[envs] = self.rng.integers(0, 2, size=len(envs))
+
+    def _split_drills(
+        self, envs: NDArray[np.integer]
+    ) -> tuple[NDArray[np.integer], NDArray[np.integer]]:
+        """``envs`` whose current match is a drill, and the others."""
+        rosters = self.env.rosters
+        is_drill = np.fromiter(
+            (rosters[int(i)].drill is not None for i in envs),
+            dtype=np.bool_,
+            count=len(envs),
+        )
+        return envs[is_drill], envs[~is_drill]
+
+    def _note_new_matches(self, envs: NDArray[np.integer]) -> None:
+        """Open ``envs``' new matches in the drill ledger."""
+        for i in envs:
+            self.drill_ledger.begin(int(i), self.env.rosters[int(i)].drill)
+
+    def _start_new_matches_with_drills(
+        self, envs: NDArray[np.integer], update: int
+    ) -> None:
+        """Opponents and learner sides for ``envs``' new matches: a drill fights the
+        script with the learner on the ordered team, outside the quota."""
+        drill_envs, match_envs = self._split_drills(envs)
+        self.opponents.force_scripted(drill_envs)
+        self.opponents.assign(match_envs, update, len(self.pool))
+        self._draw_learner_sides(match_envs)
+        self.learner_team[drill_envs] = 0
+        self._note_new_matches(envs)
 
     def _make_optimisers(self) -> None:
         start, mult = self.new_input_start, self.config.new_input_lr_mult
@@ -1423,6 +1521,14 @@ class SpikeTrainer:
             learner = own | (pilot & (team == 1 - side) & self_play_env)
             store.learner[b] = learner
             store.side[b] = own
+            if self.drills_on:
+                drill_rows = np.repeat(self.drill_ledger.running, n_ships)
+                tally.side_rows += int(own.sum())
+                tally.drill_rows += int((own & drill_rows).sum())
+                if b % DRILL_TRACK_EVERY == 0 and self.drill_ledger.any_goto_running():
+                    self.drill_ledger.see_arrivals(
+                        np.asarray(env.order_tracks()["arrived"], dtype=np.bool_)
+                    )
             policy_np = np.flatnonzero(learner)
             policy_rows = torch.from_numpy(policy_np)
             env_obs = env.obs.reshape(rows, OBS_DIM)
@@ -1486,11 +1592,16 @@ class SpikeTrainer:
                 ),
             )
             self._record_step(b, rewards, dones, info)
+            if self.drills_on:
+                self.drill_ledger.add_hits(info.hits, info.hit_count)
             done_envs = np.flatnonzero(dones)
             if done_envs.size:
                 lengths = info.prev_tick[done_envs].astype(np.int64) + 1
                 for env_id, length in zip(done_envs, lengths):
                     roster = rosters[int(env_id)]
+                    if roster.drill is not None:
+                        tally.add_drill(*self.drill_ledger.finish(int(env_id)))
+                        continue
                     learner_team = int(self.learner_team[env_id])
                     tally.add(
                         int(kinds[env_id]),
@@ -1501,8 +1612,11 @@ class SpikeTrainer:
                         learner_team,
                     )
                 self.opponents.record_results(done_envs, info.winner, self.learner_team)
-                self.opponents.assign(done_envs, update, len(self.pool))
-                self._draw_learner_sides(done_envs)
+                if self.drills_on:
+                    self._start_new_matches_with_drills(done_envs, update)
+                else:
+                    self.opponents.assign(done_envs, update, len(self.pool))
+                    self._draw_learner_sides(done_envs)
         store.filled = store.length
         self._collected = collect
         return tally, len(collect)

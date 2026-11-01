@@ -37,6 +37,11 @@ exports ``order_transit``, ``ward_threat`` and ``ward_hull_lost`` and
 Go-to order pay's shaping term must use the trainer's discount, so ``RustVecEnv`` takes
 ``order_shaping_gamma`` and applies it to every match of the env (SIM_SPEC §8).
 
+A ``Roster`` can also place its ships (``start_layout``), carry the orders an external
+commander opens with (``opening_orders``: the env queues them whenever that match is
+built, once a match and only for those matches, and the sim applies them on the first
+slow tick), its own clock, and drill rules (``docs/PILOT_TRAINING.md`` §2).
+
 The extension is built with
 ``uv run maturin develop -m crates/sim-py/Cargo.toml --release``.
 """
@@ -391,8 +396,9 @@ class RustVecEnv:
             arena_radius: Arena radius in metres; ``None`` uses the shared rule
                 (``roster.arena_radius``). Overrides are for surveys only: training
                 and the live page use the rule.
-            time_limit_s: The match's clock; ``None`` is the mission's default for
-                a mission roster, else the env's ``time_limit_s``.
+            time_limit_s: The match's clock; ``None`` is the roster's own clock if it
+                has one, else the mission's default for a mission roster, else the
+                env's ``time_limit_s``.
             hide_orders: Per team, hidden-order mode for this match (SIM_VERSION 6).
                 ``None``: a team is hidden if the roster or the env hides it, so an
                 eval's hidden env stays hidden and a roster's condition still holds.
@@ -411,6 +417,8 @@ class RustVecEnv:
             )
         else:
             hide = _hide_pair(hide_orders)
+        if time_limit_s is None and roster.time_limit_s > 0:
+            time_limit_s = roster.time_limit_s
         self._env.set_next_roster(
             i,
             roster.fleets(),
@@ -419,6 +427,8 @@ class RustVecEnv:
             commanders=list(roster.commanders),
             time_limit_s=time_limit_s,
             hide_orders=list(hide),
+            start_layout=[s.row() for s in roster.start_layout] or None,
+            drill=roster.drill is not None,
         )
         self._next[i] = (
             roster if hide == roster.hide_orders else replace(roster, hide_orders=hide)
@@ -491,11 +501,13 @@ class RustVecEnv:
         return self._out(self._env.obs)
 
     def _advance_rosters(self, envs: Sequence[int] | NDArray[np.integer]) -> None:
-        """Envs that were just rebuilt: the queued roster is now current; with a
-        sampler, draw and queue the next one."""
+        """Envs that were just rebuilt: the queued roster is now current and its
+        opening orders go in; with a sampler, draw and queue the next one."""
         for i in envs:
             i = int(i)
             self.rosters[i] = self._next[i]
+            for order in self.rosters[i].opening_orders:
+                self._env.submit_command(i, order.team, order.command())
             if self.roster_sampler is not None:
                 self.set_next_roster(i, self.roster_sampler.sample())
 

@@ -25,6 +25,9 @@ and ``SELF`` keep their band shares; only frozen-pool draws are weighted. The de
 ``"uniform"`` draws exactly what it always did from the same generator, so old configs
 and resumes are unchanged.
 
+Order drills (``docs/PILOT_TRAINING.md`` section 2) always fight the script. A drill env is
+held out of the quota (``force_scripted``), so the band shares still describe the matches.
+
 Each env keeps its opponent for a whole episode and is reassigned when it resets.
 Assignment is by quota, not by independent draws: a resetting env takes the kind
 whose count is furthest below its target for the current update band, so once every
@@ -331,11 +334,29 @@ class OpponentAssigner:
         self.results = EnemyResults()
         self.kinds = np.full(n_envs, OpponentKind.SCRIPTED, dtype=np.int8)
         self.snapshot = np.full(n_envs, NO_SNAPSHOT, dtype=np.int64)
+        # Envs held out of the quota, flying the script (drills).
+        self.forced = np.zeros(n_envs, dtype=np.bool_)
 
-    def assign_all(self, update: int, pool_size: int) -> None:
-        """Assign every env from scratch (start of training or of a resume)."""
+    def assign_all(
+        self,
+        update: int,
+        pool_size: int,
+        forced_scripted: Sequence[int] | NDArray[np.integer] = (),
+    ) -> None:
+        """Assign every env from scratch (start of training or of a resume), the
+        ``forced_scripted`` envs to the script, outside the quota."""
         self.kinds[:] = -1
-        self.assign(np.arange(self.n_envs), update, pool_size)
+        self.forced[:] = False
+        self.force_scripted(forced_scripted)
+        self.assign(np.flatnonzero(~self.forced), update, pool_size)
+
+    def force_scripted(self, env_ids: Sequence[int] | NDArray[np.integer]) -> None:
+        """``env_ids`` fight the script this episode, outside the quota. The next
+        ``assign`` of an env puts it back in."""
+        ids = np.asarray(env_ids, dtype=np.int64)
+        self.kinds[ids] = OpponentKind.SCRIPTED
+        self.snapshot[ids] = NO_SNAPSHOT
+        self.forced[ids] = True
 
     def assign(self, env_ids: NDArray[np.integer], update: int, pool_size: int) -> None:
         """Reassign ``env_ids`` (envs that just reset) to the most-needed kinds.
@@ -347,11 +368,13 @@ class OpponentAssigner:
         """
         if len(env_ids) == 0:
             return
-        targets = self.schedule.targets(update, self.n_envs, pool_size)
         ids = np.asarray(env_ids, dtype=np.int64)
+        self.forced[ids] = False
+        n_quota = self.n_envs - int(self.forced.sum())
+        targets = self.schedule.targets(update, n_quota, pool_size)
         self.kinds[ids] = -1
         counts = np.bincount(
-            self.kinds[self.kinds >= 0], minlength=len(OpponentKind)
+            self.kinds[(self.kinds >= 0) & ~self.forced], minlength=len(OpponentKind)
         ).astype(np.int64)
         for env in self.rng.permutation(ids):
             deficit = targets - counts
@@ -410,9 +433,10 @@ class OpponentAssigner:
             self.results.record(int(self.snapshot[env]), score)
 
     def counts(self) -> dict[str, int]:
-        """Envs per kind name."""
+        """Envs per kind name, drills left out."""
         return {
-            KIND_NAMES[kind]: int((self.kinds == kind).sum()) for kind in OpponentKind
+            KIND_NAMES[kind]: int(((self.kinds == kind) & ~self.forced).sum())
+            for kind in OpponentKind
         }
 
 
