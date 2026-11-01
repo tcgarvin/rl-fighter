@@ -73,6 +73,10 @@ widened (403 -> 583), the first-layer columns of the new inputs (actor, and the
 critic's base and encoder) step ``new_input_lr_mult`` times as far as the rest
 (``NewInputAdam``): run 1 showed that zero columns barely move at the base LR.
 
+Reward hiding (run ``lab/runs/2026-11-01-fighters-v2``). With
+``hide_damage_when_ordered`` a shot chosen under an order earns no team damage reward
+(``RustCreditAdapter.record_step``'s ``unpaid_rows``), only what the order reward pays.
+
 Anchor cache. The frozen anchor's per-head log-softmax is computed once per sample
 at rollout time (learner rows, ``[rows, N_LOGITS]`` float32) and read back in every
 minibatch of every epoch, instead of running the anchor net each time; the loss is
@@ -366,6 +370,11 @@ class PPOConfig:
     pool_seed_p: float = 0.0
     # Step reward = team reward + order_reward_weight * order_rewards (SIM_VERSION 5).
     order_reward_weight: float = 0.0
+    # Reward hiding (run 2026-11-01-fighters-v2): a shot chosen on a row with an order
+    # pays nothing from the team reward; the order reward pays what the order wants
+    # (damage to its target or threat set). Damage taken, fire cost, arena and the
+    # terminal stay. Rows without an order are paid as usual.
+    hide_damage_when_ordered: bool = False
     # Frozen actor (a checkpoint path, "" = none) and the weight of
     # KL(anchor || pi) on rows without an order (has_order = 0).
     kl_anchor: str = ""
@@ -1439,6 +1448,9 @@ class SpikeTrainer:
                 info.prev_alive,
                 info.hits,
                 info.hit_count,
+                unpaid_rows=(
+                    store.has_order if self.config.hide_damage_when_ordered else None
+                ),
             )
             self._record_step(b, rewards, dones, info)
             done_envs = np.flatnonzero(dones)

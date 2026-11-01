@@ -489,3 +489,35 @@ def test_unmasked_rows_of_locked_ships_take_effect():
 
     diverged, patched = _diverges(MIXED_2V2, locked_but_unmasked, ALL_HEADS)
     assert patched > 0 and diverged
+
+
+def test_unpaid_rows_drop_a_hits_reward_instead_of_moving_it():
+    """Reward hiding: a hit chosen on an unpaid row pays the shooter nothing at all."""
+    n_hits = np.zeros((1, MAX_HITS, HIT_FIELDS), dtype=np.int32)
+    n_hits[0, 0, credit.HIT_SHOOTER] = 0
+    n_hits[0, 0, credit.HIT_DECISION_TICK] = 10
+    n_hits[0, 0, credit.HIT_DAMAGE_MILLI] = 5000
+    alive = np.ones((1, 2), dtype=bool)
+    episode = np.zeros(1, dtype=np.int64)
+    results = {}
+    for name, unpaid_decision in (("paid", False), ("hidden", True)):
+        adapter = RustCreditAdapter(1, 2, 8)
+        unpaid = np.zeros((8, 2), dtype=bool)
+        unpaid[0, 0] = unpaid_decision
+        adapter.record_step(
+            0, np.array([10]), episode, alive, np.zeros_like(n_hits), np.array([0])
+        )
+        for b, tick in ((1, 11), (2, 12)):
+            count = np.array([1 if b == 2 else 0])
+            adapter.record_step(
+                b, np.array([tick]), episode, alive, n_hits, count, unpaid_rows=unpaid
+            )
+        results[name] = adapter
+    paid, hidden = results["paid"], results["hidden"]
+    # Sim pays +0.05 on the landing row; the delta there cancels it either way.
+    assert paid.credit[2, 0] == pytest.approx(-0.05)
+    assert hidden.credit[2, 0] == pytest.approx(-0.05)
+    assert paid.credit[0, 0] == pytest.approx(0.05)
+    assert hidden.credit[0, 0] == 0.0
+    assert (paid.n_hidden, hidden.n_hidden) == (0, 1)
+    assert paid.n_moved == hidden.n_moved == 1

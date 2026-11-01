@@ -251,13 +251,15 @@ class RustCreditAdapter:
         self.n_moved = 0
         self.n_kept = 0
         self.n_added = 0
+        # Moved hits whose reward was dropped by ``unpaid_rows``.
+        self.n_hidden = 0
 
     def reset_for_rollout(self) -> None:
         """Clear credits, stamps and counters (no tail carried over)."""
         self.credit[:] = 0.0
         self.step_tick[:] = _UNSTAMPED
         self.step_episode[:] = _UNSTAMPED
-        self.n_moved = self.n_kept = self.n_added = 0
+        self.n_moved = self.n_kept = self.n_added = self.n_hidden = 0
 
     def record_step(
         self,
@@ -267,6 +269,7 @@ class RustCreditAdapter:
         alive_before: NDArray[np.bool_],
         hits: NDArray[np.int32],
         hit_count: NDArray[np.int32],
+        unpaid_rows: NDArray[np.bool_] | None = None,
     ) -> None:
         """Stamp ``buf_step`` and move the credit of the hits that landed on it.
 
@@ -279,6 +282,11 @@ class RustCreditAdapter:
             hits: [N, MAX_HITS, HIT_FIELDS] hit rows of the step (rlf_sim
                 ``hits``).
             hit_count: [N] valid rows of ``hits`` per env.
+            unpaid_rows: [buf_len, N * S] rows whose shots earn the shooter nothing
+                (reward hiding: a ship under an order is paid by the order reward).
+                A hit chosen on such a row loses its reward instead of moving it.
+                Hits left on their landing step (decision before the buffer) keep
+                theirs: they are about 1 % of hits and have no row to judge by.
         """
         if not 0 <= buf_step < self.buf_len:
             raise IndexError(f"buf_step {buf_step} outside buffer of {self.buf_len}")
@@ -318,7 +326,11 @@ class RustCreditAdapter:
         flat = env_ids * s + shooter
 
         move = stamped & paid
-        np.add.at(self.credit, (decision_step[move], flat[move]), amount[move])
+        earned = move
+        if unpaid_rows is not None:
+            earned = move & ~unpaid_rows[safe_step, flat]
+            self.n_hidden += int(move.sum() - earned.sum())
+        np.add.at(self.credit, (decision_step[earned], flat[earned]), amount[earned])
         np.add.at(
             self.credit, (np.full(int(move.sum()), buf_step), flat[move]), -amount[move]
         )
@@ -360,4 +372,4 @@ class RustCreditAdapter:
         self.step_tick[t_tail:] = _UNSTAMPED
         self.step_episode[t_tail:] = _UNSTAMPED
         self.credit[:] = 0.0
-        self.n_moved = self.n_kept = self.n_added = 0
+        self.n_moved = self.n_kept = self.n_added = self.n_hidden = 0
