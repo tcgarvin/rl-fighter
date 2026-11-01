@@ -48,6 +48,11 @@ have ``scripted`` commanders. With ``commander_p`` their orders are shown; other
 they are hidden from both teams (``Roster.hide_orders``), which is "no commander": the
 script's logistics still run, because a carrier or a convoy cannot play without them.
 The condition is always the same on both sides.
+
+Order drills (``docs/PILOT_TRAINING.md`` §2): with ``drill_share`` a ``PilotsDistribution``
+also draws drills from ``spacefight.env.drills``. A drill is a ``Roster`` like any other,
+with a start layout, the orders it opens with, its own clock and drill rules; ``drill``
+tells the trainer and the logs what it is.
 """
 
 from __future__ import annotations
@@ -82,9 +87,13 @@ DEATHMATCH = "deathmatch"
 CARRIER_BATTLE = "carrier_battle"
 CONVOY_ESCORT = "convoy_escort"
 MISSIONS: tuple[str, ...] = (DEATHMATCH, CARRIER_BATTLE, CONVOY_ESCORT)
+# Order drills (``docs/PILOT_TRAINING.md`` §2), in ``drill_weights`` order.
+DRILL_GOTO, DRILL_ATTACK, DRILL_DEFEND = "goto", "attack", "defend"
+DRILL_KINDS: tuple[str, ...] = (DRILL_GOTO, DRILL_ATTACK, DRILL_DEFEND)
 SCRIPTED = "scripted"
 RANDOM = "random"
-COMMANDER_MODES: tuple[str, ...] = (SCRIPTED, RANDOM, "external")
+EXTERNAL = "external"
+COMMANDER_MODES: tuple[str, ...] = (SCRIPTED, RANDOM, EXTERNAL)
 # Hull roles the learned pilot never flies (SIM_SPEC §11: scripts fly them).
 CAPITAL_ROLES: frozenset[str] = frozenset({"carrier", "transport"})
 
@@ -104,6 +113,88 @@ def arena_radius_for(n_ships: int) -> float:
 
 
 @dataclass(frozen=True)
+class ShipStart:
+    """Where one ship starts (``MatchConfig.start_layout``): metres, m/s, radians."""
+
+    x: float
+    y: float
+    vx: float
+    vy: float
+    heading: float
+
+    def row(self) -> list[float]:
+        """``[x, y, vx, vy, heading]`` as ``set_next_roster`` takes it."""
+        return [self.x, self.y, self.vx, self.vy, self.heading]
+
+
+@dataclass(frozen=True)
+class OpeningOrder:
+    """A squad order an ``external`` team opens a match with (SIM_SPEC §10.3).
+
+    ``RustVecEnv`` queues it when the match is built and the sim applies it on the
+    match's first slow tick.
+
+    Attributes:
+        team: The team.
+        squad: Squad index.
+        members: The squad's slots.
+        kind: ``"attack"``, ``"defend"`` or ``"goto"``.
+        target: The attack target's or the defend ward's slot; -1 for a go-to.
+        point: The go-to point, metres.
+        radius: The go-to radius, metres.
+    """
+
+    team: int
+    squad: int
+    members: tuple[int, ...]
+    kind: str
+    target: int = -1
+    point: tuple[float, float] = (0.0, 0.0)
+    radius: float = 0.0
+
+    def command(self) -> dict[str, object]:
+        """The sim's command dict.
+
+        Raises:
+            ValueError: An unknown order kind.
+        """
+        order: dict[str, object]
+        if self.kind == "attack":
+            order = {"kind": "attack", "target": self.target}
+        elif self.kind == "defend":
+            order = {"kind": "defend", "ward": self.target}
+        elif self.kind == "goto":
+            order = {"kind": "goto", "point": list(self.point), "radius": self.radius}
+        else:
+            raise ValueError(f"unknown order kind {self.kind!r}")
+        return {
+            "kind": "squad",
+            "squad": self.squad,
+            "members": list(self.members),
+            "order": order,
+        }
+
+
+@dataclass(frozen=True)
+class DrillTag:
+    """What the trainer's logs need to know about a drill match.
+
+    Attributes:
+        kind: ``"goto"``, ``"attack"`` or ``"defend"``.
+        pilots: The ordered strike craft's slots (team 0).
+        named_slot: The attack target's or the ward's slot; -1 for a go-to.
+        named_group: Enemy slots on the named side.
+        other_group: Enemy slots on the other side.
+    """
+
+    kind: str
+    pilots: tuple[int, ...]
+    named_slot: int = -1
+    named_group: tuple[int, ...] = ()
+    other_group: tuple[int, ...] = ()
+
+
+@dataclass(frozen=True)
 class Roster:
     """Two teams' hulls in slot order, the mission and each team's commander.
 
@@ -114,16 +205,29 @@ class Roster:
         hide_orders: Per team, whether its pilots' obs hide their orders (SIM_VERSION
             6, ``MatchConfig.hide_orders``). ``RustVecEnv`` applies it when the roster
             is queued.
+        start_layout: Where every slot starts; empty: the mission places the ships. A
+            deathmatch only.
+        opening_orders: Orders ``RustVecEnv`` queues whenever this roster's match is
+            built, for teams with ``external`` commanders.
+        time_limit_s: The match's clock; 0: the env's or the mission's default.
+        drill: Set on a drill match (``spacefight.env.drills``): the sim plays it under
+            drill rules (SIM_SPEC §5.10). ``None`` on every other match.
 
     Raises:
         ValueError: An empty team, more than ``MAX_SHIPS`` ships, an unknown mission
-            or commander mode, or ``hide_orders`` not two bools.
+            or commander mode, ``hide_orders`` not two bools, a layout that does not
+            have one entry per ship or is not on a deathmatch, or a drill without a
+            layout.
     """
 
     teams: tuple[tuple[str, ...], tuple[str, ...]]
     mission: str = DEATHMATCH
     commanders: tuple[str, str] = (SCRIPTED, SCRIPTED)
     hide_orders: tuple[bool, bool] = (False, False)
+    start_layout: tuple[ShipStart, ...] = ()
+    opening_orders: tuple[OpeningOrder, ...] = ()
+    time_limit_s: float = 0.0
+    drill: DrillTag | None = None
 
     def __post_init__(self) -> None:
         if len(self.teams) != 2 or any(len(t) == 0 for t in self.teams):
@@ -142,6 +246,18 @@ class Roster:
             not isinstance(h, bool) for h in self.hide_orders
         ):
             raise ValueError(f"hide_orders must be two bools, got {self.hide_orders}")
+        if self.start_layout:
+            if len(self.start_layout) != self.n_ships:
+                raise ValueError(
+                    f"start_layout has {len(self.start_layout)} entries for "
+                    f"{self.n_ships} ships"
+                )
+            if self.mission != DEATHMATCH:
+                raise ValueError(f"{self.mission} places its own ships")
+        elif self.drill is not None:
+            raise ValueError("a drill needs a start_layout")
+        if self.time_limit_s < 0:
+            raise ValueError(f"time_limit_s must be >= 0, got {self.time_limit_s}")
 
     @classmethod
     def of(
@@ -175,7 +291,9 @@ class Roster:
     @property
     def klass(self) -> str:
         """Class training logs group by: the size class of a deathmatch, else the
-        mission."""
+        mission; ``"drill/<kind>"`` for a drill."""
+        if self.drill is not None:
+            return f"drill/{self.drill.kind}"
         return self.size_class if self.mission == DEATHMATCH else self.mission
 
     @property
@@ -212,10 +330,13 @@ class Roster:
         """The same match with the teams (commanders, hidden orders) exchanged.
 
         Raises:
-            ValueError: A convoy, whose transports must be team 0.
+            ValueError: A convoy, whose transports must be team 0, or a roster with a
+                start layout or opening orders, which name slots.
         """
         if self.mission == CONVOY_ESCORT:
             raise ValueError("a convoy cannot swap teams: the convoy is team 0")
+        if self.start_layout or self.opening_orders:
+            raise ValueError("a roster that names slots cannot swap teams")
         return Roster(
             (self.teams[1], self.teams[0]),
             self.mission,
@@ -249,6 +370,26 @@ def load_hull_costs(assets_dir: Path = DEFAULT_ASSETS) -> dict[str, float]:
             raise ValueError(f"{path} has no positive cost (got {cost!r})")
         costs[str(raw["name"])] = float(cost)
     return costs
+
+
+def load_hull_speed_caps(assets_dir: Path = DEFAULT_ASSETS) -> dict[str, float]:
+    """Hull name -> ``speed_cap`` (m/s) from every ``hulls/*/hull.yaml``.
+
+    Raises:
+        FileNotFoundError: No hull YAML under ``assets_dir``.
+        ValueError: A hull YAML without a positive ``speed_cap``.
+    """
+    paths = sorted((assets_dir / "hulls").glob("*/hull.yaml"))
+    if not paths:
+        raise FileNotFoundError(f"no hulls/*/hull.yaml under {assets_dir}")
+    caps: dict[str, float] = {}
+    for path in paths:
+        raw = yaml.safe_load(path.read_text())
+        cap = raw.get("speed_cap") if isinstance(raw, dict) else None
+        if not isinstance(cap, (int, float)) or cap <= 0:
+            raise ValueError(f"{path} has no positive speed_cap (got {cap!r})")
+        caps[str(raw["name"])] = float(cap)
+    return caps
 
 
 def load_hull_roles(assets_dir: Path = DEFAULT_ASSETS) -> dict[str, str]:
@@ -470,6 +611,9 @@ def live_mission_rosters(mission: str) -> tuple[Roster, ...]:
 
 
 PILOTS_KIND = "pilots"
+# The most ships a drill fields: 4 pilots, 2 wards, 3 enemies a side
+# (``spacefight.env.drills``).
+MAX_DRILL_SHIPS = 12
 
 
 @dataclass(frozen=True)
@@ -494,10 +638,14 @@ class PilotsDistribution:
         draft_max_per_side: Most ships a drafted side can field.
         draft_budget: Cap on the credits each side spends.
         max_ships: Slots every roster of a mission with positive weight must fit.
+        drill_share: Share of draws that are order drills (``docs/PILOT_TRAINING.md``
+            §2) instead of matches; ``commander_p`` then splits what is left.
+        drill_weights: Weights of the drill kinds ``DRILL_KINDS`` (go-to, attack,
+            defend) among the drills.
 
     Raises:
-        ValueError: Bad weights, shares or draft sizes, or a live roster that does not
-            fit ``max_ships``.
+        ValueError: Bad weights, shares or draft sizes, or a live roster or a drill
+            that does not fit ``max_ships``.
     """
 
     kind: str = PILOTS_KIND
@@ -509,6 +657,8 @@ class PilotsDistribution:
     draft_max_per_side: int = MAX_PER_SIDE
     draft_budget: float = 40.0
     max_ships: int = MAX_SHIPS
+    drill_share: float = 0.0
+    drill_weights: tuple[float, ...] = (1.0, 1.0, 1.0)
 
     def __post_init__(self) -> None:
         if self.kind != PILOTS_KIND:
@@ -517,9 +667,17 @@ class PilotsDistribution:
             raise ValueError(f"mission_weights needs one weight per {MISSIONS}")
         if any(w < 0 for w in self.mission_weights) or sum(self.mission_weights) <= 0:
             raise ValueError("mission_weights must be >= 0 with a positive sum")
-        for name in ("commander_p", "default_roster_share"):
+        for name in ("commander_p", "default_roster_share", "drill_share"):
             if not 0.0 <= getattr(self, name) <= 1.0:
                 raise ValueError(f"{name} must be in [0, 1], got {getattr(self, name)}")
+        if len(self.drill_weights) != len(DRILL_KINDS):
+            raise ValueError(f"drill_weights needs one weight per {DRILL_KINDS}")
+        if any(w < 0 for w in self.drill_weights) or sum(self.drill_weights) <= 0:
+            raise ValueError("drill_weights must be >= 0 with a positive sum")
+        if self.drill_share > 0 and self.max_ships < MAX_DRILL_SHIPS:
+            raise ValueError(
+                f"drills reach {MAX_DRILL_SHIPS} ships > max_ships {self.max_ships}"
+            )
         if not self.draft_hulls:
             raise ValueError("draft_hulls needs at least one hull")
         if not 1 <= self.draft_min_per_side <= self.draft_max_per_side <= MAX_PER_SIDE:
@@ -596,6 +754,14 @@ def resolve_distribution(spec: str | Mapping[str, object]) -> Distribution:
     if spec.get("kind") == PILOTS_KIND:
         return PilotsDistribution.from_dict(spec)
     return RosterDistribution.from_dict(spec)
+
+
+class DrillSource(Protocol):
+    """Makes drill rosters (``spacefight.env.drills.DrillGenerator``)."""
+
+    def roster(self, kind: str, seed: int) -> Roster:
+        """The ``kind`` drill of ``seed``."""
+        ...
 
 
 class Sampler(Protocol):
@@ -814,6 +980,12 @@ class PilotsRosterSampler:
             for mission, weight in zip(MISSIONS, d.mission_weights)
             if mission != DEATHMATCH and weight > 0
         }
+        self.drills: DrillSource | None = None
+        if d.drill_share > 0:
+            # Imported here: spacefight.env.drills builds Rosters from this module.
+            from spacefight.env.drills import DrillGenerator
+
+            self.drills = DrillGenerator()
 
     @property
     def max_ships(self) -> int:
@@ -821,8 +993,12 @@ class PilotsRosterSampler:
         return self.distribution.max_ships
 
     def sample(self) -> Roster:
-        """One roster (the env pads it to ``max_ships``)."""
+        """One roster (the env pads it to ``max_ships``). With ``drill_share`` 0 no
+        extra number is drawn, so the draws are those of a distribution without drills.
+        """
         d, rng = self.distribution, self.rng
+        if self.drills is not None and rng.random() < d.drill_share:
+            return self._drill()
         p = np.asarray(d.mission_weights, dtype=np.float64)
         mission = MISSIONS[int(rng.choice(len(MISSIONS), p=p / p.sum()))]
         roster = self._draft() if mission == DEATHMATCH else self._live_roster(mission)
@@ -832,6 +1008,15 @@ class PilotsRosterSampler:
     def sample_many(self, n: int) -> list[Roster]:
         """``n`` rosters in draw order."""
         return [self.sample() for _ in range(n)]
+
+    def _drill(self) -> Roster:
+        """A fresh drill: a kind by ``drill_weights``, the rest from a drawn seed."""
+        d, rng = self.distribution, self.rng
+        if self.drills is None:
+            raise RuntimeError("_drill called without drill_share")
+        p = np.asarray(d.drill_weights, dtype=np.float64)
+        kind = DRILL_KINDS[int(rng.choice(len(DRILL_KINDS), p=p / p.sum()))]
+        return self.drills.roster(kind, int(rng.integers(2**62)))
 
     def _live_roster(self, mission: str) -> Roster:
         """``fromSim`` in ``web/src/live/missions.ts``."""

@@ -6,6 +6,7 @@ use crate::actions::ShipAction;
 use crate::command::{CommandState, CommanderMode};
 use crate::data::{Catalogue, HullId};
 use crate::events::EventBuf;
+use crate::math::Vec2;
 use crate::mission::{self, Mission, MissionState};
 use crate::order::{self, OrderTrack};
 use crate::reward::ORDER_SHAPING_GAMMA;
@@ -48,6 +49,15 @@ pub fn arena_radius_for(n_ships: usize) -> f32 {
     DEFAULT_ARENA_RADIUS + ARENA_RADIUS_PER_SHIP * extra
 }
 
+/// Where one ship starts in a [`MatchConfig::start_layout`]: world position (m),
+/// velocity (m/s) and heading (rad).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ShipStart {
+    pub pos: Vec2,
+    pub vel: Vec2,
+    pub heading: f32,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct MatchConfig {
     pub seed: u64,
@@ -73,6 +83,18 @@ pub struct MatchConfig {
     /// observes and no script reads, so it is not part of the state hash and not a
     /// SIM_VERSION matter.
     pub order_shaping_gamma: f32,
+    /// Where every ship starts, one entry per slot (team 0 then team 1): present at
+    /// tick 0, no jump-in, no control lock, no rng draw. `None`: the mission places the
+    /// ships. Only a deathmatch takes one (SIM_SPEC §5.10); a carrier battle and a
+    /// convoy place their ships by their own rules.
+    pub start_layout: Option<Vec<ShipStart>>,
+    /// Drill rules (`docs/PILOT_TRAINING.md` §2, SIM_SPEC §5.10): the match has no
+    /// result. It ends on the clock, when team 0 has no strike craft left, or when team
+    /// 1 is gone and no ship of team 0 still has a go-to to finish, always as a draw, so
+    /// it pays no terminal reward. Every ship coasts under a control lock until the first
+    /// slow tick has landed the orders. Needs a `start_layout`, so a deathmatch. The obs
+    /// and the order rules are a deathmatch's.
+    pub drill: bool,
 }
 
 impl Default for MatchConfig {
@@ -87,6 +109,8 @@ impl Default for MatchConfig {
             commanders: [CommanderMode::Scripted; 2],
             hide_orders: [false; 2],
             order_shaping_gamma: ORDER_SHAPING_GAMMA,
+            start_layout: None,
+            drill: false,
         }
     }
 }
@@ -109,6 +133,8 @@ pub enum SetupError {
     InvalidOrderShapingGamma { gamma: f32 },
     /// v4: the fleets or parameters do not fit the mission.
     Mission(String),
+    /// `start_layout` or `drill` is not usable (the message says why).
+    StartLayout(String),
 }
 
 impl fmt::Display for SetupError {
@@ -133,6 +159,7 @@ impl fmt::Display for SetupError {
                 write!(f, "order_shaping_gamma must be in (0, 1], got {gamma}")
             }
             SetupError::Mission(msg) => f.write_str(msg),
+            SetupError::StartLayout(msg) => write!(f, "start layout: {msg}"),
         }
     }
 }
@@ -180,7 +207,70 @@ fn validate(cat: &Catalogue, cfg: &MatchConfig) -> Result<(), SetupError> {
             return Err(SetupError::UnknownHull { team, hull });
         }
     }
+    validate_start_layout(cat, cfg)?;
     mission::validate(cat, cfg)
+}
+
+/// `start_layout` and `drill`: one finite start per slot, inside the arena, no faster
+/// than the hull's speed cap, no two ships overlapping (a crash on the first tick would
+/// quietly change what the match tests).
+fn validate_start_layout(cat: &Catalogue, cfg: &MatchConfig) -> Result<(), SetupError> {
+    let bad = |msg: String| Err(SetupError::StartLayout(msg));
+    let Some(layout) = &cfg.start_layout else {
+        if cfg.drill {
+            return bad("drill rules need a start_layout".to_string());
+        }
+        return Ok(());
+    };
+    if !matches!(cfg.mission, Mission::Deathmatch) {
+        return bad(format!(
+            "only a deathmatch takes one; {} places its own ships",
+            cfg.mission.kind().name()
+        ));
+    }
+    let hulls: Vec<HullId> = cfg.fleets.iter().flatten().copied().collect();
+    if layout.len() != hulls.len() {
+        return bad(format!(
+            "{} entries for {} ships",
+            layout.len(),
+            hulls.len()
+        ));
+    }
+    for (slot, (start, &hull)) in layout.iter().zip(&hulls).enumerate() {
+        let def = cat.hull(hull);
+        let values = [
+            start.pos.x,
+            start.pos.y,
+            start.vel.x,
+            start.vel.y,
+            start.heading,
+        ];
+        if !values.iter().all(|v| v.is_finite()) {
+            return bad(format!("slot {slot} has a non-finite value"));
+        }
+        if start.pos.length() > cfg.arena_radius {
+            return bad(format!(
+                "slot {slot} starts {} m from the centre, outside the arena radius {}",
+                start.pos.length(),
+                cfg.arena_radius
+            ));
+        }
+        if start.vel.length() > def.speed_cap {
+            return bad(format!(
+                "slot {slot} starts at {} m/s, over the {} speed cap of {} m/s",
+                start.vel.length(),
+                def.name,
+                def.speed_cap
+            ));
+        }
+        for (other, (start_b, &hull_b)) in layout.iter().zip(&hulls).enumerate().take(slot) {
+            let reach = def.bound_radius + cat.hull(hull_b).bound_radius;
+            if (start.pos - start_b.pos).length() <= reach {
+                return bad(format!("slots {other} and {slot} overlap"));
+            }
+        }
+    }
+    Ok(())
 }
 
 impl Match {

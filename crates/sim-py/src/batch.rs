@@ -22,7 +22,7 @@ use sim::mission::Mission;
 use sim::obs::OBS_DIM;
 use sim::rng;
 use sim::scripted;
-use sim::setup::{MatchConfig, SetupError};
+use sim::setup::{MatchConfig, SetupError, ShipStart};
 use sim::state::{MAX_HITS, MAX_THRUSTERS, MAX_TURRETS, Match, MatchPhase, WINNER_NONE};
 
 /// Columns of one row of the hits buffer: shooter, target, fire_tick, damage*1000,
@@ -47,6 +47,11 @@ pub struct Roster {
     pub time_limit_ticks: u32,
     /// v6: per team, hidden-order mode (`MatchConfig.hide_orders`).
     pub hide_orders: [bool; 2],
+    /// Where every ship starts (`MatchConfig.start_layout`); `None`: the mission places
+    /// them.
+    pub start_layout: Option<Vec<ShipStart>>,
+    /// Drill rules (`MatchConfig.drill`).
+    pub drill: bool,
 }
 
 impl Roster {
@@ -207,6 +212,8 @@ fn match_config(cfg: &BatchConfig, roster: &Roster, index: usize, episode: u32) 
         commanders: roster.commanders,
         hide_orders: roster.hide_orders,
         order_shaping_gamma: cfg.order_shaping_gamma,
+        start_layout: roster.start_layout.clone(),
+        drill: roster.drill,
     }
 }
 
@@ -661,6 +668,8 @@ mod tests {
             commanders: [CommanderMode::Scripted; 2],
             time_limit_ticks: 300,
             hide_orders: [false; 2],
+            start_layout: None,
+            drill: false,
         }
     }
 
@@ -750,6 +759,8 @@ mod tests {
             commanders: [CommanderMode::Random, CommanderMode::Scripted],
             time_limit_ticks: 300,
             hide_orders: [true, false],
+            start_layout: None,
+            drill: false,
         };
         b.set_next_roster(3, roster.clone()).unwrap();
         assert_eq!(&o.team[12..16], &[0, 1, -1, -1], "current match untouched");
@@ -825,6 +836,39 @@ mod tests {
         assert_eq!(b.match_at(0).cfg.time_limit_ticks, 300);
         scripted_steps(&mut b, &mut o, 301);
         assert_eq!(b.match_at(1).cfg.time_limit_ticks, 600);
+    }
+
+    #[test]
+    fn start_layout_sticks_with_the_roster_and_bad_ones_are_rejected() {
+        let mut b = batch(1, 2);
+        let cat = catalogue();
+        let mut o = Owned::new(8, 2);
+        let start = |x: f32, y: f32| ShipStart {
+            pos: sim::math::Vec2::new(x, y),
+            vel: sim::math::Vec2::ZERO,
+            heading: 1.0,
+        };
+        let placed = Roster {
+            start_layout: Some(vec![start(-100.0, 20.0), start(100.0, -20.0)]),
+            ..duel(&cat)
+        };
+        b.set_next_roster(1, placed).unwrap();
+        b.reset(o.bufs());
+        let ship = &b.match_at(1).ships[1];
+        assert_eq!((ship.pos.x, ship.pos.y, ship.heading), (100.0, -20.0, 1.0));
+        assert!(!b.match_at(0).ships[1].present, "env 0 still jumps in");
+        // ... and through the auto-reset after that match ends (time limit 300 ticks).
+        scripted_steps(&mut b, &mut o, 301);
+        assert!(o.episode_count[1] >= 1);
+        assert_eq!(b.match_at(1).cfg.start_layout.as_ref().unwrap().len(), 2);
+        let short = Roster {
+            start_layout: Some(vec![start(0.0, 0.0)]),
+            ..duel(&cat)
+        };
+        assert!(matches!(
+            b.set_next_roster(0, short),
+            Err(BatchError::Setup(SetupError::StartLayout(_)))
+        ));
     }
 
     #[test]

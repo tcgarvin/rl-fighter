@@ -16,8 +16,10 @@ use sim::actions::act_mask;
 use sim::command::CommanderMode;
 use sim::data::{Catalogue, HullId};
 use sim::events::EVENT_STRIDE;
+use sim::math::Vec2;
 use sim::mission::Mission;
 use sim::obs::OBS_DIM;
+use sim::setup::ShipStart;
 use sim::spec::{
     CommandSpec, CommanderObsView, MissionSpec, MissionStateView, OutcomeView, parse_commanders,
     to_json,
@@ -91,6 +93,20 @@ fn hide_orders_from_py(flags: Option<Vec<bool>>, default: [bool; 2]) -> PyResult
             other.len()
         ))),
     }
+}
+
+/// A start layout from `None` or per-slot `[x, y, vx, vy, heading]` rows; the sim checks
+/// the values when the roster is queued.
+fn start_layout_from_py(rows: Option<Vec<[f32; 5]>>) -> Option<Vec<ShipStart>> {
+    rows.map(|rows| {
+        rows.iter()
+            .map(|&[x, y, vx, vy, heading]| ShipStart {
+                pos: Vec2::new(x, y),
+                vel: Vec2::new(vx, vy),
+                heading,
+            })
+            .collect()
+    })
 }
 
 /// Borrow `arr` mutably as a flat slice, or explain why not (another Rust borrow is
@@ -403,6 +419,8 @@ impl VecEnv {
                     commanders,
                     time_limit_ticks,
                     hide_orders,
+                    start_layout: None,
+                    drill: false,
                 },
                 n_ships,
                 n_threads: n_threads as usize,
@@ -454,8 +472,12 @@ impl VecEnv {
     /// constructor's); `time_limit_s` the match's clock (default: the mission's own
     /// limit, `mission_time_limit_s`, when a mission is given, else the
     /// constructor's `time_limit_s`). v6: `hide_orders` as in the constructor
-    /// (default: the constructor's). Every field sticks with the roster.
-    #[pyo3(signature = (i, fleets, arena_radius, mission=None, commanders=None, time_limit_s=None, hide_orders=None))]
+    /// (default: the constructor's). `start_layout` places every ship: one `[x, y, vx,
+    /// vy, heading]` row per slot, team 0 then team 1 (a deathmatch only; default the
+    /// mission's own placing; ValueError for a wrong length, a non-finite value, a ship
+    /// outside the arena or over its speed cap, or two ships overlapping). `drill` is
+    /// drill rules (SIM_SPEC §5.10; needs a layout). Every field sticks with the roster.
+    #[pyo3(signature = (i, fleets, arena_radius, mission=None, commanders=None, time_limit_s=None, hide_orders=None, start_layout=None, drill=false))]
     #[allow(clippy::too_many_arguments)]
     fn set_next_roster(
         &mut self,
@@ -467,6 +489,8 @@ impl VecEnv {
         commanders: Option<Vec<String>>,
         time_limit_s: Option<f32>,
         hide_orders: Option<Vec<bool>>,
+        start_layout: Option<Vec<[f32; 5]>>,
+        drill: bool,
     ) -> PyResult<()> {
         let n = self.batch.n_envs() as i64;
         if !(0..n).contains(&i) {
@@ -495,6 +519,8 @@ impl VecEnv {
                     commanders,
                     time_limit_ticks,
                     hide_orders,
+                    start_layout: start_layout_from_py(start_layout),
+                    drill,
                 },
             )
             .map_err(|e| PyValueError::new_err(e.to_string()))

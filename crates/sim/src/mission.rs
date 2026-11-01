@@ -27,10 +27,12 @@
 
 use crate::actions::ShipAction;
 use crate::arrival;
+use crate::command::{COMMAND_TICKS, Order};
 use crate::data::{Catalogue, HullDef};
 use crate::events::Event;
 use crate::hash::{StateHash, StateHasher};
 use crate::math::{PI, Vec2};
+use crate::order::effective_order;
 use crate::setup::{MatchConfig, SetupError, arena_radius_for};
 use crate::state::{
     Attach, MAX_BAYS, MAX_REACTION_TICKS, MAX_SHIPS, MAX_THRUSTERS, Match, MatchPhase, NONE,
@@ -538,6 +540,21 @@ impl Match {
     /// Place the ships for the mission and fill the mission and command state
     /// (called by `Match::new` with every ship built, not present, at the origin).
     pub(crate) fn setup_mission(&mut self, cat: &Catalogue) {
+        if let Some(layout) = self.cfg.start_layout.clone() {
+            // Validated: a deathmatch, one start per slot. No jump-in, so no rng draw.
+            for (ship, start) in self.ships.iter_mut().zip(&layout) {
+                ship.pos = start.pos;
+                ship.vel = start.vel;
+                ship.heading = start.heading;
+                ship.present = true;
+                if self.cfg.drill {
+                    // Nobody acts before the orders land, so the first action any ship
+                    // chooses comes from an obs that shows them (`act_mask`).
+                    ship.control_lock_until = COMMAND_TICKS + 1 + u32::from(ship.reaction_ticks);
+                }
+            }
+            return;
+        }
         match self.cfg.mission.clone() {
             Mission::Deathmatch => {
                 arrival::schedule_arrivals(&mut self.ships, &mut self.rng, self.cfg.arena_radius);
@@ -749,6 +766,9 @@ impl Match {
 
     /// Stage 13 outcome for the mission, or `None` while the match goes on.
     pub(crate) fn mission_outcome(&self, cat: &Catalogue) -> Option<(i8, EndReason)> {
+        if self.cfg.drill {
+            return self.drill_outcome(cat);
+        }
         let mut alive = [0u32; 2];
         for (s, ship) in self.ships.iter().enumerate() {
             if self.in_match(s) {
@@ -788,6 +808,34 @@ impl Match {
                     None
                 }
             }
+        }
+    }
+
+    /// Stage 13 under drill rules (`MatchConfig.drill`): always a draw, since a drill has
+    /// no result to pay. It ends on the clock, when team 0 has no strike craft left, or
+    /// when team 1 is gone and nobody on team 0 still has a go-to to finish, so killing
+    /// the enemies on the way does not cut a go-to short.
+    fn drill_outcome(&self, cat: &Catalogue) -> Option<(i8, EndReason)> {
+        let strike = |s: usize| {
+            let ship = &self.ships[s];
+            ship.team == 0 && self.in_match(s) && !is_capital_ship(cat.hull(ship.hull))
+        };
+        let pilots: Vec<usize> = (0..self.ships.len()).filter(|&s| strike(s)).collect();
+        if pilots.is_empty() {
+            return Some((WINNER_DRAW, EndReason::Eliminated));
+        }
+        if self.tick >= self.cfg.time_limit_ticks {
+            return Some((WINNER_DRAW, EndReason::TimeLimit));
+        }
+        let enemies_left =
+            (0..self.ships.len()).any(|s| self.ships[s].team == 1 && self.in_match(s));
+        let going = pilots
+            .iter()
+            .any(|&s| matches!(effective_order(self, s), Order::GoTo { .. }));
+        if enemies_left || going {
+            None
+        } else {
+            Some((WINNER_DRAW, EndReason::Eliminated))
         }
     }
 

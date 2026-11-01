@@ -1,0 +1,12 @@
+# Bars of the order drill gate (spacefight/eval/drills.py, docs/PILOT_TRAINING.md section 2):
+# lower bounds on the eval's numbers. They are not known yet: step 6 of the plan sets them
+# after measuring the script and the founders. While any is unset the gate says
+# "report only", never "pass".
+goto_arrival: null         # share of ships that arrive by the deadline, order shown
+goto_lift: null            # that share minus the share with the order hidden, same seeds
+attack_target_hit: null    # share of attack drills with any damage on the named target
+attack_side: null          # share of attack drills where the squad chose the named side
+attack_flip: null          # share of attack swap pairs that flipped with the order
+defend_more_on_named: null # share of defend drills: named ward's attackers took more
+defend_side: null          # share of defend drills where the squad chose the named side
+defend_flip: null          # share of defend swap pairs that flipped with the order
