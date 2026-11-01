@@ -250,6 +250,8 @@ pub struct MatchConfig {
     pub commanders: [CommanderMode; 2],              // v4; default [Scripted; 2] (§5.9)
     pub hide_orders: [bool; 2],                      // v6; default [false; 2] (§7.2)
     pub order_shaping_gamma: f32,                    // default 0.99; in (0, 1] (§8)
+    pub start_layout: Option<Vec<ShipStart>>,        // default None; where each slot starts (§5.10)
+    pub drill: bool,                                 // default false; drill rules (§5.10)
 }
 pub struct Match { /* §3 */ }
 impl Match {
@@ -969,6 +971,25 @@ Default time limits (`MissionKind::default_time_limit_ticks`; callers pass them 
 
 **Deathmatch**: v3 (§5.6, §5.8).
 
+**Start layout** (`MatchConfig.start_layout`, default `None`; a deathmatch only, for order
+drills). One `ShipStart { pos, vel, heading }` per slot, team 0 then team 1. Every ship is
+present at tick 0 with no jump-in and no control lock, and setup draws nothing from the
+rng. `Match::new` refuses (`SetupError::StartLayout`) a wrong length, a non-finite value, a
+ship outside the arena radius or over its hull's speed cap, and two ships whose bound
+circles overlap. With `None` nothing changes: no `sim_version` bump.
+
+**Drill rules** (`MatchConfig.drill`, default `false`; needs a start layout;
+`docs/PILOT_TRAINING.md` §2). The mission stays `Deathmatch`, so the obs's mission one-hot
+and the order rules are a deathmatch's (`external` orders are followed; only the scripted
+commander's are advisory, §11). Differences: every ship starts under a control lock to tick
+`COMMAND_TICKS + 1 + reaction_ticks`, so it coasts and the first action any ship chooses
+comes from an obs that shows the orders of the first slow tick. Stage 13 replaces the
+deathmatch's: team 0 has no strike craft in the match → over (`Eliminated`); the time limit
+→ over (`TimeLimit`); team 1 is gone and no strike craft of team 0 has an effective go-to →
+over (`Eliminated`). Killing the last enemy does not cut a go-to short. The winner is always
+a draw, so the terminal reward (§8) is 0, with the rest of the pay as usual. A freighter
+with no waypoint coasts and holds its heading, and does not keep a drill going.
+
 **Carrier battle.** Each team has exactly one `carrier`-role ship and no transports.
 Setup draws, per team in order: `y = range(−40, 40)`; the carrier is present at
 `(side · 0.72 R, y)` heading 0 / π, `vel` 0.4 × its speed cap forward, waypoint 60 m
@@ -1194,7 +1215,7 @@ Per ship per step (`rewards[N, S] f32`), accumulated in stages 7–13:
 | collision (v3) | `-0.01 * collision_damage[s]` (hull, after impact arcs) `- 0.005 * collision_shield_damage[s]` (raw) for the damaged ship; nobody is credited |
 | fire cost | `-0.002` per shot actually fired (not per trigger pull on cooldown) |
 | arena | `-0.002` per tick while `|pos| > R` |
-| terminal | `+1` every ship on the winning team, `-1` losing team (dead ships too); draw 0 |
+| terminal | `+1` every ship on the winning team, `-1` losing team (dead ships too); draw 0 (always under drill rules, §5.10) |
 
 Dead or not-yet-present ships get 0 except the terminal term. Precisely: a ship earns
 the per-step terms iff it was active after stage 2 of that step, so the killing hit
@@ -1368,6 +1389,9 @@ rlf_sim.SHIP_EXTRA_W == 10, N_ORDER_SHIPS == 5, ORDER_KINDS == ["attack", "defen
 rlf_sim.HULL_CLASSES == ["fighter", "strafer", "gunship", "carrier", "freighter", "spare"]
 VecEnv(..., hide_orders=[False, False])   # per team, hidden-order mode (§7.2)
 env.set_next_roster(..., hide_orders=None) # None keeps the env's setting
+env.set_next_roster(..., start_layout=None, drill=False)
+    # start_layout: per slot [x, y, vx, vy, heading], ValueError if the sim refuses it;
+    # drill: drill rules (both §5.10). Both stick with the roster through auto-resets.
 VecEnv(..., order_shaping_gamma=0.99)     # go-to shaping's discount (§8), in (0, 1]; every
                                           # match of the env, whatever roster is queued
 env.order_shaping_gamma                   # f32, as the sim holds it
