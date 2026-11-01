@@ -222,13 +222,19 @@ function statusLine(m: LiveMatch): string {
 
 // The ring's near edge sits about sin(pitch) × its radius below its centre on screen.
 const JUMP_LABEL_DROP = 0.85;
+// Above this (CSS px) the label would run under the site nav.
+const JUMP_LABEL_TOP = 56;
 
-/** The convoy's jump point gets a DOM label, which reads over any backdrop. */
+/**
+ * The convoy's jump point gets a DOM label, which reads over any backdrop. Not under the
+ * site nav, and not over the result banner.
+ */
 function placeJumpLabel(): void {
   const c = match?.convoy;
-  if (!c || phase === "muster") return hud.placeJumpLabel(null);
+  if (!c || phase === "muster" || phase === "result") return hud.placeJumpLabel(null);
   const p = world.pointOnScreen(c.jumpX, c.jumpY, window.innerWidth, window.innerHeight);
-  hud.placeJumpLabel({ x: p.x, y: p.y + c.jumpRadius * p.pxPerMetre * JUMP_LABEL_DROP + 4 });
+  const y = p.y + c.jumpRadius * p.pxPerMetre * JUMP_LABEL_DROP + 4;
+  hud.placeJumpLabel(y < JUMP_LABEL_TOP ? null : { x: p.x, y });
 }
 
 function frame(now: number): void {

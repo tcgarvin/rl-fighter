@@ -135,7 +135,8 @@
 }
 
 /* Observation blocks: the ship itself (team blue), the world (team orange), the
-   ship's own queued actions (amber). Labels always name the block too. */
+   ship's own queued actions (amber), its order and order context (neutral). Labels
+   always name the block too. */
 .c-own {
   fill: var(--team-a);
   background: var(--team-a);
@@ -149,6 +150,11 @@
 .c-queue {
   fill: var(--partial);
   background: var(--partial);
+}
+
+.c-order {
+  fill: var(--fg-soft);
+  background: var(--fg-soft);
 }
 
 .diagram .seg {

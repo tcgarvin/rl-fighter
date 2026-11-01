@@ -19,17 +19,18 @@
         <p class="kicker">How the pilot works</p>
         <h1>A small network flies every ship</h1>
         <p class="lede">
-          Every ship on the live page is flown by the same neural network:
-          <strong data-fact="champion.name">fleet pilot v1 · warm, update 400</strong>.
+          Every strike craft on the live page is flown by the same neural network:
+          <strong data-fact="champion.name">mission pilot · reward, update 300</strong>.
           It is a plain multilayer perceptron with two hidden layers and no attention or
           memory. Thirty times a second, each ship runs it once on its own view of the
           battle and gets back a setting for every thruster, turret and trigger it has.
+          It can read its squad's orders, and so far it follows them only a little.
         </p>
         <dl class="pilot-stats">
-          <div><dt>inputs</dt><dd data-fact="obs.dim">385</dd></div>
+          <div><dt>inputs</dt><dd data-fact="obs.dim">583</dd></div>
           <div><dt>hidden</dt><dd>2 × <span data-fact="actor.hidden">256</span></dd></div>
           <div><dt>action heads</dt><dd data-fact="actor.heads">21</dd></div>
-          <div><dt>weights</dt><dd data-fact="actor.params">180,285</dd></div>
+          <div><dt>weights</dt><dd data-fact="actor.params">230,973</dd></div>
         </dl>
       </header>
 
@@ -48,41 +49,44 @@
             <p class="figure__title">The actor, top to bottom</p>
             <svg class="diagram" viewBox="0 0 360 392" role="img" aria-labelledby="net-fig-title net-fig-desc">
             <title id="net-fig-title">The pilot network</title>
-            <desc id="net-fig-desc">The observation of 385 numbers goes through two tanh layers of 256 units into 61 logits, which split into 21 action heads: 8 throttle, 6 slew, 6 fire, 1 power. The chosen action row is queued for two ticks, then the sim steps and produces the next observation.</desc>
+            <desc id="net-fig-desc">The observation of 583 numbers goes through two tanh layers of 256 units into 61 logits, which split into 21 action heads: 8 throttle, 6 slew, 6 fire, 1 power. The chosen action row is queued for two ticks, then the sim steps and produces the next observation.</desc>
             <text class="dg-kicker" x="30" y="12">OBSERVATION</text>
             <text class="dg-small" x="330" y="12" text-anchor="end">one ship, its own frame</text>
-            <rect class="seg c-own" x="30.0" y="20" width="15.4" height="28" />
-            <rect class="seg c-own" x="46.4" y="20" width="42.6" height="28" />
-            <rect class="seg c-own" x="90.0" y="20" width="45.8" height="28" />
-            <rect class="seg c-other" x="136.8" y="20" width="64.5" height="28" />
-            <rect class="seg c-other" x="202.2" y="20" width="48.9" height="28" />
-            <rect class="seg c-queue" x="252.1" y="20" width="67.6" height="28" />
-            <rect class="seg c-own" x="320.6" y="20" width="3.7" height="28" />
-            <rect class="seg c-own" x="325.3" y="20" width="3.7" height="28" />
+            <rect class="seg c-own" x="30.0" y="20" width="9.8" height="28" />
+            <rect class="seg c-own" x="40.8" y="20" width="27.8" height="28" />
+            <rect class="seg c-own" x="69.6" y="20" width="29.9" height="28" />
+            <rect class="seg c-other" x="100.5" y="20" width="42.2" height="28" />
+            <rect class="seg c-other" x="143.7" y="20" width="31.9" height="28" />
+            <rect class="seg c-queue" x="176.7" y="20" width="44.3" height="28" />
+            <rect class="seg c-own" x="221.9" y="20" width="2.1" height="28" />
+            <rect class="seg c-own" x="225.0" y="20" width="2.1" height="28" />
+            <rect class="seg c-order" x="228.1" y="20" width="8.3" height="28" />
+            <rect class="seg c-order" x="237.4" y="20" width="35.0" height="28" />
+            <rect class="seg c-order" x="273.4" y="20" width="55.6" height="28" />
             <rect class="dg-chip" x="128.0" y="25" width="104" height="18" rx="9" />
-            <text class="dg-num" x="180.0" y="38" text-anchor="middle"><tspan data-fact="actor.in">385</tspan> numbers</text>
+            <text class="dg-num" x="180.0" y="38" text-anchor="middle"><tspan data-fact="actor.in">583</tspan> numbers</text>
             <line class="dg-line" x1="180.0" x2="180.0" y1="50" y2="65" />
             <path class="dg-arrow" d="M176.0,64 L180.0,70 L184.0,64 Z" />
-            <rect class="box" x="80.3" y="72" width="199.5" height="28" rx="3" />
+            <rect class="box" x="114.1" y="72" width="131.7" height="28" rx="3" />
             <text class="dg-num" x="180.0" y="90" text-anchor="middle"><tspan data-fact="actor.hidden">256</tspan> · <tspan data-fact="actor.activation">tanh</tspan></text>
-            <text class="dg-small" x="74.3" y="90" text-anchor="end">layer 1</text>
-            <text class="dg-small" x="285.7" y="90"><tspan data-fact="actor.l0.params">98,816</tspan></text>
+            <text class="dg-small" x="108.1" y="90" text-anchor="end">layer 1</text>
+            <text class="dg-small" x="251.9" y="90"><tspan data-fact="actor.l0.params">149,504</tspan></text>
             <line class="dg-line" x1="180.0" x2="180.0" y1="100" y2="115" />
             <path class="dg-arrow" d="M176.0,114 L180.0,120 L184.0,114 Z" />
-            <rect class="box" x="80.3" y="120" width="199.5" height="28" rx="3" />
+            <rect class="box" x="114.1" y="120" width="131.7" height="28" rx="3" />
             <text class="dg-num" x="180.0" y="138" text-anchor="middle">256 · tanh</text>
-            <text class="dg-small" x="74.3" y="138" text-anchor="end">layer 2</text>
-            <text class="dg-small" x="285.7" y="138"><tspan data-fact="actor.l1.params">65,792</tspan></text>
+            <text class="dg-small" x="108.1" y="138" text-anchor="end">layer 2</text>
+            <text class="dg-small" x="251.9" y="138"><tspan data-fact="actor.l1.params">65,792</tspan></text>
             <line class="dg-line" x1="180.0" x2="180.0" y1="148" y2="163" />
             <path class="dg-arrow" d="M176.0,162 L180.0,168 L184.0,162 Z" />
-            <rect class="box" x="156.2" y="168" width="47.5" height="28" rx="3" />
+            <rect class="box" x="164.3" y="168" width="31.4" height="28" rx="3" />
             <text class="dg-num" x="180.0" y="186" text-anchor="middle"><tspan data-fact="actor.logits">61</tspan></text>
-            <text class="dg-small" x="150.2" y="186" text-anchor="end">logits</text>
-            <text class="dg-small" x="209.8" y="186"><tspan data-fact="actor.l2.params">15,677</tspan></text>
-            <path class="dg-fan" d="M165.6,196 C165.6,218 77.0,214 77.0,237" />
-            <path class="dg-fan" d="M181.9,196 C181.9,218 183.0,214 183.0,237" />
-            <path class="dg-fan" d="M193.6,196 C193.6,218 275.0,214 275.0,237" />
-            <path class="dg-fan" d="M201.0,196 C201.0,218 332.0,214 332.0,237" />
+            <text class="dg-small" x="158.3" y="186" text-anchor="end">logits</text>
+            <text class="dg-small" x="201.7" y="186"><tspan data-fact="actor.l2.params">15,677</tspan></text>
+            <path class="dg-fan" d="M170.5,196 C170.5,218 77.0,214 77.0,237" />
+            <path class="dg-fan" d="M181.3,196 C181.3,218 183.0,214 183.0,237" />
+            <path class="dg-fan" d="M189.0,196 C189.0,218 275.0,214 275.0,237" />
+            <path class="dg-fan" d="M193.9,196 C193.9,218 332.0,214 332.0,237" />
             <rect class="cell on" x="22" y="240" width="12" height="12" rx="2" />
             <rect class="cell on" x="36" y="240" width="12" height="12" rx="2" />
             <rect class="cell on" x="50" y="240" width="12" height="12" rx="2" />
@@ -125,7 +129,7 @@
             <text class="dg-small" text-anchor="middle" transform="translate(9 205) rotate(-90)">next tick</text>
             </svg>
             <figcaption class="figure__caption">
-              Bar widths are to scale (385, 256, 256, 61). The numbers to the right are each
+              Bar widths are to scale (583, 256, 256, 61). The numbers to the right are each
               layer's weights and biases. The colours in the observation bar are the blocks
               described below. Source:
               <a class="code-link" href="https://github.com/tcgarvin/rl-fighter/blob/main/spacefight/rl/spike_policy.py"><code>spacefight/rl/spike_policy.py</code></a>.
@@ -136,7 +140,7 @@
         <section id="sees">
           <h2>What the pilot sees</h2>
           <p>
-            The observation is a fixed list of <span data-fact="obs.dim">385</span> numbers
+            The observation is a fixed list of <span data-fact="obs.dim">583</span> numbers
             built by the Rust sim (<a class="code-link" href="https://github.com/tcgarvin/rl-fighter/blob/main/crates/sim/src/obs.rs"><code>crates/sim/src/obs.rs</code></a>,
             <a class="code-link" href="https://github.com/tcgarvin/rl-fighter/blob/main/docs/SIM_SPEC.md"><code>SIM_SPEC.md</code></a> §7.2).
             It is <strong>egocentric</strong>: every position, velocity and direction is
@@ -146,25 +150,29 @@
             zeros, with its <em>present</em> flag at 0.
           </p>
           <figure class="figure wide pilot-figure">
-            <p class="figure__title">The 385 numbers, block by block</p>
+            <p class="figure__title">The 583 numbers, block by block</p>
             <ul class="legend">
               <li><span class="legend__key legend__key--block c-own"></span>the ship itself</li>
               <li><span class="legend__key legend__key--block c-other"></span>everything else</li>
               <li><span class="legend__key legend__key--block c-queue"></span>its own queued actions</li>
+              <li><span class="legend__key legend__key--block c-order"></span>its order, and what surrounds it</li>
             </ul>
-            <svg class="diagram" viewBox="0 0 360 244" role="img" aria-labelledby="obs-fig-title obs-fig-desc">
+            <svg class="diagram" viewBox="0 0 360 322" role="img" aria-labelledby="obs-fig-title obs-fig-desc">
             <title id="obs-fig-title">The observation vector</title>
-            <desc id="obs-fig-desc">385 numbers in eight blocks: self 21, thrusters 8 by 7, turrets 6 by 10, other ships 7 by 12, projectiles 8 by 8, pending actions 4 by 22, turret arcs 6, turret ranges 6.</desc>
-            <rect class="seg c-own" x="4.0" y="4" width="18.2" height="14" />
-            <rect class="seg c-own" x="23.2" y="4" width="50.2" height="14" />
-            <rect class="seg c-own" x="74.4" y="4" width="53.9" height="14" />
-            <rect class="seg c-other" x="129.3" y="4" width="75.8" height="14" />
-            <rect class="seg c-other" x="206.1" y="4" width="57.5" height="14" />
-            <rect class="seg c-queue" x="264.6" y="4" width="79.5" height="14" />
-            <rect class="seg c-own" x="345.0" y="4" width="4.5" height="14" />
-            <rect class="seg c-own" x="350.5" y="4" width="4.5" height="14" />
+            <desc id="obs-fig-desc">583 numbers in eleven blocks: self 21, thrusters 8 by 7, turrets 6 by 10, other ships 7 by 12, projectiles 8 by 8, pending actions 4 by 22, turret arcs 6, turret ranges 6, order 18, ship extras 7 by 10, order's ships 5 by 22.</desc>
+            <rect class="seg c-own" x="4.0" y="4" width="11.7" height="14" />
+            <rect class="seg c-own" x="16.7" y="4" width="32.8" height="14" />
+            <rect class="seg c-own" x="50.5" y="4" width="35.2" height="14" />
+            <rect class="seg c-other" x="86.7" y="4" width="49.7" height="14" />
+            <rect class="seg c-other" x="137.4" y="4" width="37.6" height="14" />
+            <rect class="seg c-queue" x="176.1" y="4" width="52.1" height="14" />
+            <rect class="seg c-own" x="229.2" y="4" width="2.6" height="14" />
+            <rect class="seg c-own" x="232.8" y="4" width="2.6" height="14" />
+            <rect class="seg c-order" x="236.5" y="4" width="9.9" height="14" />
+            <rect class="seg c-order" x="247.3" y="4" width="41.3" height="14" />
+            <rect class="seg c-order" x="289.6" y="4" width="65.4" height="14" />
             <text class="dg-small" x="4" y="31">0</text>
-            <text class="dg-small" x="356" y="31" text-anchor="end"><tspan data-fact="obs.dim">385</tspan></text>
+            <text class="dg-small" x="356" y="31" text-anchor="end"><tspan data-fact="obs.dim">583</tspan></text>
             <text class="dg-label" x="104" y="54" text-anchor="end">self</text>
             <rect class="bar c-own" x="110" y="44" width="36.8" height="12" rx="1" />
             <text class="dg-num" x="152.8" y="54"><tspan data-fact="obs.self.width">21</tspan></text>
@@ -217,6 +225,25 @@
             <text class="dg-label" x="104" y="236" text-anchor="end">turret ranges</text>
             <rect class="bar c-own" x="110" y="226" width="10.5" height="12" rx="1" />
             <text class="dg-num" x="126.5" y="236"><tspan data-fact="obs.turret_range.width">6</tspan></text>
+            <text class="dg-label" x="104" y="262" text-anchor="end">order</text>
+            <rect class="bar c-order" x="110" y="252" width="31.5" height="12" rx="1" />
+            <text class="dg-num" x="147.5" y="262"><tspan data-fact="obs.order.width">18</tspan></text>
+            <text class="dg-label" x="104" y="288" text-anchor="end">ship extras</text>
+            <rect class="bar c-order" x="110" y="278" width="122.5" height="12" rx="1" />
+            <line class="tick" x1="127.5" x2="127.5" y1="278" y2="290" />
+            <line class="tick" x1="145.0" x2="145.0" y1="278" y2="290" />
+            <line class="tick" x1="162.5" x2="162.5" y1="278" y2="290" />
+            <line class="tick" x1="180.0" x2="180.0" y1="278" y2="290" />
+            <line class="tick" x1="197.5" x2="197.5" y1="278" y2="290" />
+            <line class="tick" x1="215.0" x2="215.0" y1="278" y2="290" />
+            <text class="dg-num" x="238.5" y="288"><tspan data-fact="obs.ship_extras.records">7</tspan> × <tspan data-fact="obs.ship_extras.record_width">10</tspan></text>
+            <text class="dg-label" x="104" y="314" text-anchor="end">order's ships</text>
+            <rect class="bar c-order" x="110" y="304" width="192.5" height="12" rx="1" />
+            <line class="tick" x1="148.5" x2="148.5" y1="304" y2="316" />
+            <line class="tick" x1="187.0" x2="187.0" y1="304" y2="316" />
+            <line class="tick" x1="225.5" x2="225.5" y1="304" y2="316" />
+            <line class="tick" x1="264.0" x2="264.0" y1="304" y2="316" />
+            <text class="dg-num" x="308.5" y="314"><tspan data-fact="obs.order_ships.records">5</tspan> × <tspan data-fact="obs.order_ships.record_width">22</tspan></text>
             </svg>
             <figcaption class="figure__caption">
               The strip is the whole vector in order. Each bar below is one block, divided
@@ -271,9 +298,29 @@
               and the throttle levels in view, the pilot needs no memory to know what its
               ship is about to do.
             </li>
+            <li>
+              <strong>Its order</strong> (<span data-fact="obs.order.width">18</span>): the
+              kind of order the squad was given (attack, defend, go to), where the target,
+              ward or point is relative to the ship, how healthy the target is, how old the
+              order is, and which mission this is. No order means zeros.
+            </li>
+            <li>
+              <strong>Ship extras</strong> (<span data-fact="obs.ship_extras.records">7</span>
+              slots × <span data-fact="obs.ship_extras.record_width">10</span>, one per
+              other-ship slot): that ship's class and weapon reach, how far it is from the
+              order's target or point, whether it is the order's own ship, and whether it
+              has just hit the ward.
+            </li>
+            <li>
+              <strong>The order's ships</strong> (<span data-fact="obs.order_ships.records">5</span>
+              slots × <span data-fact="obs.order_ships.record_width">22</span>): the ships
+              nearest the order's target or point, so a defender can see what threatens its
+              ward even when the ward is far away.
+            </li>
           </ul>
           <p>
-            Nothing in the observation says "you are a gunship". The pilot learns which
+            Nothing in the observation says "you are a gunship": other ships have a class
+            on their record, the pilot's own ship does not. The pilot learns which
             hull it is flying from the thruster and turret records: their count, placement
             and strength, and whether the guns turn. That is what lets one network fly
             three different ships, and in principle a fourth.
@@ -455,16 +502,16 @@
                 <tr><th>layer</th><th>shape</th><th>activation</th><th class="num">parameters</th></tr>
               </thead>
               <tbody>
-                <tr><td>1</td><td>385 → 256</td><td>tanh</td><td class="num" data-fact="actor.l0.params">98,816</td></tr>
+                <tr><td>1</td><td><span data-fact="actor.in">583</span> → 256</td><td>tanh</td><td class="num" data-fact="actor.l0.params">149,504</td></tr>
                 <tr><td>2</td><td>256 → 256</td><td>tanh</td><td class="num" data-fact="actor.l1.params">65,792</td></tr>
                 <tr><td>3</td><td>256 → 61</td><td>none (logits)</td><td class="num" data-fact="actor.l2.params">15,677</td></tr>
-                <tr class="total"><td>actor</td><td></td><td></td><td class="num" data-fact="actor.params">180,285</td></tr>
+                <tr class="total"><td>actor</td><td></td><td></td><td class="num" data-fact="actor.params">230,973</td></tr>
               </tbody>
             </table>
           </div>
           <p>
-            That is the whole pilot: <span data-fact="actor.params">180,285</span> numbers,
-            about <span data-fact="actor.kb">721</span> kB as 32-bit floats. There is no
+            That is the whole pilot: <span data-fact="actor.params">230,973</span> numbers,
+            about <span data-fact="actor.kb">924</span> kB as 32-bit floats. There is no
             normalisation layer, no convolution, no attention and no recurrent state. Each
             tick's decision depends only on that tick's observation. The weights start
             orthogonal, with the output layer scaled down so a fresh network picks every
@@ -473,28 +520,29 @@
           <p>
             In the browser the same arithmetic runs as a plain JavaScript loop over the
             exported weights (<a class="code-link" href="https://github.com/tcgarvin/rl-fighter/blob/main/web/src/live/policy.js"><code>web/src/live/policy.js</code></a>;
-            a pytest checks it against PyTorch). With <span data-fact="fleet.max_ships">8</span> ships at 30 ticks a second, that
-            is about <span data-fact="browser.mmacs">43</span> million multiply-adds a
-            second, which a phone handles easily.
+            a pytest checks it against PyTorch). With <span data-fact="live.max_pilots">18</span> strike craft, the
+            biggest default roster, at 30 ticks a second, that is about
+            <span data-fact="browser.mmacs">124</span> million multiply-adds a second, which
+            a phone handles.
           </p>
           <h3>The critic, used only in training</h3>
           <p>
             PPO also trains a <strong>critic</strong>: a second network that estimates how
             well things are going for a ship, so that training can tell a good action from
-            a lucky one. It never flies and is not shipped to the browser. Fleet pilot v1
+            a lucky one. It never flies and is not shipped to the browser. This pilot
             uses a <strong>fleet critic</strong> (<code>FleetCritic</code>) with
-            <span data-fact="critic.params">243,394</span> parameters in three parts:
+            <span data-fact="critic.params">306,754</span> parameters in three parts:
           </p>
           <ul>
             <li>
               <strong>A base value</strong> from the ship's own observation, through its own
-              385 → 256 → 256 → 1 tanh network (<span data-fact="critic.base.params">164,865</span>).
+              <span data-fact="actor.in">583</span> → 256 → 256 → 1 tanh network (<span data-fact="critic.base.params">215,553</span>).
               It has the actor's shape but separate weights; nothing is shared between the
               two.
             </li>
             <li>
-              <strong>A per-ship encoder</strong>, 385 → <span data-fact="critic.context">64</span>
-              → 64 with tanh (<span data-fact="critic.encoder.params">28,864</span>), run on
+              <strong>A per-ship encoder</strong>, <span data-fact="actor.in">583</span> → <span data-fact="critic.context">64</span>
+              → 64 with tanh (<span data-fact="critic.encoder.params">41,536</span>), run on
               every ship in the match. The encodings of the ship's live teammates and of
               the live enemies are averaged separately into two summaries.
             </li>
@@ -538,7 +586,8 @@
               <strong>Correct (DAgger).</strong> Let the network fly, ask the script what it
               would have done in each state the network reached, add those rows to the
               data and retrain. Three rounds of two million rows each. For fleet pilot v1,
-              that meant fleets of every hull, each labelled by its own script.
+              this pilot's ancestor, that meant fleets of every hull, each labelled by its
+              own script.
             </li>
             <li>
               <strong>Improve (PPO).</strong> Reinforcement learning on the match reward
@@ -547,40 +596,48 @@
               over the first 300 updates. Hits are credited to the tick the trigger was
               pulled, not the tick the shot landed.
             </li>
+            <li>
+              <strong>Fly the missions (more PPO, no script).</strong> Two more runs on
+              carrier battles, convoys and deathmatches, with the commander's orders in the
+              observation: the network was widened from 385 to 403 and then 583 inputs, with
+              the new inputs' weights starting at zero, so before its first update it flew
+              exactly as before. It was also paid for doing what its order says.
+            </li>
           </ol>
           <p>
             The champion comes from run
-            <a href="/notebook/#2026-10-30-fleet-pilot"><code data-fact="champion.run">2026-10-30-fleet-pilot</code></a>
-            (<a href="/notebook/#2026-10-30-fleet-pilot/plan">plan</a>). It was
-            <strong>warm-started</strong>: before DAgger began, the network was given the
-            weights of the previous champion, a fighter-only duel pilot. A second arm
-            started from fresh weights; it did worse and never learned to duel. Then came PPO, with
+            <a href="/notebook/#2026-11-01-order-pilot-b3"><code data-fact="champion.run">2026-11-01-order-pilot-b3</code></a>
+            (<a href="/notebook/#2026-11-01-order-pilot-b3/plan">plan</a>), arm <code>reward</code>.
+            It was <strong>warm-started</strong> along a chain: fleet pilot v1, then run
+            <a href="/notebook/#2026-10-31-order-pilot"><code>2026-10-31-order-pilot</code></a>,
+            then this run, with
             <span data-fact="train.n_envs">256</span> matches at once and
             <span data-fact="train.n_steps">128</span> ticks per update, over the
-            <code data-fact="train.rosters">fleet_v1</code> mix of rosters: 1 to 4 ships a
-            side, mixed hulls, sometimes uneven. Opponents were the scripts at first, then
-            a mix of scripts, the pilot itself and frozen earlier copies. The champion is
-            update <span data-fact="champion.update">400</span> of
-            <span data-fact="train.n_updates">600</span>.
+            <code data-fact="train.rosters">orders_v1</code> mix: 40 % deathmatch, 30 %
+            carrier battle, 30 % convoy. Opponents were a mix of scripts, the pilot itself
+            and frozen earlier pilots. The champion is
+            update <span data-fact="champion.update">300</span> of
+            <span data-fact="train.n_updates">300</span>.
           </p>
-          <p>Against the scripts, measured after training:</p>
+          <p>Measured after training (deathmatch suite: 1 to 4 ships a side, mixed hulls):</p>
           <ul>
-            <li>it wins 0.89 of fleet matches, and at least 0.74 in every roster class;</li>
-            <li>every hull deals at least 90 % of its script's damage (fighters and strafers far more) and survives longer than its script;</li>
-            <li>it wins <span data-fact="champion.duel_wins">512 of 512</span> fighter duels against the script, and 0.45 against the previous champion.</li>
+            <li>it wins <span data-fact="champion.eval_wins">922 of 1024</span> deathmatches against the scripts;</li>
+            <li>it wins 0.61 of deathmatches against fleet pilot v1;</li>
+            <li>it wins 0.73 of missions against v1 (0.76 of carrier battles, 0.69 of convoys);</li>
+            <li>it shoots far more: it pulls the trigger on about 0.7 of its ticks, v1 on about 0.45, and it kills freighters so fast that the convoy had to be rebalanced for it.</li>
           </ul>
           <p>
-            <strong>The verdict was PARTIAL, and one gate was waived.</strong> Before
-            training, the plan required every hull's engine duty (its strongest thruster's
-            average throttle) to be at least 0.15. The champion's fighters fly at 0.13; the
-            script's fly at 0.39.
-            PPO taught them to coast: mostly sit, turn and shoot. That beat both the scripts
-            and the previous champion. The user waived the engine-duty bound after the
-            gates ran, on the view that if flying slowly is the strongest strategy, the
-            pilot should ship and the sim or the reward should be the thing that changes.
-            So expect slow, fairly static fighters on the live page. The full numbers are
-            in the run's
-            <a href="/notebook/#2026-10-30-fleet-pilot">results</a>.
+            <strong>The verdict was FAIL on orders, and that gate was waived.</strong> Run
+            B3 asked whether a pilot would follow orders at the level of the scripts. It
+            does not. Compared with the same pilot with its orders hidden, on the same
+            matches, it reaches a go-to point in time 0.51 of the time rather than 0.39 (a
+            script: 0.90), and its share of damage on the ships threatening its ward is 0.37
+            rather than 0.34 (a script: 0.65). On attack orders the share of its damage on
+            the target does not improve at all (0.39 against 0.40). So this is a stronger
+            fighter that reads orders and mostly fights on its own judgement, and orders
+            remain a goal, not a claim. The user waived that gate for this one promotion.
+            The full numbers are in the run's
+            <a href="/notebook/#2026-11-01-order-pilot-b3">results</a>.
           </p>
         </section>
 
@@ -599,23 +656,22 @@
               timers, throttle levels and its own queued actions.
             </li>
             <li>
-              <strong>No orders.</strong> Nothing in the observation says what to do or who
-              to go after. Every pilot fights for the team reward on its own judgement.
+              <strong>Orders it barely follows.</strong> The observation says what the
+              commander wants, and go-to is the only order it reads clearly. Most of the time
+              you are watching pilots fight for the team reward on their own judgement, with
+              a commander's orders drawn over the top.
             </li>
           </ul>
           <h3>What's next</h3>
           <p>
-            <strong>Orders (M3, stage B).</strong>
+            <strong>Following orders.</strong>
             <a class="code-link" href="https://github.com/tcgarvin/rl-fighter/blob/main/docs/M3_PLAN.md"><code>docs/M3_PLAN.md</code></a>
-            adds carriers and a scripted commander that gives each squad an order: attack a
-            target, defend a ship, go to a point. Stage B adds an order block to the pilot's
-            observation: the kind of order, and the target's relative position and
-            velocity (385 to 403 numbers), and then what a defender needs to judge threats:
-            each nearby ship's class and weapon reach, and the ships nearest the order's
-            target or point (583 numbers). The new inputs start with zero weights, so before
-            its first update a new pilot flies exactly like the one it starts from, and it
-            learns to follow orders from there. Until then, v1 reads only the first 385
-            numbers and sees a carrier as just a big enemy ship.
+            is the plan: a scripted commander gives each squad an order (attack a target,
+            defend a ship, go to a point), and the pilot does it. Three runs have not got
+            there. Pulling pilots toward a script that follows orders teaches following but
+            wrecks their aim, because a fixed gun aims by moving the ship. Paying them for
+            the order, as this pilot was, keeps their strength but moves their behaviour
+            only a little. The next experiment pays an ordered pilot only for its order.
           </p>
           <p>
             <strong>Attention (M4, after the carriers).</strong>
@@ -631,8 +687,8 @@
       </div>
 
       <footer class="page-footer">
-        This page describes champion <code data-fact="champion.id">2026-10-30-fleet-pilot-v1</code>
-        (trained in sim version <span data-fact="champion.sim_version">3</span>, flying
+        This page describes champion <code data-fact="champion.id">2026-11-01-reward-300</code>
+        (trained in sim version <span data-fact="champion.sim_version">6</span>, flying
         in sim version <span data-fact="sim.version">6</span>; hulls
         <span data-fact="champion.hulls">fighter, strafer, gunship</span>). Its numbers are
         checked against the sim, the policy code, the hull files and the exported champion

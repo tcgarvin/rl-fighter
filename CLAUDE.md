@@ -65,6 +65,9 @@ scripts/build_site.sh lab/runs/<run>/<arm>/checkpoints/ppo_bc_<N>.pt <run-id> [e
 uv run python -m tools.champion promote --id YYYY-MM-DD-name --name "..." --run <run-id> \
     --checkpoint <ckpt.pt> --hulls fighter,strafer,gunship --eval-json <eval.json> [--parent <id>]
 uv run python -m tools.champion list | fetch [<id>] | env [<id>]
+# /pilot/ states the current champion's facts, so promote before scripts/build_site.sh and
+# tests/test_pilot_page.py agree with a page written for a new champion. RLF_CHAMPIONS_DIR
+# points every registry reader at a copy, to rehearse with a record not yet promoted.
 
 # Parity of the browser policy with torch; the headless live-match smoke test
 uv run python -m pytest tests/test_web_policy.py -v
