@@ -1,0 +1,4 @@
+{"pilot": "transit_300", "a_command": "hidden", "mission": "carrier_battle", "n": 258, "a_win": 0.992, "a_win_team0": 1.0, "a_win_team1": 0.984, "len_s": 89.0, "tl": 0.0, "secs": 8666}
+{"pilot": "transit_300", "a_command": "random", "mission": "carrier_battle", "n": 258, "a_win": 0.806, "a_win_team0": 0.806, "a_win_team1": 0.806, "len_s": 110.4, "tl": 0.031, "secs": 4927}
+{"pilot": "script", "a_command": "scripted", "mission": "carrier_battle", "n": 258, "a_win": 0.496, "a_win_team0": 0.442, "a_win_team1": 0.55, "len_s": 130.3, "tl": 0.097, "secs": 85}
+{"pilot": "script", "a_command": "random", "mission": "carrier_battle", "n": 258, "a_win": 0.783, "a_win_team0": 0.767, "a_win_team1": 0.798, "len_s": 130.5, "tl": 0.097, "secs": 97}

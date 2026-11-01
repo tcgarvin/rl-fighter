@@ -24,7 +24,7 @@
           It is a plain multilayer perceptron with two hidden layers and no attention or
           memory. Thirty times a second, each ship runs it once on its own view of the
           battle and gets back a setting for every thruster, turret and trigger it has.
-          It can read its squad's orders, and so far it follows them only a little.
+          It can read its squad's orders, but it does not follow them.
         </p>
         <dl class="pilot-stats">
           <div><dt>inputs</dt><dd data-fact="obs.dim">583</dd></div>
@@ -603,41 +603,46 @@
               the new inputs' weights starting at zero, so before its first update it flew
               exactly as before. It was also paid for doing what its order says.
             </li>
+            <li>
+              <strong>Plain fighting, longer horizon.</strong> The last stage drops the pay
+              for orders as well: the match reward only, a constant learning rate, and a
+              reward horizon about twice as long as before (discount 0.995, about 6.7 s).
+            </li>
           </ol>
           <p>
             The champion comes from run
-            <a href="/notebook/#2026-11-01-order-pilot-b3"><code data-fact="champion.run">2026-11-01-order-pilot-b3</code></a>
-            (<a href="/notebook/#2026-11-01-order-pilot-b3/plan">plan</a>), arm <code>reward</code>.
+            <a href="/notebook/#2026-11-01-fighters-v2"><code data-fact="champion.run">2026-11-01-fighters-v2</code></a>
+            (<a href="/notebook/#2026-11-01-fighters-v2/plan">plan</a>), arm <code>f995</code>.
             It was <strong>warm-started</strong> along a chain: fleet pilot v1, then run
             <a href="/notebook/#2026-10-31-order-pilot"><code>2026-10-31-order-pilot</code></a>,
+            then
+            <a href="/notebook/#2026-11-01-order-pilot-b3"><code>2026-11-01-order-pilot-b3</code></a>,
             then this run, with
             <span data-fact="train.n_envs">256</span> matches at once and
             <span data-fact="train.n_steps">128</span> ticks per update, over the
             <code data-fact="train.rosters">orders_v1</code> mix: 40 % deathmatch, 30 %
             carrier battle, 30 % convoy. Opponents were a mix of scripts, the pilot itself
             and frozen earlier pilots. The champion is
-            update <span data-fact="champion.update">300</span> of
-            <span data-fact="train.n_updates">300</span>.
+            update <span data-fact="champion.update">701</span>, where the clock stopped a
+            run allowed up to <span data-fact="train.n_updates">1200</span>.
           </p>
           <p>Measured after training (deathmatch suite: 1 to 4 ships a side, mixed hulls):</p>
           <ul>
             <li>it wins <span data-fact="champion.eval_wins">922 of 1024</span> deathmatches against the scripts;</li>
-            <li>it wins 0.61 of deathmatches against fleet pilot v1;</li>
-            <li>it wins 0.73 of missions against v1 (0.76 of carrier battles, 0.69 of convoys);</li>
-            <li>it shoots far more: it pulls the trigger on about 0.7 of its ticks, v1 on about 0.45, and it kills freighters so fast that the convoy had to be rebalanced for it.</li>
+            <li>it wins 0.81 of deathmatches against fleet pilot v1;</li>
+            <li>it wins 0.91 of missions against v1 (0.86 of carrier battles, 0.96 of convoys);</li>
+            <li>it wins 0.71 of missions against the champion before it, on the rosters it was gated on (0.77 of carrier battles, 0.66 of convoys), and 0.57 of convoys on the rebalanced ones;</li>
+            <li>it shoots far more: it pulls the trigger on about 0.7 to 0.85 of its ticks, v1 on about 0.4, and the convoy had to be rebalanced for it.</li>
           </ul>
           <p>
-            <strong>The verdict was FAIL on orders, and that gate was waived.</strong> Run
-            B3 asked whether a pilot would follow orders at the level of the scripts. It
-            does not. Compared with the same pilot with its orders hidden, on the same
-            matches, it reaches a go-to point in time 0.51 of the time rather than 0.39 (a
-            script: 0.90), and its share of damage on the ships threatening its ward is 0.37
-            rather than 0.34 (a script: 0.65). On attack orders the share of its damage on
-            the target does not improve at all (0.39 against 0.40). So this is a stronger
-            fighter that reads orders and mostly fights on its own judgement, and orders
-            remain a goal, not a claim. The user waived that gate for this one promotion.
-            The full numbers are in the run's
-            <a href="/notebook/#2026-11-01-order-pilot-b3">results</a>.
+            <strong>It does not follow orders, and no gate asked it to.</strong> This run set
+            out to make a better fighter. Compared with the same pilot with its orders hidden,
+            on the same matches, it reaches a go-to point in time 0.48 of the time rather than
+            0.51 (a script: 0.90), its share of damage on the ships threatening its ward is
+            0.29 rather than 0.32 (a script: 0.65), and its share on an attack target is 0.31
+            rather than 0.33 (a script: 0.47). So orders make no measurable difference to it,
+            and they remain a goal, not a claim. The full numbers are in the run's
+            <a href="/notebook/#2026-11-01-fighters-v2">results</a>.
           </p>
         </section>
 
@@ -656,9 +661,9 @@
               timers, throttle levels and its own queued actions.
             </li>
             <li>
-              <strong>Orders it barely follows.</strong> The observation says what the
-              commander wants, and go-to is the only order it reads clearly. Most of the time
-              you are watching pilots fight for the team reward on their own judgement, with
+              <strong>Orders it does not follow.</strong> The observation says what the
+              commander wants, but nothing in its last stage of training paid for doing it.
+              You are watching pilots fight for the team reward on their own judgement, with
               a commander's orders drawn over the top.
             </li>
           </ul>
@@ -666,12 +671,15 @@
           <p>
             <strong>Following orders.</strong>
             <a class="code-link" href="https://github.com/tcgarvin/rl-fighter/blob/main/docs/M3_PLAN.md"><code>docs/M3_PLAN.md</code></a>
-            is the plan: a scripted commander gives each squad an order (attack a target,
-            defend a ship, go to a point), and the pilot does it. Three runs have not got
-            there. Pulling pilots toward a script that follows orders teaches following but
-            wrecks their aim, because a fixed gun aims by moving the ship. Paying them for
-            the order, as this pilot was, keeps their strength but moves their behaviour
-            only a little. The next experiment pays an ordered pilot only for its order.
+            is the plan: a commander gives each squad an order (attack a target, defend a
+            ship, go to a point), and the pilot does it. Four runs have not got there.
+            Pulling pilots toward a script that follows orders teaches following but wrecks
+            their aim, because a fixed gun aims by moving the ship. Paying them for the order
+            as well as the fight keeps their strength but moves their behaviour only a little.
+            Paying an ordered pilot only for its order moved it somewhat further and cost most
+            of its strength. Orders do matter when pilots follow them: scripted pilots under
+            random orders beat scripted pilots under the scripted commander 0.75 of the time
+            in carrier battles, so that commander is far from the best one possible.
           </p>
           <p>
             <strong>Attention (M4, after the carriers).</strong>

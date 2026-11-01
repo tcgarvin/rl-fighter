@@ -180,8 +180,8 @@ const CARRIER_WING_9: &[&str] = &[
     "gunship", "fighter",
 ];
 // Convoys are balanced for the 2026-11-01 champion, a far deadlier pilot than the v1 they
-// were first tuned for (lab/runs/2026-11-01-fighters-v2/convoy_balance.md): six a side,
-// and enough freighters that killing half of them takes the raid about 50 s.
+// were first tuned for (lab/runs/2026-11-01-fighters-v2/convoy_balance.md): four escorts
+// against six raiders, and enough freighters that the raid needs three or four kills.
 const CONVOY_5: &[&str] = &[
     "freighter",
     "freighter",
@@ -192,8 +192,6 @@ const CONVOY_5: &[&str] = &[
     "strafer",
     "fighter",
     "gunship",
-    "fighter",
-    "strafer",
 ];
 const CONVOY_6: &[&str] = &[
     "freighter",
@@ -206,8 +204,6 @@ const CONVOY_6: &[&str] = &[
     "strafer",
     "fighter",
     "gunship",
-    "fighter",
-    "strafer",
 ];
 const CONVOY_7: &[&str] = &[
     "freighter",
@@ -221,8 +217,6 @@ const CONVOY_7: &[&str] = &[
     "strafer",
     "fighter",
     "gunship",
-    "fighter",
-    "strafer",
 ];
 const RAIDERS_6: &[&str] = &[
     "fighter", "fighter", "strafer", "gunship", "fighter", "strafer",

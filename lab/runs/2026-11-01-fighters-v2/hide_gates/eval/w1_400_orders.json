@@ -1,0 +1,821 @@
+{
+ "a": "policy:ppo_bc_400.pt",
+ "b": "script",
+ "config": {
+  "missions": [
+   "carrier_battle",
+   "convoy_escort"
+  ],
+  "commanders": [
+   "random",
+   "scripted"
+  ],
+  "passes": [
+   "followed",
+   "hidden"
+  ],
+  "hidden_commanders": [
+   "random"
+  ],
+  "n_per_scenario": 390,
+  "n_scripted": 96,
+  "seed": 400000,
+  "reaction_ticks": 2,
+  "sim_version": 6
+ },
+ "scenarios": {
+  "carrier_battle/random/followed": {
+   "attack": {
+    "instances": 2221,
+    "censored": 1705,
+    "live_ticks": 559687,
+    "close": {
+     "n": 705,
+     "median": 81.0,
+     "reached": 0.8141843971631205
+    },
+    "in_range_at_start": 0.5240882485366952,
+    "damage_share": 0.49687987080583174,
+    "target_damage_per_min": 283.9930175258672
+   },
+   "defend": {
+    "instances": 2152,
+    "censored": 1998,
+    "live_ticks": 631378,
+    "ward_minutes": 241.10222222222222,
+    "hull_lost_per_ward_minute": 0.46165881230474676,
+    "threat_share": 0.36446423176769976,
+    "damage_per_min": 556.7792986135088,
+    "mean_distance_m": 184.2297407994552
+   },
+   "goto": {
+    "instances": 1634,
+    "censored": 1021,
+    "live_ticks": 343786,
+    "arrivals": 613,
+    "arrivals_per_min": 0.3706834227847013,
+    "all": {
+     "n": 1128,
+     "in_time": 0.4645390070921986,
+     "excluded": 506
+    },
+    "near": {
+     "n": 997,
+     "in_time": 0.4764292878635908,
+     "excluded": 221
+    },
+    "far": {
+     "n": 131,
+     "in_time": 0.37404580152671757,
+     "excluded": 285
+    }
+   },
+   "ship_minutes": 1653.7022222222222,
+   "engine_duty": {
+    "fighter": {
+     "none": 0.1920197584753537,
+     "attack": 0.22635343200942684,
+     "defend": 0.2001931186026235,
+     "goto": 0.22740017074398317
+    },
+    "gunship": {
+     "none": 0.5008472849811858,
+     "attack": 0.4898756965658836,
+     "defend": 0.47671133702743784,
+     "goto": 0.5158248161547573
+    },
+    "strafer": {
+     "none": 0.22988436506192617,
+     "attack": 0.20092861139077772,
+     "defend": 0.20987858694382389,
+     "goto": 0.2216259105264657
+    }
+   },
+   "duty_ticks": {
+    "fighter": {
+     "none": 712201,
+     "attack": 255830,
+     "defend": 288071,
+     "goto": 134813
+    },
+    "gunship": {
+     "none": 420553,
+     "attack": 181165,
+     "defend": 210589,
+     "goto": 123540
+    },
+    "strafer": {
+     "none": 309059,
+     "attack": 122692,
+     "defend": 132718,
+     "goto": 85433
+    }
+   }
+  },
+  "carrier_battle/random/hidden": {
+   "attack": {
+    "instances": 2283,
+    "censored": 1782,
+    "live_ticks": 565803,
+    "close": {
+     "n": 702,
+     "median": 87.0,
+     "reached": 0.7834757834757835
+    },
+    "in_range_at_start": 0.4853263250109505,
+    "damage_share": 0.46517575042543924,
+    "target_damage_per_min": 239.57879332559213
+   },
+   "defend": {
+    "instances": 2222,
+    "censored": 2088,
+    "live_ticks": 654613,
+    "ward_minutes": 247.08722222222224,
+    "hull_lost_per_ward_minute": 0.4565741986454272,
+    "threat_share": 0.357232989290452,
+    "damage_per_min": 509.91287982365156,
+    "mean_distance_m": 197.85568639822137
+   },
+   "goto": {
+    "instances": 1687,
+    "censored": 1113,
+    "live_ticks": 352051,
+    "arrivals": 574,
+    "arrivals_per_min": 0.34401791077376725,
+    "all": {
+     "n": 1126,
+     "in_time": 0.42628774422735344,
+     "excluded": 561
+    },
+    "near": {
+     "n": 995,
+     "in_time": 0.42613065326633165,
+     "excluded": 251
+    },
+    "far": {
+     "n": 131,
+     "in_time": 0.42748091603053434,
+     "excluded": 310
+    }
+   },
+   "ship_minutes": 1668.5177777777778,
+   "engine_duty": {
+    "fighter": {
+     "none": 0.19208740602612898,
+     "attack": 0.1926056408782034,
+     "defend": 0.19610226560762709,
+     "goto": 0.1945552988397502
+    },
+    "gunship": {
+     "none": 0.5026666543493236,
+     "attack": 0.5042983658934105,
+     "defend": 0.5034822994237066,
+     "goto": 0.5188584418397271
+    },
+    "strafer": {
+     "none": 0.23407001403275154,
+     "attack": 0.24247252107748696,
+     "defend": 0.24530269988873205,
+     "goto": 0.2518981559091796
+    }
+   },
+   "duty_ticks": {
+    "fighter": {
+     "none": 687811,
+     "attack": 257097,
+     "defend": 291178,
+     "goto": 144581
+    },
+    "gunship": {
+     "none": 439125,
+     "attack": 185380,
+     "defend": 221261,
+     "goto": 113256
+    },
+    "strafer": {
+     "none": 303929,
+     "attack": 123326,
+     "defend": 142174,
+     "goto": 94214
+    }
+   }
+  },
+  "convoy_escort/random/followed": {
+   "attack": {
+    "instances": 1457,
+    "censored": 1200,
+    "live_ticks": 380902,
+    "close": {
+     "n": 468,
+     "median": 31.5,
+     "reached": 0.8974358974358975
+    },
+    "in_range_at_start": 0.5676046671242279,
+    "damage_share": 0.2465231753245387,
+    "target_damage_per_min": 138.42536925508398
+   },
+   "defend": {
+    "instances": 1405,
+    "censored": 1343,
+    "live_ticks": 407105,
+    "ward_minutes": 135.78666666666666,
+    "hull_lost_per_ward_minute": 0.5641444973574972,
+    "threat_share": 0.32453223808592474,
+    "damage_per_min": 542.5666597069553,
+    "mean_distance_m": 177.44476890154806
+   },
+   "goto": {
+    "instances": 926,
+    "censored": 600,
+    "live_ticks": 206267,
+    "arrivals": 326,
+    "arrivals_per_min": 0.2798531486340705,
+    "all": {
+     "n": 724,
+     "in_time": 0.34806629834254144,
+     "excluded": 202
+    },
+    "near": {
+     "n": 680,
+     "in_time": 0.35441176470588237,
+     "excluded": 113
+    },
+    "far": {
+     "n": 44,
+     "in_time": 0.25,
+     "excluded": 89
+    }
+   },
+   "ship_minutes": 1164.8966666666668,
+   "engine_duty": {
+    "fighter": {
+     "none": 0.1853680326709721,
+     "attack": 0.22278933562031972,
+     "defend": 0.2168194668668985,
+     "goto": 0.21577744126495352
+    },
+    "gunship": {
+     "none": 0.44545755734982767,
+     "attack": 0.4574322987317749,
+     "defend": 0.4593088318280854,
+     "goto": 0.47418892057292084
+    },
+    "strafer": {
+     "none": 0.2583643125203823,
+     "attack": 0.2075036554324201,
+     "defend": 0.22104660339219528,
+     "goto": 0.21487448045857382
+    }
+   },
+   "duty_ticks": {
+    "fighter": {
+     "none": 599457,
+     "attack": 204151,
+     "defend": 198510,
+     "goto": 96133
+    },
+    "gunship": {
+     "none": 252684,
+     "attack": 91979,
+     "defend": 104347,
+     "goto": 55945
+    },
+    "strafer": {
+     "none": 250399,
+     "attack": 84772,
+     "defend": 104248,
+     "goto": 54189
+    }
+   }
+  },
+  "convoy_escort/random/hidden": {
+   "attack": {
+    "instances": 1634,
+    "censored": 1366,
+    "live_ticks": 444715,
+    "close": {
+     "n": 540,
+     "median": 42.0,
+     "reached": 0.8611111111111112
+    },
+    "in_range_at_start": 0.48531211750305997,
+    "damage_share": 0.23340255755432698,
+    "target_damage_per_min": 100.98804852546013
+   },
+   "defend": {
+    "instances": 1556,
+    "censored": 1482,
+    "live_ticks": 457050,
+    "ward_minutes": 150.06944444444443,
+    "hull_lost_per_ward_minute": 0.5488664514972305,
+    "threat_share": 0.3277482472719724,
+    "damage_per_min": 455.28913685592386,
+    "mean_distance_m": 198.79155129695297
+   },
+   "goto": {
+    "instances": 1087,
+    "censored": 779,
+    "live_ticks": 262703,
+    "arrivals": 308,
+    "arrivals_per_min": 0.23783273632054225,
+    "all": {
+     "n": 837,
+     "in_time": 0.2986857825567503,
+     "excluded": 250
+    },
+    "near": {
+     "n": 765,
+     "in_time": 0.3058823529411765,
+     "excluded": 139
+    },
+    "far": {
+     "n": 72,
+     "in_time": 0.2222222222222222,
+     "excluded": 111
+    }
+   },
+   "ship_minutes": 1295.0277777777778,
+   "engine_duty": {
+    "fighter": {
+     "none": 0.19594057831636275,
+     "attack": 0.19443295040396893,
+     "defend": 0.19954744660170773,
+     "goto": 0.200313227046496
+    },
+    "gunship": {
+     "none": 0.45899382238083564,
+     "attack": 0.44935134918449116,
+     "defend": 0.467833196772284,
+     "goto": 0.4655946014561618
+    },
+    "strafer": {
+     "none": 0.26525449968378445,
+     "attack": 0.2766420653753639,
+     "defend": 0.2699805012395995,
+     "goto": 0.2746617858993225
+    }
+   },
+   "duty_ticks": {
+    "fighter": {
+     "none": 626428,
+     "attack": 241750,
+     "defend": 237175,
+     "goto": 126105
+    },
+    "gunship": {
+     "none": 264383,
+     "attack": 97255,
+     "defend": 108383,
+     "goto": 65513
+    },
+    "strafer": {
+     "none": 275771,
+     "attack": 105710,
+     "defend": 111492,
+     "goto": 71085
+    }
+   }
+  },
+  "carrier_battle/scripted/followed": {
+   "attack": {
+    "instances": 977,
+    "censored": 904,
+    "live_ticks": 479408,
+    "close": {
+     "n": 403,
+     "median": 75.0,
+     "reached": 0.9429280397022333
+    },
+    "in_range_at_start": 0.49641760491299897,
+    "damage_share": 0.6373211159919621,
+    "target_damage_per_min": 323.3018639655575
+   },
+   "defend": {
+    "instances": 392,
+    "censored": 392,
+    "live_ticks": 344828,
+    "ward_minutes": 126.22222222222221,
+    "hull_lost_per_ward_minute": 0.007301555291966176,
+    "threat_share": 0.4210061782877317,
+    "damage_per_min": 360.7694270766875,
+    "mean_distance_m": 175.81575356150157
+   },
+   "goto": {
+    "instances": 0,
+    "censored": 0,
+    "live_ticks": 0,
+    "arrivals": 0,
+    "arrivals_per_min": 0.0,
+    "all": {
+     "n": 0,
+     "in_time": 0.0,
+     "excluded": 0
+    },
+    "near": {
+     "n": 0,
+     "in_time": 0.0,
+     "excluded": 0
+    },
+    "far": {
+     "n": 0,
+     "in_time": 0.0,
+     "excluded": 0
+    }
+   },
+   "ship_minutes": 461.17277777777775,
+   "engine_duty": {
+    "fighter": {
+     "none": 0.055222687837676136,
+     "attack": 0.25583334869923285,
+     "defend": 0.22054314737059422
+    },
+    "gunship": {
+     "none": 0.51912237363665,
+     "attack": 0.4848297735376507,
+     "defend": 0.452453796486912
+    },
+    "strafer": {
+     "none": 0.0722644830077904,
+     "attack": 0.19787690138529765,
+     "defend": 0.2067686973158515
+    }
+   },
+   "duty_ticks": {
+    "fighter": {
+     "none": 3338,
+     "attack": 222542,
+     "defend": 197133
+    },
+    "gunship": {
+     "none": 828,
+     "attack": 134529,
+     "defend": 101305
+    },
+    "strafer": {
+     "none": 1709,
+     "attack": 122337,
+     "defend": 46390
+    }
+   }
+  },
+  "convoy_escort/scripted/followed": {
+   "attack": {
+    "instances": 814,
+    "censored": 546,
+    "live_ticks": 227763,
+    "close": {
+     "n": 291,
+     "median": 27.0,
+     "reached": 0.8213058419243986
+    },
+    "in_range_at_start": 0.5933660933660934,
+    "damage_share": 0.23023699591662442,
+    "target_damage_per_min": 136.35357806140593
+   },
+   "defend": {
+    "instances": 196,
+    "censored": 180,
+    "live_ticks": 102064,
+    "ward_minutes": 41.93777777777778,
+    "hull_lost_per_ward_minute": 0.9325313282863459,
+    "threat_share": 0.9650415461598494,
+    "damage_per_min": 384.1648377488635,
+    "mean_distance_m": 153.97732174121134
+   },
+   "goto": {
+    "instances": 277,
+    "censored": 259,
+    "live_ticks": 105858,
+    "arrivals": 18,
+    "arrivals_per_min": 0.0698057719031768,
+    "all": {
+     "n": 239,
+     "in_time": 0.0502092050209205,
+     "excluded": 38
+    },
+    "near": {
+     "n": 201,
+     "in_time": 0.05970149253731343,
+     "excluded": 15
+    },
+    "far": {
+     "n": 38,
+     "in_time": 0.0,
+     "excluded": 23
+    }
+   },
+   "ship_minutes": 257.85833333333335,
+   "engine_duty": {
+    "fighter": {
+     "none": 0.18855560680737374,
+     "attack": 0.23321346646339897,
+     "defend": 0.2039380130811443,
+     "goto": 0.2203653068364604
+    },
+    "gunship": {
+     "none": 0.34775248577950346,
+     "attack": 0.4685214500360718,
+     "defend": 0.46790739962767125,
+     "goto": 0.4576047807431554
+    },
+    "strafer": {
+     "none": 0.15620935363722643,
+     "attack": 0.18964934505328165,
+     "defend": 0.20212834181025463,
+     "goto": 0.18501769335331805
+    }
+   },
+   "duty_ticks": {
+    "fighter": {
+     "none": 16736,
+     "attack": 126813,
+     "defend": 43152,
+     "goto": 56007
+    },
+    "gunship": {
+     "none": 5317,
+     "attack": 42754,
+     "defend": 38176,
+     "goto": 24421
+    },
+    "strafer": {
+     "none": 6407,
+     "attack": 58196,
+     "defend": 20736,
+     "goto": 25430
+    }
+   }
+  }
+ },
+ "by_commander": {
+  "random": {
+   "followed": {
+    "attack": {
+     "instances": 3678,
+     "censored": 2905,
+     "live_ticks": 940589,
+     "close": {
+      "n": 1173,
+      "median": 66.0,
+      "reached": 0.8473998294970162
+     },
+     "in_range_at_start": 0.541326808047852,
+     "damage_share": 0.39656268389202787,
+     "target_damage_per_min": 225.0437757617833
+    },
+    "defend": {
+     "instances": 3557,
+     "censored": 3341,
+     "live_ticks": 1038483,
+     "ward_minutes": 376.88888888888886,
+     "hull_lost_per_ward_minute": 0.49858266430629905,
+     "threat_share": 0.34905553581479887,
+     "damage_per_min": 551.2076750413826,
+     "mean_distance_m": 181.56973630944643
+    },
+    "goto": {
+     "instances": 2560,
+     "censored": 1621,
+     "live_ticks": 550053,
+     "arrivals": 939,
+     "arrivals_per_min": 0.3331442454269044,
+     "all": {
+      "n": 1852,
+      "in_time": 0.4190064794816415,
+      "excluded": 708
+     },
+     "near": {
+      "n": 1677,
+      "in_time": 0.42695289206917114,
+      "excluded": 334
+     },
+     "far": {
+      "n": 175,
+      "in_time": 0.34285714285714286,
+      "excluded": 374
+     }
+    },
+    "ship_minutes": 2818.5988888888887,
+    "engine_duty": {
+     "fighter": {
+      "none": 0.18897977122599666,
+      "attack": 0.2247715974511894,
+      "defend": 0.20697615450813817,
+      "goto": 0.22256212265911676
+     },
+     "gunship": {
+      "none": 0.4800580266118417,
+      "attack": 0.47895064864470105,
+      "defend": 0.4709454061397755,
+      "goto": 0.5028470175736733
+     },
+     "strafer": {
+      "none": 0.24263125645261135,
+      "attack": 0.20361524441384732,
+      "defend": 0.2147917110996514,
+      "goto": 0.21900559822647722
+     }
+    },
+    "duty_ticks": {
+     "fighter": {
+      "none": 1311658,
+      "attack": 459981,
+      "defend": 486581,
+      "goto": 230946
+     },
+     "gunship": {
+      "none": 673237,
+      "attack": 273144,
+      "defend": 314936,
+      "goto": 179485
+     },
+     "strafer": {
+      "none": 559458,
+      "attack": 207464,
+      "defend": 236966,
+      "goto": 139622
+     }
+    }
+   },
+   "hidden": {
+    "attack": {
+     "instances": 3917,
+     "censored": 3148,
+     "live_ticks": 1010518,
+     "close": {
+      "n": 1242,
+      "median": 75.0,
+      "reached": 0.8172302737520128
+     },
+     "in_range_at_start": 0.48532039826397755,
+     "damage_share": 0.3729986736882442,
+     "target_damage_per_min": 178.58692274655175
+    },
+    "defend": {
+     "instances": 3778,
+     "censored": 3570,
+     "live_ticks": 1111663,
+     "ward_minutes": 397.1566666666667,
+     "hull_lost_per_ward_minute": 0.49144770896124623,
+     "threat_share": 0.3459105290693329,
+     "damage_per_min": 487.4548311853502,
+     "mean_distance_m": 198.24047721314605
+    },
+    "goto": {
+     "instances": 2774,
+     "censored": 1892,
+     "live_ticks": 614754,
+     "arrivals": 882,
+     "arrivals_per_min": 0.29761648115939204,
+     "all": {
+      "n": 1963,
+      "in_time": 0.3718797758532858,
+      "excluded": 811
+     },
+     "near": {
+      "n": 1760,
+      "in_time": 0.37386363636363634,
+      "excluded": 390
+     },
+     "far": {
+      "n": 203,
+      "in_time": 0.35467980295566504,
+      "excluded": 421
+     }
+    },
+    "ship_minutes": 2963.5455555555554,
+    "engine_duty": {
+     "fighter": {
+      "none": 0.19392400881407437,
+      "attack": 0.19349118710350657,
+      "defend": 0.19764878999997668,
+      "goto": 0.19723775576959393
+     },
+     "gunship": {
+      "none": 0.48625411272318037,
+      "attack": 0.4853910398013626,
+      "defend": 0.4917613013388965,
+      "goto": 0.4993389839077114
+     },
+     "strafer": {
+      "none": 0.2489048886100691,
+      "attack": 0.2582432406487708,
+      "defend": 0.2561491571522633,
+      "goto": 0.26168740229209364
+     }
+    },
+    "duty_ticks": {
+     "fighter": {
+      "none": 1314239,
+      "attack": 498847,
+      "defend": 528353,
+      "goto": 270686
+     },
+     "gunship": {
+      "none": 703508,
+      "attack": 282635,
+      "defend": 329644,
+      "goto": 178769
+     },
+     "strafer": {
+      "none": 579700,
+      "attack": 229036,
+      "defend": 253666,
+      "goto": 165299
+     }
+    }
+   }
+  },
+  "scripted": {
+   "followed": {
+    "attack": {
+     "instances": 1791,
+     "censored": 1450,
+     "live_ticks": 707171,
+     "close": {
+      "n": 694,
+      "median": 63.0,
+      "reached": 0.8919308357348703
+     },
+     "in_range_at_start": 0.5404801786711334,
+     "damage_share": 0.4920862761340941,
+     "target_damage_per_min": 263.09025681200166
+    },
+    "defend": {
+     "instances": 588,
+     "censored": 572,
+     "live_ticks": 446892,
+     "ward_minutes": 168.16,
+     "hull_lost_per_ward_minute": 0.23804656369599853,
+     "threat_share": 0.5513828991374758,
+     "damage_per_min": 366.11261781369996,
+     "mean_distance_m": 170.82539674791394
+    },
+    "goto": {
+     "instances": 277,
+     "censored": 259,
+     "live_ticks": 105858,
+     "arrivals": 18,
+     "arrivals_per_min": 0.025033687307611477,
+     "all": {
+      "n": 239,
+      "in_time": 0.0502092050209205,
+      "excluded": 38
+     },
+     "near": {
+      "n": 201,
+      "in_time": 0.05970149253731343,
+      "excluded": 15
+     },
+     "far": {
+      "n": 38,
+      "in_time": 0.0,
+      "excluded": 23
+     }
+    },
+    "ship_minutes": 719.0311111111112,
+    "engine_duty": {
+     "fighter": {
+      "none": 0.16638437618463534,
+      "attack": 0.2476225169493715,
+      "defend": 0.2175610854239128,
+      "goto": 0.2203653068364604
+     },
+     "gunship": {
+      "none": 0.3708434975200596,
+      "attack": 0.48089681852794025,
+      "defend": 0.45668345323945625,
+      "goto": 0.4576047807431554
+     },
+     "strafer": {
+      "none": 0.1385329386660946,
+      "attack": 0.19522469448518517,
+      "defend": 0.20533523767630713,
+      "goto": 0.18501769335331805
+     }
+    },
+    "duty_ticks": {
+     "fighter": {
+      "none": 20074,
+      "attack": 349355,
+      "defend": 240285,
+      "goto": 56007
+     },
+     "gunship": {
+      "none": 6145,
+      "attack": 177283,
+      "defend": 139481,
+      "goto": 24421
+     },
+     "strafer": {
+      "none": 8116,
+      "attack": 180533,
+      "defend": 67126,
+      "goto": 25430
+     }
+    }
+   }
+  }
+ },
+ "schema": "rlf.eval.orders/2"
+}

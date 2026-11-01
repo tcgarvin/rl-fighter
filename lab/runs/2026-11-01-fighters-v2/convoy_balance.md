@@ -99,3 +99,27 @@ What decided it:
   the raid (about 45 s), which reads differently from v1's convoy (0.4-0.5 through) on
   screen: escorts win a dogfight rather than shepherd the convoy home. Getting more
   convoys through would take a hull or route change, which was not needed for the target.
+
+## Retuned for the pilot that shipped: `f995_701`
+
+The rosters above were tuned for `reward_300`. In `f995_701`'s mirror on them (seed 530000,
+n = 774) attackers won only 0.19, median 43 s, ending eliminated 0.78. It is a much better
+defender, so plan §4's "retuned by the roster" applied. Only the escort count changed:
+**5, 6 or 7 freighters; `F S F G` escorts v `F F S G F S` raiders**. Script:
+`convoy_survey.py`, sampled pilots, seed 540000.
+
+| candidate | n = 120 attackers / median s | n = 516 attackers / median s |
+|---|---|---|
+| 5F, F S F G F v F F S G F S | 0.383 / 42 | |
+| 6F, F S F G F v F F S G F S | 0.325 / 44 | |
+| 7F, F S F G F v F F S G F S | 0.333 / 52 | |
+| 5F, F S F G F S v F F S G F S F | 0.308 / 42 | |
+| 6F, F S F G F S v F F S G F S F | 0.283 / 43 | |
+| 7F, F S F G F S v F F S G F S F | 0.242 / 48 | |
+| 5F, F S F G v F F S G F S | 0.550 / 41 | **0.616 / 42** |
+| 6F, F S F G v F F S G F S | 0.633 / 43 | **0.589 / 44** |
+| 7F, F S F G v F F S G F S | 0.475 / 51 | **0.545 / 50** |
+
+All three are inside 35-65 %. Convoys get through in 3-6 % of matches; a defence nearly
+always wins by killing the raid. Medians of 42-50 s are shorter than the 45 s the
+`reward_300` pass aimed for at the low end, and above the plan's 30 s call-out.

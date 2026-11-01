@@ -1,0 +1,44 @@
+| candidate | O | M | D | H | all | mission win vs v1 | vs w1_400 | attack share | defend hull lost / ward-min | threat share | go-to in time | dm vs script | dm vs v1 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| hide_200 | ✗ | ✗ | ✓ | ✓ | ✗ | 0.668 | 0.382 | 0.355 | 0.534 | 0.342 | 0.487 | 0.881 | 0.675 |
+
+- hide_200: O attack damage share on target: 0.355 (needs >= hidden + 0.05 -> >= 0.416); O defend threat-set share: 0.342 (needs >= hidden + 0.05 -> >= 0.386); O go-to arrivals in time: 0.487 (needs >= 0.7 -> >= 0.700); M mean mission win vs w1_400: 0.382 (needs >= 0.45)
+
+O bounds (teacher-first, fixed by the baseline stage):
+
+| check (random commander) | bound | teacher | judged against | replaced from the teacher |
+|---|---|---|---|---|
+| attack median ticks to gun range | <= 150 | 66.000 | 150.000 | no |
+| attack damage share on target | >= hidden + 0.05 | 0.470 | 0.423 | no |
+| defend ward hull lost per ward-minute | <= teacher 0.588 x 1.05 = 0.617 (plan: <= 0.8 x hidden) | 0.588 | 0.393 | yes |
+| defend threat-set share | >= hidden + 0.05 | 0.650 | 0.396 | no |
+| go-to arrivals in time | >= 0.7 | 0.898 | 0.700 | no |
+
+Following, reported (followed and hidden passes; the teacher is the order-following scripts, w1_400 the init):
+
+| pilot | commander/pass | attack close | attack share | defend hull lost / ward-min | ward-min | threat share | go-to in time | near | far | arrivals/min |
+|---|---|---|---|---|---|---|---|---|---|---|
+| teacher | random/followed | 66 | 0.470 | 0.588 | 372 | 0.650 | 0.898 | 0.889 | 0.983 | 0.65 |
+| teacher | scripted/followed | 66 | 0.517 | 0.211 | 156 | 0.958 | 0.858 | 0.867 | 0.792 | 0.31 |
+| w1_400 | random/followed | 66 | 0.397 | 0.499 | 377 | 0.349 | 0.419 | 0.427 | 0.343 | 0.33 |
+| w1_400 | random/hidden | 75 | 0.373 | 0.491 | 397 | 0.346 | 0.372 | 0.374 | 0.355 | 0.30 |
+| w1_400 | scripted/followed | 63 | 0.492 | 0.238 | 168 | 0.551 | 0.050 | 0.060 | 0.000 | 0.03 |
+| hide_200 | random/followed | 72 | 0.355 | 0.534 | 405 | 0.342 | 0.487 | 0.490 | 0.456 | 0.38 |
+| hide_200 | random/hidden | 75 | 0.366 | 0.508 | 428 | 0.336 | 0.393 | 0.399 | 0.335 | 0.32 |
+| hide_200 | scripted/followed | 87 | 0.413 | 0.027 | 151 | 0.432 | 0.199 | 0.199 | 0.200 | 0.06 |
+
+Engine duty per hull and order kind, random commander, followed:
+
+| pilot | hull | none | attack | defend | goto |
+|---|---|---|---|---|---|
+| teacher | fighter | 0.45 | 0.44 | 0.41 | 0.36 |
+| teacher | gunship | 0.45 | 0.49 | 0.50 | 0.45 |
+| teacher | strafer | 0.43 | 0.46 | 0.46 | 0.47 |
+| w1_400 | fighter | 0.19 | 0.22 | 0.21 | 0.22 |
+| w1_400 | gunship | 0.48 | 0.48 | 0.47 | 0.50 |
+| w1_400 | strafer | 0.24 | 0.20 | 0.21 | 0.22 |
+| hide_200 | fighter | 0.19 | 0.17 | 0.17 | 0.26 |
+| hide_200 | gunship | 0.46 | 0.42 | 0.41 | 0.49 |
+| hide_200 | strafer | 0.24 | 0.24 | 0.24 | 0.24 |
+
+pick: none (no candidate passes every gate)

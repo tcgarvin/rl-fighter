@@ -220,7 +220,7 @@ What it decided; SIM_SPEC §0.2 ("WP-S2"), §5.9, §10.3 and §11 have the detai
   rosters (`mission::default_rosters`, SIM_SPEC §10.3; PyO3 `rlf_sim.mission_rosters`,
   WASM `missionRostersJson`): carrier + 8, 6 or 9 strike craft a side; 4 freighters +
   3 escorts v 6, 3 + 4 v 5, 5 + 4 v 8. (Since 2026-11-01, for the `reward_300` champion:
-  5, 6 or 7 freighters + 6 escorts v 6; `lab/runs/2026-11-01-fighters-v2/convoy_balance.md`.)
+  5, 6 or 7 freighters + 4 escorts v 6; `lab/runs/2026-11-01-fighters-v2/convoy_balance.md`.)
 - **Left open.** The script-vs-script convoy is lopsided per roster (the scripted
   escorts lose the 4-freighter roster every time and win the 3-freighter one), which
   matters only when the scripts teach stage B; carrier launches are front-loaded
