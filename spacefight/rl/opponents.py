@@ -13,6 +13,18 @@ in every env; team 1 is played by one of three opponent kinds:
   checkpoint otherwise, so a seed keeps its share as the pool grows. Each entry
   flies on ``obs[..., :actor.obs_dim]`` (a 385-wide v1 in a 403-wide sim).
 
+Weighted enemy sampling (``docs/PILOT_TRAINING.md`` section 3, off by default). With
+``enemy_sampling="pfsp"``, prioritized fictitious self-play (Vinyals et al. 2019) draws
+snapshots in proportion to ``(1 - learner's win rate) ** power``, so opponents that beat
+the learner come up more, and a ``floor`` share of draws stays even across the entries so
+none drop out. It replaces the uniform draw inside each group: ``seed_p`` still splits
+seeds from periodic checkpoints first, so a seed keeps its share. Win rates are tracked
+per pool entry from finished matches (``record_results``) with a fading memory, or passed
+in with ``EnemyResults.seed``. An opponent with no results counts as even. ``SCRIPTED``
+and ``SELF`` keep their band shares; only frozen-pool draws are weighted. The default
+``"uniform"`` draws exactly what it always did from the same generator, so old configs
+and resumes are unchanged.
+
 Each env keeps its opponent for a whole episode and is reassigned when it resets.
 Assignment is by quota, not by independent draws: a resetting env takes the kind
 whose count is furthest below its target for the current update band, so once every
@@ -49,6 +61,19 @@ KIND_NAMES: dict[OpponentKind, str] = {
 
 # Snapshot index of an env that does not play a snapshot.
 NO_SNAPSHOT = -1
+
+SAMPLING_UNIFORM = "uniform"
+SAMPLING_PFSP = "pfsp"
+ENEMY_SAMPLINGS: tuple[str, ...] = (SAMPLING_UNIFORM, SAMPLING_PFSP)
+# AlphaStar's "hard" weighting uses power 2.
+DEFAULT_PFSP_POWER = 2.0
+# Share of frozen-pool draws spread evenly, so every entry keeps floor / K at least.
+DEFAULT_PFSP_FLOOR = 0.2
+# Pseudo-matches at an even score behind every tracked win rate.
+RESULT_PRIOR_MATCHES = 2.0
+# Each new result fades an opponent's older ones by this: a memory of about 100 matches,
+# since the learner keeps changing and an old result says less about it.
+RESULT_DECAY = 0.99
 
 
 @dataclass(frozen=True)
@@ -150,6 +175,117 @@ def quota_counts(shares: Sequence[float], n: int) -> NDArray[np.int64]:
     return counts
 
 
+def pfsp_probabilities(
+    win_rates: Sequence[float] | NDArray[np.float64],
+    power: float = DEFAULT_PFSP_POWER,
+    floor: float = DEFAULT_PFSP_FLOOR,
+) -> NDArray[np.float64]:
+    """Draw probabilities over opponents from the learner's win rate against each.
+
+    Args:
+        win_rates: The learner's score rate against each opponent, in ``[0, 1]``.
+        power: Exponent on ``1 - win_rate``; higher leans harder on the toughest.
+        floor: Share of draws spread evenly, in ``(0, 1]``. Every opponent's
+            probability is at least ``floor / len(win_rates)``.
+
+    Returns:
+        Probabilities summing to 1. If the learner beats every opponent every time the
+        weights are all zero and the draw is even.
+
+    Raises:
+        ValueError: No opponents, or an argument out of range.
+    """
+    rates = np.asarray(win_rates, dtype=np.float64)
+    if rates.size == 0:
+        raise ValueError("no opponents to weight")
+    if not np.all((rates >= 0.0) & (rates <= 1.0)):
+        raise ValueError(f"win rates must be in [0, 1], got {rates}")
+    check_pfsp_settings(power, floor)
+    even = np.full(rates.size, 1.0 / rates.size)
+    weights = (1.0 - rates) ** power
+    total = weights.sum()
+    hard = weights / total if total > 0.0 else even
+    return (1.0 - floor) * hard + floor * even
+
+
+def check_pfsp_settings(power: float, floor: float) -> None:
+    """Raise ``ValueError`` for a negative ``power`` or a ``floor`` outside ``(0, 1]``.
+
+    A floor of 0 is refused because it would let an opponent drop out, which the plan
+    rules out.
+    """
+    if power < 0.0:
+        raise ValueError(f"pfsp power must be >= 0, got {power}")
+    if not 0.0 < floor <= 1.0:
+        raise ValueError(f"pfsp floor must be in (0, 1], got {floor}")
+
+
+class EnemyResults:
+    """The learner's fading score against each frozen-pool entry.
+
+    An entry's rate is ``(wins + prior / 2) / (matches + prior)``, where both counts
+    fade by ``decay`` with each new result against that entry.
+
+    Args:
+        decay: Fade per result, in ``[0, 1)``.
+        prior_matches: Pseudo-matches at an even score.
+
+    Raises:
+        ValueError: An argument out of range.
+    """
+
+    def __init__(
+        self,
+        decay: float = RESULT_DECAY,
+        prior_matches: float = RESULT_PRIOR_MATCHES,
+    ) -> None:
+        if not 0.0 <= decay < 1.0:
+            raise ValueError(f"decay must be in [0, 1), got {decay}")
+        if prior_matches <= 0.0:
+            raise ValueError(f"prior_matches must be positive, got {prior_matches}")
+        self.decay = decay
+        self.prior_matches = prior_matches
+        self._counts: dict[int, tuple[float, float]] = {}
+
+    def record(self, index: int, score: float) -> None:
+        """Add one result against entry ``index``.
+
+        Args:
+            index: Pool index.
+            score: 1 for a learner win, 0.5 for a draw, 0 for a loss.
+
+        Raises:
+            ValueError: ``score`` outside ``[0, 1]``.
+        """
+        if not 0.0 <= score <= 1.0:
+            raise ValueError(f"score must be in [0, 1], got {score}")
+        wins, matches = self._counts.get(index, (0.0, 0.0))
+        self._counts[index] = (self.decay * wins + score, self.decay * matches + 1.0)
+
+    def seed(self, index: int, win_rate: float, matches: float) -> None:
+        """Set entry ``index`` from a rate measured elsewhere, as if over ``matches``.
+
+        Raises:
+            ValueError: ``win_rate`` outside ``[0, 1]`` or negative ``matches``.
+        """
+        if not 0.0 <= win_rate <= 1.0 or matches < 0.0:
+            raise ValueError(f"bad seed: win rate {win_rate} over {matches} matches")
+        self._counts[index] = (win_rate * matches, matches)
+
+    def rate(self, index: int) -> float:
+        """The learner's score rate against entry ``index``."""
+        wins, matches = self._counts.get(index, (0.0, 0.0))
+        return (wins + self.prior_matches / 2.0) / (matches + self.prior_matches)
+
+    def state(self) -> list[list[float]]:
+        """``[index, wins, matches]`` rows, for a checkpoint's train state."""
+        return [[float(i), w, m] for i, (w, m) in sorted(self._counts.items())]
+
+    def load_state(self, rows: Sequence[Sequence[float]]) -> None:
+        """Replace the counts with ``state`` output."""
+        self._counts = {int(i): (float(w), float(m)) for i, w, m in rows}
+
+
 class OpponentAssigner:
     """Per-env opponent kind and snapshot index, reassigned on reset by quota.
 
@@ -157,6 +293,11 @@ class OpponentAssigner:
         n_envs: Number of envs.
         schedule: Opponent shares per update band.
         rng: Generator for tie-breaks and snapshot draws.
+        n_seeds: Pool entries that are seeds, at its start.
+        seed_p: Chance a snapshot env plays a seed entry (module docstring).
+        enemy_sampling: ``"uniform"`` or ``"pfsp"`` (module docstring).
+        pfsp_power: ``pfsp_probabilities``'s power.
+        pfsp_floor: ``pfsp_probabilities``'s floor.
     """
 
     def __init__(
@@ -166,16 +307,28 @@ class OpponentAssigner:
         rng: np.random.Generator,
         n_seeds: int = 0,
         seed_p: float = 0.0,
+        enemy_sampling: str = SAMPLING_UNIFORM,
+        pfsp_power: float = DEFAULT_PFSP_POWER,
+        pfsp_floor: float = DEFAULT_PFSP_FLOOR,
     ) -> None:
         if n_envs <= 0:
             raise ValueError(f"n_envs must be positive, got {n_envs}")
         if n_seeds < 0 or not 0.0 <= seed_p <= 1.0:
             raise ValueError(f"need n_seeds >= 0 and seed_p in [0, 1], got {seed_p}")
+        if enemy_sampling not in ENEMY_SAMPLINGS:
+            raise ValueError(
+                f"enemy_sampling must be one of {ENEMY_SAMPLINGS}, got {enemy_sampling}"
+            )
+        check_pfsp_settings(pfsp_power, pfsp_floor)
         self.n_envs = n_envs
         self.schedule = schedule
         self.rng = rng
         self.n_seeds = n_seeds
         self.seed_p = seed_p
+        self.enemy_sampling = enemy_sampling
+        self.pfsp_power = pfsp_power
+        self.pfsp_floor = pfsp_floor
+        self.results = EnemyResults()
         self.kinds = np.full(n_envs, OpponentKind.SCRIPTED, dtype=np.int8)
         self.snapshot = np.full(n_envs, NO_SNAPSHOT, dtype=np.int64)
 
@@ -212,13 +365,49 @@ class OpponentAssigner:
                 self.snapshot[env] = NO_SNAPSHOT
 
     def _draw_snapshot(self, pool_size: int) -> int:
-        """A pool index: uniform, or a seed entry with ``seed_p`` (module doc)."""
+        """A pool index: from the whole pool, or a seed entry with ``seed_p``."""
         seeds = min(self.n_seeds, pool_size)
         if self.seed_p == 0.0 or seeds == 0:
-            return int(self.rng.integers(pool_size))
+            return self._draw_among(0, pool_size)
         if seeds == pool_size or self.rng.random() < self.seed_p:
-            return int(self.rng.integers(seeds))
-        return seeds + int(self.rng.integers(pool_size - seeds))
+            return self._draw_among(0, seeds)
+        return self._draw_among(seeds, pool_size)
+
+    def _draw_among(self, start: int, stop: int) -> int:
+        """One index of ``start..stop``, even or weighted (module docstring)."""
+        size = stop - start
+        if self.enemy_sampling == SAMPLING_UNIFORM:
+            return start + int(self.rng.integers(size))
+        probabilities = pfsp_probabilities(
+            [self.results.rate(i) for i in range(start, stop)],
+            self.pfsp_power,
+            self.pfsp_floor,
+        )
+        return start + int(self.rng.choice(size, p=probabilities))
+
+    def record_results(
+        self,
+        env_ids: NDArray[np.integer],
+        winner: NDArray[np.integer],
+        learner_team: NDArray[np.integer],
+    ) -> None:
+        """Track the matches just finished in ``env_ids``. Call before ``assign``.
+
+        Does nothing under uniform sampling, which doesn't read the results.
+
+        Args:
+            env_ids: Envs whose match just ended.
+            winner: ``[n_envs]`` winning team, -1 for a draw.
+            learner_team: ``[n_envs]`` the learner's team.
+        """
+        if self.enemy_sampling == SAMPLING_UNIFORM:
+            return
+        for env in env_ids:
+            if self.kinds[env] != OpponentKind.SNAPSHOT:
+                continue
+            won = winner[env]
+            score = 0.5 if won < 0 else float(won == learner_team[env])
+            self.results.record(int(self.snapshot[env]), score)
 
     def counts(self) -> dict[str, int]:
         """Envs per kind name."""
