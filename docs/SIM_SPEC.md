@@ -1519,12 +1519,15 @@ their files in order). The first entry is the default.
 | carrier_battle | wing of 8 | carrier, F S F G F S F G | the same |
 | carrier_battle | wing of 6 | carrier, F F S F S G | the same |
 | carrier_battle | wing of 9 | carrier, F S F G F S F G F | the same |
-| convoy_escort | 4 freighters | 4 freighters, F S F | F F S G F S |
-| convoy_escort | 3 freighters | 3 freighters, F S F G | F S F G F |
-| convoy_escort | 5 freighters | 5 freighters, F S F G | F F S G F S F F |
+| convoy_escort | 5 freighters | 5 freighters, F S F G F S | F F S G F S |
+| convoy_escort | 6 freighters | 6 freighters, F S F G F S | F F S G F S |
+| convoy_escort | 7 freighters | 7 freighters, F S F G F S | F F S G F S |
 
 (F fighter, S strafer, G gunship.) Deathmatch has none: its rosters stay budget
-drafts of 2–4 strike craft a side.
+drafts of 2–4 strike craft a side. The convoy rosters changed on 2026-11-01 for the
+`reward_300` champion, with no rule change and no `SIM_VERSION` bump (rosters are data
+the page and the evals read; goldens build their own fleets):
+`lab/runs/2026-11-01-fighters-v2/convoy_balance.md`.
 
 Views (serde-serialised): `CommanderObsView` (counts keyed by hull name),
 `MissionStateView` (mission, end reason, tick, command_due, carriers, hangars, bay

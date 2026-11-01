@@ -179,24 +179,9 @@ const CARRIER_WING_9: &[&str] = &[
     "carrier", "fighter", "strafer", "fighter", "gunship", "fighter", "strafer", "fighter",
     "gunship", "fighter",
 ];
-const CONVOY_4_3: &[&str] = &[
-    "freighter",
-    "freighter",
-    "freighter",
-    "freighter",
-    "fighter",
-    "strafer",
-    "fighter",
-];
-const CONVOY_3: &[&str] = &[
-    "freighter",
-    "freighter",
-    "freighter",
-    "fighter",
-    "strafer",
-    "fighter",
-    "gunship",
-];
+// Convoys are balanced for the 2026-11-01 champion, a far deadlier pilot than the v1 they
+// were first tuned for (lab/runs/2026-11-01-fighters-v2/convoy_balance.md): six a side,
+// and enough freighters that killing half of them takes the raid about 50 s.
 const CONVOY_5: &[&str] = &[
     "freighter",
     "freighter",
@@ -207,14 +192,41 @@ const CONVOY_5: &[&str] = &[
     "strafer",
     "fighter",
     "gunship",
+    "fighter",
+    "strafer",
 ];
-const RAIDERS_8: &[&str] = &[
-    "fighter", "fighter", "strafer", "gunship", "fighter", "strafer", "fighter", "fighter",
+const CONVOY_6: &[&str] = &[
+    "freighter",
+    "freighter",
+    "freighter",
+    "freighter",
+    "freighter",
+    "freighter",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship",
+    "fighter",
+    "strafer",
+];
+const CONVOY_7: &[&str] = &[
+    "freighter",
+    "freighter",
+    "freighter",
+    "freighter",
+    "freighter",
+    "freighter",
+    "freighter",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship",
+    "fighter",
+    "strafer",
 ];
 const RAIDERS_6: &[&str] = &[
     "fighter", "fighter", "strafer", "gunship", "fighter", "strafer",
 ];
-const RAIDERS_5: &[&str] = &["fighter", "strafer", "fighter", "gunship", "fighter"];
 
 const CARRIER_ROSTERS: &[MissionRoster] = &[
     MissionRoster {
@@ -232,16 +244,16 @@ const CARRIER_ROSTERS: &[MissionRoster] = &[
 ];
 const CONVOY_ROSTERS: &[MissionRoster] = &[
     MissionRoster {
-        name: "4 freighters",
-        fleets: [CONVOY_4_3, RAIDERS_6],
-    },
-    MissionRoster {
-        name: "3 freighters",
-        fleets: [CONVOY_3, RAIDERS_5],
-    },
-    MissionRoster {
         name: "5 freighters",
-        fleets: [CONVOY_5, RAIDERS_8],
+        fleets: [CONVOY_5, RAIDERS_6],
+    },
+    MissionRoster {
+        name: "6 freighters",
+        fleets: [CONVOY_6, RAIDERS_6],
+    },
+    MissionRoster {
+        name: "7 freighters",
+        fleets: [CONVOY_7, RAIDERS_6],
     },
 ];
 
