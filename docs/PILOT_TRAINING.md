@@ -281,4 +281,17 @@ the owner says the machine is free.
 | 7 | Run the round robin across existing pilots | Yes |
 | 8 | First night: one member of each of Fighters, Followers and Scratch | Yes |
 
+Items 1, 2, 4 and 5 are written and merged. They are tested at small sizes, with no real
+training or full round robin yet. Weighted sampling runs on live results but logs no win
+rates yet, and `pool_seed` is still filled by hand.
+
+The tools are in `spacefight/population/`, with records in
+`lab/population/2026-11-sim6/`. The rating is Bradley-Terry, and the cull constants are
+guesses to be judged in shadow mode. The round robin rates deathmatch on the live page's
+drafts.
+
+**Script pilots in no-commander matches.** Hidden orders only change what a pilot sees, so
+in carrier and convoy the script still flies the commander's orders. Read its mission
+results with that in mind.
+
 Commander training starts once a pilot passes the drill gate.

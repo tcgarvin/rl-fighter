@@ -8,8 +8,8 @@ multiple of ``2 R`` each pilot flies every roster from each side equally often, 
 a convoy means both defending and raiding.
 
 Rosters: carrier and convoy use the sim's live rosters (``rlf_sim.mission_rosters``).
-Deathmatch has none there, so it draws ``deathmatch_rosters`` rosters from a fleet preset,
-the same draw for every pair. A pair therefore differs only in who flies.
+Deathmatch has none there, so it draws ``deathmatch_rosters`` of the live page's drafts
+(``PilotsDistribution``), the same draw for every pair. A pair therefore differs only in who flies.
 
 Resumable: each pair is written atomically to ``pairs/<a>__<b>.json`` as it finishes,
 and finished pairs are skipped. A directory's ``config.json`` fixes the sizes and seed; a
@@ -44,10 +44,10 @@ from spacefight.env.rosters import (
     CONVOY_ESCORT,
     DEATHMATCH,
     SCRIPTED,
+    PilotsDistribution,
     Roster,
     capital_hull_ids,
     make_sampler,
-    resolve_distribution,
 )
 from spacefight.env.rust_env import RustVecEnv
 from spacefight.eval.controllers import Controller, make_controller
@@ -94,7 +94,6 @@ class RoundRobinConfig:
         n_per_mission: Matches per pair per mission. Must be a multiple of ``2 R`` for
             every mission's roster count ``R``.
         deathmatch_rosters: Rosters drawn for deathmatch.
-        deathmatch_preset: The fleet preset they are drawn from.
         seed: Base seed; every pair uses the same matches.
         reaction_ticks: Sim reaction ticks.
         sample: Sample from policies' heads (the eval's primary numbers), else argmax.
@@ -104,7 +103,6 @@ class RoundRobinConfig:
     missions: tuple[str, ...] = ROUND_ROBIN_MISSIONS
     n_per_mission: int = 12
     deathmatch_rosters: int = 6
-    deathmatch_preset: str = "fleet_v1"
     seed: int = 400_000
     reaction_ticks: int = 2
     sample: bool = True
@@ -131,7 +129,10 @@ def rosters_for(mission: str, cfg: RoundRobinConfig) -> list[tuple[str, Roster]]
         raise ValueError(
             f"deathmatch_rosters must be positive, got {cfg.deathmatch_rosters}"
         )
-    sampler = make_sampler(resolve_distribution(cfg.deathmatch_preset), cfg.seed)
+    # The live page's drafts, so a pilot is rated on the matches it flies.
+    sampler = make_sampler(
+        PilotsDistribution(mission_weights=(1.0, 0.0, 0.0)), cfg.seed
+    )
     drawn = [sampler.sample() for _ in range(cfg.deathmatch_rosters)]
     return [(f"{k}: {roster.label}", roster) for k, roster in enumerate(drawn)]
 
