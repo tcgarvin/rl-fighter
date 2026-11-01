@@ -118,6 +118,9 @@ scripts/build_pages_data.sh  # = cd web && npm run data
 uv run python -m pytest tests/test_build_notebook.py tests/test_build_catalogue.py tests/test_pilot_page.py -v
 ```
 
+How pilots train (scenarios, order drills, families, what earns a place): `docs/PILOT_TRAINING.md`.
+Keep it current when training scenarios change.
+
 The project is moving to a Rust sim + three.js web client; `docs/DESIGN.md` is the
 source of truth for that direction. The website (`web/`, Vite + TypeScript) serves the
 live page at `/`: matches that loop forever, rotating team deathmatch, carrier battle
