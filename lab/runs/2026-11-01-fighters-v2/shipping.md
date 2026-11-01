@@ -1,5 +1,8 @@
 # Shipping `reward_300` (plan §1)
 
+`reward_300` went live 2026-11-01 01:06 and was replaced at 07:38 by `f995_701`, with the
+escort count retuned (`convoy_balance.md`, `results.md`). The rosters below are the earlier ones.
+
 Prepared 2026-10-31 22:45 to 2026-11-01 00:30, on a machine shared with this run's
 training (load about 30 on 16 threads). The promotion and the deploy are separate steps,
 not done here. **Until the promotion lands, the site build and two tests fail on purpose**

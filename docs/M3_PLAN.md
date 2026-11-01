@@ -1,6 +1,13 @@
 # M3 — Carriers, convoys and commanders (plan, 2026-10-30)
 
 Status: **stage A done and live; stage B run 1 failed its order gate, run B2b passed it but failed missions and deathmatch (`lab/runs/2026-10-31-order-pilot{,-b2b}/results.md`); B3 (orders redesigned, SIM_VERSION 6) failed too: the pull wrecks aiming, the reward alone follows little (`…-b3/results.md`); nothing promoted** (decisions under "Stage B decisions"; the user's answers of 2026-10-30 are in §3).
+
+**Update 2026-11-01:** run `2026-11-01-fighters-v2` shipped `f995_701` (plain PPO, gamma 0.995,
+constant LR, no order pay), 0.71 of missions vs `reward_300`. It does not follow orders.
+Order-only pay (`hide`) moved go-to by 0.17 and fell to 0.11 vs that champion. Scripted pilots
+under random orders beat the scripted commander 0.75 of carrier battles, so command matters
+once pilots follow, and that commander is weak. Next: order pay at a longer horizon, measured
+by whether orders change who wins. See the run's `results.md`.
 Asked for by the user on 2026-10-30, after fleet pilot v1: team deathmatch works, duels
 are dull, and the story needs the carrier and the layered ("feudal") AI on the live
 page, with matches that have different goals, escort among them. A scripted or stub
@@ -219,7 +226,7 @@ What it decided; SIM_SPEC §0.2 ("WP-S2"), §5.9, §10.3 and §11 have the detai
   arena (450 m), route, clocks (150 s, 120 s) and `jump_in` (2) unchanged. Default
   rosters (`mission::default_rosters`, SIM_SPEC §10.3; PyO3 `rlf_sim.mission_rosters`,
   WASM `missionRostersJson`): carrier + 8, 6 or 9 strike craft a side; 4 freighters +
-  3 escorts v 6, 3 + 4 v 5, 5 + 4 v 8. (Since 2026-11-01, for the `reward_300` champion:
+  3 escorts v 6, 3 + 4 v 5, 5 + 4 v 8. (Since 2026-11-01, for the `f995_701` champion:
   5, 6 or 7 freighters + 4 escorts v 6; `lab/runs/2026-11-01-fighters-v2/convoy_balance.md`.)
 - **Left open.** The script-vs-script convoy is lopsided per roster (the scripted
   escorts lose the 4-freighter roster every time and win the 3-freighter one), which
