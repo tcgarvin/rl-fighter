@@ -1,0 +1,14 @@
+{
+ "schema": "rlf.population.round_robin/1",
+ "missions": [
+  "deathmatch",
+  "carrier_battle",
+  "convoy_escort"
+ ],
+ "n_per_mission": 240,
+ "deathmatch_rosters": 24,
+ "seed": 400000,
+ "reaction_ticks": 2,
+ "sample": true,
+ "sim_version": 6
+}

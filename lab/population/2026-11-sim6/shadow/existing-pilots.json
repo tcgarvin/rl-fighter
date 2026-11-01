@@ -1,0 +1,95 @@
+{
+ "schema": "rlf.population.shadow/1",
+ "phase": "existing-pilots",
+ "date": "2026-11-01",
+ "standings": [
+  {
+   "member": "f995_701",
+   "family": "fighters",
+   "founder": "f995_701",
+   "rating": 270.4292614700475,
+   "sd": 5.736899280035219,
+   "nearest_top": "transit_300",
+   "tree_distance": 4,
+   "bonus": 60.0,
+   "adjusted": 330.4292614700475
+  },
+  {
+   "member": "transit_300",
+   "family": "followers",
+   "founder": "transit_300",
+   "rating": -74.47743114624804,
+   "sd": 4.859485330809546,
+   "nearest_top": "f995_701",
+   "tree_distance": 4,
+   "bonus": 60.0,
+   "adjusted": -14.477431146248037
+  },
+  {
+   "member": "script",
+   "family": "script",
+   "founder": "script",
+   "rating": -394.16011897122917,
+   "sd": 7.16717254824755,
+   "nearest_top": "transit_300",
+   "tree_distance": 7,
+   "bonus": 0.0,
+   "adjusted": -394.16011897122917
+  }
+ ],
+ "culls": [],
+ "protected": [
+  {
+   "member": "script",
+   "reason": "worst on combat, but it has no drill results yet"
+  },
+  {
+   "member": "f995_701",
+   "reason": "only 2 eligible, and the rule would name all of them"
+  },
+  {
+   "member": "transit_300",
+   "reason": "only 2 eligible, and the rule would name all of them"
+  }
+ ],
+ "unrated": [],
+ "founder_counts": {
+  "f995_701": 1,
+  "script": 1,
+  "transit_300": 1
+ },
+ "below_target": true,
+ "behaviour": {
+  "pairs": [
+   {
+    "a": "f995_701",
+    "b": "transit_300",
+    "tree_distance": 4,
+    "behaviour_distance": 2.333970175860925
+   },
+   {
+    "a": "f995_701",
+    "b": "script",
+    "tree_distance": 9,
+    "behaviour_distance": 2.879836654100928
+   },
+   {
+    "a": "script",
+    "b": "transit_300",
+    "tree_distance": 7,
+    "behaviour_distance": 3.641308015519766
+   }
+  ],
+  "tree_behaviour_correlation": 0.5,
+  "correlation_pairs": 3,
+  "missing": []
+ },
+ "constants": {
+  "BOTTOM_N": 2,
+  "TOP_N": 10,
+  "POPULATION_TARGET": 10,
+  "FOUNDER_CAP": 4,
+  "DIVERSITY_BONUS_PER_EDGE": 15.0,
+  "DIVERSITY_BONUS_CAP": 60.0
+ }
+}

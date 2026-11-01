@@ -173,11 +173,24 @@ and must keep passing to stay. Failing archives it with the reason. The founders
 
 Bars start lenient ("roughly the appropriate way") and tighten as pilots improve. They come
 from the outcome, and the script pilot's result is a reference rather than a target.
-Numbers get set after measuring the script and the founders on the real drills.
 
-**Built:** `apply_gate` in `spacefight/eval/drills.py` reads `spacefight/eval/drill_bars.yaml`,
-all unset today. A failed bar fails the pilot. Otherwise any unset bar means `report_only`,
-stated plainly, never a pass. `exempt` names pilots it does not judge; the member list that
+**First bars, set 2026-11-01** from 256 drills per kind on existing pilots. Each sits well
+above the pilots that do not follow and below `transit_300`, the one trained pilot that does:
+
+| Bar | Set at | Script | `transit_300` | `f995_701` | `reward_300` | `hide_644` |
+|---|---|---|---|---|---|---|
+| Go-to arrival | 0.60 | 1.00 | 0.70 | 0.22 | 0.12 | 0.13 |
+| Go-to lift over order hidden | 0.40 | none | 0.59 | 0.07 | 0.01 | 0.01 |
+| Attack: any damage on the target | 0.90 | 0.98 | 0.98 | 0.81 | 0.75 | 0.81 |
+| Attack: chose the named side | 0.75 | 0.99 | 0.92 | 0.53 | 0.50 | 0.53 |
+| Attack: flipped with the order | 0.70 | 0.97 | 0.87 | 0.14 | 0.13 | 0.18 |
+| Defend: named attackers took more | 0.85 | 0.99 | 0.98 | 0.57 | 0.54 | 0.64 |
+| Defend: chose the named side | 0.85 | 1.00 | 1.00 | 0.49 | 0.50 | 0.56 |
+| Defend: flipped with the order | 0.75 | 1.00 | 1.00 | 0.11 | 0.10 | 0.18 |
+
+**Built:** `apply_gate` in `spacefight/eval/drills.py` reads `spacefight/eval/drill_bars.yaml`.
+A failed bar fails the pilot. Otherwise any unset bar means `report_only`, stated plainly,
+never a pass. `exempt` names pilots it does not judge; the member list that
 decides that comes in a later package.
 
 ### Obeying only in drills
@@ -346,10 +359,9 @@ owner waives that. Population ratings do not deploy anything.
 
 1. One network that both fights and follows, or separate skill networks. Working default:
    one network, with the fallback in section 4.
-2. Drill bars, set once the script and founders have been measured.
-3. How much combat a follower may give up to get in. Today the gate has no combat floor.
-4. Where the owner reviews the tree and shadow culls. Default: a phone-friendly page.
-5. Runs are started by hand at first. Nightly automation comes later.
+2. How much combat a follower may give up to get in. Today the gate has no combat floor.
+3. Where the owner reviews the tree and shadow culls. Default: a phone-friendly page.
+4. Runs are started by hand at first. Nightly automation comes later.
 
 ## 9. Build order
 
@@ -367,10 +379,9 @@ the owner says the machine is free.
 | 7 | Run the round robin across existing pilots | Yes |
 | 8 | First night: one member of each of Fighters, Followers and Scratch | Yes |
 
-Items 1 to 5 are written and merged. They are tested at small sizes, with no real training,
-full round robin, `scripts/check.sh` or wasm test yet. Steps 6 to 8 are scripted in
-`lab/runs/2026-11-01-pilot-families/` (`plan.md`, `measure.sh`, `run.sh`), and all three arms
-of `run.sh` pass a 3-update smoke. Weighted sampling runs on live results but logs no win
+Items 1 to 6 are done, and `scripts/check.sh` and the full pytest suite pass on the merged
+code. Steps 7 and 8 are scripted in `lab/runs/2026-11-01-pilot-families/` (`plan.md`,
+`measure.sh`, `run.sh`), and all three arms of `run.sh` pass a 3-update smoke. Weighted sampling runs on live results but logs no win
 rates yet, and `pool_seed` is still filled by hand.
 
 The tools are in `spacefight/population/`, with records in

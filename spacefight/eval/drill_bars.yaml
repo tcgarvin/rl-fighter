@@ -1,12 +1,15 @@
 # Bars of the order drill gate (spacefight/eval/drills.py, docs/PILOT_TRAINING.md section 2):
-# lower bounds on the eval's numbers. They are not known yet: step 6 of the plan sets them
-# after measuring the script and the founders. While any is unset the gate says
-# "report only", never "pass".
-goto_arrival: null         # share of ships that arrive by the deadline, order shown
-goto_lift: null            # that share minus the share with the order hidden, same seeds
-attack_target_hit: null    # share of attack drills with any damage on the named target
-attack_side: null          # share of attack drills where the squad chose the named side
-attack_flip: null          # share of attack swap pairs that flipped with the order
-defend_more_on_named: null # share of defend drills: named ward's attackers took more
-defend_side: null          # share of defend drills where the squad chose the named side
-defend_flip: null          # share of defend swap pairs that flipped with the order
+# lower bounds on the eval's numbers. An unset bar is "report only", never a pass.
+#
+# First bars, set 2026-11-01 from 256 drills per kind on existing pilots. Each sits well above
+# the three pilots that do not follow (f995_701, reward_300, hide_644) and below transit_300,
+# the one trained pilot that does. The script is a reference, not a target. The numbers beside
+# each bar are transit_300, then the best of the other three. Tighten as pilots improve.
+goto_arrival: 0.60         # 0.70, 0.22: share of ships that arrive by the deadline, order shown
+goto_lift: 0.40            # 0.59, 0.07: that share minus the share with the order hidden, same seeds
+attack_target_hit: 0.90    # 0.98, 0.81: share of attack drills with any damage on the named target
+attack_side: 0.75          # 0.92, 0.53: share of attack drills where the squad chose the named side
+attack_flip: 0.70          # 0.87, 0.18: share of attack swap pairs that flipped with the order
+defend_more_on_named: 0.85 # 0.98, 0.64: share of defend drills: named ward's attackers took more
+defend_side: 0.85          # 1.00, 0.56: share of defend drills where the squad chose the named side
+defend_flip: 0.75          # 1.00, 0.18: share of defend swap pairs that flipped with the order

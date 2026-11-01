@@ -653,9 +653,16 @@ def _summary(value: float) -> dict[str, object]:
     }
 
 
+def test_the_shipped_bars_are_all_set_and_judge_a_strong_and_a_weak_pilot() -> None:
+    bars = load_bars(DEFAULT_BARS)
+    assert set(bars) == set(BAR_PATHS)
+    assert all(v is not None and 0.0 < v < 1.0 for v in bars.values())
+    assert apply_gate(_summary(0.99), bars, "strong").verdict == PASS
+    assert apply_gate(_summary(0.2), bars, "weak").verdict == FAIL
+
+
 def test_the_gate_is_report_only_with_no_bars_and_says_so() -> None:
-    assert all(v is None for v in load_bars(DEFAULT_BARS).values())
-    result = apply_gate(_summary(1.0), load_bars(DEFAULT_BARS), "someone")
+    result = apply_gate(_summary(1.0), parse_bars({}), "someone")
     assert result.verdict == REPORT_ONLY
     assert "Report only, not a pass" in result.statement
     assert set(result.unset) == set(BAR_PATHS)
@@ -705,6 +712,8 @@ def test_bad_bar_files_are_errors(tmp_path: Path) -> None:
 
 def test_a_tiny_eval_runs_on_the_script_and_writes_its_report(tmp_path: Path) -> None:
     out = tmp_path / "script.json"
+    unset_bars = tmp_path / "bars.yaml"
+    unset_bars.write_text("goto_arrival: null\n")
     assert (
         main(
             [
@@ -714,6 +723,8 @@ def test_a_tiny_eval_runs_on_the_script_and_writes_its_report(tmp_path: Path) ->
                 "4",
                 "--threads",
                 "2",
+                "--bars",
+                str(unset_bars),
                 "--out",
                 str(out),
             ]

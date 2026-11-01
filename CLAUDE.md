@@ -110,8 +110,8 @@ nohup lab/runs/2026-11-01-order-pilot-b3/run.sh > lab/runs/2026-11-01-order-pilo
 
 # Order drills (docs/PILOT_TRAINING.md section 2): start layouts + drill rules in the sim,
 # spacefight/env/drills.py, drill_share in pilots_v1 (roster_overrides), and the drill eval
-# and gate (JSON rlf.eval.drills/1, report beside it; bars in spacefight/eval/drill_bars.yaml,
-# all unset, so the gate says report_only; the script has no hidden go-to pass)
+# and gate (JSON rlf.eval.drills/1, report beside it; bars in spacefight/eval/drill_bars.yaml;
+# the script has no hidden go-to pass, so its gate says report_only)
 uv run python -m spacefight.eval.drills --a <checkpoint.pt|script> --name <pilot> \
     --n-per-kind 64 --threads 2 --out drills.json [--exempt f995_701,transit_300] [--bars <yaml>]
 uv run python -m pytest tests/test_drills.py -v
