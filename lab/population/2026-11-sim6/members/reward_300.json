@@ -1,0 +1,24 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "reward_300",
+ "family": "history",
+ "founder": "script",
+ "parent": "w1_400",
+ "relation": "fork",
+ "fork_update": 400,
+ "settings_changed": {
+  "beta_decay_end": 300,
+  "beta_heads": "movement",
+  "beta_rows": "transit",
+  "new_input_lr_mult": 3,
+  "obs_dim": 583
+ },
+ "checkpoint": "lab/runs/2026-11-01-order-pilot-b3/reward/checkpoints/ppo_bc_300.pt",
+ "sha256": "2b87e1f70751939e453f7e038c789f0265520b42389c6a64db2ec36f18792400",
+ "status": "archived",
+ "archived_reason": "Pre-population pilot, kept for ancestry and the round robin.",
+ "archived_date": "2026-11-01",
+ "note": "B3 arm reward, champion 2026-11-01-reward-300. 583 inputs.",
+ "ratings": [],
+ "drills": []
+}

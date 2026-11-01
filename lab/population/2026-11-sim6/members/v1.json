@@ -1,0 +1,18 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "v1",
+ "family": "history",
+ "founder": "script",
+ "parent": "v1_clone",
+ "relation": "fork",
+ "fork_update": 0,
+ "settings_changed": {},
+ "checkpoint": "lab/runs/2026-10-30-fleet-pilot/arm_warm/checkpoints/ppo_bc_400.pt",
+ "sha256": "3256fc7b572b52c910de66fea5c7bcbdadd45f6b86a00523b8f5c370846349f9",
+ "status": "archived",
+ "archived_reason": "Pre-population pilot, kept for ancestry and the round robin.",
+ "archived_date": "2026-11-01",
+ "note": "Fleet pilot v1, champion 2026-10-30-fleet-pilot-v1. 385 inputs.",
+ "ratings": [],
+ "drills": []
+}

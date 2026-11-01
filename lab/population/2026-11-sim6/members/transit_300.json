@@ -1,0 +1,25 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "transit_300",
+ "family": "followers",
+ "founder": "transit_300",
+ "parent": "w1_400",
+ "relation": "fork",
+ "fork_update": 400,
+ "settings_changed": {
+  "beta_decay_end": 300,
+  "beta_heads": "movement",
+  "beta_rows": "transit",
+  "beta_start": 0.05,
+  "new_input_lr_mult": 3,
+  "obs_dim": 583
+ },
+ "checkpoint": "lab/runs/2026-11-01-order-pilot-b3/transit/checkpoints/ppo_bc_300.pt",
+ "sha256": "523ea086eaffdde5f7b700b06b5c09ed09d74216de40bb16f816d2f02afd7c2b",
+ "status": "active",
+ "archived_reason": "",
+ "archived_date": "",
+ "note": "Founder of Followers. Best neural follower, weak fighter. Exempt from drills.",
+ "ratings": [],
+ "drills": []
+}

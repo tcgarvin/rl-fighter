@@ -1,0 +1,18 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "f995_701",
+ "family": "fighters",
+ "founder": "f995_701",
+ "parent": "f995_400",
+ "relation": "continued",
+ "fork_update": 400,
+ "settings_changed": {},
+ "checkpoint": "lab/runs/2026-11-01-fighters-v2/f995/checkpoints/ppo_bc_701.pt",
+ "sha256": "bf3bd0cb3c27889e9be4915f24c9674f375dd8bc815307596068e1f3ef99cf54",
+ "status": "active",
+ "archived_reason": "",
+ "archived_date": "",
+ "note": "Founder of Fighters. Best fighter, follows nothing. Exempt from drills.",
+ "ratings": [],
+ "drills": []
+}

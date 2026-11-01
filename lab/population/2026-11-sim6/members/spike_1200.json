@@ -1,0 +1,18 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "spike_1200",
+ "family": "history",
+ "founder": "script",
+ "parent": "spike_clone",
+ "relation": "fork",
+ "fork_update": 0,
+ "settings_changed": {},
+ "checkpoint": "lab/runs/2026-10-28-learnability-spike/ppo_bc/checkpoints/ppo_bc_1200.pt",
+ "sha256": "4663de29e79d5778c5c74eb528e232be89ac6b89a64437af0316e6e1b3762db5",
+ "status": "archived",
+ "archived_reason": "Pre-population pilot, kept for ancestry and the round robin.",
+ "archived_date": "2026-11-01",
+ "note": "PPO from the clone, the learnability spike's result.",
+ "ratings": [],
+ "drills": []
+}

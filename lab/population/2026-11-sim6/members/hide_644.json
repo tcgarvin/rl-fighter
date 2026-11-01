@@ -1,0 +1,34 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "hide_644",
+ "family": "history",
+ "founder": "script",
+ "parent": "reward_300",
+ "relation": "fork",
+ "fork_update": 300,
+ "settings_changed": {
+  "beta_decay_end": 700,
+  "beta_heads": "all",
+  "beta_rows": "all",
+  "early_clip_updates": 50,
+  "lr_decay": false,
+  "new_input_lr_mult": 1.0,
+  "opponent_bands": [
+   [
+    0,
+    0.2,
+    0.4,
+    0.4
+   ]
+  ],
+  "hide_damage_when_ordered": true
+ },
+ "checkpoint": "lab/runs/2026-11-01-fighters-v2/hide/checkpoints/ppo_bc_644.pt",
+ "sha256": "7e3620a0056adc0a4ad043dc557ffc78dd842e64f5d8b948d0f2469306d324eb",
+ "status": "archived",
+ "archived_reason": "Pre-population pilot, kept for ancestry and the round robin.",
+ "archived_date": "2026-11-01",
+ "note": "Fighters v2, arm hide: a shot under an order earns only order pay.",
+ "ratings": [],
+ "drills": []
+}

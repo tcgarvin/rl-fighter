@@ -1,0 +1,35 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "f99_696",
+ "family": "history",
+ "founder": "script",
+ "parent": "reward_300",
+ "relation": "fork",
+ "fork_update": 300,
+ "settings_changed": {
+  "beta_decay_end": 700,
+  "beta_heads": "all",
+  "beta_rows": "all",
+  "early_clip_updates": 50,
+  "lr_decay": false,
+  "new_input_lr_mult": 1.0,
+  "opponent_bands": [
+   [
+    0,
+    0.2,
+    0.4,
+    0.4
+   ]
+  ],
+  "kl_anchor_coeff": 0.0,
+  "order_reward_weight": 0.0
+ },
+ "checkpoint": "lab/runs/2026-11-01-fighters-v2/f99/checkpoints/ppo_bc_696.pt",
+ "sha256": "345be910ff548533a41fa5fd1ae65df75c1a0f08e7d50f8494a784d8578ab77f",
+ "status": "archived",
+ "archived_reason": "Pre-population pilot, kept for ancestry and the round robin.",
+ "archived_date": "2026-11-01",
+ "note": "Fighters v2, arm f99: order pay off, discount 0.99.",
+ "ratings": [],
+ "drills": []
+}
