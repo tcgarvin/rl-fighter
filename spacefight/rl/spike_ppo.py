@@ -131,11 +131,16 @@ from spacefight.rl.credit import (
 )
 from spacefight.rl.opponents import (
     DEFAULT_BANDS,
+    DEFAULT_PFSP_FLOOR,
+    DEFAULT_PFSP_POWER,
+    ENEMY_SAMPLINGS,
     KIND_NAMES,
+    SAMPLING_UNIFORM,
     OpponentAssigner,
     OpponentKind,
     OpponentSchedule,
     SnapshotPool,
+    check_pfsp_settings,
     snapshot_groups,
 )
 from spacefight.rl.spike_policy import (
@@ -371,6 +376,11 @@ class PPOConfig:
     # entry with this probability (0 = uniform over the whole pool).
     learner_side: str = "team0"
     pool_seed_p: float = 0.0
+    # How frozen-pool draws pick an entry: "uniform", or "pfsp", weighted toward those
+    # that beat the learner, with a floor so none drop out (spacefight/rl/opponents.py).
+    enemy_sampling: str = SAMPLING_UNIFORM
+    enemy_pfsp_power: float = DEFAULT_PFSP_POWER
+    enemy_pfsp_floor: float = DEFAULT_PFSP_FLOOR
     # Step reward = team reward + order_reward_weight * order_rewards (SIM_VERSION 5).
     order_reward_weight: float = 0.0
     # Reward hiding (run 2026-11-01-fighters-v2): a shot chosen on a row with an order
@@ -449,6 +459,12 @@ class PPOConfig:
             )
         if not 0.0 <= self.pool_seed_p <= 1.0:
             raise ValueError(f"pool_seed_p must be in [0, 1], got {self.pool_seed_p}")
+        if self.enemy_sampling not in ENEMY_SAMPLINGS:
+            raise ValueError(
+                f"enemy_sampling must be one of {ENEMY_SAMPLINGS}, "
+                f"got {self.enemy_sampling}"
+            )
+        check_pfsp_settings(self.enemy_pfsp_power, self.enemy_pfsp_floor)
         if self.kl_anchor_coeff < 0.0 or (
             self.kl_anchor_coeff > 0 and not self.kl_anchor
         ):
@@ -1029,6 +1045,7 @@ class SpikeTrainer:
         self.anchor = self._load_anchor(config.kl_anchor)
         self.next_update = 0
         self.elapsed = 0.0
+        self._resumed_enemy_results: list[list[float]] = []
         # First new input column of a widened init (0: not widened).
         self.new_input_start = 0
         self.actor: SpikeActor
@@ -1092,7 +1109,11 @@ class SpikeTrainer:
             self.rng,
             n_seeds=len(config.pool_seed),
             seed_p=config.pool_seed_p,
+            enemy_sampling=config.enemy_sampling,
+            pfsp_power=config.enemy_pfsp_power,
+            pfsp_floor=config.enemy_pfsp_floor,
         )
+        self.opponents.results.load_state(self._resumed_enemy_results)
         self.opponents.assign_all(self.next_update, len(self.pool))
         # The learner's team in each env's current match (module docstring).
         self.learner_team = np.zeros(self.n_envs, dtype=np.int8)
@@ -1212,6 +1233,8 @@ class SpikeTrainer:
             "numpy_rng": self.rng.bit_generator.state,
             "pool": [[u, _pool_name(p, path.parent)] for u, p in self.pool.entries],
         }
+        if self.config.enemy_sampling != SAMPLING_UNIFORM:
+            payload["train"]["enemy_results"] = self.opponents.results.state()
         torch.save(payload, tmp)
         os.replace(tmp, path)
 
@@ -1234,6 +1257,7 @@ class SpikeTrainer:
         self.rng.bit_generator.state = train["numpy_rng"]
         self.next_update = int(train["next_update"])
         self.elapsed = float(train["elapsed"])
+        self._resumed_enemy_results = list(train.get("enemy_results", []))
         ckpt_dir = path.parent
         self.pool = SnapshotPool(
             [(int(u), _pool_path(str(n), ckpt_dir)) for u, n in train["pool"]]
@@ -1476,6 +1500,7 @@ class SpikeTrainer:
                         roster.n_ships,
                         learner_team,
                     )
+                self.opponents.record_results(done_envs, info.winner, self.learner_team)
                 self.opponents.assign(done_envs, update, len(self.pool))
                 self._draw_learner_sides(done_envs)
         store.filled = store.length

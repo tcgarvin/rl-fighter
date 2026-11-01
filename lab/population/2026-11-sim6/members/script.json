@@ -1,0 +1,18 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "script",
+ "family": "script",
+ "founder": "script",
+ "parent": "",
+ "relation": "",
+ "fork_update": -1,
+ "settings_changed": {},
+ "checkpoint": "script",
+ "sha256": "",
+ "status": "active",
+ "archived_reason": "",
+ "archived_date": "",
+ "note": "The sim's scripted pilot. Yardstick, and it follows. Cannot have children.",
+ "ratings": [],
+ "drills": []
+}

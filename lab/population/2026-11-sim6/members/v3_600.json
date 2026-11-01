@@ -1,0 +1,35 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "v3_600",
+ "family": "history",
+ "founder": "script",
+ "parent": "spike_1200",
+ "relation": "fork",
+ "fork_update": 1200,
+ "settings_changed": {
+  "beta_decay_end": 700,
+  "beta_start": 0.0,
+  "opponent_bands": [
+   [
+    0,
+    0.5,
+    0.3,
+    0.2
+   ],
+   [
+    200,
+    0.3,
+    0.4,
+    0.3
+   ]
+  ]
+ },
+ "checkpoint": "lab/runs/2026-10-29-collision-damage/arm_a_rl/checkpoints/ppo_bc_600.pt",
+ "sha256": "4037c574998870d4f45c1f79f911be9c358c5e06549067ba5189c57a5582811c",
+ "status": "archived",
+ "archived_reason": "Pre-population pilot, kept for ancestry and the round robin.",
+ "archived_date": "2026-11-01",
+ "note": "Champion 2026-10-29-v3-fighter: the duel pilot on SIM_VERSION 3.",
+ "ratings": [],
+ "drills": []
+}

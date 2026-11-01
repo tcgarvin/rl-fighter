@@ -335,6 +335,17 @@ def run_mission(
         cfg.reaction_ticks,
         assets_dir,
     )
+    return play_mission_env(a, b, mission, me)
+
+
+def play_mission_env(
+    a: Controller, b: Controller, mission: str, me: MissionEnv
+) -> MissionSummary:
+    """Play ``me``'s matches, each until its first ``done``, and summarise them.
+
+    Raises:
+        RuntimeError: A match did not end within its clock.
+    """
     env = me.env
     tracker = _FleetTracker(env, me.entry, a_team=me.a_team, scripted=me.capital)
     n = env.n_envs

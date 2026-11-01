@@ -108,6 +108,24 @@ nohup lab/runs/2026-10-31-order-pilot/run.sh > lab/runs/2026-10-31-order-pilot/r
 uv run python -m spacefight.eval.orders --a <checkpoint.pt> --out orders.json
 nohup lab/runs/2026-11-01-order-pilot-b3/run.sh > lab/runs/2026-11-01-order-pilot-b3/run.out 2>&1 &
 
+# Pilot population (docs/PILOT_TRAINING.md sections 4-6): records in lab/population/<season>/
+# members/ (rlf.population.member/1; weights stay out of git), all-pairs no-commander round
+# robin (resumable; tiny sizes by default), combat rating, shadow culls (a report only, it
+# changes no status), phone-readable report.md. --checkpoint-root names the checkout that
+# holds lab/runs, needed from a worktree.
+uv run python -m spacefight.population list --season lab/population/2026-11-sim6
+uv run python -m spacefight.population add-founder --season lab/population/2026-11-sim6 \
+    --id <id> --family <family> --checkpoint <path.pt> [--parent <id> --fork-update <N>]
+uv run python -m spacefight.population round-robin --season lab/population/2026-11-sim6 \
+    --out lab/population/2026-11-sim6/round_robin/existing-pilots \
+    --members script,f995_701,f995_400,f99_696,reward_300,transit_300,hide_644,v1,w1_400 \
+    --n-per-mission 240 --deathmatch-rosters 24 --n-threads 4
+uv run python -m spacefight.population report --season lab/population/2026-11-sim6 \
+    --results lab/population/2026-11-sim6/round_robin/existing-pilots \
+    --phase existing-pilots --date YYYY-MM-DD [--record]
+uv run python -m pytest tests/test_population_records.py tests/test_population_rating.py \
+    tests/test_population_culling.py tests/test_round_robin.py tests/test_opponents_weighted.py -v
+
 # Deploy dist/ (rl-fighter.tcgarvin.com); needs NETLIFY_AUTH_TOKEN in .env
 scripts/deploy.sh            # or --build (current champion) / <checkpoint.pt> <run-id> to rebuild first
 

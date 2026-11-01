@@ -1,0 +1,18 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "v1_clone",
+ "family": "history",
+ "founder": "script",
+ "parent": "v3_600",
+ "relation": "clone",
+ "fork_update": 600,
+ "settings_changed": {},
+ "checkpoint": "lab/runs/2026-10-30-fleet-pilot/dagger_warm/best.pt",
+ "sha256": "855accd565f15e7f11934ef7d0a2d2b5a92cb4f6a9e51909f9f9cb181de2b319",
+ "status": "archived",
+ "archived_reason": "Pre-population pilot, kept for ancestry and the round robin.",
+ "archived_date": "2026-11-01",
+ "note": "DAgger on the three hull scripts, starting from v3_600's weights.",
+ "ratings": [],
+ "drills": []
+}

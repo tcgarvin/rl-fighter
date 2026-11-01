@@ -1,0 +1,18 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "spike_clone",
+ "family": "history",
+ "founder": "script",
+ "parent": "script",
+ "relation": "clone",
+ "fork_update": 0,
+ "settings_changed": {},
+ "checkpoint": "lab/runs/2026-10-28-learnability-spike/bc_dagger/best.pt",
+ "sha256": "75159406715b43d451ffbaf28984987310df0f7a1f975017dc494b2433064ee8",
+ "status": "archived",
+ "archived_reason": "Pre-population pilot, kept for ancestry and the round robin.",
+ "archived_date": "2026-11-01",
+ "note": "The first neural pilot: BC and DAgger on the script. Fighter duels only.",
+ "ratings": [],
+ "drills": []
+}
