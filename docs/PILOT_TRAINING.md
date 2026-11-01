@@ -367,8 +367,10 @@ the owner says the machine is free.
 | 7 | Run the round robin across existing pilots | Yes |
 | 8 | First night: one member of each of Fighters, Followers and Scratch | Yes |
 
-Items 1, 2, 4 and 5 are written and merged. They are tested at small sizes, with no real
-training or full round robin yet. Weighted sampling runs on live results but logs no win
+Items 1 to 5 are written and merged. They are tested at small sizes, with no real training,
+full round robin, `scripts/check.sh` or wasm test yet. Steps 6 to 8 are scripted in
+`lab/runs/2026-11-01-pilot-families/` (`plan.md`, `measure.sh`, `run.sh`), and all three arms
+of `run.sh` pass a 3-update smoke. Weighted sampling runs on live results but logs no win
 rates yet, and `pool_seed` is still filled by hand.
 
 The tools are in `spacefight/population/`, with records in
