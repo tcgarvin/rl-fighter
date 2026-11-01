@@ -7,8 +7,9 @@ reaction delay, which champion it describes) is written inside an element with a
 sources and ``check_page`` lists every element whose text disagrees:
 
 - the obs layout from the Rust sim (``rlf_sim.OBS_LAYOUT`` / ``OBS_SLOTS``);
-- the actor and critic from ``spacefight.rl.spike_policy`` (instantiated, so the
-  parameter counts are counted, not typed in);
+- the actor and critic from ``spacefight.rl.spike_policy`` (instantiated at the input
+  width of the champion's sim version, so the parameter counts are counted, not typed
+  in);
 - the actuators per hull from ``assets/hulls/*/hull.yaml``;
 - the champion from ``lab/champions`` and its run's ``config.yaml``;
 - optionally the exported champion policy (``web/public/bundle/policy/manifest.json``),
@@ -44,17 +45,23 @@ from spacefight.rl.spike_policy import (
     HEAD_GROUPS,
     HIDDEN,
     N_LOGITS,
-    OBS_DIM,
+    PILOT_OBS_DIMS,
     FleetCritic,
     SpikeActor,
     param_count,
 )
-from spacefight.env.rosters import MAX_FLEET_SHIPS, MAX_PER_SIDE
+from spacefight.env.rosters import (
+    CARRIER_BATTLE,
+    CONVOY_ESCORT,
+    MAX_FLEET_SHIPS,
+    MAX_PER_SIDE,
+)
 from tools.champion import CHAMPIONS_DIR, Champion, find_champion
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_PAGE = REPO_ROOT / "web/pilot/index.html"
 TICK_HZ = 30
+_CAPITAL_HULLS = frozenset({"carrier", "freighter"})
 _FACT_RE = re.compile(r'data-fact="([^"]+)"[^>]*>([^<]*)<')
 _UPDATE_RE = re.compile(r"_(\d+)\.pt$")
 
@@ -92,18 +99,45 @@ def _activations(module: nn.Sequential) -> set[str]:
     }
 
 
-def obs_facts() -> dict[str, str]:
+def champion_obs_dim(champion: Champion) -> int:
+    """The obs width a pilot of the champion's sim version reads
+    (``rlf_sim.PILOT_OBS_DIMS``: 385 for v3/v4, 403 for v5, 583 for v6).
+
+    Raises:
+        PilotFactsError: the sim build does not fly pilots of that version, or the
+            policy code disagrees with the sim about its width.
+    """
+    dims = dict(rlf_sim.PILOT_OBS_DIMS)
+    if champion.sim_version not in dims:
+        raise PilotFactsError(
+            f"{champion.id}: no pilot obs width for sim version "
+            f"{champion.sim_version} in this sim ({dims})"
+        )
+    width = int(dims[champion.sim_version])
+    if width != PILOT_OBS_DIMS[champion.sim_version]:
+        raise PilotFactsError(
+            f"spike_policy.PILOT_OBS_DIMS[{champion.sim_version}] is "
+            f"{PILOT_OBS_DIMS[champion.sim_version]}, the sim says {width}"
+        )
+    return width
+
+
+def live_max_pilots() -> int:
+    """The most strike craft any default mission roster flies in one match: what the
+    page's browser arithmetic has to carry (capital ships are flown by scripts)."""
+    return max(
+        sum(hull not in _CAPITAL_HULLS for fleet in r["fleets"] for hull in fleet)
+        for mission in (CARRIER_BATTLE, CONVOY_ESCORT)
+        for r in rlf_sim.mission_rosters(mission)
+    )
+
+
+def obs_facts(obs_dim: int) -> dict[str, str]:
     """Width, offset and record count of every obs block the pilot reads, from the
     Rust sim. The page describes the champion's network, whose input is the obs prefix
-    of its sim version (``rlf_sim.PILOT_OBS_DIMS``; SIM_VERSION 5 appends an order
-    block a v3/v4 pilot does not read)."""
-    if OBS_DIM not in dict(rlf_sim.PILOT_OBS_DIMS).values():
-        raise PilotFactsError(
-            f"spike_policy.OBS_DIM {OBS_DIM} is no pilot obs width of this sim "
-            f"({dict(rlf_sim.PILOT_OBS_DIMS)})"
-        )
+    of its sim version (``champion_obs_dim``)."""
     facts = {
-        "obs.dim": str(OBS_DIM),
+        "obs.dim": str(obs_dim),
         "sim.version": str(rlf_sim.SIM_VERSION),
         "sim.max_ships": str(rlf_sim.MAX_SHIPS),
         "sim.max_others": str(rlf_sim.MAX_SHIPS - 1),
@@ -116,7 +150,7 @@ def obs_facts() -> dict[str, str]:
     }
     slots = dict(rlf_sim.OBS_SLOTS)
     for name, (offset, width) in dict(rlf_sim.OBS_LAYOUT).items():
-        if offset + width > OBS_DIM:
+        if offset + width > obs_dim:
             continue
         records = slots[name]
         facts[f"obs.{name}.offset"] = str(offset)
@@ -126,9 +160,9 @@ def obs_facts() -> dict[str, str]:
     return facts
 
 
-def network_facts() -> dict[str, str]:
+def network_facts(obs_dim: int) -> dict[str, str]:
     """Layer sizes and parameter counts of the actor and the fleet critic."""
-    actor = SpikeActor(HIDDEN)
+    actor = SpikeActor(HIDDEN, obs_dim=obs_dim)
     layers = _linear_params(actor.net)
     activation = _activations(actor.net)
     if len(layers) != 3 or len(activation) != 1:
@@ -137,11 +171,12 @@ def network_facts() -> dict[str, str]:
             f"{len(layers)} linear layers and activations {sorted(activation)}"
         )
     weights_only = sum(m.weight.numel() for m in actor.net if isinstance(m, nn.Linear))
-    critic = FleetCritic(HIDDEN, CONTEXT_DIM)
+    critic = FleetCritic(HIDDEN, CONTEXT_DIM, obs_dim=obs_dim)
+    pilots = live_max_pilots()
     total = param_count(actor)
     heads = sum(HEAD_GROUPS[g].stop - HEAD_GROUPS[g].start for g in HEAD_GROUPS)
     facts = {
-        "actor.in": str(OBS_DIM),
+        "actor.in": str(obs_dim),
         "actor.hidden": str(HIDDEN),
         "actor.logits": str(N_LOGITS),
         "actor.heads": str(heads),
@@ -152,8 +187,10 @@ def network_facts() -> dict[str, str]:
         "actor.params": _n(total),
         "actor.params_k": str(round(total / 1000)),
         "actor.kb": str(round(total * 4 / 1000)),
-        # A full fleet, every tick: multiply-adds per second in the browser, millions.
-        "browser.mmacs": str(round(weights_only * MAX_FLEET_SHIPS * TICK_HZ / 1e6)),
+        # The biggest default roster, every tick: multiply-adds per second in the
+        # browser, millions.
+        "live.max_pilots": str(pilots),
+        "browser.mmacs": str(round(weights_only * pilots * TICK_HZ / 1e6)),
         "critic.context": str(CONTEXT_DIM),
         "critic.mix_hidden": str(HIDDEN // 2),
         "critic.mix_in": str(HIDDEN + 2 * CONTEXT_DIM + 2),
@@ -216,7 +253,7 @@ def champion_facts(repo: Path, champions_dir: Path) -> dict[str, str]:
             f"{champion.id}: no update number in checkpoint {champion.checkpoint}"
         )
     reaction = int(config["reaction_ticks"])
-    duel = champion.eval
+    evaluated = champion.eval
     return {
         "champion.id": champion.id,
         "champion.name": champion.name,
@@ -224,7 +261,7 @@ def champion_facts(repo: Path, champions_dir: Path) -> dict[str, str]:
         "champion.update": update.group(1),
         "champion.hulls": ", ".join(champion.hulls),
         "champion.sim_version": str(champion.sim_version),
-        "champion.duel_wins": f"{duel['wins']} of {duel['n']}",
+        "champion.eval_wins": f"{evaluated['wins']} of {evaluated['n']}",
         "train.critic": str(config["critic"]),
         "train.rosters": str(config["rosters"]),
         "train.n_envs": str(config["n_envs"]),
@@ -288,9 +325,10 @@ def compute_facts(
 ) -> dict[str, str]:
     """Every fact the page may state, as the exact text it should show."""
     facts: dict[str, str] = {}
+    obs_dim = champion_obs_dim(find_champion("current", champions_dir))
     for part in (
-        obs_facts(),
-        network_facts(),
+        obs_facts(obs_dim),
+        network_facts(obs_dim),
         hull_facts(repo / "assets"),
         champion_facts(repo, champions_dir),
     ):

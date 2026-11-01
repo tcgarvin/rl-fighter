@@ -27,7 +27,7 @@ from spacefight.rl.spike_policy import (
     SpikeCritic,
     save_policy,
 )
-from tools.export_policy import ExportError, export
+from tools.export_policy import ExportError, export, summarize_eval
 
 REPO = Path(__file__).resolve().parents[1]
 PARITY_SCRIPT = REPO / "tools" / "web" / "policy_parity.mjs"
@@ -44,6 +44,14 @@ LAB_EVAL = Path(
         REPO / "lab/runs/2026-10-28-learnability-spike/eval/bc_dagger_vs_script.json",
     )
 )
+# The first v6 champion (583 inputs), for the wide export path.
+WIDE_CHECKPOINT = Path(
+    os.environ.get(
+        "RLF_PARITY_CHECKPOINT_V6",
+        REPO / "lab/runs/2026-11-01-order-pilot-b3/reward/checkpoints/ppo_bc_300.pt",
+    )
+)
+WIDE_EVAL = REPO / "lab/runs/2026-11-01-order-pilot-b3/eval/reward_300_fleet_vs_script.json"
 NODE = shutil.which("node")
 
 pytestmark = pytest.mark.skipif(NODE is None, reason="node is not on PATH")
@@ -74,9 +82,11 @@ def _masks(rng: np.random.Generator, n: int) -> HeadMasks:
     return HeadMasks.from_numpy(thruster, turret, fixed)
 
 
-def _observations(rng: np.random.Generator, n: int) -> np.ndarray:
+def _observations(
+    rng: np.random.Generator, n: int, obs_dim: int = OBS_DIM
+) -> np.ndarray:
     """Clipped-normal observations, plus real ones from the Rust env if it is built."""
-    obs = np.clip(rng.normal(0.0, 1.0, (n, OBS_DIM)), -5, 5).astype(np.float32)
+    obs = np.clip(rng.normal(0.0, 1.0, (n, obs_dim)), -5, 5).astype(np.float32)
     try:
         from spacefight.env.rust_env import RustVecEnv
     except ImportError:
@@ -89,7 +99,7 @@ def _observations(rng: np.random.Generator, n: int) -> np.ndarray:
     for _ in range(120):
         env.scripted_actions()
         env.step()
-        real.append(np.asarray(env.obs)[..., :OBS_DIM].reshape(-1, OBS_DIM).copy())
+        real.append(np.asarray(env.obs)[..., :obs_dim].reshape(-1, obs_dim).copy())
     picked = np.concatenate(real)[:: max(1, len(real) * 4 // (n // 2))][: n // 2]
     obs[: len(picked)] = picked
     return obs
@@ -119,7 +129,11 @@ def _run_js(
 
 
 def _check_parity(
-    checkpoint: Path, tmp: Path, sim_version: int, eval_json: Path | None = None
+    checkpoint: Path,
+    tmp: Path,
+    sim_version: int,
+    eval_json: Path | None = None,
+    obs_dim: int = OBS_DIM,
 ) -> None:
     from spacefight.rl.spike_policy import load_policy
 
@@ -128,13 +142,13 @@ def _check_parity(
         checkpoint,
         policy_dir,
         wasm_sim_version=sim_version,
-        wasm_obs_dim=OBS_DIM,
+        wasm_obs_dim=obs_dim,
         eval_json=eval_json,
     )
     actor = load_policy(checkpoint)[0].eval()
     rng = np.random.default_rng(0)
     n = 64
-    obs = _observations(rng, n)
+    obs = _observations(rng, n, obs_dim)
     masks = _masks(rng, n)
     valid = masks.head_valid().numpy()
     with torch.no_grad():
@@ -164,6 +178,23 @@ def test_js_policy_matches_torch_on_random_weights(tmp_path: Path) -> None:
 def test_js_policy_matches_torch_on_lab_checkpoint(tmp_path: Path) -> None:
     # Spike checkpoints predate the sim_version stamp; their v2 eval supplies it.
     _check_parity(LAB_CHECKPOINT, tmp_path, sim_version=2, eval_json=LAB_EVAL)
+
+
+@pytest.mark.skipif(not WIDE_CHECKPOINT.is_file(), reason="v6 checkpoint not present")
+def test_js_policy_matches_torch_on_the_583_input_champion(tmp_path: Path) -> None:
+    _check_parity(
+        WIDE_CHECKPOINT, tmp_path, sim_version=6, eval_json=WIDE_EVAL, obs_dim=583
+    )
+
+
+def test_a_fleet_eval_summarises_like_a_duel_eval() -> None:
+    summary = summarize_eval(WIDE_EVAL)
+    assert (summary["sim_version"], summary["n"]) == (6, 1024)
+    assert summary["wins"] + summary["draws"] + summary["losses"] == summary["n"]
+    assert summary["win_rate"] == pytest.approx(
+        (summary["wins"] + 0.5 * summary["draws"]) / summary["n"]
+    )
+    assert 0.0 < summary["hit_rate"] < 1.0
 
 
 def test_export_refuses_an_unstamped_checkpoint_without_eval_json(

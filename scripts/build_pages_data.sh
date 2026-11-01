@@ -12,7 +12,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
 uv run python -m tools.build_notebook \
-    --runs lab/runs --champions lab/champions --out web/public/notebook/data
+    --runs lab/runs --champions "${RLF_CHAMPIONS_DIR:-lab/champions}" --out web/public/notebook/data
 uv run python -m tools.build_catalogue --assets assets --out web/public/hulls/data
 
 POLICY_MANIFEST=web/public/bundle/policy/manifest.json

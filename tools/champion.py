@@ -41,7 +41,9 @@ from typing import Any, Protocol
 from tools.export_policy import ExportError, summarize_eval
 
 SCHEMA = "rlf.champion/1"
-CHAMPIONS_DIR = Path("lab/champions")
+# RLF_CHAMPIONS_DIR points every registry reader at another copy, to rehearse a site
+# build with a champion that is not promoted yet.
+CHAMPIONS_DIR = Path(os.environ.get("RLF_CHAMPIONS_DIR", "lab/champions"))
 RUNS_DIR = Path("lab/runs")
 DEFAULT_CACHE = Path.home() / ".cache" / "rl-fighter" / "weights"
 
@@ -294,7 +296,7 @@ def promote(
 
     Raises:
         ChampionError: a bad id, an unknown run or parent, a missing file, an eval
-            that is not a duel eval, or an id that is already promoted.
+            that is not a duel or fleet eval, or an id that is already promoted.
     """
     if not _ID.match(champion_id):
         raise ChampionError(

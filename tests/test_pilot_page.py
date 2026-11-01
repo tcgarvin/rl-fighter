@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from spacefight.rl.spike_policy import load_policy, param_count
+from spacefight.rl.spike_policy import PILOT_OBS_DIMS, load_policy, param_count
 from tools.champion import DEFAULT_CACHE, find_champion
 from tools.pilot_facts import (
     DEFAULT_PAGE,
@@ -69,21 +69,28 @@ def test_every_number_on_the_page_matches_the_code(
 
 
 def test_the_actor_is_the_mlp_the_page_describes(facts: dict[str, str]) -> None:
+    width = PILOT_OBS_DIMS[find_champion("current").sim_version]
     assert facts["actor.activation"] == "tanh"
     assert (facts["actor.in"], facts["actor.hidden"], facts["actor.logits"]) == (
-        "385",
+        str(width),
         "256",
         "61",
     )
     assert (
         facts["actor.params"]
-        == f"{385 * 256 + 256 + 256 * 256 + 256 + 256 * 61 + 61:,}"
+        == f"{width * 256 + 256 + 256 * 256 + 256 + 256 * 61 + 61:,}"
     )
+
+
+def test_the_browser_arithmetic_carries_the_biggest_default_roster(
+    facts: dict[str, str],
+) -> None:
+    assert facts["live.max_pilots"] == "18"  # two carrier wings of 9
 
 
 def test_a_stale_number_is_reported(page: str, facts: dict[str, str]) -> None:
     stale = page.replace(
-        '<dd data-fact="actor.params">180,285</dd>',
+        '<dd data-fact="actor.params">230,973</dd>',
         '<dd data-fact="actor.params">180,000</dd>',
     )
     assert stale != page

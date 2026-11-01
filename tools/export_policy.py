@@ -127,10 +127,36 @@ def checkpoint_sim_version(
     )
 
 
+def _summarize_fleet_eval(path: Path, raw: dict[str, Any]) -> dict[str, Any]:
+    """The same headline numbers from a ``rlf.eval.fleet/1`` JSON, which records a
+    win rate (wins + half the draws) and a draw count rather than wins and losses."""
+    side_a = raw["side_a"]
+    match = raw["match"]
+    n = int(match["n"])
+    draws = int(side_a["draws"])
+    wins = int(round(float(side_a["win_rate"]) * n - 0.5 * draws))
+    return {
+        "file": str(path),
+        "a": raw["a"],
+        "b": raw["b"],
+        "n": n,
+        "sim_version": raw["config"].get("sim_version"),
+        "wins": wins,
+        "draws": draws,
+        "losses": n - wins - draws,
+        "win_rate": side_a["win_rate"],
+        "hit_rate": side_a["all_ships"].get("hit_rate"),
+        "length_median_ticks": match.get("length_median"),
+    }
+
+
 def summarize_eval(path: Path) -> dict[str, Any]:
-    """Pick the headline numbers out of a ``rlf.eval.duel/1`` or ``/2`` JSON."""
+    """Pick the headline numbers out of a ``rlf.eval.duel/1``, ``/2`` or
+    ``rlf.eval.fleet/1`` JSON (a pilot of a whole fleet has no duel eval of note)."""
     raw = json.loads(path.read_text())
     try:
+        if str(raw.get("schema", "")).startswith("rlf.eval.fleet/"):
+            return _summarize_fleet_eval(path, raw)
         side_a = raw["side_a"]
         config = raw["config"]
         return {
@@ -147,7 +173,9 @@ def summarize_eval(path: Path) -> dict[str, Any]:
             "length_median_ticks": raw.get("match", {}).get("length_median"),
         }
     except KeyError as exc:
-        raise ExportError(f"{path} is not a duel eval JSON: missing {exc}") from exc
+        raise ExportError(
+            f"{path} is not a duel or fleet eval JSON: missing {exc}"
+        ) from exc
 
 
 def match_config(meta: dict[str, object]) -> dict[str, Any]:
