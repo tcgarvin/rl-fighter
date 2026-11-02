@@ -1,0 +1,298 @@
+17:25:16 drills: script
+# Order drills: script
+
+**Gate: report_only.** Report only, not a pass: 8 of 8 bars are unset or have nothing to measure (goto_arrival, goto_lift, attack_target_hit, attack_side, attack_flip, defend_more_on_named, defend_side, defend_flip).
+
+Pilot `script`, seed 500000, sim version 6. Overall: 0.99 +/- 0.00 (1116/1124) (go-to arrivals (shown) and attack and defend swap-test flips).
+
+## Go-to (256 drills, ship by ship)
+
+- Arrival by the deadline, order shown: 1.00 +/- 0.00 (611/612; 48 killed first, not counted)
+- Hidden pass not run (the script flies orders it cannot see).
+- Near: 1.00 +/- 0.00 (347/348; 7 killed first, not counted)
+- Far: 1.00 +/- 0.00 (264/264; 41 killed first, not counted)
+- Enemies around the route: 1.00 +/- 0.00 (315/316; 30 killed first, not counted)
+
+## Attack (256 swap pairs)
+
+- Any damage on the named target: 0.98 +/- 0.01 (504/512)
+- Swap test, flipped, groups busy with a freighter: 0.99 +/- 0.01 (196/198)
+- Swap test, flipped, groups flying at the pilots: 0.91 +/- 0.04 (53/58)
+- Damage on the named target per pilot: 62.2 +/- 2.3 (n=512)
+- On other enemies per pilot (not judged): 44.4 +/- 1.8 (n=512)
+- Chose the named side: 0.99 +/- 0.01 (505/512)
+- Chose the other side: 0.01 +/- 0.00 (3/512)
+- Chose neither: 0.01 +/- 0.00 (4/512)
+- Swap test, flipped with the order: 0.97 +/- 0.01 (249/256)
+- Swap test, one side whatever was named: 0.01 +/- 0.01 (3/256)
+
+## Defend (256 swap pairs)
+
+- Named ward's attackers took more than the other's: 0.99 +/- 0.01 (505/512)
+- On the named ward's attackers per pilot: 89.1 +/- 2.4 (n=512)
+- On the other's per pilot: 2.1 +/- 0.4 (n=512)
+- Chose the named side: 1.00 +/- 0.00 (512/512)
+- Chose the other side: 0.00 +/- 0.00 (0/512)
+- Chose neither: 0.00 +/- 0.00 (0/512)
+- Swap test, flipped with the order: 1.00 +/- 0.00 (256/256)
+- Swap test, one side whatever was named: 0.00 +/- 0.00 (0/256)
+
+## Bars
+
+| Bar | Measured | Bar value |
+|---|---|---|
+| goto_arrival | 0.998 | unset |
+| goto_lift | n/a | unset |
+| attack_target_hit | 0.984 | unset |
+| attack_side | 0.986 | unset |
+| attack_flip | 0.973 | unset |
+| defend_more_on_named | 0.986 | unset |
+| defend_side | 1.000 | unset |
+| defend_flip | 1.000 | unset |
+17:25:25 drills: f995_701
+# Order drills: f995_701
+
+**Gate: report_only.** Report only, not a pass: 8 of 8 bars are unset or have nothing to measure (goto_arrival, goto_lift, attack_target_hit, attack_side, attack_flip, defend_more_on_named, defend_side, defend_flip).
+
+Pilot `policy:ppo_bc_701.pt`, seed 500000, sim version 6. Overall: 0.18 +/- 0.01 (192/1086) (go-to arrivals (shown) and attack and defend swap-test flips).
+
+## Go-to (256 drills, ship by ship)
+
+- Arrival by the deadline, order shown: 0.22 +/- 0.02 (128/574; 86 killed first, not counted)
+- Same seeds, order hidden: 0.15 +/- 0.02 (88/575; 85 killed first, not counted)
+- Lift from seeing the order: +0.07
+- Near: 0.26 +/- 0.02 (86/325; 30 killed first, not counted)
+- Far: 0.17 +/- 0.02 (42/249; 56 killed first, not counted)
+- Enemies around the route: 0.31 +/- 0.03 (93/304; 42 killed first, not counted)
+
+## Attack (256 swap pairs)
+
+- Any damage on the named target: 0.81 +/- 0.02 (414/512)
+- Swap test, flipped, groups busy with a freighter: 0.15 +/- 0.03 (30/198)
+- Swap test, flipped, groups flying at the pilots: 0.10 +/- 0.04 (6/58)
+- Damage on the named target per pilot: 55.6 +/- 3.0 (n=512)
+- On other enemies per pilot (not judged): 101.9 +/- 4.2 (n=512)
+- Chose the named side: 0.53 +/- 0.02 (270/512)
+- Chose the other side: 0.37 +/- 0.02 (187/512)
+- Chose neither: 0.11 +/- 0.01 (55/512)
+- Swap test, flipped with the order: 0.14 +/- 0.02 (36/256)
+- Swap test, one side whatever was named: 0.67 +/- 0.03 (171/256)
+
+## Defend (256 swap pairs)
+
+- Named ward's attackers took more than the other's: 0.57 +/- 0.02 (290/512)
+- On the named ward's attackers per pilot: 79.6 +/- 4.1 (n=512)
+- On the other's per pilot: 67.9 +/- 4.2 (n=512)
+- Chose the named side: 0.49 +/- 0.02 (253/512)
+- Chose the other side: 0.38 +/- 0.02 (195/512)
+- Chose neither: 0.12 +/- 0.01 (64/512)
+- Swap test, flipped with the order: 0.11 +/- 0.02 (28/256)
+- Swap test, one side whatever was named: 0.68 +/- 0.03 (174/256)
+
+## Bars
+
+| Bar | Measured | Bar value |
+|---|---|---|
+| goto_arrival | 0.223 | unset |
+| goto_lift | 0.070 | unset |
+| attack_target_hit | 0.809 | unset |
+| attack_side | 0.527 | unset |
+| attack_flip | 0.141 | unset |
+| defend_more_on_named | 0.566 | unset |
+| defend_side | 0.494 | unset |
+| defend_flip | 0.109 | unset |
+17:26:15 drills: transit_300
+# Order drills: transit_300
+
+**Gate: report_only.** Report only, not a pass: 8 of 8 bars are unset or have nothing to measure (goto_arrival, goto_lift, attack_target_hit, attack_side, attack_flip, defend_more_on_named, defend_side, defend_flip).
+
+Pilot `policy:ppo_bc_300.pt`, seed 500000, sim version 6. Overall: 0.81 +/- 0.01 (872/1074) (go-to arrivals (shown) and attack and defend swap-test flips).
+
+## Go-to (256 drills, ship by ship)
+
+- Arrival by the deadline, order shown: 0.70 +/- 0.02 (395/562; 98 killed first, not counted)
+- Same seeds, order hidden: 0.11 +/- 0.01 (63/565; 95 killed first, not counted)
+- Lift from seeing the order: +0.59
+- Near: 0.70 +/- 0.03 (234/333; 22 killed first, not counted)
+- Far: 0.70 +/- 0.03 (161/229; 76 killed first, not counted)
+- Enemies around the route: 0.74 +/- 0.03 (219/294; 52 killed first, not counted)
+
+## Attack (256 swap pairs)
+
+- Any damage on the named target: 0.98 +/- 0.01 (503/512)
+- Swap test, flipped, groups busy with a freighter: 0.98 +/- 0.01 (194/198)
+- Swap test, flipped, groups flying at the pilots: 0.48 +/- 0.07 (28/58)
+- Damage on the named target per pilot: 62.4 +/- 2.9 (n=512)
+- On other enemies per pilot (not judged): 32.4 +/- 2.2 (n=512)
+- Chose the named side: 0.92 +/- 0.01 (471/512)
+- Chose the other side: 0.04 +/- 0.01 (18/512)
+- Chose neither: 0.04 +/- 0.01 (23/512)
+- Swap test, flipped with the order: 0.87 +/- 0.02 (222/256)
+- Swap test, one side whatever was named: 0.06 +/- 0.01 (15/256)
+
+## Defend (256 swap pairs)
+
+- Named ward's attackers took more than the other's: 0.98 +/- 0.01 (501/512)
+- On the named ward's attackers per pilot: 67.3 +/- 3.4 (n=512)
+- On the other's per pilot: 1.9 +/- 0.4 (n=512)
+- Chose the named side: 1.00 +/- 0.00 (511/512)
+- Chose the other side: 0.00 +/- 0.00 (1/512)
+- Chose neither: 0.00 +/- 0.00 (0/512)
+- Swap test, flipped with the order: 1.00 +/- 0.00 (255/256)
+- Swap test, one side whatever was named: 0.00 +/- 0.00 (1/256)
+
+## Bars
+
+| Bar | Measured | Bar value |
+|---|---|---|
+| goto_arrival | 0.703 | unset |
+| goto_lift | 0.591 | unset |
+| attack_target_hit | 0.982 | unset |
+| attack_side | 0.920 | unset |
+| attack_flip | 0.867 | unset |
+| defend_more_on_named | 0.979 | unset |
+| defend_side | 0.998 | unset |
+| defend_flip | 0.996 | unset |
+17:27:08 drills: reward_300
+# Order drills: reward_300
+
+**Gate: report_only.** Report only, not a pass: 8 of 8 bars are unset or have nothing to measure (goto_arrival, goto_lift, attack_target_hit, attack_side, attack_flip, defend_more_on_named, defend_side, defend_flip).
+
+Pilot `policy:ppo_bc_300.pt`, seed 500000, sim version 6. Overall: 0.12 +/- 0.01 (124/1063) (go-to arrivals (shown) and attack and defend swap-test flips).
+
+## Go-to (256 drills, ship by ship)
+
+- Arrival by the deadline, order shown: 0.12 +/- 0.01 (66/551; 109 killed first, not counted)
+- Same seeds, order hidden: 0.11 +/- 0.01 (62/569; 91 killed first, not counted)
+- Lift from seeing the order: +0.01
+- Near: 0.20 +/- 0.02 (64/320; 35 killed first, not counted)
+- Far: 0.01 +/- 0.01 (2/231; 74 killed first, not counted)
+- Enemies around the route: 0.16 +/- 0.02 (49/298; 48 killed first, not counted)
+
+## Attack (256 swap pairs)
+
+- Any damage on the named target: 0.75 +/- 0.02 (385/512)
+- Swap test, flipped, groups busy with a freighter: 0.14 +/- 0.02 (28/198)
+- Swap test, flipped, groups flying at the pilots: 0.07 +/- 0.03 (4/58)
+- Damage on the named target per pilot: 48.7 +/- 3.1 (n=512)
+- On other enemies per pilot (not judged): 97.2 +/- 4.4 (n=512)
+- Chose the named side: 0.50 +/- 0.02 (258/512)
+- Chose the other side: 0.38 +/- 0.02 (195/512)
+- Chose neither: 0.12 +/- 0.01 (59/512)
+- Swap test, flipped with the order: 0.12 +/- 0.02 (32/256)
+- Swap test, one side whatever was named: 0.68 +/- 0.03 (174/256)
+
+## Defend (256 swap pairs)
+
+- Named ward's attackers took more than the other's: 0.54 +/- 0.02 (276/512)
+- On the named ward's attackers per pilot: 69.7 +/- 3.9 (n=512)
+- On the other's per pilot: 63.5 +/- 3.8 (n=512)
+- Chose the named side: 0.50 +/- 0.02 (257/512)
+- Chose the other side: 0.42 +/- 0.02 (214/512)
+- Chose neither: 0.08 +/- 0.01 (41/512)
+- Swap test, flipped with the order: 0.10 +/- 0.02 (26/256)
+- Swap test, one side whatever was named: 0.77 +/- 0.03 (198/256)
+
+## Bars
+
+| Bar | Measured | Bar value |
+|---|---|---|
+| goto_arrival | 0.120 | unset |
+| goto_lift | 0.011 | unset |
+| attack_target_hit | 0.752 | unset |
+| attack_side | 0.504 | unset |
+| attack_flip | 0.125 | unset |
+| defend_more_on_named | 0.539 | unset |
+| defend_side | 0.502 | unset |
+| defend_flip | 0.102 | unset |
+17:28:01 drills: hide_644
+# Order drills: hide_644
+
+**Gate: report_only.** Report only, not a pass: 8 of 8 bars are unset or have nothing to measure (goto_arrival, goto_lift, attack_target_hit, attack_side, attack_flip, defend_more_on_named, defend_side, defend_flip).
+
+Pilot `policy:ppo_bc_644.pt`, seed 500000, sim version 6. Overall: 0.15 +/- 0.01 (164/1062) (go-to arrivals (shown) and attack and defend swap-test flips).
+
+## Go-to (256 drills, ship by ship)
+
+- Arrival by the deadline, order shown: 0.13 +/- 0.01 (71/550; 110 killed first, not counted)
+- Same seeds, order hidden: 0.12 +/- 0.01 (68/568; 92 killed first, not counted)
+- Lift from seeing the order: +0.01
+- Near: 0.17 +/- 0.02 (54/315; 40 killed first, not counted)
+- Far: 0.07 +/- 0.02 (17/235; 70 killed first, not counted)
+- Enemies around the route: 0.17 +/- 0.02 (51/293; 53 killed first, not counted)
+
+## Attack (256 swap pairs)
+
+- Any damage on the named target: 0.81 +/- 0.02 (416/512)
+- Swap test, flipped, groups busy with a freighter: 0.21 +/- 0.03 (42/198)
+- Swap test, flipped, groups flying at the pilots: 0.07 +/- 0.03 (4/58)
+- Damage on the named target per pilot: 40.1 +/- 2.5 (n=512)
+- On other enemies per pilot (not judged): 53.9 +/- 2.8 (n=512)
+- Chose the named side: 0.53 +/- 0.02 (272/512)
+- Chose the other side: 0.35 +/- 0.02 (178/512)
+- Chose neither: 0.12 +/- 0.01 (62/512)
+- Swap test, flipped with the order: 0.18 +/- 0.02 (46/256)
+- Swap test, one side whatever was named: 0.59 +/- 0.03 (152/256)
+
+## Defend (256 swap pairs)
+
+- Named ward's attackers took more than the other's: 0.64 +/- 0.02 (328/512)
+- On the named ward's attackers per pilot: 51.4 +/- 2.9 (n=512)
+- On the other's per pilot: 23.8 +/- 2.0 (n=512)
+- Chose the named side: 0.55 +/- 0.02 (284/512)
+- Chose the other side: 0.34 +/- 0.02 (175/512)
+- Chose neither: 0.10 +/- 0.01 (53/512)
+- Swap test, flipped with the order: 0.18 +/- 0.02 (47/256)
+- Swap test, one side whatever was named: 0.63 +/- 0.03 (161/256)
+
+## Bars
+
+| Bar | Measured | Bar value |
+|---|---|---|
+| goto_arrival | 0.129 | unset |
+| goto_lift | 0.009 | unset |
+| attack_target_hit | 0.812 | unset |
+| attack_side | 0.531 | unset |
+| attack_flip | 0.180 | unset |
+| defend_more_on_named | 0.641 | unset |
+| defend_side | 0.555 | unset |
+| defend_flip | 0.184 | unset |
+17:28:54 round robin
+[1/36] f995_400 v f995_701: deathmatch=0.39 carrier_battle=0.45 convoy_escort=0.60 (103s)
+[2/36] f995_400 v f99_696: deathmatch=0.51 carrier_battle=0.57 convoy_escort=0.47 (114s)
+[3/36] f995_400 v hide_644: deathmatch=0.81 carrier_battle=0.79 convoy_escort=0.90 (115s)
+[4/36] f995_400 v reward_300: deathmatch=0.83 carrier_battle=0.76 convoy_escort=0.94 (115s)
+[5/36] f995_400 v script: deathmatch=0.97 carrier_battle=1.00 convoy_escort=1.00 (73s)
+[6/36] f995_400 v transit_300: deathmatch=0.87 carrier_battle=0.80 convoy_escort=0.95 (117s)
+[7/36] f995_400 v v1: deathmatch=0.91 carrier_battle=0.89 convoy_escort=0.98 (121s)
+[8/36] f995_400 v w1_400: deathmatch=0.86 carrier_battle=0.84 convoy_escort=0.95 (116s)
+[9/36] f995_701 v f99_696: deathmatch=0.64 carrier_battle=0.49 convoy_escort=0.43 (100s)
+[10/36] f995_701 v hide_644: deathmatch=0.89 carrier_battle=0.73 convoy_escort=0.82 (115s)
+[11/36] f995_701 v reward_300: deathmatch=0.87 carrier_battle=0.73 convoy_escort=0.90 (113s)
+[12/36] f995_701 v script: deathmatch=0.97 carrier_battle=0.99 convoy_escort=1.00 (75s)
+[13/36] f995_701 v transit_300: deathmatch=0.93 carrier_battle=0.87 convoy_escort=0.93 (111s)
+[14/36] f995_701 v v1: deathmatch=0.93 carrier_battle=0.91 convoy_escort=0.97 (112s)
+[15/36] f995_701 v w1_400: deathmatch=0.94 carrier_battle=0.85 convoy_escort=0.95 (112s)
+[16/36] f99_696 v hide_644: deathmatch=0.78 carrier_battle=0.66 convoy_escort=0.90 (122s)
+[17/36] f99_696 v reward_300: deathmatch=0.77 carrier_battle=0.73 convoy_escort=0.95 (116s)
+[18/36] f99_696 v script: deathmatch=0.89 carrier_battle=0.99 convoy_escort=1.00 (75s)
+[19/36] f99_696 v transit_300: deathmatch=0.83 carrier_battle=0.78 convoy_escort=0.95 (116s)
+[20/36] f99_696 v v1: deathmatch=0.84 carrier_battle=0.85 convoy_escort=0.97 (119s)
+[21/36] f99_696 v w1_400: deathmatch=0.81 carrier_battle=0.83 convoy_escort=0.96 (123s)
+[22/36] hide_644 v reward_300: deathmatch=0.56 carrier_battle=0.63 convoy_escort=0.55 (136s)
+[23/36] hide_644 v script: deathmatch=0.96 carrier_battle=1.00 convoy_escort=0.74 (98s)
+[24/36] hide_644 v transit_300: deathmatch=0.54 carrier_battle=0.61 convoy_escort=0.60 (143s)
+[25/36] hide_644 v v1: deathmatch=0.62 carrier_battle=0.81 convoy_escort=0.70 (142s)
+[26/36] hide_644 v w1_400: deathmatch=0.62 carrier_battle=0.63 convoy_escort=0.65 (138s)
+[27/36] reward_300 v script: deathmatch=0.94 carrier_battle=0.99 convoy_escort=0.73 (94s)
+[28/36] reward_300 v transit_300: deathmatch=0.56 carrier_battle=0.52 convoy_escort=0.48 (136s)
+[29/36] reward_300 v v1: deathmatch=0.56 carrier_battle=0.75 convoy_escort=0.65 (135s)
+[30/36] reward_300 v w1_400: deathmatch=0.56 carrier_battle=0.64 convoy_escort=0.55 (140s)
+[31/36] script v transit_300: deathmatch=0.07 carrier_battle=0.03 convoy_escort=0.33 (93s)
+[32/36] script v v1: deathmatch=0.05 carrier_battle=0.03 convoy_escort=0.47 (98s)
+[33/36] script v w1_400: deathmatch=0.07 carrier_battle=0.03 convoy_escort=0.41 (92s)
+[34/36] transit_300 v v1: deathmatch=0.56 carrier_battle=0.65 convoy_escort=0.60 (138s)
+[35/36] transit_300 v w1_400: deathmatch=0.50 carrier_battle=0.51 convoy_escort=0.55 (141s)
+[36/36] v1 v w1_400: deathmatch=0.41 carrier_battle=0.31 convoy_escort=0.37 (138s)
+wrote lab/population/2026-11-sim6/report.md
+18:38:02 done: measure

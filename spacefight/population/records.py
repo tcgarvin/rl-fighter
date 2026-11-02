@@ -566,6 +566,48 @@ def new_founder(
     )
 
 
+def new_child(
+    parent: Member,
+    member_id: str,
+    checkpoint: str,
+    sha256: str,
+    fork_update: int,
+    settings_changed: Mapping[str, Any] | None = None,
+    note: str = "",
+) -> Member:
+    """An active member forked from ``parent``, in its family and under its founder."""
+    return Member(
+        id=member_id,
+        family=parent.family,
+        founder=parent.founder,
+        parent=parent.id,
+        relation=FORK,
+        fork_update=fork_update,
+        settings_changed=dict(settings_changed or {}),
+        checkpoint=checkpoint,
+        sha256=sha256,
+        status=ACTIVE,
+        note=note,
+    )
+
+
+def archive_member(season_dir: Path, member_id: str, reason: str, date: str) -> Member:
+    """Archive a member with its reason. Its record and place in the tree stay.
+
+    Raises:
+        PopulationError: Unknown member, already archived, or no reason or date.
+    """
+    member = load_population(season_dir).member(member_id)
+    if member.status == ARCHIVED:
+        raise PopulationError(f"member {member_id!r} is already archived")
+    archived = replace(
+        member, status=ARCHIVED, archived_reason=reason, archived_date=date
+    )
+    validate_member(archived)
+    write_member(season_dir, archived)
+    return archived
+
+
 def sha256_of(path: Path) -> str:
     """Content hash of a file.
 

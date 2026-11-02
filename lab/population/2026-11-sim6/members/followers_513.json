@@ -1,0 +1,52 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "followers_513",
+ "family": "followers",
+ "founder": "transit_300",
+ "parent": "transit_300",
+ "relation": "fork",
+ "fork_update": 300,
+ "settings_changed": {
+  "rosters": "pilots_v1",
+  "gamma": 0.995,
+  "lr_decay": false,
+  "beta_start": 0.0,
+  "beta_end": 0.0,
+  "order_reward_weight": 1.0,
+  "drill_share": 0.25,
+  "commander_p": 0.667,
+  "enemy_sampling": "pfsp"
+ },
+ "checkpoint": "lab/runs/2026-11-01-pilot-families/followers/checkpoints/ppo_bc_513.pt",
+ "sha256": "927923563cb12755b0bccb3910b51ca6de3c2636bb5af06eba678580523251ee",
+ "status": "active",
+ "archived_reason": "",
+ "archived_date": "",
+ "note": "First night of pilot families: script pull off, drills 0.25, commander 0.50.",
+ "ratings": [
+  {
+   "phase": "first-night",
+   "date": "2026-11-02",
+   "rating": 144.07743467411098,
+   "sd": 4.512607892379053,
+   "matches": 7920
+  }
+ ],
+ "drills": [
+  {
+   "phase": "first-night",
+   "date": "2026-11-02",
+   "scores": {
+    "goto_arrival": 0.6234234234234234,
+    "goto_lift": 0.44541295221923494,
+    "attack_target_hit": 0.98828125,
+    "attack_side": 0.9296875,
+    "attack_flip": 0.87890625,
+    "defend_more_on_named": 0.947265625,
+    "defend_side": 0.9296875,
+    "defend_flip": 0.86328125
+   },
+   "passed": true
+  }
+ ]
+}

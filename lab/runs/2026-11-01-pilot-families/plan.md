@@ -33,6 +33,41 @@ the machine is free.**
   about 0.03 of `fighters`' rows and 0.25 is about 0.06 of `followers`'. Read
   `drill_rows_share` in `log.jsonl` before raising it.
 
+## What the first night found (2026-11-02)
+
+Trained 18:51 to 21:34 and 01:40 to 06:00, about 7 hours after the owner needed the machine
+for 4: `fighters` 506 updates, `followers` 513, `scratch` 417.
+
+| Pilot | Combat | Go-to arrival | Attack flip | Defend flip | Gate |
+|---|---|---|---|---|---|
+| `f995_701` (parent) | +277 | 0.22 | 0.14 | 0.11 | Failed (exempt) |
+| `fighters_506` | **+314** | 0.21 | 0.32 | 0.36 | Failed |
+| `transit_300` (parent) | -71 | 0.70 | 0.87 | 1.00 | Passed (exempt) |
+| `followers_513` | **+144** | 0.62 | 0.88 | 0.86 | **Passed** |
+| Script | -357 | 1.00 | 0.97 | 1.00 | Report only |
+| `scratch_417` | -543 | 0.06 | 0.08 | 0.09 | Failed |
+
+- **Does `fighters` learn orders?** Partly. Attack and defend flips rose, go-to did not move
+  (lift 0.07 before and after).
+- **Does `fighters` keep combat?** It gained. It beats `f995_701` 0.62 in deathmatch, 0.62 in
+  carrier and 0.53 in convoy.
+- **Does `followers` gain combat?** Yes, +215 points. It beats `transit_300` 0.82, 0.70, 0.86.
+- **Does `followers` keep following?** Mostly. Go-to fell from 0.70 to 0.62, 0.02 above its
+  bar, and defend flip from 1.00 to 0.86. Attack flip held.
+- **Is `scratch` alive?** Barely. 0.00 in deathmatch against the script. Under this plan's
+  rule its slot goes to another family.
+- **Variety:** still no cycles in any mode. Sibling lines are not yet rock-paper-scissors.
+
+`f995_701` stays live: `fighters_506` beats it but fails the gate, and `followers_513` passes
+the gate but loses to it. The gate archived `fighters_506` and `scratch_417`, and the
+`fighters` line continues from `fighters_506`'s checkpoint regardless.
+
+**Next night, unless the owner says otherwise:** `fighters` from update 506 with
+`drill_share` 0.25, the plan's fallback, since go-to did not move; `followers` from update
+513 unchanged; `scratch`'s slot goes to a second `fighters` line at order pay 1, which tests
+whether pay 3 was what moved following. Add `fighters_506` and `followers_513` to the enemy
+pool.
+
 ## Arms
 
 All arms: preset `pilots_v1`, discount 0.995 with order pay following it, no script pull,

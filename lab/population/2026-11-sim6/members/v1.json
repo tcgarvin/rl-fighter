@@ -13,6 +13,14 @@
  "archived_reason": "Pre-population pilot, kept for ancestry and the round robin.",
  "archived_date": "2026-11-01",
  "note": "Fleet pilot v1, champion 2026-10-30-fleet-pilot-v1. 385 inputs.",
- "ratings": [],
+ "ratings": [
+  {
+   "phase": "first-night",
+   "date": "2026-11-02",
+   "rating": -156.14421304316747,
+   "sd": 4.776251792976701,
+   "matches": 7920
+  }
+ ],
  "drills": []
 }

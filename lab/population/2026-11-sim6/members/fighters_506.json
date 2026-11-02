@@ -1,0 +1,52 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "fighters_506",
+ "family": "fighters",
+ "founder": "f995_701",
+ "parent": "f995_701",
+ "relation": "fork",
+ "fork_update": 701,
+ "settings_changed": {
+  "rosters": "pilots_v1",
+  "gamma": 0.995,
+  "lr_decay": false,
+  "beta_start": 0.0,
+  "beta_end": 0.0,
+  "order_reward_weight": 3.0,
+  "drill_share": 0.1,
+  "commander_p": 0.333,
+  "enemy_sampling": "pfsp"
+ },
+ "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters/checkpoints/ppo_bc_506.pt",
+ "sha256": "22d0bd45393e9551518443345591e901dfba9ddbf8efcd35353795478fdd11fa",
+ "status": "archived",
+ "archived_reason": "Failed the drill gate on all 8 bars, 2026-11-02. Kept for the round robin and its family line.",
+ "archived_date": "2026-11-02",
+ "note": "First night of pilot families: order pay 3, drills 0.10, commander 0.30.",
+ "ratings": [
+  {
+   "phase": "first-night",
+   "date": "2026-11-02",
+   "rating": 313.97415017171784,
+   "sd": 5.172111348336342,
+   "matches": 7920
+  }
+ ],
+ "drills": [
+  {
+   "phase": "first-night",
+   "date": "2026-11-02",
+   "scores": {
+    "goto_arrival": 0.20939334637964774,
+    "goto_lift": 0.07060331079245913,
+    "attack_target_hit": 0.86328125,
+    "attack_side": 0.626953125,
+    "attack_flip": 0.32421875,
+    "defend_more_on_named": 0.625,
+    "defend_side": 0.65625,
+    "defend_flip": 0.359375
+   },
+   "passed": false
+  }
+ ]
+}

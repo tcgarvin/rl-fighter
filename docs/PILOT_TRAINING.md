@@ -379,9 +379,9 @@ the owner says the machine is free.
 | 7 | Run the round robin across existing pilots | Yes |
 | 8 | First night: one member of each of Fighters, Followers and Scratch | Yes |
 
-Items 1 to 6 are done, and `scripts/check.sh` and the full pytest suite pass on the merged
-code. Steps 7 and 8 are scripted in `lab/runs/2026-11-01-pilot-families/` (`plan.md`,
-`measure.sh`, `run.sh`), and all three arms of `run.sh` pass a 3-update smoke. Weighted sampling runs on live results but logs no win
+All 8 items are done. The first night's results and the next night's plan are in
+`lab/runs/2026-11-01-pilot-families/plan.md`, and the population's state is in
+`lab/population/2026-11-sim6/report.md`. Weighted sampling runs on live results but logs no win
 rates yet, and `pool_seed` is still filled by hand.
 
 The tools are in `spacefight/population/`, with records in

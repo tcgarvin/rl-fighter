@@ -13,6 +13,29 @@
  "archived_reason": "",
  "archived_date": "",
  "note": "The sim's scripted pilot. Yardstick, and it follows. Cannot have children.",
- "ratings": [],
- "drills": []
+ "ratings": [
+  {
+   "phase": "first-night",
+   "date": "2026-11-02",
+   "rating": -356.9377084720249,
+   "sd": 6.029616125500803,
+   "matches": 7920
+  }
+ ],
+ "drills": [
+  {
+   "phase": "existing-pilots",
+   "date": "2026-11-01",
+   "scores": {
+    "goto_arrival": 0.9983660130718954,
+    "attack_target_hit": 0.984375,
+    "attack_side": 0.986328125,
+    "attack_flip": 0.97265625,
+    "defend_more_on_named": 0.986328125,
+    "defend_side": 1.0,
+    "defend_flip": 1.0
+   },
+   "passed": false
+  }
+ ]
 }

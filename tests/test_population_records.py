@@ -272,7 +272,8 @@ def test_history_appends_per_phase_and_refuses_a_repeat(season: Path) -> None:
 
 def test_the_committed_season_holds_the_plans_founders_and_true_ancestry() -> None:
     population = load_population(SEASON_ON_DISK)
-    assert {m.id for m in population.active()} == {
+    # The season grows every phase, so this names only who must always be there.
+    assert {m.id for m in population.active()} >= {
         SCRIPT_ID,
         "f995_701",
         "transit_300",
@@ -292,7 +293,7 @@ def test_the_committed_season_holds_the_plans_founders_and_true_ancestry() -> No
     assert population.lineage("transit_300")[:3] == ["transit_300", "w1_400", "v1"]
     assert population.tree_distance("f995_701", "transit_300") == 4
     for member in population.members.values():
-        if member.id != SCRIPT_ID:
+        if member.id != SCRIPT_ID and member.family != "scratch":
             assert SCRIPT_ID in population.lineage(member.id)
 
 
@@ -347,3 +348,72 @@ def test_cli_reports_a_refused_founder_instead_of_tracing(
     )
     assert code == 2
     assert "cannot have children" in capsys.readouterr().err
+
+
+def test_cli_adds_a_child_under_its_parents_founder_and_archives_it(
+    season: Path, tmp_path: Path
+) -> None:
+    checkpoint = tmp_path / "x.pt"
+    checkpoint.write_bytes(b"weights")
+    common = ["--season", str(season)]
+    code = main(
+        [
+            "add-child",
+            *common,
+            "--id",
+            "grandchild",
+            "--parent",
+            "child_a",
+            "--fork-update",
+            "50",
+            "--checkpoint",
+            "x.pt",
+            "--checkpoint-root",
+            str(tmp_path),
+        ]
+    )
+    assert code == 0
+    member = load_population(season).member("grandchild")
+    assert (member.family, member.founder) == ("fighters", "founder_a")
+    assert (member.parent, member.fork_update) == ("child_a", 50)
+    assert member.is_active
+
+    archive = ["archive", *common, "--id", "grandchild", "--reason", "gate"]
+    assert main([*archive, "--date", "2026-11-02"]) == 0
+    member = load_population(season).member("grandchild")
+    assert (member.status, member.archived_reason) == ("archived", "gate")
+    assert main([*archive, "--date", "2026-11-03"]) == 2, "already archived"
+
+
+def test_cli_records_drills_judged_by_the_bars_it_is_given(
+    season: Path, tmp_path: Path
+) -> None:
+    rate = {"rate": 0.8}
+    kinds = {
+        "goto": {"shown": rate, "lift": 0.8},
+        "attack": {"target_hit": rate, "chose_named": rate, "flip": rate},
+        "defend": {"more_on_named": rate, "chose_named": rate, "flip": rate},
+    }
+    drills = tmp_path / "drills.json"
+    drills.write_text(json.dumps({"kinds": kinds}))
+    bars = tmp_path / "bars.yaml"
+    names = (
+        "goto_arrival",
+        "goto_lift",
+        "attack_target_hit",
+        "attack_side",
+        "attack_flip",
+        "defend_more_on_named",
+        "defend_side",
+    )
+    bars.write_text("".join(f"{n}: 0.5\n" for n in names) + "defend_flip: 0.5\n")
+    base = ["record-drills", "--season", str(season), "--drills", str(drills)]
+    base += ["--bars", str(bars), "--date", "2026-11-02"]
+    assert main([*base, "--id", "child_a", "--phase", "p1"]) == 0
+    entry = load_population(season).member("child_a").drills[-1]
+    assert entry.passed
+    assert entry.scores["defend_flip"] == pytest.approx(0.8)
+
+    bars.write_text("defend_flip: 0.9\n")
+    assert main([*base, "--id", "child_a", "--phase", "p2"]) == 0
+    assert not load_population(season).member("child_a").drills[-1].passed

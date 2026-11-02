@@ -31,6 +31,14 @@
  "archived_reason": "Pre-population pilot, kept for ancestry and the round robin.",
  "archived_date": "2026-11-01",
  "note": "Fighters v2, arm f995 at update 400: order pay off, discount 0.995.",
- "ratings": [],
+ "ratings": [
+  {
+   "phase": "first-night",
+   "date": "2026-11-02",
+   "rating": 263.872936093733,
+   "sd": 4.901209802960308,
+   "matches": 7920
+  }
+ ],
  "drills": []
 }

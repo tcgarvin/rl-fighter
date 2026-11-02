@@ -3,6 +3,13 @@
     python -m spacefight.population list --season lab/population/2026-11-sim6
     python -m spacefight.population add-founder --season lab/population/2026-11-sim6 \
         --id scratch_a --family scratch --checkpoint lab/runs/<run>/checkpoints/x.pt
+    python -m spacefight.population add-child --season lab/population/2026-11-sim6 \
+        --id followers_513 --parent transit_300 --fork-update 300 \
+        --checkpoint lab/runs/<run>/checkpoints/x.pt
+    python -m spacefight.population record-drills --season lab/population/2026-11-sim6 \
+        --id followers_513 --drills drills.json --phase first-night --date 2026-11-02
+    python -m spacefight.population archive --season lab/population/2026-11-sim6 \
+        --id x --reason "Failed the drill gate" --date 2026-11-02
     python -m spacefight.population round-robin --season lab/population/2026-11-sim6 \
         --out lab/population/2026-11-sim6/round_robin/first --members all
     python -m spacefight.population report --season lab/population/2026-11-sim6 \
@@ -29,10 +36,14 @@ from spacefight.population.records import (
     NO_RELATION,
     Population,
     PopulationError,
+    DrillEntry,
     RatingEntry,
     add_member,
+    archive_member,
     load_population,
+    new_child,
     new_founder,
+    record_drills,
     record_ratings,
     sha256_of,
 )
@@ -69,6 +80,45 @@ def _cmd_add_founder(args: argparse.Namespace) -> int:
     )
     add_member(args.season, member)
     print(f"added {member.id} ({member.family}) to {args.season}")
+    return 0
+
+
+def _cmd_add_child(args: argparse.Namespace) -> int:
+    checkpoint_path = args.checkpoint_root / args.checkpoint
+    settings = json.loads(args.settings)
+    if not isinstance(settings, dict):
+        raise PopulationError(f"--settings must be a JSON object, got {args.settings}")
+    parent = load_population(args.season).member(args.parent)
+    member = new_child(
+        parent,
+        args.id,
+        args.checkpoint,
+        sha256_of(checkpoint_path),
+        args.fork_update,
+        settings,
+        args.note,
+    )
+    add_member(args.season, member)
+    print(f"added {member.id} ({member.family}, under {member.founder})")
+    return 0
+
+
+def _cmd_archive(args: argparse.Namespace) -> int:
+    archive_member(args.season, args.id, args.reason, args.date)
+    print(f"archived {args.id}: {args.reason}")
+    return 0
+
+
+def _cmd_record_drills(args: argparse.Namespace) -> int:
+    # Loaded here so the other commands don't need the sim or torch.
+    from spacefight.eval.drills import PASS, apply_gate, load_bars
+
+    data = json.loads(args.drills.read_text())
+    gate = apply_gate(data["kinds"], load_bars(args.bars), args.id)
+    scores = {k: float(v) for k, v in gate.measured.items() if v is not None}
+    entry = DrillEntry(args.phase, args.date, scores, gate.verdict == PASS)
+    record_drills(args.season, {args.id: entry})
+    print(f"{args.id}: {gate.statement}")
     return 0
 
 
@@ -170,6 +220,35 @@ def _parser() -> argparse.ArgumentParser:
         "--settings", default="{}", help="JSON of settings changed from the parent"
     )
     founder.add_argument("--note", default="")
+
+    child = command("add-child", _cmd_add_child, "add a pilot forked from a member")
+    child.add_argument("--id", required=True)
+    child.add_argument("--parent", required=True)
+    child.add_argument("--fork-update", type=int, required=True)
+    child.add_argument(
+        "--checkpoint", required=True, help="path relative to --checkpoint-root"
+    )
+    child.add_argument("--checkpoint-root", type=Path, default=DEFAULT_ROOT)
+    child.add_argument(
+        "--settings", default="{}", help="JSON of settings changed from the parent"
+    )
+    child.add_argument("--note", default="")
+
+    archive = command("archive", _cmd_archive, "archive a member with its reason")
+    archive.add_argument("--id", required=True)
+    archive.add_argument("--reason", required=True)
+    archive.add_argument("--date", required=True)
+
+    drills = command(
+        "record-drills", _cmd_record_drills, "add a drill eval to a member's history"
+    )
+    drills.add_argument("--id", required=True)
+    drills.add_argument("--drills", type=Path, required=True, help="rlf.eval.drills/1")
+    drills.add_argument("--phase", required=True)
+    drills.add_argument("--date", required=True)
+    drills.add_argument(
+        "--bars", type=Path, default=Path("spacefight/eval/drill_bars.yaml")
+    )
 
     robin = command("round-robin", _cmd_round_robin, "play all pairs, resumable")
     robin.add_argument("--out", type=Path, required=True, help="results directory")

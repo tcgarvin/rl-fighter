@@ -19,6 +19,30 @@
  "archived_reason": "Pre-population pilot, kept for ancestry and the round robin.",
  "archived_date": "2026-11-01",
  "note": "B3 arm reward, champion 2026-11-01-reward-300. 583 inputs.",
- "ratings": [],
- "drills": []
+ "ratings": [
+  {
+   "phase": "first-night",
+   "date": "2026-11-02",
+   "rating": -38.18002031298629,
+   "sd": 4.4703674994316565,
+   "matches": 7920
+  }
+ ],
+ "drills": [
+  {
+   "phase": "existing-pilots",
+   "date": "2026-11-01",
+   "scores": {
+    "goto_arrival": 0.11978221415607986,
+    "goto_lift": 0.010819121010209903,
+    "attack_target_hit": 0.751953125,
+    "attack_side": 0.50390625,
+    "attack_flip": 0.125,
+    "defend_more_on_named": 0.5390625,
+    "defend_side": 0.501953125,
+    "defend_flip": 0.1015625
+   },
+   "passed": false
+  }
+ ]
 }

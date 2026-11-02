@@ -125,6 +125,12 @@ cargo test -p sim --test drills
 uv run python -m spacefight.population list --season lab/population/2026-11-sim6
 uv run python -m spacefight.population add-founder --season lab/population/2026-11-sim6 \
     --id <id> --family <family> --checkpoint <path.pt> [--parent <id> --fork-update <N>]
+uv run python -m spacefight.population add-child --season lab/population/2026-11-sim6 \
+    --id <id> --parent <id> --fork-update <N> --checkpoint <path.pt>
+uv run python -m spacefight.population record-drills --season lab/population/2026-11-sim6 \
+    --id <id> --drills drills.json --phase <phase> --date YYYY-MM-DD
+uv run python -m spacefight.population archive --season lab/population/2026-11-sim6 \
+    --id <id> --reason "..." --date YYYY-MM-DD
 uv run python -m spacefight.population round-robin --season lab/population/2026-11-sim6 \
     --out lab/population/2026-11-sim6/round_robin/existing-pilots \
     --members script,f995_701,f995_400,f99_696,reward_300,transit_300,hide_644,v1,w1_400 \

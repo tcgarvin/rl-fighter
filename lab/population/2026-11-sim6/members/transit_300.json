@@ -20,6 +20,30 @@
  "archived_reason": "",
  "archived_date": "",
  "note": "Founder of Followers. Best neural follower, weak fighter. Exempt from drills.",
- "ratings": [],
- "drills": []
+ "ratings": [
+  {
+   "phase": "first-night",
+   "date": "2026-11-02",
+   "rating": -70.69950613072085,
+   "sd": 4.527370466640577,
+   "matches": 7920
+  }
+ ],
+ "drills": [
+  {
+   "phase": "existing-pilots",
+   "date": "2026-11-01",
+   "scores": {
+    "goto_arrival": 0.702846975088968,
+    "goto_lift": 0.5913425503102069,
+    "attack_target_hit": 0.982421875,
+    "attack_side": 0.919921875,
+    "attack_flip": 0.8671875,
+    "defend_more_on_named": 0.978515625,
+    "defend_side": 0.998046875,
+    "defend_flip": 0.99609375
+   },
+   "passed": true
+  }
+ ]
 }

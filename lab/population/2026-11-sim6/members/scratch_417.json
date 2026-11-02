@@ -1,0 +1,52 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "scratch_417",
+ "family": "scratch",
+ "founder": "scratch_417",
+ "parent": "",
+ "relation": "",
+ "fork_update": -1,
+ "settings_changed": {
+  "rosters": "pilots_v1",
+  "gamma": 0.995,
+  "lr_decay": false,
+  "beta_start": 0.0,
+  "beta_end": 0.0,
+  "order_reward_weight": 1.0,
+  "actor_lr": 0.0003,
+  "drill_share": 0.1,
+  "commander_p": 0.333
+ },
+ "checkpoint": "lab/runs/2026-11-01-pilot-families/scratch/checkpoints/ppo_scratch_417.pt",
+ "sha256": "43f728a410258c071c336e14db8d0f7a73a4a30d8f0c7b65f0a67bb533aff7c7",
+ "status": "archived",
+ "archived_reason": "Failed the drill gate on all 8 bars, 2026-11-02. Kept for the round robin and its family line.",
+ "archived_date": "2026-11-02",
+ "note": "First night of pilot families: from random weights, script and self only.",
+ "ratings": [
+  {
+   "phase": "first-night",
+   "date": "2026-11-02",
+   "rating": -543.1606389163624,
+   "sd": 8.301883435885935,
+   "matches": 7920
+  }
+ ],
+ "drills": [
+  {
+   "phase": "first-night",
+   "date": "2026-11-02",
+   "scores": {
+    "goto_arrival": 0.05653710247349823,
+    "goto_lift": 0.00784145029958519,
+    "attack_target_hit": 0.484375,
+    "attack_side": 0.37890625,
+    "attack_flip": 0.08203125,
+    "defend_more_on_named": 0.32421875,
+    "defend_side": 0.400390625,
+    "defend_flip": 0.08984375
+   },
+   "passed": false
+  }
+ ]
+}

@@ -36,6 +36,14 @@
  "archived_reason": "Pre-population pilot, kept for ancestry and the round robin.",
  "archived_date": "2026-11-01",
  "note": "Order pilot, arm w1. 403 inputs.",
- "ratings": [],
+ "ratings": [
+  {
+   "phase": "first-night",
+   "date": "2026-11-02",
+   "rating": -88.33300212775391,
+   "sd": 4.566732373911283,
+   "matches": 7920
+  }
+ ],
  "drills": []
 }

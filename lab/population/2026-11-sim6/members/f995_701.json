@@ -13,6 +13,30 @@
  "archived_reason": "",
  "archived_date": "",
  "note": "Founder of Fighters. Best fighter, follows nothing. Exempt from drills.",
- "ratings": [],
- "drills": []
+ "ratings": [
+  {
+   "phase": "first-night",
+   "date": "2026-11-02",
+   "rating": 277.1984377838381,
+   "sd": 4.966064768057669,
+   "matches": 7920
+  }
+ ],
+ "drills": [
+  {
+   "phase": "existing-pilots",
+   "date": "2026-11-01",
+   "scores": {
+    "goto_arrival": 0.2229965156794425,
+    "goto_lift": 0.06995303741857295,
+    "attack_target_hit": 0.80859375,
+    "attack_side": 0.52734375,
+    "attack_flip": 0.140625,
+    "defend_more_on_named": 0.56640625,
+    "defend_side": 0.494140625,
+    "defend_flip": 0.109375
+   },
+   "passed": false
+  }
+ ]
 }

@@ -29,6 +29,30 @@
  "archived_reason": "Pre-population pilot, kept for ancestry and the round robin.",
  "archived_date": "2026-11-01",
  "note": "Fighters v2, arm hide: a shot under an order earns only order pay.",
- "ratings": [],
- "drills": []
+ "ratings": [
+  {
+   "phase": "first-night",
+   "date": "2026-11-02",
+   "rating": 8.117936006358171,
+   "sd": 4.423171510817219,
+   "matches": 7920
+  }
+ ],
+ "drills": [
+  {
+   "phase": "existing-pilots",
+   "date": "2026-11-01",
+   "scores": {
+    "goto_arrival": 0.1290909090909091,
+    "goto_lift": 0.009372599231754167,
+    "attack_target_hit": 0.8125,
+    "attack_side": 0.53125,
+    "attack_flip": 0.1796875,
+    "defend_more_on_named": 0.640625,
+    "defend_side": 0.5546875,
+    "defend_flip": 0.18359375
+   },
+   "passed": false
+  }
+ ]
 }

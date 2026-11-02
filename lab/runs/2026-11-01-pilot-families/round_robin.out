@@ -1,0 +1,66 @@
+[1/66] f995_400 v f995_701: done
+[2/66] f995_400 v f99_696: done
+[3/66] f995_400 v fighters_506: deathmatch=0.27 carrier_battle=0.34 convoy_escort=0.57 (127s)
+[4/66] f995_400 v followers_513: deathmatch=0.72 carrier_battle=0.52 convoy_escort=0.75 (123s)
+[5/66] f995_400 v hide_644: done
+[6/66] f995_400 v reward_300: done
+[7/66] f995_400 v scratch_417: deathmatch=1.00 carrier_battle=1.00 convoy_escort=1.00 (125s)
+[8/66] f995_400 v script: done
+[9/66] f995_400 v transit_300: done
+[10/66] f995_400 v v1: done
+[11/66] f995_400 v w1_400: done
+[12/66] f995_701 v f99_696: done
+[13/66] f995_701 v fighters_506: deathmatch=0.38 carrier_battle=0.38 convoy_escort=0.47 (109s)
+[14/66] f995_701 v followers_513: deathmatch=0.80 carrier_battle=0.67 convoy_escort=0.65 (120s)
+[15/66] f995_701 v hide_644: done
+[16/66] f995_701 v reward_300: done
+[17/66] f995_701 v scratch_417: deathmatch=1.00 carrier_battle=1.00 convoy_escort=1.00 (132s)
+[18/66] f995_701 v script: done
+[19/66] f995_701 v transit_300: done
+[20/66] f995_701 v v1: done
+[21/66] f995_701 v w1_400: done
+[22/66] f99_696 v fighters_506: deathmatch=0.35 carrier_battle=0.36 convoy_escort=0.54 (113s)
+[23/66] f99_696 v followers_513: deathmatch=0.59 carrier_battle=0.59 convoy_escort=0.85 (126s)
+[24/66] f99_696 v hide_644: done
+[25/66] f99_696 v reward_300: done
+[26/66] f99_696 v scratch_417: deathmatch=1.00 carrier_battle=1.00 convoy_escort=1.00 (131s)
+[27/66] f99_696 v script: done
+[28/66] f99_696 v transit_300: done
+[29/66] f99_696 v v1: done
+[30/66] f99_696 v w1_400: done
+[31/66] fighters_506 v followers_513: deathmatch=0.83 carrier_battle=0.68 convoy_escort=0.68 (115s)
+[32/66] fighters_506 v hide_644: deathmatch=0.91 carrier_battle=0.76 convoy_escort=0.85 (127s)
+[33/66] fighters_506 v reward_300: deathmatch=0.89 carrier_battle=0.86 convoy_escort=0.85 (125s)
+[34/66] fighters_506 v scratch_417: deathmatch=1.00 carrier_battle=1.00 convoy_escort=1.00 (122s)
+[35/66] fighters_506 v script: deathmatch=0.97 carrier_battle=1.00 convoy_escort=0.99 (83s)
+[36/66] fighters_506 v transit_300: deathmatch=0.94 carrier_battle=0.87 convoy_escort=0.84 (126s)
+[37/66] fighters_506 v v1: deathmatch=0.95 carrier_battle=0.87 convoy_escort=0.95 (123s)
+[38/66] fighters_506 v w1_400: deathmatch=0.95 carrier_battle=0.85 convoy_escort=0.91 (123s)
+[39/66] followers_513 v hide_644: deathmatch=0.73 carrier_battle=0.60 convoy_escort=0.69 (141s)
+[40/66] followers_513 v reward_300: deathmatch=0.72 carrier_battle=0.72 convoy_escort=0.85 (139s)
+[41/66] followers_513 v scratch_417: deathmatch=1.00 carrier_battle=1.00 convoy_escort=1.00 (151s)
+[42/66] followers_513 v script: deathmatch=0.87 carrier_battle=1.00 convoy_escort=1.00 (90s)
+[43/66] followers_513 v transit_300: deathmatch=0.82 carrier_battle=0.70 convoy_escort=0.86 (138s)
+[44/66] followers_513 v v1: deathmatch=0.77 carrier_battle=0.84 convoy_escort=0.94 (140s)
+[45/66] followers_513 v w1_400: deathmatch=0.75 carrier_battle=0.73 convoy_escort=0.90 (143s)
+[46/66] hide_644 v reward_300: done
+[47/66] hide_644 v scratch_417: deathmatch=0.97 carrier_battle=1.00 convoy_escort=0.81 (160s)
+[48/66] hide_644 v script: done
+[49/66] hide_644 v transit_300: done
+[50/66] hide_644 v v1: done
+[51/66] hide_644 v w1_400: done
+[52/66] reward_300 v scratch_417: deathmatch=0.98 carrier_battle=1.00 convoy_escort=0.80 (162s)
+[53/66] reward_300 v script: done
+[54/66] reward_300 v transit_300: done
+[55/66] reward_300 v v1: done
+[56/66] reward_300 v w1_400: done
+[57/66] scratch_417 v script: deathmatch=0.00 carrier_battle=0.12 convoy_escort=0.21 (144s)
+[58/66] scratch_417 v transit_300: deathmatch=0.03 carrier_battle=0.01 convoy_escort=0.27 (161s)
+[59/66] scratch_417 v v1: deathmatch=0.03 carrier_battle=0.01 convoy_escort=0.45 (168s)
+[60/66] scratch_417 v w1_400: deathmatch=0.02 carrier_battle=0.00 convoy_escort=0.28 (162s)
+[61/66] script v transit_300: done
+[62/66] script v v1: done
+[63/66] script v w1_400: done
+[64/66] transit_300 v v1: done
+[65/66] transit_300 v w1_400: done
+[66/66] v1 v w1_400: done
