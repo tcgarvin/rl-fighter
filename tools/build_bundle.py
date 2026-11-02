@@ -210,6 +210,12 @@ def live_pilots(bundle: Path) -> list[dict[str, Any]]:
     return pilots
 
 
+def pilots_entry(bundle: Path) -> str:
+    """The logbook entry introducing the bundle's pilots; empty when it has none."""
+    index = bundle / "pilots" / "index.json"
+    return str(json.loads(index.read_text())["entry"]) if index.is_file() else ""
+
+
 def bundle_id(bundle: Path, settings: dict[str, Any]) -> str:
     """Content hash of the wasm, every pilot's weights, the catalogue and the settings."""
     digest = hashlib.sha256()
@@ -320,6 +326,7 @@ def build(
     pilots = live_pilots(bundle)
     if pilots:
         settings["pilots"] = pilots
+        settings["pilots_entry"] = pilots_entry(bundle)
     manifest = {"schema": SCHEMA, "bundle_id": bundle_id(bundle, settings), **settings}
     (bundle / "manifest.json").write_text(json.dumps(manifest, indent=1) + "\n")
     return manifest

@@ -22,6 +22,7 @@ export interface PolicyManifest {
   n_logits: number;
   weights_file: string;
   weights_floats: number;
+  layers: Array<{ in: number; out: number }>;
   heads: PolicyHead[];
   match_config: { arena_radius: number; time_limit_ticks: number; reaction_ticks: number; fleets: string[][] };
   source: { checkpoint: string; sha256: string; update: number | null; kind: string | null };

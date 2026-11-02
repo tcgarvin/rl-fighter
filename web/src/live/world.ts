@@ -68,6 +68,10 @@ const CONVOY_SHOW_JUMP = 230;
 const MARK_PAD = 6;
 const WAYPOINT_MARK = 14;
 const WAYPOINT_MIN_DIST = 30;
+// Inspecting a ship: the box framed around it, at least FOCUS_MIN_SPAN metres across and
+// FOCUS_HULLS of its lengths: about three times a fight's usual zoom, with room around it.
+const FOCUS_MIN_SPAN = 90;
+const FOCUS_HULLS = 2.2;
 
 /** The render-side hull spec (render/hulls.js, overlaid with the sim's YAML mounts). */
 export interface HullSpec {
@@ -268,6 +272,8 @@ export class World {
   private readonly tagPos = new THREE.Vector3();
   private quickJumps: Array<{ at: number; ship: number }> = [];
   private showOrders = false;
+  /** The inspected ship's slot, or -1. */
+  private focus = -1;
   private readonly orders: Order[] = [];
   private readonly orderPool: Order[] = [];
 
@@ -336,6 +342,27 @@ export class World {
     if (!on) this.effects.drawOrders([]);
   }
 
+  /** Bring the camera in on ship `i` and follow it; -1 goes back to framing the fleet. */
+  setFocus(i: number): void {
+    this.focus = i;
+  }
+
+  /** The box around the inspected ship, or its wreck while that lasts; null if it has gone. */
+  private focusBounds(): Bounds | null {
+    const v = this.views[this.focus];
+    if (!v) return null;
+    const at = v.drawn.visible ? v.drawn : v.wreck && !v.wreck.gone ? v.wreck : null;
+    if (!at) return null;
+    const half = Math.max(FOCUS_MIN_SPAN, v.hull.length * FOCUS_HULLS) / 2;
+    const b = emptyBounds();
+    this.cam.grow(b, at.x, at.y);
+    b.minX -= half;
+    b.maxX += half;
+    b.minY -= half;
+    b.maxY += half;
+    return b;
+  }
+
   /** Drop the last match's ships and build models for `match`'s (not yet arrived). */
   beginMatch(match: LiveMatch): void {
     for (const v of this.views) {
@@ -349,6 +376,7 @@ export class World {
     this.beams = [];
     this.quickJumps = [];
     this.effects.drawOrders([]);
+    this.focus = -1;
     this.match = match;
     for (const [i, ship] of match.ships.entries()) {
       const name = match.hullNames[i]!;
@@ -536,7 +564,8 @@ export class World {
       // The jump point is part of the convoy mission, always shown; the rest is the commands layer.
       if (this.showOrders || m.convoy) this.updateOrders(m, this.showOrders);
     }
-    this.cam.update(bounds, dt);
+    const focus = this.focusBounds();
+    this.cam.update(focus ?? bounds, dt, focus !== null);
     this.environment.update(dt, { centerX: this.cam.x, centerY: this.cam.y, extent: this.cam.extent, projection: this.cam.baseProjection, layoutZoom: TYPICAL_ZOOM });
     this.effects.update(dt);
     treatment.render(this.renderer, this.scene, this.cam.camera, dt);

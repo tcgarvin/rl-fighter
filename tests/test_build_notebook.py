@@ -326,3 +326,49 @@ def test_only_same_season_champions_get_a_watch_link(tmp_path: Path) -> None:
 
     watch = {r["id"]: r["champions"][0]["watchable"] for r in index["runs"]}
     assert watch == {"2026-01-03-c": True, "2026-01-02-b": True, "2026-01-01-a": False}
+
+
+def test_a_run_s_matchups_reach_its_page_and_a_wrong_schema_raises(
+    tmp_path: Path,
+) -> None:
+    runs = tmp_path / "lab" / "runs"
+    run = _write_run(tmp_path, "2026-01-01-grid", "# Grid\n\nShipped.\n\n## A\n\nB.\n")
+    grid = {"schema": "rlf.notebook.matchups/1", "pilots": [], "modes": {}}
+    (run / "matchups.json").write_text(json.dumps(grid))
+    out = tmp_path / "out"
+    build_notebook(runs, tmp_path / "none", out, tmp_path, _no_git)
+    page = json.loads((out / "2026-01-01-grid.json").read_text())
+    assert page["matchups"] == grid
+
+    (run / "matchups.json").write_text(json.dumps({"schema": "other"}))
+    with pytest.raises(NotebookError, match="schema is not"):
+        build_notebook(runs, tmp_path / "none", out, tmp_path, _no_git)
+
+
+def test_the_index_says_who_is_flying_and_refuses_an_entry_that_is_not_there(
+    tmp_path: Path,
+) -> None:
+    runs = tmp_path / "lab" / "runs"
+    _write_run(tmp_path, "2026-01-01-list", "# List\n\nShipped.\n\n## A\n\nB.\n")
+    registry = tmp_path / "live.json"
+    data = {
+        "schema": "rlf.live_pilots/1",
+        "entry": "2026-01-01-list",
+        "pilots": [{"id": "a"}, {"id": "b"}],
+    }
+    registry.write_text(json.dumps(data))
+    out = tmp_path / "out"
+    index = build_notebook(
+        runs, tmp_path / "none", out, tmp_path, _no_git, live_pilots=registry
+    )
+    assert index["flying"] == {"entry": "2026-01-01-list", "pilots": ["a", "b"]}
+    assert (
+        build_notebook(runs, tmp_path / "none", out, tmp_path, _no_git)["flying"]
+        is None
+    )
+
+    registry.write_text(json.dumps({**data, "entry": "2026-01-01-gone"}))
+    with pytest.raises(NotebookError, match="no logbook entry"):
+        build_notebook(
+            runs, tmp_path / "none", out, tmp_path, _no_git, live_pilots=registry
+        )

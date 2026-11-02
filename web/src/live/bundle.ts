@@ -28,6 +28,9 @@ export interface PilotEntry {
   rating: number;
   dir: string;
   sim_version: number;
+  /** A sentence or two for viewers, and the order drill scores 0..1 (empty: never drilled). */
+  note?: string;
+  follows?: { go_to?: number; attack?: number; defend?: number };
 }
 
 /** A pilot ready to fly: its policy and the obs prefix it reads (pilotObsDim). */
@@ -35,6 +38,8 @@ export interface LivePilot {
   id: string;
   policy: Policy;
   obsDim: number;
+  /** Its manifest entry; null for a champion flying alone in a bundle with no list. */
+  entry: PilotEntry | null;
 }
 
 /** An exported policy's two files. */
@@ -64,6 +69,8 @@ export interface BundleManifest {
   roster: RosterRules;
   /** The pilots picked from ship by ship; absent: the champion flies every strike craft. */
   pilots?: PilotEntry[];
+  /** The logbook entry that introduces them (lab/runs/<id>). */
+  pilots_entry?: string;
 }
 
 export interface Bundle {
@@ -129,13 +136,13 @@ export function assembleBundle(
   const obsDim = pilotObsDim(layout, pilot);
   const champion = createPolicy(policyManifest, weights, { ...layout, obsDim });
   const pilots: LivePilot[] = (manifest.pilots ?? []).map((entry) => {
-    if (entry.dir === CHAMPION_DIR) return { id: entry.id, policy: champion, obsDim };
+    if (entry.dir === CHAMPION_DIR) return { id: entry.id, policy: champion, obsDim, entry };
     const files = pilotFiles[entry.dir];
     if (!files) throw new Error(`bundle lists pilot ${entry.id}, but ${entry.dir} was not loaded`);
     const dim = pilotObsDim(layout, files.pm.sim_version);
-    return { id: entry.id, policy: createPolicy(files.pm, files.weights, { ...layout, obsDim: dim }), obsDim: dim };
+    return { id: entry.id, policy: createPolicy(files.pm, files.weights, { ...layout, obsDim: dim }), obsDim: dim, entry };
   });
-  if (pilots.length === 0) pilots.push({ id: manifest.champion.id, policy: champion, obsDim });
+  if (pilots.length === 0) pilots.push({ id: manifest.champion.id, policy: champion, obsDim, entry: null });
   for (const hull of manifest.roster.hulls) {
     if (!catalogue.info[hull]) throw new Error(`roster hull ${hull} is not in the catalogue`);
     const probe = new sim.WasmMatch(catalogue.hulls, catalogue.weapons, JSON.stringify({ seed: 0, ...manifest.match, fleets: [[hull], [hull]] }));

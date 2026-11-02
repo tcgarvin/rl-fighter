@@ -169,6 +169,244 @@ body.details #meta-details {
   background: color-mix(in srgb, var(--fg) 14%, transparent);
 }
 
+/* ---- Ship inspector: who the tapped ship is and, opened, what its net is doing. ---- */
+#reticle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  border: 1px solid var(--ins-accent, var(--fg));
+  border-radius: 50%;
+  opacity: 0.7;
+}
+
+#reticle[hidden],
+#inspect[hidden],
+.ins-more[hidden] {
+  display: none;
+}
+
+#reticle.team-a,
+#inspect.team-a {
+  --ins-accent: var(--team-a);
+}
+
+#reticle.team-b,
+#inspect.team-b {
+  --ins-accent: var(--team-b);
+}
+
+body.inspecting #caption,
+body.inspecting #cmdlog {
+  display: none;
+}
+
+#inspect {
+  pointer-events: auto;
+  flex: 1 1 100%;
+  box-sizing: border-box;
+  max-width: 560px;
+  max-height: 52vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  padding: 2px 12px 10px;
+  border: 1px solid var(--line-strong);
+  border-left: 2px solid var(--ins-accent, var(--line-strong));
+  background: color-mix(in srgb, var(--bg) 84%, transparent);
+  font-size: 11px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+
+.ins-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+}
+
+.ins-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.ins-title b {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ins-who {
+  display: block;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-soft);
+}
+
+.ins-state {
+  color: var(--muted);
+}
+
+.ins-outputs,
+.ins-close {
+  appearance: none;
+  flex: none;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ins-outputs {
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 4px;
+}
+
+.ins-outputs[aria-pressed="true"] {
+  text-decoration-color: var(--fg);
+}
+
+.ins-close {
+  min-width: 44px;
+  margin-right: -10px;
+  font-size: 14px;
+}
+
+.ins-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--fg-soft);
+}
+
+.ins-hull {
+  flex: none;
+  width: 44px;
+  height: 4px;
+  background: var(--line);
+}
+
+.ins-hull i {
+  display: block;
+  height: 100%;
+  background: var(--ins-accent, var(--fg));
+}
+
+.ins-note {
+  margin: 8px 0 4px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--fg);
+}
+
+.ins-fact {
+  margin: 2px 0;
+  color: var(--fg-soft);
+}
+
+.ins-fact a {
+  display: inline-block;
+  padding: 8px 0;
+  color: var(--fg);
+  text-underline-offset: 3px;
+}
+
+.ins-group {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 8px 0 3px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.ins-legend {
+  color: var(--muted);
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.ins-rows {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 3px 12px;
+}
+
+.ins-rows--power {
+  grid-template-columns: 1fr;
+}
+
+.ins-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+}
+
+.ins-label {
+  flex: none;
+  width: 58px;
+  overflow: hidden;
+  font-family: var(--mono);
+  color: var(--fg-soft);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ins-bar {
+  flex: 1;
+  display: flex;
+  gap: 2px;
+  min-width: 0;
+  height: 10px;
+}
+
+.ins-bar i {
+  flex: 1 1 0;
+  min-width: 2px;
+  box-sizing: border-box;
+  background: var(--line-strong);
+}
+
+.ins-bar i.c0 {
+  background: var(--muted);
+}
+
+.ins-bar i.c2 {
+  background: var(--ins-accent, var(--fg));
+}
+
+.ins-bar i.drawn {
+  outline: 1px solid var(--fg);
+  outline-offset: 0;
+}
+
+.ins-value {
+  flex: none;
+  min-width: 30px;
+  text-align: right;
+  color: var(--fg-soft);
+}
+
+.ins-rows--power .ins-value {
+  min-width: 110px;
+}
+
+.ins-more > .ins-fact:last-child {
+  margin-top: 8px;
+}
+
 /* ---- Mission panel: carrier hull per side, or the convoy's progress. ---- */
 #mission {
   margin-top: 6px;

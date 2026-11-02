@@ -21,6 +21,10 @@ const FRAME_MARGIN = 28;
 const SAFE_NDC_X = 0.88;
 // 1/s; about two thirds of the way to the target in 0.7 s.
 const EASE_RATE = 1.5;
+// Following one ship the view must keep up with it (a fighter at 80 m/s trails by 10 m),
+// though the zoom still eases. The pan's rate glides between the two at PAN_GLIDE, 1/s.
+const FOLLOW_PAN_RATE = 8;
+const PAN_GLIDE = 2.5;
 // Digital zoom limits (1 = the whole stage in view).
 const MIN_ZOOM = 0.6;
 const MAX_ZOOM = 60;
@@ -59,6 +63,7 @@ export class FitCamera {
   private u = 0;
   private v = 0;
   private zoom = 1;
+  private panRate = EASE_RATE;
   private initialized = false;
   private placed = false;
   /** NDC rows the HUD leaves clear (top > bottom). */
@@ -164,19 +169,25 @@ export class FitCamera {
     this.placed = true;
   }
 
-  /** Ease the crop toward framing `b` (axis frame, sim metres); an empty box frames the stage centre. */
-  update(b: Bounds, dt: number): void {
+  /**
+   * Ease the crop toward framing `b` (axis frame, sim metres); an empty box frames the
+   * stage centre. `follow` frames `b` exactly as given, with no margin or minimum span,
+   * and keeps up with it: one ship, up close.
+   */
+  update(b: Bounds, dt: number, follow = false): void {
     if (!this.placed) this.placeForStage();
     if (!Number.isFinite(b.minX)) b = { minX: -60, maxX: 60, minY: -60, maxY: 60 };
     const cf = (b.minX + b.maxX) / 2;
     const cg = (b.minY + b.maxY) / 2;
     const half = MIN_FRAME_SPAN / 2;
-    const box: [number, number, number, number] = [
-      Math.min(b.minX - FRAME_MARGIN, cf - half),
-      Math.max(b.maxX + FRAME_MARGIN, cf + half),
-      Math.min(b.minY - FRAME_MARGIN, cg - half),
-      Math.max(b.maxY + FRAME_MARGIN, cg + half),
-    ];
+    const box: [number, number, number, number] = follow
+      ? [b.minX, b.maxX, b.minY, b.maxY]
+      : [
+          Math.min(b.minX - FRAME_MARGIN, cf - half),
+          Math.max(b.maxX + FRAME_MARGIN, cf + half),
+          Math.min(b.minY - FRAME_MARGIN, cg - half),
+          Math.max(b.maxY + FRAME_MARGIN, cg + half),
+        ];
     const [x0, x1, y0, y1] = this.projectBox(box);
     const bandHalf = Math.max(0.2, (this.band.top - this.band.bottom) / 2);
     const zoom = THREE.MathUtils.clamp(
@@ -186,12 +197,14 @@ export class FitCamera {
     );
     const [cx, cy] = this.toSim(cf, cg);
     const k = this.initialized ? 1 - Math.exp(-dt * EASE_RATE) : 1;
+    this.panRate += ((follow ? FOLLOW_PAN_RATE : EASE_RATE) - this.panRate) * (1 - Math.exp(-dt * PAN_GLIDE));
+    const pan = this.initialized ? 1 - Math.exp(-dt * this.panRate) : 1;
     this.initialized = true;
-    this.u += ((x0 + x1) / 2 - this.u) * k;
-    this.v += ((y0 + y1) / 2 - this.v) * k;
+    this.u += ((x0 + x1) / 2 - this.u) * pan;
+    this.v += ((y0 + y1) / 2 - this.v) * pan;
     this.zoom *= Math.exp((Math.log(zoom) - Math.log(this.zoom)) * k);
-    this.x += (cx - this.x) * k;
-    this.y += (cy - this.y) * k;
+    this.x += (cx - this.x) * pan;
+    this.y += (cy - this.y) * pan;
     this.extent = Math.max(box[1] - box[0], box[3] - box[2]) / 2;
     this.applyCrop();
   }

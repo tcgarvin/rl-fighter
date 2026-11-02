@@ -72,8 +72,15 @@ uv run python -m tools.champion list | fetch [<id>] | env [<id>]
 # The pilots the live page picks from, ship by ship: lab/live_pilots.json (rlf.live_pilots/1;
 # the 10 highest-rated members of a season who are not the script). publish uploads their
 # weights and rewrites the list; scripts/build_site.sh with no arguments exports them into
-# the bundle. A build given a checkpoint, and every past champion, flies one pilot.
-uv run python -m tools.live_pilots publish --season lab/population/2026-11-sim6
+# the bundle. A build given a checkpoint, and every past champion, flies one pilot. A pilot
+# needs a sentence in lab/live_pilot_notes.json, which viewers read when they tap its ship,
+# and a list needs a logbook entry introducing it (lab/runs/<id>). matchups writes that
+# entry's who-beats-whom grid, drawn where results.md has <div data-figure="matchups"></div>.
+uv run python -m tools.live_pilots publish --season lab/population/2026-11-sim6 \
+    --entry 2026-11-02-ten-pilots
+uv run python -m tools.live_pilots matchups \
+    --results lab/population/2026-11-sim6/round_robin/first-night \
+    --out lab/runs/2026-11-02-ten-pilots/matchups.json
 
 # Parity of the browser policy with torch; the headless live-match smoke test
 uv run python -m pytest tests/test_web_policy.py -v
@@ -81,7 +88,7 @@ node --experimental-strip-types tools/web/live_smoke.mjs web/public/bundle 4 [--
 # Screenshots (390x844, 1440x900) into web/shots/live/, and a 10-minute heap/GPU soak,
 # against a running preview / web/dist; RLF_GPU=1 uses the host GPU instead of SwiftShader
 node tools/web/live_shots.mjs http://localhost:4173
-node tools/web/live_soak.mjs 10 8
+node tools/web/live_soak.mjs 10 8     # RLF_SOAK_INSPECT=1 keeps the ship inspector open
 # M3 art preview without the sim (carrier, freighter, bay launch, jump charge/out, orders):
 # dev-only page web/dev/m3-art.html?scene=lineup|detail|convoy|launch|jump|quick|orders[&t=s]
 # on the Vite dev server; screenshots into web/shots/m3-art/
@@ -166,7 +173,8 @@ live page at `/`: matches that loop forever, rotating team deathmatch, carrier b
 and convoy escort (`web/src/live/missions.ts`: rotation, rosters, briefs; `?mission=
 deathmatch|carrier|convoy` pins one, `?commands=1` shows the commander layer), each
 strike craft flown by a pilot picked at random from `lab/live_pilots.json` and capital
-ships by the sim's scripts (Rust
+ships by the sim's scripts; tapping a ship zooms in and opens `web/src/live/inspector.ts`,
+`?inspect=<slot>&outputs=1` does so from the URL (Rust
 sim in WASM, MLP inference in JS, `web/src/live/`, renderer modules in
 `web/src/render/`), loaded from the champion bundle at `/bundle/`. The renderer takes
 hull mounts from the bundle catalogue (the YAML), not `render/hulls.js`. `/duel/`

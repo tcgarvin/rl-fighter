@@ -12,8 +12,10 @@
 // implies it; default: a random draft), champion (replay a past champion), details
 // (open the technical details), commands (1/0: show or hide the commander layer,
 // overriding the viewer's remembered choice), warmup (fast-forward that many sim
-// seconds into the first match, for screenshots), speed (run time N× faster, for
-// soak tests), debug (expose window.rlfLive stats).
+// seconds into the first match, for screenshots), inspect (a ship slot to inspect once the
+// first match is on; screenshots), outputs (1/0: open or close the inspector's details,
+// overriding the viewer's remembered choice), speed (run time N× faster, for soak tests),
+// debug (expose window.rlfLive stats).
 
 import { mountNav } from "../shell/nav";
 import "./live.css";
@@ -21,11 +23,14 @@ import { mulberry32 } from "./policy.js";
 import { fetchManifest, loadBundle, type Bundle, type BundleManifest } from "./bundle.ts";
 import { CommandLog } from "./cmdlog.ts";
 import { Hud, type Tally } from "./hud.ts";
+import { pickShip, type OnScreen } from "./inspect.ts";
+import { Inspector } from "./inspector.ts";
 import { LiveMatch } from "./match.ts";
 import { MISSION_TAGS, availableMissions, defaultRosters, missionBrief, missionFor, missionRoster, parseMission, type DefaultRosters, type MissionName } from "./missions.ts";
 import { Muster } from "./muster.ts";
 import { parseRosterMode, type Roster } from "./roster.ts";
 import { SIM_DT, SIM_HZ } from "./sim.ts";
+import { TEAM_CLASSES } from "./teams.ts";
 import { World, hullSpec } from "./world.ts";
 
 const CURRENT_BUNDLE = "/bundle/";
@@ -43,6 +48,15 @@ const LAYOUT_INTERVAL_FRAMES = 30;
 const ROSTER_SALT = 0x5bd1e995;
 // The viewer's "show commands" choice (off by default).
 const COMMANDS_KEY = "rlf.live.showCommands";
+// The viewer's "details" choice in the ship inspector (closed by default).
+const OUTPUTS_KEY = "rlf.live.shipOutputs";
+// A press that travels further than this (CSS px) isn't a tap.
+const TAP_SLOP = 12;
+// A destroyed or departed ship stays inspected this long, seconds, so the end is seen.
+const GONE_HOLD = 2.5;
+// The ring around the inspected ship: this far outside its hull, and never smaller.
+const RETICLE_SCALE = 1.5;
+const RETICLE_MIN = 36;
 
 type Phase = "muster" | "battle" | "result";
 
@@ -55,6 +69,7 @@ const warmup = Math.max(0, Number(params.get("warmup") ?? 0));
 const speed = Math.min(32, Math.max(1, Number(params.get("speed") ?? 1) || 1));
 let showDetails = params.has("details");
 let showCommands = params.has("commands") ? params.get("commands") !== "0" : readStoredCommands();
+let showOutputs = params.has("outputs") ? params.get("outputs") !== "0" : readStoredOutputs();
 // ?champion=<id> replays a past champion of this sim season from /champions/<id>/
 // (scripts/build_site.sh); the current champion lives at /bundle/.
 const replay = CHAMPION_ID.test(params.get("champion") ?? "") ? params.get("champion")! : "";
@@ -64,6 +79,8 @@ const nav = mountNav("live", true);
 const hud = new Hud();
 const muster = new Muster(document.getElementById("muster")!);
 const world = new World(document.body);
+const inspector = new Inspector(document.getElementById("inspect")!);
+const reticle = document.getElementById("reticle")!;
 const cmdlog = new CommandLog(document.getElementById("cmdlog")!, (hull) => (world.spec(hull)?.bays ?? []).map((b) => b.id.replace(/^bay\./, "")));
 
 let bundle: Bundle;
@@ -89,6 +106,9 @@ let paused = false;
 let frameMs = 16.7;
 let worstFrameMs = 0;
 let thrusterCounts: number[] = [];
+/** The inspected ship's slot, or -1; and how long it has been gone from the field. */
+let selected = -1;
+let goneFor = 0;
 
 // ---- Layout: the HUD sits under the nav; the camera frames the band between. ----
 function layout(): void {
@@ -143,6 +163,7 @@ async function checkBundle(retryFailed: boolean): Promise<void> {
 
 // ---- Match lifecycle ----
 function startMatch(): void {
+  select(-1);
   if (pending) {
     applyBundle(pending);
     pending = null;
@@ -181,6 +202,7 @@ function beginBattle(): void {
 function finishMatch(m: LiveMatch): void {
   phase = "result";
   phaseTime = 0;
+  select(-1);
   const w = m.winner;
   if (w === 0 || w === 1) tally.wins[w] += 1;
   else tally.draws += 1;
@@ -268,6 +290,7 @@ function frame(now: number): void {
   }
   world.frame(dt, alpha, phase === "result");
   placeJumpLabel();
+  updateInspected(realDt);
   if (match) {
     hud.updateMission(match);
     hud.updateMarkers(match, showDetails, (i) => world.shipOnScreen(i, window.innerWidth, window.innerHeight), thrusterCounts);
@@ -276,6 +299,99 @@ function frame(now: number): void {
   }
   hud.updatePerf(dt, realDt, match, showDetails);
   requestAnimationFrame(frame);
+}
+
+// ---- The ship inspector: tap a ship to come in on it. ----
+function select(i: number): void {
+  selected = i;
+  goneFor = 0;
+  const m = match;
+  if (m) m.watching = i;
+  world.setFocus(i);
+  document.body.classList.toggle("inspecting", i >= 0);
+  if (i >= 0 && m) {
+    const hull = world.spec(m.hullNames[i]!);
+    inspector.open(m, i, hull?.thrusters.map((t) => t.id) ?? [], hull?.turrets.map((t) => t.id) ?? [], bundle.manifest.pilots_entry ?? "");
+    inspector.setOutputs(showOutputs);
+  } else {
+    inspector.close();
+    reticle.hidden = true;
+  }
+  layout();
+}
+
+function setOutputs(on: boolean): void {
+  showOutputs = on;
+  inspector.setOutputs(on);
+  layout();
+  try {
+    localStorage.setItem(OUTPUTS_KEY, on ? "1" : "0");
+  } catch {
+    // Not remembered across visits, but the toggle still works for this one.
+  }
+}
+
+function readStoredOutputs(): boolean {
+  try {
+    return localStorage.getItem(OUTPUTS_KEY) === "1";
+  } catch {
+    // Storage blocked (private mode, sandboxed preview): the default holds.
+    return false;
+  }
+}
+
+/** The ship under a tap or the pointer, or -1. */
+function shipAt(x: number, y: number): number {
+  const m = match;
+  if (!m || phase === "muster") return -1;
+  const ships: OnScreen[] = [];
+  m.ships.forEach((s, i) => {
+    if (!m.active(s)) return;
+    const at = world.shipOnScreen(i, window.innerWidth, window.innerHeight);
+    if (at) ships.push({ id: i, ...at });
+  });
+  return pickShip(ships, x, y);
+}
+
+function updateInspected(realDt: number): void {
+  const m = match;
+  if (!m || selected < 0) return;
+  if (!m.active(m.ships[selected]!)) {
+    goneFor += realDt;
+    if (goneFor > GONE_HOLD) return select(-1);
+  }
+  inspector.update(m, realDt);
+  const at = world.shipOnScreen(selected, window.innerWidth, window.innerHeight);
+  reticle.hidden = at === null;
+  if (!at) return;
+  const size = Math.round(Math.max(RETICLE_MIN, at.sizePx * RETICLE_SCALE));
+  reticle.className = TEAM_CLASSES[m.ships[selected]!.team]!;
+  reticle.style.width = reticle.style.height = `${size}px`;
+  reticle.style.transform = `translate(${Math.round(at.x - size / 2)}px, ${Math.round(at.y - size / 2)}px)`;
+}
+
+{
+  const canvas = world.renderer.domElement;
+  let pressX = 0;
+  let pressY = 0;
+  canvas.addEventListener("pointerdown", (e) => {
+    pressX = e.clientX;
+    pressY = e.clientY;
+  });
+  canvas.addEventListener("pointerup", (e) => {
+    if (Math.hypot(e.clientX - pressX, e.clientY - pressY) > TAP_SLOP) return;
+    const hit = shipAt(e.clientX, e.clientY);
+    if (hit >= 0 && hit === selected) setOutputs(!showOutputs);
+    else if (hit >= 0 || selected >= 0) select(hit);
+  });
+  canvas.addEventListener("pointermove", (e) => {
+    if (e.pointerType === "mouse") canvas.style.cursor = shipAt(e.clientX, e.clientY) >= 0 ? "pointer" : "";
+  });
+  inspector.outputsBtn.addEventListener("click", () => setOutputs(!showOutputs));
+  inspector.closeBtn.addEventListener("click", () => select(-1));
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && selected >= 0) select(-1);
+  });
 }
 
 // ---- Controls ----
@@ -336,12 +452,18 @@ if (params.has("debug")) {
       tickMs: match ? match.timing.sim + match.timing.nn : 0,
       bundle: bundle?.manifest.bundle_id,
       pilots: match ? match.ships.map((_, i) => match!.pilotId(i)) : [],
+      selected,
       gpu: world.gpuStats(),
       zoom: world.cam.zoomLevel,
     }),
     pause: (on = true) => {
       paused = on;
     },
+    select,
+    /** Where a ship is drawn, CSS px, for a test to tap it. */
+    shipOnScreen: (i: number) => world.shipOnScreen(i, window.innerWidth, window.innerHeight),
+    /** The active ship slots, for a test to choose from. */
+    activeShips: () => (match ? match.ships.flatMap((s, i) => (match!.active(s) ? [i] : [])) : []),
   };
 }
 
@@ -374,6 +496,8 @@ async function boot(): Promise<void> {
   }
   startMatch();
   if (warmup > 0) fastForward(warmup);
+  const inspect = Number(params.get("inspect") ?? -1);
+  if (match && inspect >= 0 && phase === "battle" && match.ships[inspect] && match.active(match.ships[inspect]!)) select(inspect);
   layout();
   keepAwake();
   setInterval(() => void checkBundle(true), BUNDLE_RECHECK_MS);

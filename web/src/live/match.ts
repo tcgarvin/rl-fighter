@@ -61,6 +61,24 @@ export function assignPilots<P>(pilots: readonly P[], nShips: number, seed: numb
   return Array.from({ length: nShips }, () => pilots[Math.floor(rng() * pilots.length)]!);
 }
 
+/** What a ship has done this match. */
+export interface ShipRecord {
+  shots: number;
+  hits: number;
+  damage: number;
+  /** Ships that died with this one's shot the last to hit them. */
+  kills: number;
+}
+
+/** The last action of the ship being inspected: a pilot's logits, or a script's row alone. */
+export interface WatchedAction {
+  /** The tick it was chosen on; -1 before the first. */
+  tick: number;
+  /** A copy of the net's logits (see LiveMatch.watchedScripted). */
+  logits: Float32Array;
+  row: Int8Array;
+}
+
 export interface LiveMatchOptions {
   sim: SimModule;
   layout: SimLayout;
@@ -112,6 +130,12 @@ export class LiveMatch {
   readonly timing: Timing = { sim: 0, nn: 0, ticks: 0 };
   /** The last tick's exact split, ms. */
   last = { sim: 0, nn: 0 };
+  readonly records: ShipRecord[];
+  /** The inspected ship's slot, whose outputs step() keeps in `watched`, or -1. */
+  watching = -1;
+  readonly watched: WatchedAction;
+  /** The watched row came from the sim's script, so its logits mean nothing. */
+  watchedScripted = false;
 
   private readonly sim: SimModule;
   private readonly layout: SimLayout;
@@ -120,6 +144,8 @@ export class LiveMatch {
   private readonly headValid: Uint8Array[];
   private readonly rngs: Rng[];
   private readonly row: Int8Array;
+  /** Who last hit each ship, for kill credit; -1 if nobody has. */
+  private readonly lastHitBy: number[];
   private readonly projectilePool: ProjectileState[] = [];
   private readonly eventPool: SimEvent[] = [];
   private readonly squadPool: SquadState[] = [];
@@ -154,6 +180,9 @@ export class LiveMatch {
       }),
     );
     this.row = new Int8Array(o.layout.actionWidth);
+    this.lastHitBy = Array.from({ length: this.nShips }, () => -1);
+    this.records = Array.from({ length: this.nShips }, () => ({ shots: 0, hits: 0, damage: 0, kills: 0 }));
+    this.watched = { tick: -1, logits: new Float32Array(o.pilots[0]!.policy.manifest.n_logits), row: new Int8Array(o.layout.actionWidth) };
     const m = this.match;
     this.headValid = Array.from({ length: this.nShips }, (_, s) => m.head_valid(s));
     // Distinct, reproducible sampling streams per ship.
@@ -173,6 +202,16 @@ export class LiveMatch {
   /** The pilot flying a ship; "" for a capital ship, which the sim's script flies. */
   pilotId(s: number): string {
     return this.ships[s]!.role === "strike" ? this.shipPilots[s]!.id : "";
+  }
+
+  /** The pilot flying a strike craft; a capital ship's slot still holds an unused draw. */
+  pilot(s: number): LivePilot {
+    return this.shipPilots[s]!;
+  }
+
+  /** Which thruster and turret heads this ship's hull actually has (1 meaningful, 0 masked). */
+  validHeads(s: number): Uint8Array {
+    return this.headValid[s]!;
   }
 
   private get wasm(): WasmMatch {
@@ -242,16 +281,20 @@ export class LiveMatch {
       if (!ship.alive || !ship.present) continue;
       if (ship.role !== "strike") {
         const t0 = performance.now();
-        m.set_action(s, m.scripted_action(s));
+        const row = m.scripted_action(s);
+        m.set_action(s, row);
         script += performance.now() - t0;
+        if (s === this.watching) this.watch(row, null);
         continue;
       }
       const t0 = performance.now();
       // An older pilot reads the prefix of the obs it was trained on.
       const pilot = this.shipPilots[s]!;
-      pilot.policy.act(m.obs(s).subarray(0, pilot.obsDim), this.headValid[s]!, this.rngs[s]!, this.row);
+      const logits = pilot.policy.forward(m.obs(s).subarray(0, pilot.obsDim));
+      pilot.policy.actFromLogits(logits, this.headValid[s]!, this.rngs[s]!, this.row);
       nn += performance.now() - t0;
       m.set_action(s, this.row);
+      if (s === this.watching) this.watch(this.row, logits);
     }
     const t1 = performance.now();
     m.step();
@@ -267,10 +310,37 @@ export class LiveMatch {
     this.timing.ticks += 1;
   }
 
+  /** Keep the inspected ship's action; the net's logits array is overwritten by the next ship. */
+  private watch(row: Int8Array, logits: Float32Array | null): void {
+    const w = this.watched;
+    w.tick = this.wasm.tick();
+    w.row.set(row);
+    if (logits) w.logits.set(logits);
+    else w.logits.fill(0);
+    this.watchedScripted = logits === null;
+  }
+
   /** Release the wasm match. The object is unusable afterwards. */
   free(): void {
     this.match?.free();
     this.match = null;
+  }
+
+  private record(e: SimEvent): void {
+    if (e.kind === "fire" || e.kind === "beam") {
+      const r = this.records[e.a];
+      if (r) r.shots += 1;
+    } else if (e.kind === "hit" || e.kind === "shieldHit") {
+      const r = this.records[e.b];
+      if (!r) return;
+      this.lastHitBy[e.a] = e.b;
+      r.hits += 1;
+      // A shield hit's last field says whether it dropped the shield, not how much it did.
+      if (e.kind === "hit") r.damage += e.extra;
+    } else if (e.kind === "death") {
+      const by = this.records[this.lastHitBy[e.a] ?? -1];
+      if (by) by.kills += 1;
+    }
   }
 
   private view(ptr: number, len: number): Float32Array {
@@ -404,6 +474,7 @@ export class LiveMatch {
       e.f5 = v[o + 5]!;
       e.f6 = v[o + 6]!;
       e.extra = v[o + 7]!;
+      this.record(e);
     }
     this.events = pool.slice(0, n);
   }

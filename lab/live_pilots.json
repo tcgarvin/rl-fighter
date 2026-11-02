@@ -1,6 +1,7 @@
 {
  "schema": "rlf.live_pilots/1",
  "season": "lab/population/2026-11-sim6",
+ "entry": "2026-11-02-ten-pilots",
  "pilots": [
   {
    "id": "fighters_506",
@@ -8,7 +9,13 @@
    "rating": 313.97415017171784,
    "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters/checkpoints/ppo_bc_506.pt",
    "sha256": "22d0bd45393e9551518443345591e901dfba9ddbf8efcd35353795478fdd11fa",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/fighters_506/22d0bd45393e9551518443345591e901dfba9ddbf8efcd35353795478fdd11fa.pt"
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/fighters_506/22d0bd45393e9551518443345591e901dfba9ddbf8efcd35353795478fdd11fa.pt",
+   "note": "Strongest in the field. Forked from f995_701 with order pay and drills. It gained combat but follows orders only a little.",
+   "follows": {
+    "go_to": 0.21,
+    "attack": 0.32,
+    "defend": 0.36
+   }
   },
   {
    "id": "f995_701",
@@ -16,7 +23,13 @@
    "rating": 277.1984377838381,
    "checkpoint": "lab/runs/2026-11-01-fighters-v2/f995/checkpoints/ppo_bc_701.pt",
    "sha256": "bf3bd0cb3c27889e9be4915f24c9674f375dd8bc815307596068e1f3ef99cf54",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/f995_701/bf3bd0cb3c27889e9be4915f24c9674f375dd8bc815307596068e1f3ef99cf54.pt"
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/f995_701/bf3bd0cb3c27889e9be4915f24c9674f375dd8bc815307596068e1f3ef99cf54.pt",
+   "note": "The long-horizon fighter, the champion before this list. Fights hard and ignores orders.",
+   "follows": {
+    "go_to": 0.22,
+    "attack": 0.14,
+    "defend": 0.11
+   }
   },
   {
    "id": "f995_400",
@@ -24,7 +37,9 @@
    "rating": 263.872936093733,
    "checkpoint": "lab/runs/2026-11-01-fighters-v2/f995/checkpoints/ppo_bc_400.pt",
    "sha256": "c208c3aa979d5fbd10f7bb324194e628e9ba5054e3976865f30362186109b883",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/f995_400/c208c3aa979d5fbd10f7bb324194e628e9ba5054e3976865f30362186109b883.pt"
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/f995_400/c208c3aa979d5fbd10f7bb324194e628e9ba5054e3976865f30362186109b883.pt",
+   "note": "The same training run as f995_701, 301 updates earlier. Beats it in convoy escort.",
+   "follows": {}
   },
   {
    "id": "f99_696",
@@ -32,7 +47,9 @@
    "rating": 246.2141942732577,
    "checkpoint": "lab/runs/2026-11-01-fighters-v2/f99/checkpoints/ppo_bc_696.pt",
    "sha256": "345be910ff548533a41fa5fd1ae65df75c1a0f08e7d50f8494a784d8578ab77f",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/f99_696/345be910ff548533a41fa5fd1ae65df75c1a0f08e7d50f8494a784d8578ab77f.pt"
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/f99_696/345be910ff548533a41fa5fd1ae65df75c1a0f08e7d50f8494a784d8578ab77f.pt",
+   "note": "A sibling of f995_701 with a shorter horizon. Weakest of the top four overall, best of them in convoy escort.",
+   "follows": {}
   },
   {
    "id": "followers_513",
@@ -40,7 +57,13 @@
    "rating": 144.07743467411098,
    "checkpoint": "lab/runs/2026-11-01-pilot-families/followers/checkpoints/ppo_bc_513.pt",
    "sha256": "927923563cb12755b0bccb3910b51ca6de3c2636bb5af06eba678580523251ee",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/followers_513/927923563cb12755b0bccb3910b51ca6de3c2636bb5af06eba678580523251ee.pt"
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/followers_513/927923563cb12755b0bccb3910b51ca6de3c2636bb5af06eba678580523251ee.pt",
+   "note": "The only pilot that both fights well and follows orders. Forked from transit_300.",
+   "follows": {
+    "go_to": 0.62,
+    "attack": 0.88,
+    "defend": 0.86
+   }
   },
   {
    "id": "hide_644",
@@ -48,7 +71,13 @@
    "rating": 8.117936006358171,
    "checkpoint": "lab/runs/2026-11-01-fighters-v2/hide/checkpoints/ppo_bc_644.pt",
    "sha256": "7e3620a0056adc0a4ad043dc557ffc78dd842e64f5d8b948d0f2469306d324eb",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/hide_644/7e3620a0056adc0a4ad043dc557ffc78dd842e64f5d8b948d0f2469306d324eb.pt"
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/hide_644/7e3620a0056adc0a4ad043dc557ffc78dd842e64f5d8b948d0f2469306d324eb.pt",
+   "note": "Trained so that a shot under an order earned only order pay. It did not learn to follow, and it fires far less than the top five.",
+   "follows": {
+    "go_to": 0.13,
+    "attack": 0.18,
+    "defend": 0.18
+   }
   },
   {
    "id": "reward_300",
@@ -56,7 +85,13 @@
    "rating": -38.18002031298629,
    "checkpoint": "lab/runs/2026-11-01-order-pilot-b3/reward/checkpoints/ppo_bc_300.pt",
    "sha256": "2b87e1f70751939e453f7e038c789f0265520b42389c6a64db2ec36f18792400",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/reward_300/2b87e1f70751939e453f7e038c789f0265520b42389c6a64db2ec36f18792400.pt"
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/reward_300/2b87e1f70751939e453f7e038c789f0265520b42389c6a64db2ec36f18792400.pt",
+   "note": "Paid for following orders, with no script pull. It barely learned to follow.",
+   "follows": {
+    "go_to": 0.12,
+    "attack": 0.12,
+    "defend": 0.1
+   }
   },
   {
    "id": "transit_300",
@@ -64,7 +99,13 @@
    "rating": -70.69950613072085,
    "checkpoint": "lab/runs/2026-11-01-order-pilot-b3/transit/checkpoints/ppo_bc_300.pt",
    "sha256": "523ea086eaffdde5f7b700b06b5c09ed09d74216de40bb16f816d2f02afd7c2b",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/transit_300/523ea086eaffdde5f7b700b06b5c09ed09d74216de40bb16f816d2f02afd7c2b.pt"
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/transit_300/523ea086eaffdde5f7b700b06b5c09ed09d74216de40bb16f816d2f02afd7c2b.pt",
+   "note": "Pulled toward the script on the way to an order. The best neural follower, and a weak fighter.",
+   "follows": {
+    "go_to": 0.7,
+    "attack": 0.87,
+    "defend": 1.0
+   }
   },
   {
    "id": "w1_400",
@@ -72,7 +113,9 @@
    "rating": -88.33300212775391,
    "checkpoint": "lab/runs/2026-10-31-order-pilot/w1/checkpoints/ppo_bc_400.pt",
    "sha256": "1d08fe762c6779b37a9b2eab12305155d87a31952c3a955e84e68fe563065ab2",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/w1_400/1d08fe762c6779b37a9b2eab12305155d87a31952c3a955e84e68fe563065ab2.pt"
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/w1_400/1d08fe762c6779b37a9b2eab12305155d87a31952c3a955e84e68fe563065ab2.pt",
+   "note": "An early order pilot with the older, smaller order inputs. reward_300 and transit_300 both descend from it.",
+   "follows": {}
   },
   {
    "id": "v1",
@@ -80,7 +123,9 @@
    "rating": -156.14421304316747,
    "checkpoint": "lab/runs/2026-10-30-fleet-pilot/arm_warm/checkpoints/ppo_bc_400.pt",
    "sha256": "3256fc7b572b52c910de66fea5c7bcbdadd45f6b86a00523b8f5c370846349f9",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/v1/3256fc7b572b52c910de66fea5c7bcbdadd45f6b86a00523b8f5c370846349f9.pt"
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/v1/3256fc7b572b52c910de66fea5c7bcbdadd45f6b86a00523b8f5c370846349f9.pt",
+   "note": "The first fleet pilot: a clone of the script, sharpened by PPO. It predates orders and cannot read them.",
+   "follows": {}
   }
  ]
 }

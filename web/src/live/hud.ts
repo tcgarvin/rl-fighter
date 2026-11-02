@@ -98,8 +98,9 @@ export class Hud {
     const scripts = capitals ? "Carriers, freighters and both commanders are scripted. " : "";
     const nPilots = manifest.pilots?.length ?? 1;
     if (!replay && nPilots > 1) {
-      const lead = `Each ${craft} here is flown by one of ${nPilots} neural networks, picked at random ship by ship, flying by thruster and trigger, trained overnight. `;
-      this.captionEl.innerHTML = lead + scripts + `<a href="/notebook/">How these pilots learned&nbsp;→</a>`;
+      const lead = `Each ${craft} here is flown by one of ${nPilots} neural networks, picked at random ship by ship, flying by thruster and trigger, trained overnight. Tap a ship to look closer. `;
+      const entry = manifest.pilots_entry ? `#${encodeURIComponent(manifest.pilots_entry)}` : "";
+      this.captionEl.innerHTML = lead + scripts + `<a href="/notebook/${entry}">Meet the pilots&nbsp;→</a>`;
       return;
     }
     const lead = replay

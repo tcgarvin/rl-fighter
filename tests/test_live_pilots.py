@@ -17,11 +17,16 @@ from spacefight.population.records import (
     script_member,
 )
 from tools.build_bundle import BundleError, bundle_id, live_pilots
+from tools.champion import sha256_of
 from tools.live_pilots import (
+    MATCHUP_MODES,
     LivePilot,
     LivePilotsError,
     fetch_checkpoint,
     load_registry,
+    matchups,
+    publish,
+    registry_entry,
     select_members,
 )
 
@@ -91,7 +96,14 @@ def test_nobody_rated_is_an_error() -> None:
 
 def _pilot(pilot_id: str, sha: str = SHA) -> LivePilot:
     return LivePilot(
-        pilot_id, "fighters", 1.0, f"lab/x/{pilot_id}.pt", sha, "https://x"
+        pilot_id,
+        "fighters",
+        1.0,
+        f"lab/x/{pilot_id}.pt",
+        sha,
+        "https://x",
+        "A note.",
+        {"go_to": 0.5},
     )
 
 
@@ -203,3 +215,194 @@ def test_pilots_are_drawn_ship_by_ship_evenly_and_repeat_for_a_seed() -> None:
     assert set(data["many"]) == set("abcdefghij")
     assert all(800 < n < 1200 for n in data["many"].values()), data["many"]
     assert data["alone"] == ["only"] * 3
+
+
+class _FakeStore:
+    def put(self, local: Path, key: str) -> str:
+        return f"https://x/{key}"
+
+
+def _season_with_one_pilot(root: Path) -> Path:
+    """A season whose one rated, drilled member's checkpoint is under the cwd."""
+    checkpoint = root / "pilot.pt"
+    checkpoint.write_bytes(b"weights")
+    member = {
+        "schema": "rlf.population.member/1",
+        "id": "ace",
+        "family": "fighters",
+        "founder": "ace",
+        "parent": "",
+        "relation": "",
+        "fork_update": -1,
+        "settings_changed": {},
+        "checkpoint": checkpoint.relative_to(Path.cwd()).as_posix(),
+        "sha256": sha256_of(checkpoint),
+        "status": "active",
+        "archived_reason": "",
+        "archived_date": "",
+        "note": "",
+        "ratings": [
+            {
+                "phase": "p",
+                "date": "2026-01-01",
+                "rating": 5.0,
+                "sd": 1.0,
+                "matches": 10,
+            }
+        ],
+        "drills": [
+            {
+                "phase": "p",
+                "date": "2026-01-01",
+                "scores": {
+                    "goto_arrival": 0.5,
+                    "attack_flip": 0.25,
+                    "defend_flip": 1.0,
+                },
+                "passed": True,
+            }
+        ],
+    }
+    season = root / "season"
+    (season / "members").mkdir(parents=True)
+    (season / "members" / "ace.json").write_text(json.dumps(member))
+    return season
+
+
+def _publish(root: Path, notes: dict[str, str], entry: str) -> list[LivePilot]:
+    (root / "runs" / "2026-01-01-list").mkdir(parents=True, exist_ok=True)
+    (root / "runs" / "2026-01-01-list" / "results.md").write_text("# List\n")
+    (root / "notes.json").write_text(json.dumps(notes))
+    return publish(
+        _season_with_one_pilot(root),
+        root / "live.json",
+        entry,
+        notes=root / "notes.json",
+        runs=root / "runs",
+        store=_FakeStore(),
+    )
+
+
+def test_publish_records_the_note_the_drills_and_the_entry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    pilots = _publish(tmp_path, {"ace": "Flies well."}, "2026-01-01-list")
+    assert pilots[0].note == "Flies well."
+    assert pilots[0].follows == {"go_to": 0.5, "attack": 0.25, "defend": 1.0}
+    assert registry_entry(tmp_path / "live.json") == "2026-01-01-list"
+    assert load_registry(tmp_path / "live.json")[0].note == "Flies well."
+
+
+def test_a_pilot_cannot_go_live_without_a_note_or_an_entry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    with pytest.raises(LivePilotsError, match="no note for ace"):
+        _publish(tmp_path / "a", {}, "2026-01-01-list")
+    with pytest.raises(LivePilotsError, match="no logbook entry"):
+        _publish(tmp_path / "b", {"ace": "Flies well."}, "2026-01-01-other")
+
+
+def test_the_grid_keeps_rating_order_and_refuses_a_pilot_who_never_played(
+    tmp_path: Path,
+) -> None:
+    results = tmp_path / "rr"
+    results.mkdir()
+    grid = {
+        "a": {"b": 0.75, "script": 0.875},
+        "b": {"a": 0.25, "script": 0.5},
+    }
+    (results / "summary.json").write_text(
+        json.dumps(
+            {
+                "members": ["a", "b", "script"],
+                "win_matrix": {mode: grid for mode in MATCHUP_MODES},
+            }
+        )
+    )
+    (results / "config.json").write_text(json.dumps({"n_per_mission": 240}))
+    out = tmp_path / "matchups.json"
+    data = matchups([_pilot("b"), _pilot("a")], results, out)
+    assert data["modes"]["overall"] == [[None, 0.25], [0.75, None]]
+    assert data["script"]["convoy_escort"] == [0.5, 0.875]
+    assert json.loads(out.read_text()) == data
+    with pytest.raises(LivePilotsError, match="never played c"):
+        matchups([_pilot("c")], results, out)
+
+
+def test_the_committed_list_has_notes_and_an_entry_with_its_grid() -> None:
+    registry = REPO / "lab/live_pilots.json"
+    pilots = load_registry(registry)
+    assert all(p.note for p in pilots)
+    entry = REPO / "lab/runs" / registry_entry(registry)
+    grid = json.loads((entry / "matchups.json").read_text())
+    assert [p["id"] for p in grid["pilots"]] == [p.id for p in pilots]
+    assert 'data-figure="matchups"' in (entry / "results.md").read_text()
+
+
+INSPECT = """
+import { outputRows, pickShip, rowOdds } from "./web/src/live/inspect.ts";
+const near = [{ id: 3, x: 100, y: 100, sizePx: 10 }, { id: 5, x: 130, y: 100, sizePx: 10 }];
+const carrier = [{ id: 1, x: 200, y: 200, sizePx: 200 }, { id: 2, x: 250, y: 200, sizePx: 10 }];
+const heads = [
+  { name: "throttle", action_start: 0, count: 8, choices: 3, logit_start: 0, masked_value: 1 },
+  { name: "slew", action_start: 8, count: 6, choices: 3, logit_start: 24, masked_value: 1 },
+  { name: "fire", action_start: 14, count: 6, choices: 2, logit_start: 42, masked_value: 0 },
+  { name: "power", action_start: 20, count: 1, choices: 7, logit_start: 54, masked_value: null },
+];
+const valid = new Uint8Array(21);
+valid[0] = valid[1] = valid[14] = valid[20] = 1;
+const rows = outputRows(heads, valid, ["thruster.main", "thruster.rcs.fl"], ["turret.nose"]);
+const logits = new Float32Array(61);
+logits[1] = Math.log(3);
+const odds = new Float64Array(7);
+rowOdds(rows[0], logits, new Int8Array(21), odds);
+const net = Array.from(odds.subarray(0, 3));
+const action = new Int8Array(21);
+action[0] = 2;
+rowOdds(rows[0], null, action, odds);
+console.log(JSON.stringify({
+  nearest: pickShip(near, 112, 100),
+  other: pickShip(near, 128, 100),
+  miss: pickShip(near, 300, 300),
+  onHull: pickShip(carrier, 160, 200),
+  underFinger: pickShip(carrier, 250, 200),
+  rows: rows.map((r) => [r.kind, r.label, r.logitStart]),
+  net,
+  script: Array.from(odds.subarray(0, 3)),
+}));
+"""
+
+
+def test_a_tap_finds_the_ship_and_outputs_read_as_odds() -> None:
+    result = subprocess.run(
+        [
+            "node",
+            "--experimental-strip-types",
+            "--no-warnings",
+            "--input-type=module",
+            "-e",
+            INSPECT,
+        ],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    got = json.loads(result.stdout)
+    assert (got["nearest"], got["other"], got["miss"]) == (3, 5, -1)
+    # A carrier's hull is a target, but a fighter under the finger wins over it.
+    assert (got["onHull"], got["underFinger"]) == (1, 2)
+    # Only the hull's real mounts get a row, each reading its own logits.
+    assert got["rows"] == [
+        ["throttle", "main", 0],
+        ["throttle", "rcs.fl", 3],
+        ["fire", "nose", 42],
+        ["power", "", 54],
+    ]
+    assert got["net"] == pytest.approx([0.2, 0.6, 0.2])
+    # The script has no odds: its choice has all of them.
+    assert got["script"] == [0, 0, 1]

@@ -36,6 +36,18 @@ export interface NotebookIndex {
   schema: string;
   runs: IndexRun[];
   current_champion: (ChampionRef & { run: string }) | null;
+  /** The pilots flying now and the entry introducing them; null: only the champion flies. */
+  flying: { entry: string; pilots: string[] } | null;
+}
+
+/** Who beats whom: `modes[mode][i][j]`, how often pilot i beat pilot j; null on the diagonal. */
+export interface Matchups {
+  schema: string;
+  source: string;
+  n_per_mission: number;
+  pilots: Array<{ id: string; rating: number }>;
+  modes: Record<string, Array<Array<number | null>>>;
+  script: Record<string, number[]>;
 }
 
 /** `[update, value]`; value is null where a bin had no data. */
@@ -87,6 +99,7 @@ export interface RunPage extends RunMeta {
   plan_title: string | null;
   plan_html: string | null;
   charts: ChartData[];
+  matchups: Matchups | null;
   arms: Arm[];
   artefacts: Artefact[];
   source: { dir: string; results: string | null; plan: string | null };

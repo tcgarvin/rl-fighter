@@ -16,6 +16,9 @@ Each run directory is read as it is; the formats differ between runs:
   ``MAX_POINTS`` points per series.
 - ``**/*.json``: eval artefacts (duel results, contact surveys, BC/DAgger evals).
 - ``lab/champions/*/champion.json``: promoted pilots (may be absent).
+- ``matchups.json`` beside ``results.md`` (schema ``rlf.notebook.matchups/1``): a
+  who-beats-whom grid, drawn where the write-up has ``<div data-figure="matchups"></div>``.
+- ``lab/live_pilots.json``: the pilots flying now, for the index's "Flying now" card.
 
     python -m tools.build_notebook [--runs lab/runs] [--champions lab/champions]
         [--out web/public/notebook/data]
@@ -45,6 +48,8 @@ from tools.lab_markdown import (
 REPO_ROOT = Path(__file__).resolve().parent.parent
 INDEX_SCHEMA = "rlf.notebook.index/1"
 RUN_SCHEMA = "rlf.notebook.run/1"
+MATCHUPS_SCHEMA = "rlf.notebook.matchups/1"
+LIVE_PILOTS_SCHEMA = "rlf.live_pilots/1"
 MAX_POINTS = 300
 WIN_SMOOTHING_UPDATES = 50
 TICKS_PER_SECOND = 30.0
@@ -574,6 +579,10 @@ def build_run(
         for c in reversed(champions)
         if c.run == run_id
     ]
+    matchups_path = run_dir / "matchups.json"
+    matchups = _read_json(matchups_path) if matchups_path.is_file() else None
+    if matchups is not None and matchups.get("schema") != MATCHUPS_SCHEMA:
+        raise NotebookError(f"{matchups_path}: schema is not {MATCHUPS_SCHEMA}")
     meta = {
         "id": run_id,
         "date": match.group(1),
@@ -592,6 +601,7 @@ def build_run(
         "plan_html": plan.body_without_title if plan is not None else None,
         "charts": charts,
         "arms": arms,
+        "matchups": matchups,
         "artefacts": artefacts,
         "source": {
             "dir": _github(run_dir, repo_root),
@@ -617,11 +627,16 @@ def build_notebook(
     out_dir: Path,
     repo_root: Path = REPO_ROOT,
     committed_at: Callable[[Path], int | None] = git_first_commit_time,
+    live_pilots: Path | None = None,
 ) -> dict[str, Any]:
     """Write ``index.json`` and one ``<run>.json`` per run; return the index.
 
     Directories without ``results.md`` or ``plan.md`` are reported on stderr and
-    skipped (a run that has just been created); malformed files raise.
+    skipped (a run that has just been created); malformed files raise. ``live_pilots``
+    is the registry of the pilots flying now; without one the index's ``flying`` is null.
+
+    Raises:
+        NotebookError: The registry is malformed or names an entry that does not exist.
     """
     run_dirs = []
     for d in sorted(p for p in runs_dir.iterdir() if p.is_dir()):
@@ -650,9 +665,23 @@ def build_notebook(
         (out_dir / f"{entry.index['id']}.json").write_text(
             json.dumps(entry.page, ensure_ascii=False, separators=(",", ":"))
         )
+    flying = None
+    if live_pilots is not None:
+        registry = _read_json(live_pilots)
+        if registry.get("schema") != LIVE_PILOTS_SCHEMA:
+            raise NotebookError(f"{live_pilots}: schema is not {LIVE_PILOTS_SCHEMA}")
+        if registry.get("entry") not in run_ids:
+            raise NotebookError(
+                f"{live_pilots}: no logbook entry {registry.get('entry')}"
+            )
+        flying = {
+            "entry": registry["entry"],
+            "pilots": [p["id"] for p in registry["pilots"]],
+        }
     index = {
         "schema": INDEX_SCHEMA,
         "runs": [e.index for e in entries],
+        "flying": flying,
         "current_champion": (
             champion_entry(current, current) | {"run": current.run}
             if current is not None
@@ -673,8 +702,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--out", type=Path, default=REPO_ROOT / "web" / "public" / "notebook" / "data"
     )
+    parser.add_argument(
+        "--live-pilots", type=Path, default=REPO_ROOT / "lab" / "live_pilots.json"
+    )
     args = parser.parse_args(argv)
-    index = build_notebook(args.runs, args.champions, args.out)
+    index = build_notebook(
+        args.runs, args.champions, args.out, live_pilots=args.live_pilots
+    )
     for run in index["runs"]:
         verdict = run["verdict"] or "-"
         print(f"{run['id']}: sim v{run['sim_version']}, {verdict}, {run['title']}")

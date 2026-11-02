@@ -10,7 +10,8 @@
 // valid one with a new bundle_id (the page must take it over between matches).
 //
 // Usage: node tools/web/live_soak.mjs [minutes=10] [speed=8] [warmup-minutes=2]
-// Env: RLF_GPU=1 to use the host GPU (tools/web/browser.mjs).
+// Env: RLF_GPU=1 to use the host GPU (tools/web/browser.mjs). RLF_SOAK_INSPECT=1 keeps a ship
+// inspected with its details open, moving to another when it goes, to soak the inspector too.
 
 import fs from "node:fs";
 import http from "node:http";
@@ -56,13 +57,23 @@ page.on("console", (m) => {
   if (m.type() === "warning" && m.text().startsWith("live:")) warnings.push(m.text());
 });
 const cdp = await page.context().newCDPSession(page);
-await page.goto(`${base}/?debug&speed=${speedArg}`);
+const inspecting = process.env.RLF_SOAK_INSPECT === "1";
+await page.goto(`${base}/?debug&speed=${speedArg}${inspecting ? "&outputs=1" : ""}`);
 await page.waitForFunction(() => window.rlfLive?.stats().matches >= 1, null, { timeout: 120_000 });
+if (inspecting) {
+  await page.evaluate(() =>
+    setInterval(() => {
+      const live = window.rlfLive;
+      const s = live.stats();
+      if (s.phase === "battle" && s.selected < 0 && live.activeShips().length) live.select(live.activeShips()[0]);
+    }, 500),
+  );
+}
 
 async function sample() {
   await cdp.send("HeapProfiler.collectGarbage");
   const heap = await cdp.send("Runtime.getHeapUsage");
-  const s = await page.evaluate(() => ({ ...window.rlfLive.stats(), dom: document.getElementsByTagName("*").length - document.querySelectorAll("#tags *, #cmdlog *, #mission *, #muster *").length }));
+  const s = await page.evaluate(() => ({ ...window.rlfLive.stats(), dom: document.getElementsByTagName("*").length - document.querySelectorAll("#tags *, #cmdlog *, #mission *, #muster *, #inspect *").length }));
   return { t: Date.now() - start, heap: heap.usedSize, ...s };
 }
 

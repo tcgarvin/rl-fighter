@@ -490,3 +490,110 @@
     grid-column: 2;
   }
 }
+
+/* Who beats whom: a real table, so the numbers are the accessible view of the colour. */
+.nb-matchups {
+  margin: 20px 0 24px;
+}
+
+.nb-matchups__modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.nb-matchups__modes button {
+  appearance: none;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: none;
+  color: var(--fg-soft);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.nb-matchups__modes button[aria-pressed="true"] {
+  border-color: var(--fg);
+  color: var(--fg);
+}
+
+.nb-matchups__grid {
+  width: 100%;
+  max-width: 640px;
+  border-collapse: separate;
+  border-spacing: 2px;
+  table-layout: fixed;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.nb-matchups__grid th,
+.nb-matchups__grid td {
+  padding: 5px 0;
+  border: 0;
+  text-align: center;
+  font-weight: 400;
+}
+
+.nb-matchups__grid thead th {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.nb-matchups__grid td {
+  color: var(--fg);
+  border-radius: 2px;
+}
+
+.nb-matchups__corner,
+.nb-matchups__who {
+  width: 104px;
+}
+
+.nb-matchups__grid .nb-matchups__corner {
+  text-align: left;
+}
+
+.nb-matchups__grid .nb-matchups__who {
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  text-align: left;
+  white-space: nowrap;
+  color: var(--fg-soft);
+}
+
+.nb-matchups__rank {
+  display: inline-block;
+  width: 16px;
+  color: var(--muted);
+}
+
+.nb-matchups__self {
+  background: var(--bg-sunken);
+}
+
+.nb-matchups__key {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.nb-matchups__ramp {
+  width: 120px;
+  height: 8px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--team-b) 45%, var(--bg-raised)),
+    var(--bg-raised),
+    color-mix(in srgb, var(--team-a) 45%, var(--bg-raised))
+  );
+}

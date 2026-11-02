@@ -4,6 +4,7 @@
 // (#<run-id>/plan opens the plan).
 import { mountNav } from "../shell/nav";
 import { formatValue, lineChart } from "./chart";
+import { matchupGrid } from "./matchups";
 import type { Artefact, ArtefactKind, ChampionRef, IndexRun, NotebookIndex, RunPage, Verdict } from "./types";
 import "./notebook.css";
 
@@ -110,7 +111,16 @@ function renderIndex(data: NotebookIndex): void {
     ),
   );
   const current = data.current_champion;
-  if (current) {
+  if (data.flying) {
+    const card = el("div", "nb-champion");
+    const text = el("p", "nb-champion__text");
+    text.append(el("span", "kicker", "Flying now"), el("strong", "", `${data.flying.pilots.length} pilots, drawn ship by ship`), document.createTextNode(" · "));
+    text.append(link(`#${data.flying.entry}`, "meet them"));
+    const watch = link("/", "", "button");
+    watch.append(el("span", "button__live"), document.createTextNode("Watch them"));
+    card.append(text, watch);
+    head.append(card);
+  } else if (current) {
     const card = el("div", "nb-champion");
     const text = el("p", "nb-champion__text");
     text.append(el("span", "kicker", "Flying now"), el("strong", "", current.name), document.createTextNode(" · from "));
@@ -200,6 +210,7 @@ function renderRun(run: RunPage, openPlan: boolean): void {
     article.append(el("p", "pending", "Results pending: this run has a plan but no write-up yet."));
   }
   placeCharts(article, run);
+  if (run.matchups) article.querySelector('[data-figure="matchups"]')?.replaceWith(matchupGrid(run.matchups));
 
   const extras = el("section", "nb-extras");
   if (run.artefacts.length) extras.append(artefactsBlock(run.artefacts));

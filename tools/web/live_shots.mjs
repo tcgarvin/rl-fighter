@@ -38,6 +38,10 @@ const SCENES = [
   { name: "battle", query: "seed=11&fleets=3v3&warmup=24&commands=0", phase: "battle", after: 1.5 },
   { name: "battle-4v4-details", query: "seed=4&fleets=4v4&warmup=20&details&commands=0", phase: "battle", after: 1.5 },
   { name: "result", query: "seed=1&fleets=duel&warmup=8.2&commands=0", phase: "result", after: 0.9 },
+  // The camera eases in over a couple of seconds, so these hold a little longer.
+  { name: "inspect-ship", query: "seed=11&fleets=3v3&warmup=6&commands=0&inspect=0&outputs=0", phase: "battle", after: 3 },
+  { name: "inspect-outputs", query: "seed=11&fleets=3v3&warmup=6&commands=0&inspect=1&outputs=1", phase: "battle", after: 3 },
+  { name: "inspect-carrier", query: "seed=5&mission=carrier&warmup=50&commands=0&inspect=0&outputs=1", phase: "battle", after: 3 },
   ...MISSION_SCENES("carrier", 5, 50),
   ...MISSION_SCENES("convoy", 3, 30),
   ...(process.env.RLF_SHOTS_EXTRA ?? "").split(";").filter(Boolean).map((s) => {

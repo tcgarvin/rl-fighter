@@ -6,7 +6,8 @@ the highest-rated members of a population season who are not the script, at most
 uploads each checkpoint to the public bucket and records its URL and hash, and ``export``
 reads the training file if it is still there, else a sha256-checked download.
 
-    python -m tools.live_pilots publish --season lab/population/2026-11-sim6
+    python -m tools.live_pilots publish --season lab/population/2026-11-sim6 \\
+        --entry 2026-11-02-ten-pilots
     python -m tools.live_pilots export --bundle web/public/bundle --wasm-sim-version 6 \\
         --wasm-obs-dim 583 --wasm-pilot-compat 3,4,5,6 \\
         --wasm-pilot-obs-dims '{"3": 385, "4": 385, "5": 403, "6": 583}'
@@ -14,6 +15,10 @@ reads the training file if it is still there, else a sha256-checked download.
 ``export`` writes ``<bundle>/pilots/<id>/`` (``tools/export_policy.py``) and
 ``<bundle>/pilots/index.json``, which ``tools/build_bundle.py`` copies into the bundle
 manifest. A pilot with the champion's weights reuses ``<bundle>/policy/``.
+
+Viewers read about each pilot on the page, so a pilot cannot go live without a sentence in
+``lab/live_pilot_notes.json``, and a list cannot go live without the logbook entry that
+introduces it (``--entry``, a directory under ``lab/runs``).
 """
 
 from __future__ import annotations
@@ -39,10 +44,20 @@ from tools.export_policy import ExportError, export
 
 SCHEMA = "rlf.live_pilots/1"
 INDEX_SCHEMA = "rlf.live_pilot_index/1"
+MATCHUPS_SCHEMA = "rlf.notebook.matchups/1"
+MATCHUP_MODES = ("overall", "deathmatch", "carrier_battle", "convoy_escort")
 MAX_LIVE_PILOTS = 10
 KEY_PREFIX = "rl-fighter/pilots"
 DEFAULT_REGISTRY = Path("lab/live_pilots.json")
+DEFAULT_NOTES = Path("lab/live_pilot_notes.json")
+DEFAULT_RUNS = Path("lab/runs")
 CHAMPION_DIR = "policy"
+# The drill results a viewer can read: did it go there, did it switch when the order did.
+FOLLOW_SCORES = {
+    "goto_arrival": "go_to",
+    "attack_flip": "attack",
+    "defend_flip": "defend",
+}
 
 
 class LivePilotsError(ValueError):
@@ -60,6 +75,8 @@ class LivePilot:
         checkpoint: The training file, relative to the repo root.
         sha256: The checkpoint's hash.
         url: Where the checkpoint can be downloaded.
+        note: One plain sentence or two about it, for viewers.
+        follows: Its latest order drill scores, 0 to 1; empty if it never drilled.
     """
 
     id: str
@@ -68,6 +85,16 @@ class LivePilot:
     checkpoint: str
     sha256: str
     url: str
+    note: str
+    follows: dict[str, float]
+
+
+def follow_scores(member: Member) -> dict[str, float]:
+    """The member's latest drill scores a viewer reads; empty if it never drilled."""
+    if not member.drills:
+        return {}
+    scores = member.drills[-1].scores
+    return {name: round(scores[key], 2) for key, name in FOLLOW_SCORES.items()}
 
 
 def select_members(population: Population, limit: int) -> list[Member]:
@@ -94,18 +121,38 @@ def select_members(population: Population, limit: int) -> list[Member]:
 def publish(
     season: Path,
     registry: Path,
+    entry: str,
+    notes: Path = DEFAULT_NOTES,
+    runs: Path = DEFAULT_RUNS,
     limit: int = MAX_LIVE_PILOTS,
     store: WeightStore | None = None,
 ) -> list[LivePilot]:
     """Upload the chosen members' checkpoints and write the registry.
 
+    Args:
+        season: The population season to choose from.
+        registry: The file to write.
+        entry: The logbook entry introducing this list: a directory under ``runs``.
+        notes: Pilot id -> the sentence viewers read about it.
+        runs: The logbook's run directories.
+        limit: At most this many pilots.
+        store: Where the weights go; the public bucket by default.
+
     Raises:
-        LivePilotsError: A checkpoint is missing or does not match its record.
+        LivePilotsError: The entry does not exist, a pilot has no note, or a checkpoint
+            is missing or does not match its record.
         ChampionError: An upload fails.
     """
+    if not (runs / entry / "results.md").is_file():
+        raise LivePilotsError(f"no logbook entry {runs / entry / 'results.md'}")
     weights = store if store is not None else GcsStore(key_prefix=KEY_PREFIX)
+    written = json.loads(notes.read_text())
+    members = select_members(load_population(season), limit)
+    unwritten = [m.id for m in members if not written.get(m.id)]
+    if unwritten:
+        raise LivePilotsError(f"{notes}: no note for {', '.join(unwritten)}")
     pilots = []
-    for member in select_members(load_population(season), limit):
+    for member in members:
         path = Path(member.checkpoint)
         if not path.is_file():
             raise LivePilotsError(f"{member.id}: {path} is missing")
@@ -120,11 +167,14 @@ def publish(
                 member.checkpoint,
                 member.sha256,
                 weights.put(path, key),
+                written[member.id],
+                follow_scores(member),
             )
         )
     data = {
         "schema": SCHEMA,
         "season": str(season),
+        "entry": entry,
         "pilots": [asdict(p) for p in pilots],
     }
     registry.write_text(json.dumps(data, indent=1) + "\n")
@@ -150,6 +200,12 @@ def load_registry(registry: Path) -> list[LivePilot]:
     if len({p.id for p in pilots}) != len(pilots):
         raise LivePilotsError(f"{registry}: a pilot is listed twice")
     return pilots
+
+
+def registry_entry(registry: Path) -> str:
+    """The logbook entry that introduces the list in ``registry``."""
+    load_registry(registry)
+    return str(json.loads(registry.read_text())["entry"])
 
 
 def fetch_checkpoint(
@@ -181,8 +237,11 @@ def export_pilots(
     wasm_obs_dim: int,
     wasm_pilot_compat: Sequence[int],
     wasm_pilot_obs_dims: dict[int, int],
+    entry: str,
 ) -> list[dict[str, Any]]:
     """Export each pilot into the bundle and write ``pilots/index.json``.
+
+    ``entry`` is the logbook entry that introduces the list, for the page to link to.
 
     Raises:
         LivePilotsError: A download fails to match its record.
@@ -212,14 +271,60 @@ def export_pilots(
                 "rating": round(pilot.rating, 1),
                 "dir": directory,
                 "sim_version": version,
+                "note": pilot.note,
+                "follows": pilot.follows,
             }
         )
     path = bundle / "pilots" / "index.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        json.dumps({"schema": INDEX_SCHEMA, "pilots": index}, indent=1) + "\n"
+        json.dumps({"schema": INDEX_SCHEMA, "entry": entry, "pilots": index}, indent=1)
+        + "\n"
     )
     return index
+
+
+def matchups(pilots: Sequence[LivePilot], results: Path, out: Path) -> dict[str, Any]:
+    """Write the logbook's who-beats-whom grid for ``pilots``, in rating order.
+
+    Args:
+        pilots: The pilots, best first.
+        results: A round robin's directory, holding ``summary.json`` and ``config.json``.
+        out: The ``matchups.json`` to write.
+
+    Returns:
+        ``modes[mode][i][j]``, how often pilot ``i`` beat pilot ``j`` (null on the
+        diagonal), and ``script[mode][i]``, how often pilot ``i`` beat the script.
+
+    Raises:
+        LivePilotsError: The round robin did not play one of the pilots.
+    """
+    summary = json.loads((results / "summary.json").read_text())
+    config = json.loads((results / "config.json").read_text())
+    ids = [p.id for p in pilots]
+    unplayed = [i for i in ids if i not in summary["members"]]
+    if unplayed:
+        raise LivePilotsError(f"{results}: never played {', '.join(unplayed)}")
+    grid = summary["win_matrix"]
+    data = {
+        "schema": MATCHUPS_SCHEMA,
+        "source": results.as_posix(),
+        "n_per_mission": config["n_per_mission"],
+        "pilots": [{"id": p.id, "rating": round(p.rating)} for p in pilots],
+        "modes": {
+            mode: [
+                [None if a == b else round(grid[mode][a][b], 3) for b in ids]
+                for a in ids
+            ]
+            for mode in MATCHUP_MODES
+        },
+        "script": {
+            mode: [round(grid[mode][a]["script"], 3) for a in ids]
+            for mode in MATCHUP_MODES
+        },
+    }
+    out.write_text(json.dumps(data, indent=1) + "\n")
+    return data
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -228,8 +333,14 @@ def _parser() -> argparse.ArgumentParser:
 
     send = commands.add_parser("publish", help="upload weights, write the registry")
     send.add_argument("--season", type=Path, required=True)
+    send.add_argument("--entry", required=True, help="logbook entry (lab/runs/<id>)")
     send.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY)
     send.add_argument("--limit", type=int, default=MAX_LIVE_PILOTS)
+
+    grid = commands.add_parser("matchups", help="write the logbook's who-beats-whom")
+    grid.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY)
+    grid.add_argument("--results", type=Path, required=True, help="a round robin's dir")
+    grid.add_argument("--out", type=Path, required=True)
 
     out = commands.add_parser("export", help="export the registry's pilots to a bundle")
     out.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY)
@@ -246,8 +357,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         if args.command == "publish":
-            pilots = publish(args.season, args.registry, args.limit)
+            pilots = publish(args.season, args.registry, args.entry, limit=args.limit)
             print(f"{args.registry}: {', '.join(p.id for p in pilots)}")
+            return 0
+        if args.command == "matchups":
+            matchups(load_registry(args.registry), args.results, args.out)
+            print(f"wrote {args.out}")
             return 0
         index = export_pilots(
             load_registry(args.registry),
@@ -256,6 +371,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.wasm_obs_dim,
             [int(v) for v in args.wasm_pilot_compat.split(",")],
             {int(k): int(v) for k, v in json.loads(args.wasm_pilot_obs_dims).items()},
+            registry_entry(args.registry),
         )
         print(f"{args.bundle}/pilots: {', '.join(p['id'] for p in index)}")
         return 0
