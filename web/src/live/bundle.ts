@@ -1,5 +1,6 @@
 // The champion bundle (scripts/build_bundle.sh → /bundle/): the sim wasm, the exported
-// policy, the catalogue and manifest.json (rlf.bundle/1). Every file but the manifest
+// policy, the pilots the page picks from ship by ship (a bundle without any flies the
+// champion alone), the catalogue and manifest.json (rlf.bundle/1). Every file but the manifest
 // is fetched with ?v=<bundle_id>, so a new bundle never mixes with a cached old one and
 // its wasm instantiates as a fresh module next to the running one.
 
@@ -20,6 +21,30 @@ export interface ChampionEval {
   hit_rate: number | null;
 }
 
+/** One entry of manifest.pilots: `dir` holds its export, relative to the bundle. */
+export interface PilotEntry {
+  id: string;
+  family: string;
+  rating: number;
+  dir: string;
+  sim_version: number;
+}
+
+/** A pilot ready to fly: its policy and the obs prefix it reads (pilotObsDim). */
+export interface LivePilot {
+  id: string;
+  policy: Policy;
+  obsDim: number;
+}
+
+/** An exported policy's two files. */
+export interface PolicyFiles {
+  pm: PolicyManifest;
+  weights: ArrayBuffer;
+}
+
+export const CHAMPION_DIR = "policy";
+
 export interface BundleManifest {
   schema: string;
   bundle_id: string;
@@ -37,15 +62,16 @@ export interface BundleManifest {
   };
   match: MatchSettings;
   roster: RosterRules;
+  /** The pilots picked from ship by ship; absent: the champion flies every strike craft. */
+  pilots?: PilotEntry[];
 }
 
 export interface Bundle {
   manifest: BundleManifest;
   sim: SimModule;
   layout: SimLayout;
-  policy: Policy;
-  /** v5: the obs prefix the policy reads, from the pilot's sim version (pilotObsDim). */
-  pilotObsDim: number;
+  /** At least one; the champion alone in a bundle that lists none. */
+  pilots: LivePilot[];
   catalogue: Catalogue;
 }
 
@@ -71,13 +97,20 @@ export function parseManifest(raw: unknown): BundleManifest {
   need(isRecord(match) && [match.arena_radius, match.time_limit_ticks, match.reaction_ticks].every((v) => typeof v === "number"), "match", 0);
   need(isRecord(roster) && Array.isArray(roster.hulls) && roster.hulls.length > 0, "roster.hulls", 0);
   need(isRecord(roster) && [roster.min_per_side, roster.max_per_side, roster.budget].every(Number.isInteger), "roster sizes", 0);
+  const { pilots } = raw;
+  need(
+    pilots === undefined || (Array.isArray(pilots) && pilots.length > 0 && pilots.every((p) => isRecord(p) && typeof p.id === "string" && typeof p.dir === "string")),
+    "pilots",
+    0,
+  );
   return raw as unknown as BundleManifest;
 }
 
 /**
  * Put loaded parts together and check they agree: the manifest's sim version against
- * the wasm, the policy against the wasm's layout (createPolicy), and the catalogue by
- * building and freeing a one-ship-a-side match of every rostered hull.
+ * the wasm, every policy against the wasm's layout (createPolicy), and the catalogue by
+ * building and freeing a one-ship-a-side match of every rostered hull. `pilotFiles` holds
+ * each listed pilot's export by its `dir`, all but the champion's.
  */
 export function assembleBundle(
   manifest: BundleManifest,
@@ -85,6 +118,7 @@ export function assembleBundle(
   policyManifest: PolicyManifest,
   weights: ArrayBuffer,
   catalogue: Catalogue,
+  pilotFiles: Record<string, PolicyFiles> = {},
 ): Bundle {
   const layout = simLayout(sim);
   if (layout.simVersion !== manifest.sim_version) throw new Error(`bundle says sim_version ${manifest.sim_version}, its wasm is ${layout.simVersion}`);
@@ -93,13 +127,21 @@ export function assembleBundle(
   if (policyManifest.sim_version !== pilot) throw new Error(`bundle says pilot_sim_version ${pilot}, its policy is for ${policyManifest.sim_version}`);
   // A v3/v4 pilot in a v5 wasm reads the first 385 obs floats (SIM_SPEC §0.3).
   const obsDim = pilotObsDim(layout, pilot);
-  const policy = createPolicy(policyManifest, weights, { ...layout, obsDim });
+  const champion = createPolicy(policyManifest, weights, { ...layout, obsDim });
+  const pilots: LivePilot[] = (manifest.pilots ?? []).map((entry) => {
+    if (entry.dir === CHAMPION_DIR) return { id: entry.id, policy: champion, obsDim };
+    const files = pilotFiles[entry.dir];
+    if (!files) throw new Error(`bundle lists pilot ${entry.id}, but ${entry.dir} was not loaded`);
+    const dim = pilotObsDim(layout, files.pm.sim_version);
+    return { id: entry.id, policy: createPolicy(files.pm, files.weights, { ...layout, obsDim: dim }), obsDim: dim };
+  });
+  if (pilots.length === 0) pilots.push({ id: manifest.champion.id, policy: champion, obsDim });
   for (const hull of manifest.roster.hulls) {
     if (!catalogue.info[hull]) throw new Error(`roster hull ${hull} is not in the catalogue`);
     const probe = new sim.WasmMatch(catalogue.hulls, catalogue.weapons, JSON.stringify({ seed: 0, ...manifest.match, fleets: [[hull], [hull]] }));
     probe.free();
   }
-  return { manifest, sim, layout, policy, pilotObsDim: obsDim, catalogue };
+  return { manifest, sim, layout, pilots, catalogue };
 }
 
 async function fetchOk(url: string, init?: RequestInit): Promise<Response> {
@@ -119,13 +161,17 @@ export async function loadBundle(base: string, manifest: BundleManifest): Promis
   const v = `?v=${encodeURIComponent(manifest.bundle_id)}`;
   const absolute = new URL(base, location.href);
   const sim = (await import(/* @vite-ignore */ new URL(`pkg/sim_wasm.js${v}`, absolute).href)) as SimModule;
-  const policyFiles = fetchOk(`${base}policy/manifest.json${v}`)
-    .then((r) => r.json() as Promise<PolicyManifest>)
-    .then(async (pm) => ({ pm, weights: await (await fetchOk(`${base}policy/${pm.weights_file}${v}`)).arrayBuffer() }));
-  const [, { pm, weights }, catalogue] = await Promise.all([
+  const policyFiles = async (dir: string): Promise<PolicyFiles> => {
+    const pm = (await (await fetchOk(`${base}${dir}/manifest.json${v}`)).json()) as PolicyManifest;
+    return { pm, weights: await (await fetchOk(`${base}${dir}/${pm.weights_file}${v}`)).arrayBuffer() };
+  };
+  const dirs = (manifest.pilots ?? []).map((p) => p.dir).filter((d) => d !== CHAMPION_DIR);
+  const [, { pm, weights }, catalogue, pilotFiles] = await Promise.all([
     sim.default({ module_or_path: new URL(`pkg/sim_wasm_bg.wasm${v}`, absolute) }),
-    policyFiles,
+    policyFiles(CHAMPION_DIR),
     fetchOk(`${base}catalogue.json${v}`).then((r) => r.json() as Promise<Catalogue>),
+    Promise.all(dirs.map(policyFiles)),
   ]);
-  return assembleBundle(manifest, sim, pm, weights, catalogue);
+  const byDir = Object.fromEntries(dirs.map((d, i) => [d, pilotFiles[i]!]));
+  return assembleBundle(manifest, sim, pm, weights, catalogue, byDir);
 }

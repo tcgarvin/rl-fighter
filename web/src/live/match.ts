@@ -1,9 +1,10 @@
-// One live match: the WASM sim stepped one 30 Hz tick at a time, every strike craft
-// flown by the champion policy and every capital ship (carrier, freighter) by the
-// sim's own script (SIM_SPEC §11). The commanders are scripted inside the sim's step.
+// One live match: the WASM sim stepped one 30 Hz tick at a time, each strike craft
+// flown by a pilot picked for it at random and every capital ship (carrier, freighter)
+// by the sim's own script (SIM_SPEC §11). The commanders are scripted inside the sim's step.
 // No DOM or three.js here, so tools/web/live_smoke.mjs runs the same loop headless.
 
-import { mulberry32, type Policy, type Rng } from "./policy.js";
+import { mulberry32, type Rng } from "./policy.js";
+import type { LivePilot } from "./bundle.ts";
 import type { MissionName } from "./missions.ts";
 import {
   END_REASONS,
@@ -51,13 +52,21 @@ export interface Timing {
   ticks: number;
 }
 
+// Keeps the pilot draw apart from the ships' sampling streams and the roster draw.
+const PILOT_SALT = 0x70696c6f;
+
+/** One pilot per ship, each drawn alone from `pilots`, the same for the same seed. */
+export function assignPilots<P>(pilots: readonly P[], nShips: number, seed: number): P[] {
+  const rng = mulberry32(Math.imul(seed | 0, 0x2545f491) ^ PILOT_SALT);
+  return Array.from({ length: nShips }, () => pilots[Math.floor(rng() * pilots.length)]!);
+}
+
 export interface LiveMatchOptions {
   sim: SimModule;
   layout: SimLayout;
   catalogue: Catalogue;
-  policy: Policy;
-  /** v5: the obs prefix the policy reads (Bundle.pilotObsDim). */
-  pilotObsDim: number;
+  /** Each strike craft gets one of these at random (Bundle.pilots). */
+  pilots: LivePilot[];
   /** The champion's trained match config (manifest.match): deathmatch clock and reaction. */
   settings: MatchSettings;
   fleets: Fleets;
@@ -106,8 +115,7 @@ export class LiveMatch {
 
   private readonly sim: SimModule;
   private readonly layout: SimLayout;
-  private readonly policy: Policy;
-  private readonly pilotObsDim: number;
+  private readonly shipPilots: LivePilot[];
   private match: WasmMatch | null;
   private readonly headValid: Uint8Array[];
   private readonly rngs: Rng[];
@@ -121,13 +129,12 @@ export class LiveMatch {
   constructor(o: LiveMatchOptions) {
     this.sim = o.sim;
     this.layout = o.layout;
-    this.policy = o.policy;
-    this.pilotObsDim = o.pilotObsDim;
     this.seed = o.seed;
     this.fleets = o.fleets;
     this.settings = o.settings;
     this.mission = o.mission ?? "deathmatch";
     this.nShips = o.fleets[0].length + o.fleets[1].length;
+    this.shipPilots = assignPilots(o.pilots, this.nShips, o.seed);
     this.v4 = typeof o.sim.arenaRadiusForMission === "function";
     const deathmatch = this.mission === "deathmatch";
     if (!this.v4 && !deathmatch) throw new Error(`mission ${this.mission} needs a SIM_VERSION 4 bundle`);
@@ -161,6 +168,11 @@ export class LiveMatch {
       const same = this.hullNames.map((_, j) => j).filter((j) => this.hullNames[j] === name && this.ships[j]!.team === team);
       return same.length > 1 ? `${name} ${same.indexOf(i) + 1}` : name;
     });
+  }
+
+  /** The pilot flying a ship; "" for a capital ship, which the sim's script flies. */
+  pilotId(s: number): string {
+    return this.ships[s]!.role === "strike" ? this.shipPilots[s]!.id : "";
   }
 
   private get wasm(): WasmMatch {
@@ -235,8 +247,9 @@ export class LiveMatch {
         continue;
       }
       const t0 = performance.now();
-      // A v3/v4 pilot reads the v4 prefix of the v5 obs (no order block).
-      this.policy.act(m.obs(s).subarray(0, this.pilotObsDim), this.headValid[s]!, this.rngs[s]!, this.row);
+      // An older pilot reads the prefix of the obs it was trained on.
+      const pilot = this.shipPilots[s]!;
+      pilot.policy.act(m.obs(s).subarray(0, pilot.obsDim), this.headValid[s]!, this.rngs[s]!, this.row);
       nn += performance.now() - t0;
       m.set_action(s, this.row);
     }

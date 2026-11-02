@@ -95,10 +95,16 @@ export class Hud {
     const c = manifest.champion;
     const mixed = manifest.roster.hulls.length > 1 ? " One net flies every hull." : "";
     const craft = capitals ? "fighter" : "ship";
-    const lead = replay
-      ? `A past champion, ${escapeHtml(c.name)}: every ${craft} is flown by it.${mixed} <a href="/">Watch today's pilot&nbsp;→</a> `
-      : `Every ${craft} here is the same neural network, flying by thruster and trigger, trained overnight.${mixed} `;
     const scripts = capitals ? "Carriers, freighters and both commanders are scripted. " : "";
+    const nPilots = manifest.pilots?.length ?? 1;
+    if (!replay && nPilots > 1) {
+      const lead = `Each ${craft} here is flown by one of ${nPilots} neural networks, picked at random ship by ship, flying by thruster and trigger, trained overnight. `;
+      this.captionEl.innerHTML = lead + scripts + `<a href="/notebook/">How these pilots learned&nbsp;→</a>`;
+      return;
+    }
+    const lead = replay
+      ? `A past champion, ${escapeHtml(c.name)}: every ${craft} is flown by it.${mixed} <a href="/">Watch today's pilots&nbsp;→</a> `
+      : `Every ${craft} here is the same neural network, flying by thruster and trigger, trained overnight.${mixed} `;
     this.captionEl.innerHTML = lead + scripts + `<a href="/notebook/#${encodeURIComponent(c.run)}">How this pilot learned&nbsp;→</a>`;
   }
 

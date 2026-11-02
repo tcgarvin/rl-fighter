@@ -21,7 +21,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { importRepo, loadSim, readPolicyFiles } from "./load.mjs";
+import { importRepo, loadSim, readPilotFiles, readPolicyFiles } from "./load.mjs";
 
 const args = process.argv.slice(2);
 const flags = {};
@@ -49,7 +49,8 @@ const readJson = (rel) => JSON.parse(fs.readFileSync(path.join(bundleDir, rel), 
 const manifest = parseManifest(readJson("manifest.json"));
 const { manifest: policyManifest, weights } = readPolicyFiles(path.join(bundleDir, "policy"));
 const sim = await loadSim(path.join(bundleDir, "pkg"));
-const bundle = assembleBundle(manifest, sim, policyManifest, weights, readJson("catalogue.json"));
+const bundle = assembleBundle(manifest, sim, policyManifest, weights, readJson("catalogue.json"), readPilotFiles(bundleDir, manifest));
+const flown = new Map();
 const rules = flags.hulls ? { ...manifest.roster, hulls: flags.hulls.split(",") } : manifest.roster;
 // Node has no renderer: every catalogue hull counts as drawable here.
 const available = availableMissions(bundle.layout.simVersion, bundle.catalogue.info, () => true);
@@ -58,7 +59,7 @@ const rosters = defaultRosters(sim);
 const wasmKiB = fs.statSync(path.join(bundleDir, "pkg/sim_wasm_bg.wasm")).size / 1024;
 console.log(
   `live smoke: bundle ${manifest.bundle_id}, sim_version ${bundle.layout.simVersion}, wasm ${wasmKiB.toFixed(0)} KiB, ` +
-    `champion ${manifest.champion.id} (${manifest.champion.hulls.join(", ")}), drafting ${rules.hulls.join(", ")}; missions ${available.join(", ")}`,
+    `champion ${manifest.champion.id} (${manifest.champion.hulls.join(", ")}), ${bundle.pilots.length} pilots, drafting ${rules.hulls.join(", ")}; missions ${available.join(", ")}`,
 );
 
 const stripTags = (html) => html.replace(/<[^>]+>/g, "");
@@ -76,6 +77,10 @@ for (let i = 0; i < Number(nArg); i++) {
   }
   const roster = missionRoster(mission, parseRosterMode(mission === "deathmatch" ? mode : null), rules, bundle.catalogue.info, mulberry32(seed ^ 0x5bd1e995), rosters);
   const match = new LiveMatch({ ...bundle, settings: manifest.match, fleets: roster.fleets, seed, mission });
+  for (let s = 0; s < match.nShips; s++) {
+    const id = match.pilotId(s);
+    if (id) flown.set(id, (flown.get(id) ?? 0) + 1);
+  }
   const b = missionBrief(mission, match.convoy);
   const brief = stripTags(`${b.headline ? `${b.headline} ` : ""}${b.brief}`);
   let simTotal = 0;
@@ -132,6 +137,11 @@ for (let i = 0; i < Number(nArg); i++) {
   match.free();
 }
 console.log(`live smoke: team 0 ${tally[0]} · team 1 ${tally[1]} · draws ${tally.draw}`);
+console.log(`live smoke: strike craft per pilot: ${[...flown].sort().map(([id, n]) => `${id} ${n}`).join(", ")}`);
+if (bundle.pilots.length > 1 && flown.size < 2) {
+  console.error(`live smoke: FAIL ${bundle.pilots.length} pilots in the bundle, but only ${flown.size} flew`);
+  failed = true;
+}
 if (worstMean > TICK_BUDGET_MS) {
   console.error(`live smoke: FAIL mean tick ${worstMean.toFixed(2)} ms exceeds the ${TICK_BUDGET_MS.toFixed(1)} ms budget`);
   failed = true;

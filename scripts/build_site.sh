@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Assemble the static site in dist/ (gitignored) for scripts/deploy.sh:
-#   /         the live page (web/, built by Vite) with the champion bundle at /bundle/
+#   /         the live page (web/, built by Vite) with the champion bundle and, from
+#             lab/live_pilots.json, the pilots it picks from ship by ship at /bundle/
 #             (scripts/build_bundle.sh); /notebook/ and /hulls/ come from web/ too
 #   /story/   prototypes/story/ (the scripted story demo: where the match is going)
 #   /duel/    redirects to /?fleets=duel (web/public/_redirects)
@@ -28,6 +29,8 @@ if [[ $# -eq 0 ]]; then
     eval "$CHAMPION_ENV"
     export RLF_CHAMPION_ID RLF_CHAMPION_NAME RLF_CHAMPION_HULLS
     echo "$RLF_CHAMPION_ID ($RLF_CHAMPION_HULLS): $CHAMPION_CHECKPOINT"
+    # The live page flies the registry's pilots, ship by ship.
+    export RLF_LIVE_PILOTS="${RLF_LIVE_PILOTS:-lab/live_pilots.json}"
     set -- "$CHAMPION_CHECKPOINT" "$CHAMPION_RUN" "$CHAMPION_EVAL_JSON"
 fi
 
@@ -43,6 +46,7 @@ for past in $("$PY" -m tools.champion past); do
     (
         eval "$PAST_ENV"
         export RLF_CHAMPION_ID RLF_CHAMPION_NAME RLF_CHAMPION_HULLS
+        unset RLF_LIVE_PILOTS
         RLF_SKIP_WASM=1 RLF_SMOKE_MATCHES=1 RLF_BUNDLE_DIR="$REPO_ROOT/web/public/champions/$past" \
             scripts/build_bundle.sh "$CHAMPION_CHECKPOINT" "$CHAMPION_RUN" "$CHAMPION_EVAL_JSON"
     )

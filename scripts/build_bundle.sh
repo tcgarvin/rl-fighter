@@ -17,7 +17,9 @@
 #      wasm-pack build, RLF_CHAMPION_ID / RLF_CHAMPION_NAME / RLF_CHAMPION_HULLS
 #      (comma-separated; default: the hulls it trained on) / RLF_ROSTER_BUDGET
 #      override the manifest, RLF_SMOKE_MATCHES (default 4), RLF_BUNDLE_DIR writes the
-#      bundle somewhere else (scripts/build_site.sh: past champions' bundles).
+#      bundle somewhere else (scripts/build_site.sh: past champions' bundles),
+#      RLF_LIVE_PILOTS names a registry (lab/live_pilots.json) of pilots to fly ship by
+#      ship; without it the champion flies every strike craft.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -79,6 +81,13 @@ if [[ -n "$EVAL_JSON" ]]; then
     EXPORT_ARGS+=(--eval-json "$EVAL_JSON")
 fi
 "$PYTHON" -m tools.export_policy "${EXPORT_ARGS[@]}"
+
+if [[ -n "${RLF_LIVE_PILOTS:-}" ]]; then
+    step "export live pilots: $RLF_LIVE_PILOTS"
+    "$PYTHON" -m tools.live_pilots export --registry "$RLF_LIVE_PILOTS" --bundle "$BUNDLE" \
+        --wasm-sim-version "$SIM_VERSION" --wasm-obs-dim "$OBS_DIM" \
+        --wasm-pilot-compat "$PILOT_COMPAT" --wasm-pilot-obs-dims "$PILOT_OBS_DIMS"
+fi
 
 step "catalogue + manifest"
 BUNDLE_ARGS=(--bundle "$BUNDLE" --run "$RUN_ID" --assets assets

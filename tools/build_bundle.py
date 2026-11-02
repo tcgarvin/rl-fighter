@@ -13,7 +13,9 @@ and the hull YAMLs and writes the remaining two files:
 - ``manifest.json`` (``rlf.bundle/1``): the bundle id, sim version (the wasm's; the
   policy's own is ``pilot_sim_version``, which must be pilot-compatible), the champion
   (id, name, notebook run, the hulls it is certified to fly, an eval summary), the
-  match config it was trained on, and the roster rules the page drafts from.
+  match config it was trained on, and the roster rules the page drafts from. With a
+  ``pilots/index.json`` (``tools/live_pilots.py``) it also lists the pilots the page
+  picks from, ship by ship; without one the champion flies every strike craft.
 
 The bundle id is a hash of the wasm, the weights, the catalogue and the manifest's
 own settings, so rebuilding the same inputs keeps the id and the live page does not
@@ -189,13 +191,36 @@ def eval_summary(policy: dict[str, Any], repo: Path) -> dict[str, Any] | None:
     return out
 
 
+def live_pilots(bundle: Path) -> list[dict[str, Any]]:
+    """The pilots in ``pilots/index.json``; empty when the bundle has none.
+
+    Raises:
+        BundleError: A listed pilot's exported files are missing.
+    """
+    index = bundle / "pilots" / "index.json"
+    if not index.is_file():
+        return []
+    pilots: list[dict[str, Any]] = json.loads(index.read_text())["pilots"]
+    for pilot in pilots:
+        for name in ("manifest.json", "weights.bin"):
+            if not (bundle / pilot["dir"] / name).is_file():
+                raise BundleError(
+                    f"pilot {pilot['id']}: {pilot['dir']}/{name} is missing"
+                )
+    return pilots
+
+
 def bundle_id(bundle: Path, settings: dict[str, Any]) -> str:
-    """Content hash of the wasm, the weights, the catalogue and the settings."""
+    """Content hash of the wasm, every pilot's weights, the catalogue and the settings."""
     digest = hashlib.sha256()
+    pilot_weights = sorted(
+        f"{p['dir']}/weights.bin" for p in settings.get("pilots", ())
+    )
     for rel in (
         "pkg/sim_wasm_bg.wasm",
         "pkg/sim_wasm.js",
         "policy/weights.bin",
+        *pilot_weights,
         "catalogue.json",
     ):
         digest.update(rel.encode())
@@ -292,6 +317,9 @@ def build(
             "budget": rules.budget,
         },
     }
+    pilots = live_pilots(bundle)
+    if pilots:
+        settings["pilots"] = pilots
     manifest = {"schema": SCHEMA, "bundle_id": bundle_id(bundle, settings), **settings}
     (bundle / "manifest.json").write_text(json.dumps(manifest, indent=1) + "\n")
     return manifest

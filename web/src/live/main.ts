@@ -3,8 +3,8 @@
 // escort). Each one musters both rosters with the mission brief, brings the fleets on
 // (jump-in, bay launches, a convoy already under way), plays to the mission's end,
 // holds the result over the burning wreck, and starts the next. The Rust sim (WASM)
-// and the champion policy run on the main thread at 30 Hz; rendering interpolates
-// between ticks. The policy flies every strike craft; carriers, freighters and both
+// and the pilot policies run on the main thread at 30 Hz; rendering interpolates
+// between ticks. A pilot picked per ship flies each strike craft; carriers, freighters and both
 // commanders are the sim's scripts.
 //
 // URL parameters: seed (pin the match seeds), mission (deathmatch, carrier or convoy:
@@ -271,7 +271,8 @@ function frame(now: number): void {
   if (match) {
     hud.updateMission(match);
     hud.updateMarkers(match, showDetails, (i) => world.shipOnScreen(i, window.innerWidth, window.innerHeight), thrusterCounts);
-    hud.setMeta(statusLine(match), `seed ${match.seed} · ${bundle.manifest.champion.name} · ${bundle.manifest.bundle_id.slice(0, 8)}`);
+    const who = bundle.pilots.length > 1 ? `${bundle.pilots.length} pilots` : bundle.manifest.champion.name;
+    hud.setMeta(statusLine(match), `seed ${match.seed} · ${who} · ${bundle.manifest.bundle_id.slice(0, 8)}`);
   }
   hud.updatePerf(dt, realDt, match, showDetails);
   requestAnimationFrame(frame);
@@ -334,6 +335,7 @@ if (params.has("debug")) {
       worstFrameMs: ((w) => ((worstFrameMs = 0), w))(worstFrameMs),
       tickMs: match ? match.timing.sim + match.timing.nn : 0,
       bundle: bundle?.manifest.bundle_id,
+      pilots: match ? match.ships.map((_, i) => match!.pilotId(i)) : [],
       gpu: world.gpuStats(),
       zoom: world.cam.zoomLevel,
     }),

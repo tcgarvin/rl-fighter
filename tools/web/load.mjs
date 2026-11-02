@@ -27,3 +27,14 @@ export function readPolicyFiles(policyDir) {
   const weights = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
   return { manifest, weights };
 }
+
+/** Each listed pilot's export by its `dir`, all but the champion's, for assembleBundle. */
+export function readPilotFiles(bundleDir, manifest) {
+  const files = {};
+  for (const { dir } of manifest.pilots ?? []) {
+    if (dir === "policy") continue;
+    const { manifest: pm, weights } = readPolicyFiles(path.join(bundleDir, dir));
+    files[dir] = { pm, weights };
+  }
+  return files;
+}

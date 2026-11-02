@@ -128,14 +128,16 @@ class GcsStore:
         bucket: str = GCS_BUCKET,
         configuration: str = GCS_CONFIGURATION,
         base_url: str = PUBLIC_BASE_URL,
+        key_prefix: str = KEY_PREFIX,
     ) -> None:
+        self.key_prefix = key_prefix
         self.bucket = bucket
         self.configuration = configuration
         self.base_url = base_url.rstrip("/")
 
     def put(self, local: Path, key: str) -> str:
-        if not key.startswith(f"{KEY_PREFIX}/"):
-            raise ChampionError(f"refusing to write outside {KEY_PREFIX}/: {key}")
+        if not key.startswith(f"{self.key_prefix}/"):
+            raise ChampionError(f"refusing to write outside {self.key_prefix}/: {key}")
         cmd = [
             "gcloud",
             f"--configuration={self.configuration}",

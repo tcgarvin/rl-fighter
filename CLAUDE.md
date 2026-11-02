@@ -69,6 +69,12 @@ uv run python -m tools.champion list | fetch [<id>] | env [<id>]
 # tests/test_pilot_page.py agree with a page written for a new champion. RLF_CHAMPIONS_DIR
 # points every registry reader at a copy, to rehearse with a record not yet promoted.
 
+# The pilots the live page picks from, ship by ship: lab/live_pilots.json (rlf.live_pilots/1;
+# the 10 highest-rated members of a season who are not the script). publish uploads their
+# weights and rewrites the list; scripts/build_site.sh with no arguments exports them into
+# the bundle. A build given a checkpoint, and every past champion, flies one pilot.
+uv run python -m tools.live_pilots publish --season lab/population/2026-11-sim6
+
 # Parity of the browser policy with torch; the headless live-match smoke test
 uv run python -m pytest tests/test_web_policy.py -v
 node --experimental-strip-types tools/web/live_smoke.mjs web/public/bundle 4 [--hulls fighter,strafer,gunship]
@@ -158,8 +164,9 @@ The project is moving to a Rust sim + three.js web client; `docs/DESIGN.md` is t
 source of truth for that direction. The website (`web/`, Vite + TypeScript) serves the
 live page at `/`: matches that loop forever, rotating team deathmatch, carrier battle
 and convoy escort (`web/src/live/missions.ts`: rotation, rosters, briefs; `?mission=
-deathmatch|carrier|convoy` pins one, `?commands=1` shows the commander layer), every
-strike craft flown by the champion policy and capital ships by the sim's scripts (Rust
+deathmatch|carrier|convoy` pins one, `?commands=1` shows the commander layer), each
+strike craft flown by a pilot picked at random from `lab/live_pilots.json` and capital
+ships by the sim's scripts (Rust
 sim in WASM, MLP inference in JS, `web/src/live/`, renderer modules in
 `web/src/render/`), loaded from the champion bundle at `/bundle/`. The renderer takes
 hull mounts from the bundle catalogue (the YAML), not `render/hulls.js`. `/duel/`

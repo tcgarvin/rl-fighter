@@ -352,8 +352,14 @@ populations (DESIGN calls these seasons).
 Do first, before the first population: live rosters in training and the drills. Both
 change what the first 10 pilots learn.
 
-`f995_701` stays live until a member passes the drill gate and beats it in combat, or the
-owner waives that. Population ratings do not deploy anything.
+`f995_701` stays the champion until a member passes the drill gate and beats it in combat,
+or the owner waives that.
+
+**On the live page (owner's call, 2026-11-02):** each strike craft flies one of up to 10
+pilots, drawn at random for each ship: the highest-rated members who are not the script,
+listed in `lab/live_pilots.json`. Archived members can fly there, and a pilot need not pass
+the drill gate. The list changes only when `tools.live_pilots publish` is run, so a new
+rating alone deploys nothing.
 
 ## 8. Still open
 

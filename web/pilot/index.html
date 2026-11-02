@@ -19,12 +19,15 @@
         <p class="kicker">How the pilot works</p>
         <h1>A small network flies every ship</h1>
         <p class="lede">
-          Every strike craft on the live page is flown by the same neural network:
+          Each strike craft on the live page is flown by one of
+          <span data-fact="pilots.live">10</span> neural networks, picked at random ship
+          by ship. They share a design, and this page describes the champion among them:
           <strong data-fact="champion.name">mission pilot · long horizon, update 701</strong>.
           It is a plain multilayer perceptron with two hidden layers and no attention or
           memory. Thirty times a second, each ship runs it once on its own view of the
           battle and gets back a setting for every thruster, turret and trigger it has.
-          It can read its squad's orders, but it does not follow them.
+          It can read its squad's orders, but it does not follow them. Some of the others
+          do.
         </p>
         <dl class="pilot-stats">
           <div><dt>inputs</dt><dd data-fact="obs.dim">583</dd></div>

@@ -255,6 +255,9 @@ def champion_facts(repo: Path, champions_dir: Path) -> dict[str, str]:
     reaction = int(config["reaction_ticks"])
     evaluated = champion.eval
     return {
+        "pilots.live": str(
+            len(json.loads((repo / "lab/live_pilots.json").read_text())["pilots"])
+        ),
         "champion.id": champion.id,
         "champion.name": champion.name,
         "champion.run": champion.run,
