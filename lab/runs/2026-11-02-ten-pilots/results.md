@@ -98,10 +98,10 @@ the first real step between the two. No pilot in the top tier passes the gate ye
   a scripted commander. How the pilots do as mixed teams is unmeasured.
 - **Sides are not balanced.** The draw is uniform and per ship, so one side can draw mostly
   `fighters_506` and the other mostly `v1`. Expect some lopsided matches.
-- **The memory soak test missed its bar by a little.** Over 10 minutes the heap grew 10.6%
-  against a 10% limit. One pilot alone grew 7.7% on a run with the same curve, flattening
-  late, so we judged it not to be a leak from the extra nets and shipped. It should be
-  watched.
+- **The memory soak test is close to its bar.** Over 10 minutes the heap grew 10.6% against
+  a 10% limit on the first run with ten pilots, and 9.1% on a later run with the ship
+  inspector open. One pilot alone grew 7.7% on a run with the same curve, flattening late, so
+  we judged it not to be a leak from the extra nets. It should be watched.
 
 The grid's data is `matchups.json`, from `lab/population/2026-11-sim6/round_robin/first-night`
 (47,520 matches including the script and `scratch_417`). How the night's training went is in

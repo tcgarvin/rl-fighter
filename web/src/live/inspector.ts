@@ -198,7 +198,7 @@ export class Inspector {
     setText(this.line, this.statusText(match, i, ship, max));
     if (this.more.hidden) return;
     const r = match.records[i]!;
-    setText(this.record, `This match: ${plural(r.shots, "shot")} · ${plural(r.hits, "hit")} · ${Math.round(r.damage)} damage · ${plural(r.kills, "kill")}`);
+    setText(this.record, `This match: ${plural(r.shots, "shot")} · ${plural(r.hits, "hit")} · ${Math.round(r.damage)} hull damage ·${plural(r.kills, "kill")}`);
     const w = match.watched;
     if (w.tick < 0 || match.watching !== i) return;
     const logits = match.watchedScripted ? null : w.logits;
