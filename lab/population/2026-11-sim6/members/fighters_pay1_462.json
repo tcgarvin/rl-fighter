@@ -1,0 +1,52 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "fighters_pay1_462",
+ "family": "fighters",
+ "founder": "f995_701",
+ "parent": "f995_701",
+ "relation": "fork",
+ "fork_update": 701,
+ "settings_changed": {
+  "rosters": "pilots_v1",
+  "gamma": 0.995,
+  "lr_decay": false,
+  "beta_start": 0.0,
+  "beta_end": 0.0,
+  "order_reward_weight": 1.0,
+  "drill_share": 0.1,
+  "commander_p": 0.333,
+  "enemy_sampling": "pfsp"
+ },
+ "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters_pay1/checkpoints/ppo_bc_462.pt",
+ "sha256": "638b4394aa6e465c1e9ada826bb10d73ad72cc347bddfad906d497b374d1597c",
+ "status": "archived",
+ "archived_reason": "Drill gate, second-night: fighters_pay1_462 failed the drill gate: goto_arrival, goto_lift, attack_target_hit, attack_side, attack_flip, defend_more_on_named, defend_side, defend_flip.",
+ "archived_date": "2026-11-07",
+ "note": "Night 2: night 1's fighters replayed at order pay 1.",
+ "ratings": [
+  {
+   "phase": "second-night",
+   "date": "2026-11-07",
+   "rating": 300.1745346515282,
+   "sd": 4.447736498386256,
+   "matches": 10080
+  }
+ ],
+ "drills": [
+  {
+   "phase": "second-night",
+   "date": "2026-11-07",
+   "scores": {
+    "goto_arrival": 0.19729206963249515,
+    "goto_lift": 0.04658284977433913,
+    "attack_target_hit": 0.8515625,
+    "attack_side": 0.6015625,
+    "attack_flip": 0.24609375,
+    "defend_more_on_named": 0.572265625,
+    "defend_side": 0.578125,
+    "defend_flip": 0.2109375
+   },
+   "passed": false
+  }
+ ]
+}

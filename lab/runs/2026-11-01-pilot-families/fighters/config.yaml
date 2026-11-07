@@ -44,7 +44,7 @@ opponent_bands:
 checkpoint_every: 50
 rosters: pilots_v1
 roster_overrides:
-  drill_share: 0.1
+  drill_share: 0.25
   commander_p: 0.333
 max_ships: 0
 critic: fleet
@@ -54,6 +54,8 @@ pool_seed:
 - /home/timg/code/rl-fighter/lab/runs/2026-11-01-order-pilot-b3/reward/checkpoints/ppo_bc_300.pt
 - /home/timg/code/rl-fighter/lab/runs/2026-10-31-order-pilot/w1/checkpoints/ppo_bc_400.pt
 - /home/timg/code/rl-fighter/lab/runs/2026-10-30-fleet-pilot/arm_warm/checkpoints/ppo_bc_400.pt
+- /home/timg/code/rl-fighter/lab/runs/2026-11-01-pilot-families/fighters/checkpoints/ppo_bc_506.pt
+- /home/timg/code/rl-fighter/lab/runs/2026-11-01-pilot-families/followers/checkpoints/ppo_bc_513.pt
 env_warmup_steps: 0
 learner_side: random
 pool_seed_p: 0.5

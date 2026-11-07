@@ -1,0 +1,270 @@
+07:30:28 drills: fighters_959
+# Order drills: fighters_959
+
+**Gate: fail.** fighters_959 failed the drill gate: goto_arrival, goto_lift, attack_target_hit, attack_side, attack_flip, defend_more_on_named, defend_side, defend_flip.
+
+Pilot `policy:ppo_bc_959.pt`, seed 500000, sim version 6. Overall: 0.41 +/- 0.02 (434/1063) (go-to arrivals (shown) and attack and defend swap-test flips).
+
+## Go-to (256 drills, ship by ship)
+
+- Arrival by the deadline, order shown: 0.30 +/- 0.02 (163/551; 109 killed first, not counted)
+- Same seeds, order hidden: 0.14 +/- 0.01 (83/589; 71 killed first, not counted)
+- Lift from seeing the order: +0.15
+- Near: 0.36 +/- 0.03 (117/321; 34 killed first, not counted)
+- Far: 0.20 +/- 0.03 (46/230; 75 killed first, not counted)
+- Enemies around the route: 0.34 +/- 0.03 (96/285; 61 killed first, not counted)
+
+## Attack (256 swap pairs)
+
+- Any damage on the named target: 0.89 +/- 0.01 (455/512)
+- Swap test, flipped, groups busy with a freighter: 0.54 +/- 0.04 (106/198)
+- Swap test, flipped, groups flying at the pilots: 0.38 +/- 0.06 (22/58)
+- Damage on the named target per pilot: 58.5 +/- 3.1 (n=512)
+- On other enemies per pilot (not judged): 84.6 +/- 3.9 (n=512)
+- Chose the named side: 0.73 +/- 0.02 (376/512)
+- Chose the other side: 0.17 +/- 0.02 (86/512)
+- Chose neither: 0.10 +/- 0.01 (50/512)
+- Swap test, flipped with the order: 0.50 +/- 0.03 (128/256)
+- Swap test, one side whatever was named: 0.31 +/- 0.03 (79/256)
+
+## Defend (256 swap pairs)
+
+- Named ward's attackers took more than the other's: 0.71 +/- 0.02 (361/512)
+- On the named ward's attackers per pilot: 84.9 +/- 3.7 (n=512)
+- On the other's per pilot: 43.0 +/- 3.3 (n=512)
+- Chose the named side: 0.76 +/- 0.02 (391/512)
+- Chose the other side: 0.16 +/- 0.02 (81/512)
+- Chose neither: 0.08 +/- 0.01 (40/512)
+- Swap test, flipped with the order: 0.56 +/- 0.03 (143/256)
+- Swap test, one side whatever was named: 0.30 +/- 0.03 (77/256)
+
+## Bars
+
+| Bar | Measured | Bar value |
+|---|---|---|
+| goto_arrival | 0.296 | failed |
+| goto_lift | 0.155 | failed |
+| attack_target_hit | 0.889 | failed |
+| attack_side | 0.734 | failed |
+| attack_flip | 0.500 | failed |
+| defend_more_on_named | 0.705 | failed |
+| defend_side | 0.764 | failed |
+| defend_flip | 0.559 | failed |
+added fighters_959 (fighters, under f995_701)
+fighters_959: fighters_959 failed the drill gate: goto_arrival, goto_lift, attack_target_hit, attack_side, attack_flip, defend_more_on_named, defend_side, defend_flip.
+07:31:24 drills: followers_955
+# Order drills: followers_955
+
+**Gate: fail.** followers_955 failed the drill gate: goto_arrival, goto_lift.
+
+Pilot `policy:ppo_bc_955.pt`, seed 500000, sim version 6. Overall: 0.64 +/- 0.01 (685/1074) (go-to arrivals (shown) and attack and defend swap-test flips).
+
+## Go-to (256 drills, ship by ship)
+
+- Arrival by the deadline, order shown: 0.50 +/- 0.02 (281/562; 98 killed first, not counted)
+- Same seeds, order hidden: 0.16 +/- 0.02 (95/577; 83 killed first, not counted)
+- Lift from seeing the order: +0.34
+- Near: 0.55 +/- 0.03 (179/325; 30 killed first, not counted)
+- Far: 0.43 +/- 0.03 (102/237; 68 killed first, not counted)
+- Enemies around the route: 0.53 +/- 0.03 (154/289; 57 killed first, not counted)
+
+## Attack (256 swap pairs)
+
+- Any damage on the named target: 0.97 +/- 0.01 (496/512)
+- Swap test, flipped, groups busy with a freighter: 0.85 +/- 0.03 (169/198)
+- Swap test, flipped, groups flying at the pilots: 0.66 +/- 0.06 (38/58)
+- Damage on the named target per pilot: 72.2 +/- 3.3 (n=512)
+- On other enemies per pilot (not judged): 65.0 +/- 3.2 (n=512)
+- Chose the named side: 0.90 +/- 0.01 (459/512)
+- Chose the other side: 0.05 +/- 0.01 (26/512)
+- Chose neither: 0.05 +/- 0.01 (27/512)
+- Swap test, flipped with the order: 0.81 +/- 0.02 (207/256)
+- Swap test, one side whatever was named: 0.09 +/- 0.02 (23/256)
+
+## Defend (256 swap pairs)
+
+- Named ward's attackers took more than the other's: 0.87 +/- 0.01 (446/512)
+- On the named ward's attackers per pilot: 100.8 +/- 4.1 (n=512)
+- On the other's per pilot: 14.3 +/- 1.6 (n=512)
+- Chose the named side: 0.88 +/- 0.01 (449/512)
+- Chose the other side: 0.05 +/- 0.01 (25/512)
+- Chose neither: 0.07 +/- 0.01 (38/512)
+- Swap test, flipped with the order: 0.77 +/- 0.03 (197/256)
+- Swap test, one side whatever was named: 0.10 +/- 0.02 (25/256)
+
+## Bars
+
+| Bar | Measured | Bar value |
+|---|---|---|
+| goto_arrival | 0.500 | failed |
+| goto_lift | 0.335 | failed |
+| attack_target_hit | 0.969 | met |
+| attack_side | 0.896 | met |
+| attack_flip | 0.809 | met |
+| defend_more_on_named | 0.871 | met |
+| defend_side | 0.877 | met |
+| defend_flip | 0.770 | met |
+added followers_955 (followers, under transit_300)
+followers_955: followers_955 failed the drill gate: goto_arrival, goto_lift.
+07:32:22 drills: fighters_pay1_462
+# Order drills: fighters_pay1_462
+
+**Gate: fail.** fighters_pay1_462 failed the drill gate: goto_arrival, goto_lift, attack_target_hit, attack_side, attack_flip, defend_more_on_named, defend_side, defend_flip.
+
+Pilot `policy:ppo_bc_462.pt`, seed 500000, sim version 6. Overall: 0.21 +/- 0.01 (219/1029) (go-to arrivals (shown) and attack and defend swap-test flips).
+
+## Go-to (256 drills, ship by ship)
+
+- Arrival by the deadline, order shown: 0.20 +/- 0.02 (102/517; 143 killed first, not counted)
+- Same seeds, order hidden: 0.15 +/- 0.02 (85/564; 96 killed first, not counted)
+- Lift from seeing the order: +0.05
+- Near: 0.26 +/- 0.02 (81/314; 41 killed first, not counted)
+- Far: 0.10 +/- 0.02 (21/203; 102 killed first, not counted)
+- Enemies around the route: 0.26 +/- 0.03 (71/275; 71 killed first, not counted)
+
+## Attack (256 swap pairs)
+
+- Any damage on the named target: 0.85 +/- 0.02 (436/512)
+- Swap test, flipped, groups busy with a freighter: 0.23 +/- 0.03 (46/198)
+- Swap test, flipped, groups flying at the pilots: 0.29 +/- 0.06 (17/58)
+- Damage on the named target per pilot: 56.4 +/- 2.8 (n=512)
+- On other enemies per pilot (not judged): 101.1 +/- 4.3 (n=512)
+- Chose the named side: 0.60 +/- 0.02 (308/512)
+- Chose the other side: 0.30 +/- 0.02 (153/512)
+- Chose neither: 0.10 +/- 0.01 (51/512)
+- Swap test, flipped with the order: 0.25 +/- 0.03 (63/256)
+- Swap test, one side whatever was named: 0.55 +/- 0.03 (142/256)
+
+## Defend (256 swap pairs)
+
+- Named ward's attackers took more than the other's: 0.57 +/- 0.02 (293/512)
+- On the named ward's attackers per pilot: 81.2 +/- 3.8 (n=512)
+- On the other's per pilot: 60.5 +/- 3.4 (n=512)
+- Chose the named side: 0.58 +/- 0.02 (296/512)
+- Chose the other side: 0.33 +/- 0.02 (168/512)
+- Chose neither: 0.09 +/- 0.01 (48/512)
+- Swap test, flipped with the order: 0.21 +/- 0.03 (54/256)
+- Swap test, one side whatever was named: 0.63 +/- 0.03 (161/256)
+
+## Bars
+
+| Bar | Measured | Bar value |
+|---|---|---|
+| goto_arrival | 0.197 | failed |
+| goto_lift | 0.047 | failed |
+| attack_target_hit | 0.852 | failed |
+| attack_side | 0.602 | failed |
+| attack_flip | 0.246 | failed |
+| defend_more_on_named | 0.572 | failed |
+| defend_side | 0.578 | failed |
+| defend_flip | 0.211 | failed |
+added fighters_pay1_462 (fighters, under f995_701)
+fighters_pay1_462: fighters_pay1_462 failed the drill gate: goto_arrival, goto_lift, attack_target_hit, attack_side, attack_flip, defend_more_on_named, defend_side, defend_flip.
+07:33:18 round robin: script,f995_701,f995_400,f99_696,fighters_506,followers_513,hide_644,reward_300,scratch_417,transit_300,v1,w1_400,fighters_959,followers_955,fighters_pay1_462
+[1/105] f995_400 v f995_701: done
+[2/105] f995_400 v f99_696: done
+[3/105] f995_400 v fighters_506: done
+[4/105] f995_400 v fighters_959: deathmatch=0.31 carrier_battle=0.42 convoy_escort=0.44 (119s)
+[5/105] f995_400 v fighters_pay1_462: deathmatch=0.28 carrier_battle=0.34 convoy_escort=0.37 (108s)
+[6/105] f995_400 v followers_513: done
+[7/105] f995_400 v followers_955: deathmatch=0.41 carrier_battle=0.54 convoy_escort=0.65 (121s)
+[8/105] f995_400 v hide_644: done
+[9/105] f995_400 v reward_300: done
+[10/105] f995_400 v scratch_417: done
+[11/105] f995_400 v script: done
+[12/105] f995_400 v transit_300: done
+[13/105] f995_400 v v1: done
+[14/105] f995_400 v w1_400: done
+[15/105] f995_701 v f99_696: done
+[16/105] f995_701 v fighters_506: done
+[17/105] f995_701 v fighters_959: deathmatch=0.46 carrier_battle=0.55 convoy_escort=0.35 (114s)
+[18/105] f995_701 v fighters_pay1_462: deathmatch=0.39 carrier_battle=0.38 convoy_escort=0.26 (105s)
+[19/105] f995_701 v followers_513: done
+[20/105] f995_701 v followers_955: deathmatch=0.61 carrier_battle=0.60 convoy_escort=0.56 (117s)
+[21/105] f995_701 v hide_644: done
+[22/105] f995_701 v reward_300: done
+[23/105] f995_701 v scratch_417: done
+[24/105] f995_701 v script: done
+[25/105] f995_701 v transit_300: done
+[26/105] f995_701 v v1: done
+[27/105] f995_701 v w1_400: done
+[28/105] f99_696 v fighters_506: done
+[29/105] f99_696 v fighters_959: deathmatch=0.33 carrier_battle=0.51 convoy_escort=0.61 (118s)
+[30/105] f99_696 v fighters_pay1_462: deathmatch=0.38 carrier_battle=0.37 convoy_escort=0.41 (111s)
+[31/105] f99_696 v followers_513: done
+[32/105] f99_696 v followers_955: deathmatch=0.49 carrier_battle=0.56 convoy_escort=0.68 (119s)
+[33/105] f99_696 v hide_644: done
+[34/105] f99_696 v reward_300: done
+[35/105] f99_696 v scratch_417: done
+[36/105] f99_696 v script: done
+[37/105] f99_696 v transit_300: done
+[38/105] f99_696 v v1: done
+[39/105] f99_696 v w1_400: done
+[40/105] fighters_506 v fighters_959: deathmatch=0.54 carrier_battle=0.53 convoy_escort=0.46 (116s)
+[41/105] fighters_506 v fighters_pay1_462: deathmatch=0.40 carrier_battle=0.39 convoy_escort=0.43 (105s)
+[42/105] fighters_506 v followers_513: done
+[43/105] fighters_506 v followers_955: deathmatch=0.70 carrier_battle=0.65 convoy_escort=0.70 (115s)
+[44/105] fighters_506 v hide_644: done
+[45/105] fighters_506 v reward_300: done
+[46/105] fighters_506 v scratch_417: done
+[47/105] fighters_506 v script: done
+[48/105] fighters_506 v transit_300: done
+[49/105] fighters_506 v v1: done
+[50/105] fighters_506 v w1_400: done
+[51/105] fighters_959 v fighters_pay1_462: deathmatch=0.38 carrier_battle=0.35 convoy_escort=0.56 (111s)
+[52/105] fighters_959 v followers_513: deathmatch=0.85 carrier_battle=0.63 convoy_escort=0.76 (125s)
+[53/105] fighters_959 v followers_955: deathmatch=0.69 carrier_battle=0.55 convoy_escort=0.82 (122s)
+[54/105] fighters_959 v hide_644: deathmatch=0.86 carrier_battle=0.67 convoy_escort=0.86 (133s)
+[55/105] fighters_959 v reward_300: deathmatch=0.90 carrier_battle=0.76 convoy_escort=0.89 (133s)
+[56/105] fighters_959 v scratch_417: deathmatch=1.00 carrier_battle=1.00 convoy_escort=1.00 (139s)
+[57/105] fighters_959 v script: deathmatch=0.95 carrier_battle=1.00 convoy_escort=1.00 (87s)
+[58/105] fighters_959 v transit_300: deathmatch=0.89 carrier_battle=0.81 convoy_escort=0.88 (133s)
+[59/105] fighters_959 v v1: deathmatch=0.91 carrier_battle=0.85 convoy_escort=0.96 (130s)
+[60/105] fighters_959 v w1_400: deathmatch=0.91 carrier_battle=0.78 convoy_escort=0.91 (134s)
+[61/105] fighters_pay1_462 v followers_513: deathmatch=0.85 carrier_battle=0.79 convoy_escort=0.78 (116s)
+[62/105] fighters_pay1_462 v followers_955: deathmatch=0.68 carrier_battle=0.65 convoy_escort=0.71 (112s)
+[63/105] fighters_pay1_462 v hide_644: deathmatch=0.91 carrier_battle=0.79 convoy_escort=0.90 (120s)
+[64/105] fighters_pay1_462 v reward_300: deathmatch=0.92 carrier_battle=0.82 convoy_escort=0.91 (115s)
+[65/105] fighters_pay1_462 v scratch_417: deathmatch=1.00 carrier_battle=1.00 convoy_escort=1.00 (122s)
+[66/105] fighters_pay1_462 v script: deathmatch=0.97 carrier_battle=1.00 convoy_escort=1.00 (78s)
+[67/105] fighters_pay1_462 v transit_300: deathmatch=0.94 carrier_battle=0.85 convoy_escort=0.93 (121s)
+[68/105] fighters_pay1_462 v v1: deathmatch=0.95 carrier_battle=0.92 convoy_escort=0.99 (117s)
+[69/105] fighters_pay1_462 v w1_400: deathmatch=0.95 carrier_battle=0.84 convoy_escort=0.97 (118s)
+[70/105] followers_513 v followers_955: deathmatch=0.31 carrier_battle=0.39 convoy_escort=0.45 (124s)
+[71/105] followers_513 v hide_644: done
+[72/105] followers_513 v reward_300: done
+[73/105] followers_513 v scratch_417: done
+[74/105] followers_513 v script: done
+[75/105] followers_513 v transit_300: done
+[76/105] followers_513 v v1: done
+[77/105] followers_513 v w1_400: done
+[78/105] followers_955 v hide_644: deathmatch=0.77 carrier_battle=0.63 convoy_escort=0.85 (134s)
+[79/105] followers_955 v reward_300: deathmatch=0.81 carrier_battle=0.71 convoy_escort=0.87 (133s)
+[80/105] followers_955 v scratch_417: deathmatch=1.00 carrier_battle=1.00 convoy_escort=1.00 (134s)
+[81/105] followers_955 v script: deathmatch=0.93 carrier_battle=1.00 convoy_escort=1.00 (86s)
+[82/105] followers_955 v transit_300: deathmatch=0.84 carrier_battle=0.73 convoy_escort=0.90 (139s)
+[83/105] followers_955 v v1: deathmatch=0.88 carrier_battle=0.80 convoy_escort=0.93 (137s)
+[84/105] followers_955 v w1_400: deathmatch=0.85 carrier_battle=0.70 convoy_escort=0.93 (136s)
+[85/105] hide_644 v reward_300: done
+[86/105] hide_644 v scratch_417: done
+[87/105] hide_644 v script: done
+[88/105] hide_644 v transit_300: done
+[89/105] hide_644 v v1: done
+[90/105] hide_644 v w1_400: done
+[91/105] reward_300 v scratch_417: done
+[92/105] reward_300 v script: done
+[93/105] reward_300 v transit_300: done
+[94/105] reward_300 v v1: done
+[95/105] reward_300 v w1_400: done
+[96/105] scratch_417 v script: done
+[97/105] scratch_417 v transit_300: done
+[98/105] scratch_417 v v1: done
+[99/105] scratch_417 v w1_400: done
+[100/105] script v transit_300: done
+[101/105] script v v1: done
+[102/105] script v w1_400: done
+[103/105] transit_300 v v1: done
+[104/105] transit_300 v w1_400: done
+[105/105] v1 v w1_400: done
+wrote lab/population/2026-11-sim6/report.md
+08:50:56 done: morning

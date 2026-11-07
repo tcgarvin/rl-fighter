@@ -108,6 +108,42 @@ Checked before launch: full pytest (714 passed), `SMOKE=1 N_UPDATES=5 run.sh` (b
 resumed arms took the new settings and the 7-seed pool), and `morning.sh` rehearsed end
 to end on the smoke checkpoints against a copy of the season.
 
+## What the second night found (2026-11-07)
+
+Trained 01:17 to 07:30: `fighters` to update 959, `followers` to 955, `fighters_pay1` to 462.
+Morning evals ran unattended, 07:30 to 08:51. Ratings are in the second-night field
+(15 members, 105 pairs), so they are not comparable with the first night's.
+
+| Pilot | Combat | Go-to arrival | Attack flip | Defend flip | Gate |
+|---|---|---|---|---|---|
+| `fighters_pay1_462` | **+300** | 0.20 | 0.25 | 0.21 | Failed |
+| `fighters_506` | +255 | 0.21 | 0.32 | 0.36 | Failed |
+| `fighters_959` | +240 | 0.30 | 0.50 | 0.56 | Failed |
+| `f995_701` | +214 | 0.22 | 0.14 | 0.11 | Failed (exempt) |
+| `followers_955` | +146 | 0.50 | 0.81 | 0.77 | Failed on go-to |
+| `followers_513` | +80 | 0.62 | 0.88 | 0.86 | Passed |
+| `transit_300` | -122 | 0.70 | 0.87 | 1.00 | Passed (exempt) |
+
+- **Was pay 3 what moved following?** Partly. At pay 1, `fighters_pay1_462` flips less on
+  attack and defend (0.25 and 0.21 against `fighters_506`'s 0.32 and 0.36), the same on go-to,
+  and is the strongest pilot in the field: it beats `fighters_506` 0.60, 0.61 and 0.57. One
+  run each, so the size of the trade is rough.
+- **Did drills 0.25 move go-to?** Yes, a little: arrival 0.21 to 0.30, lift 0.07 to 0.15, and
+  attack and defend flips to about half. `drill_rows_share` averaged 0.09. Combat dipped:
+  `fighters_959` wins 0.46, 0.47 and 0.54 against `fighters_506`. It still fails every bar.
+- **Does `followers` keep following?** No. Go-to fell again, 0.62 to 0.50, under its 0.60
+  bar. Combat rose: it beats `followers_513` 0.69, 0.61, 0.55.
+- **Variety:** one cycle, in convoy escort only, on an edge at z 1.9.
+
+All three failed the gate and are archived. Would-be culls are `transit_300` and
+`followers_513`, at the bottom of their families. The live page took the ten highest rated
+(logbook `lab/runs/2026-11-07-second-night`), dropping `transit_300`, `w1_400` and `v1`.
+
+**Next, for the owner to choose:** the drill share has now been raised and following
+improved only slowly, so the plan's fallback is separate skill networks
+(`docs/PILOT_TRAINING.md` section 4). For `followers`, go-to falls each night that combat
+rises, so it may need go-to drills weighted up, or a go-to bar it trains against.
+
 ## Arms (night 1)
 
 All arms: preset `pilots_v1`, discount 0.995 with order pay following it, no script pull,

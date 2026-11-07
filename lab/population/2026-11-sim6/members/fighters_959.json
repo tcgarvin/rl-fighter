@@ -1,0 +1,48 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "fighters_959",
+ "family": "fighters",
+ "founder": "f995_701",
+ "parent": "fighters_506",
+ "relation": "fork",
+ "fork_update": 506,
+ "settings_changed": {
+  "drill_share": 0.25,
+  "pool_seed_added": [
+   "fighters_506",
+   "followers_513"
+  ]
+ },
+ "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters/checkpoints/ppo_bc_959.pt",
+ "sha256": "b2cde2a3bf41902f1e582339c48e71ce09f4ec4dfac9ff3498e66d956b1d88ec",
+ "status": "archived",
+ "archived_reason": "Drill gate, second-night: fighters_959 failed the drill gate: goto_arrival, goto_lift, attack_target_hit, attack_side, attack_flip, defend_more_on_named, defend_side, defend_flip.",
+ "archived_date": "2026-11-07",
+ "note": "Night 2: fighters_506's line continued with drills 0.25.",
+ "ratings": [
+  {
+   "phase": "second-night",
+   "date": "2026-11-07",
+   "rating": 239.80254874584492,
+   "sd": 4.194627361624012,
+   "matches": 10080
+  }
+ ],
+ "drills": [
+  {
+   "phase": "second-night",
+   "date": "2026-11-07",
+   "scores": {
+    "goto_arrival": 0.2958257713248639,
+    "goto_lift": 0.1549089631754581,
+    "attack_target_hit": 0.888671875,
+    "attack_side": 0.734375,
+    "attack_flip": 0.5,
+    "defend_more_on_named": 0.705078125,
+    "defend_side": 0.763671875,
+    "defend_flip": 0.55859375
+   },
+   "passed": false
+  }
+ ]
+}

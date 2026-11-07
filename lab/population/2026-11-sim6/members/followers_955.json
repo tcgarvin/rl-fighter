@@ -1,0 +1,47 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "followers_955",
+ "family": "followers",
+ "founder": "transit_300",
+ "parent": "followers_513",
+ "relation": "fork",
+ "fork_update": 513,
+ "settings_changed": {
+  "pool_seed_added": [
+   "fighters_506",
+   "followers_513"
+  ]
+ },
+ "checkpoint": "lab/runs/2026-11-01-pilot-families/followers/checkpoints/ppo_bc_955.pt",
+ "sha256": "23f05987f7bfad5a5fd2d8307bfee787b0d73f83be070e3535dc10392d9d3237",
+ "status": "archived",
+ "archived_reason": "Drill gate, second-night: followers_955 failed the drill gate: goto_arrival, goto_lift.",
+ "archived_date": "2026-11-07",
+ "note": "Night 2: followers_513's line continued, the first night's two in the pool.",
+ "ratings": [
+  {
+   "phase": "second-night",
+   "date": "2026-11-07",
+   "rating": 146.29221762173995,
+   "sd": 3.977293606701545,
+   "matches": 10080
+  }
+ ],
+ "drills": [
+  {
+   "phase": "second-night",
+   "date": "2026-11-07",
+   "scores": {
+    "goto_arrival": 0.5,
+    "goto_lift": 0.33535528596187175,
+    "attack_target_hit": 0.96875,
+    "attack_side": 0.896484375,
+    "attack_flip": 0.80859375,
+    "defend_more_on_named": 0.87109375,
+    "defend_side": 0.876953125,
+    "defend_flip": 0.76953125
+   },
+   "passed": false
+  }
+ ]
+}

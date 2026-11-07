@@ -1,0 +1,252 @@
+{
+ "schema": "rlf.population.shadow/1",
+ "phase": "second-night",
+ "date": "2026-11-07",
+ "standings": [
+  {
+   "member": "fighters_pay1_462",
+   "family": "fighters",
+   "founder": "f995_701",
+   "rating": 300.1745346515282,
+   "sd": 4.447736498386256,
+   "nearest_top": "f995_701",
+   "tree_distance": 1,
+   "bonus": 15.0,
+   "adjusted": 315.1745346515282
+  },
+  {
+   "member": "fighters_959",
+   "family": "fighters",
+   "founder": "f995_701",
+   "rating": 239.80254874584492,
+   "sd": 4.194627361624012,
+   "nearest_top": "f995_701",
+   "tree_distance": 2,
+   "bonus": 30.0,
+   "adjusted": 269.8025487458449
+  },
+  {
+   "member": "f995_701",
+   "family": "fighters",
+   "founder": "f995_701",
+   "rating": 214.17432493778753,
+   "sd": 4.1158247795340905,
+   "nearest_top": "fighters_pay1_462",
+   "tree_distance": 1,
+   "bonus": 15.0,
+   "adjusted": 229.17432493778753
+  },
+  {
+   "member": "followers_955",
+   "family": "followers",
+   "founder": "transit_300",
+   "rating": 146.29221762173995,
+   "sd": 3.977293606701545,
+   "nearest_top": "followers_513",
+   "tree_distance": 1,
+   "bonus": 15.0,
+   "adjusted": 161.29221762173995
+  },
+  {
+   "member": "followers_513",
+   "family": "followers",
+   "founder": "transit_300",
+   "rating": 80.34570300129401,
+   "sd": 3.9275340608078335,
+   "nearest_top": "followers_955",
+   "tree_distance": 1,
+   "bonus": 15.0,
+   "adjusted": 95.34570300129401
+  },
+  {
+   "member": "transit_300",
+   "family": "followers",
+   "founder": "transit_300",
+   "rating": -122.13353231108421,
+   "sd": 4.217146173622107,
+   "nearest_top": "followers_513",
+   "tree_distance": 1,
+   "bonus": 15.0,
+   "adjusted": -107.13353231108421
+  },
+  {
+   "member": "script",
+   "family": "script",
+   "founder": "script",
+   "rating": -416.42292976696984,
+   "sd": 5.986916540903668,
+   "nearest_top": "transit_300",
+   "tree_distance": 7,
+   "bonus": 0.0,
+   "adjusted": -416.42292976696984
+  }
+ ],
+ "culls": [
+  {
+   "member": "transit_300",
+   "rule": "bottom_on_combat",
+   "reason": "-122 combat, +15 bonus.",
+   "close_call": false
+  },
+  {
+   "member": "followers_513",
+   "rule": "bottom_on_combat",
+   "reason": "+80 combat, +15 bonus.",
+   "close_call": false
+  }
+ ],
+ "protected": [
+  {
+   "member": "script",
+   "reason": "worst on combat, but nobody has matched its drills"
+  }
+ ],
+ "unrated": [],
+ "founder_counts": {
+  "f995_701": 3,
+  "script": 1,
+  "transit_300": 3
+ },
+ "below_target": true,
+ "behaviour": {
+  "pairs": [
+   {
+    "a": "f995_701",
+    "b": "fighters_pay1_462",
+    "tree_distance": 1,
+    "behaviour_distance": 0.2140383450849831
+   },
+   {
+    "a": "f995_701",
+    "b": "fighters_959",
+    "tree_distance": 2,
+    "behaviour_distance": 0.6035557769675407
+   },
+   {
+    "a": "fighters_959",
+    "b": "fighters_pay1_462",
+    "tree_distance": 3,
+    "behaviour_distance": 0.7924288295985771
+   },
+   {
+    "a": "fighters_959",
+    "b": "followers_955",
+    "tree_distance": 8,
+    "behaviour_distance": 1.0328865555441056
+   },
+   {
+    "a": "followers_955",
+    "b": "transit_300",
+    "tree_distance": 2,
+    "behaviour_distance": 1.2779174850870911
+   },
+   {
+    "a": "followers_513",
+    "b": "followers_955",
+    "tree_distance": 1,
+    "behaviour_distance": 1.4618784012337422
+   },
+   {
+    "a": "f995_701",
+    "b": "followers_955",
+    "tree_distance": 6,
+    "behaviour_distance": 1.4648401790116576
+   },
+   {
+    "a": "followers_513",
+    "b": "transit_300",
+    "tree_distance": 1,
+    "behaviour_distance": 1.5127058735506975
+   },
+   {
+    "a": "fighters_pay1_462",
+    "b": "followers_955",
+    "tree_distance": 7,
+    "behaviour_distance": 1.5590829505055677
+   },
+   {
+    "a": "fighters_959",
+    "b": "transit_300",
+    "tree_distance": 6,
+    "behaviour_distance": 2.277960366790322
+   },
+   {
+    "a": "fighters_959",
+    "b": "followers_513",
+    "tree_distance": 7,
+    "behaviour_distance": 2.2927204511893042
+   },
+   {
+    "a": "f995_701",
+    "b": "followers_513",
+    "tree_distance": 5,
+    "behaviour_distance": 2.6578984700155455
+   },
+   {
+    "a": "f995_701",
+    "b": "transit_300",
+    "tree_distance": 4,
+    "behaviour_distance": 2.6610587209135432
+   },
+   {
+    "a": "fighters_pay1_462",
+    "b": "followers_513",
+    "tree_distance": 6,
+    "behaviour_distance": 2.7108984999020613
+   },
+   {
+    "a": "fighters_pay1_462",
+    "b": "transit_300",
+    "tree_distance": 5,
+    "behaviour_distance": 2.7198677086373255
+   },
+   {
+    "a": "fighters_pay1_462",
+    "b": "script",
+    "tree_distance": 10,
+    "behaviour_distance": 3.2580739179847997
+   },
+   {
+    "a": "f995_701",
+    "b": "script",
+    "tree_distance": 9,
+    "behaviour_distance": 3.403611726556005
+   },
+   {
+    "a": "fighters_959",
+    "b": "script",
+    "tree_distance": 11,
+    "behaviour_distance": 3.7848739176059842
+   },
+   {
+    "a": "followers_955",
+    "b": "script",
+    "tree_distance": 9,
+    "behaviour_distance": 3.946374926494972
+   },
+   {
+    "a": "script",
+    "b": "transit_300",
+    "tree_distance": 7,
+    "behaviour_distance": 4.231921141391424
+   },
+   {
+    "a": "followers_513",
+    "b": "script",
+    "tree_distance": 8,
+    "behaviour_distance": 4.991419934954975
+   }
+  ],
+  "tree_behaviour_correlation": 0.7004011944449721,
+  "correlation_pairs": 21,
+  "missing": []
+ },
+ "constants": {
+  "BOTTOM_N": 2,
+  "TOP_N": 10,
+  "POPULATION_TARGET": 10,
+  "FOUNDER_CAP": 4,
+  "DIVERSITY_BONUS_PER_EDGE": 15.0,
+  "DIVERSITY_BONUS_CAP": 60.0
+ }
+}
