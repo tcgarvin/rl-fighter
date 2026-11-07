@@ -14,10 +14,10 @@
  },
  "checkpoint": "lab/runs/2026-11-01-pilot-families/followers/checkpoints/ppo_bc_955.pt",
  "sha256": "23f05987f7bfad5a5fd2d8307bfee787b0d73f83be070e3535dc10392d9d3237",
- "status": "archived",
- "archived_reason": "Drill gate, second-night: followers_955 failed the drill gate: goto_arrival, goto_lift.",
- "archived_date": "2026-11-07",
- "note": "Night 2: followers_513's line continued, the first night's two in the pool.",
+ "status": "active",
+ "archived_reason": "",
+ "archived_date": "",
+ "note": "Night 2: followers_513's line continued, the first night's two in the pool. Archived 2026-11-07: Drill gate, second-night: followers_955 failed the drill gate: goto_arrival, goto_lift. Restored 2026-11-07: The order gate was dropped; culls will go by wins above replacement.",
  "ratings": [
   {
    "phase": "second-night",

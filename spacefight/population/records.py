@@ -608,6 +608,35 @@ def archive_member(season_dir: Path, member_id: str, reason: str, date: str) -> 
     return archived
 
 
+def restore_member(season_dir: Path, member_id: str, reason: str, date: str) -> Member:
+    """Make an archived member active again. Its note keeps why it was archived and why
+    it came back.
+
+    Raises:
+        PopulationError: Unknown member, already active, no reason or date, or a member
+            that cannot be active (a history pilot).
+    """
+    member = load_population(season_dir).member(member_id)
+    if member.status != ARCHIVED:
+        raise PopulationError(f"member {member_id!r} is not archived")
+    if not reason or not _DATE.match(date):
+        raise PopulationError("a restore needs a reason and a YYYY-MM-DD date")
+    history = (
+        f"Archived {member.archived_date}: {member.archived_reason} "
+        f"Restored {date}: {reason}"
+    )
+    restored = replace(
+        member,
+        status=ACTIVE,
+        archived_reason="",
+        archived_date="",
+        note=f"{member.note} {history}".strip(),
+    )
+    validate_member(restored)
+    write_member(season_dir, restored)
+    return restored
+
+
 def sha256_of(path: Path) -> str:
     """Content hash of a file.
 

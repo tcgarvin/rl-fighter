@@ -40,6 +40,7 @@ from spacefight.population.records import (
     RatingEntry,
     add_member,
     archive_member,
+    restore_member,
     load_population,
     new_child,
     new_founder,
@@ -106,6 +107,12 @@ def _cmd_add_child(args: argparse.Namespace) -> int:
 def _cmd_archive(args: argparse.Namespace) -> int:
     archive_member(args.season, args.id, args.reason, args.date)
     print(f"archived {args.id}: {args.reason}")
+    return 0
+
+
+def _cmd_restore(args: argparse.Namespace) -> int:
+    restore_member(args.season, args.id, args.reason, args.date)
+    print(f"restored {args.id}: {args.reason}")
     return 0
 
 
@@ -238,6 +245,10 @@ def _parser() -> argparse.ArgumentParser:
     archive.add_argument("--id", required=True)
     archive.add_argument("--reason", required=True)
     archive.add_argument("--date", required=True)
+    restore = command("restore", _cmd_restore, "make an archived member active again")
+    restore.add_argument("--id", required=True)
+    restore.add_argument("--reason", required=True)
+    restore.add_argument("--date", required=True)
 
     drills = command(
         "record-drills", _cmd_record_drills, "add a drill eval to a member's history"

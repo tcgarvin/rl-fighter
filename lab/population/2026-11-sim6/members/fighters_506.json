@@ -19,10 +19,10 @@
  },
  "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters/checkpoints/ppo_bc_506.pt",
  "sha256": "22d0bd45393e9551518443345591e901dfba9ddbf8efcd35353795478fdd11fa",
- "status": "archived",
- "archived_reason": "Failed the drill gate on all 8 bars, 2026-11-02. Kept for the round robin and its family line.",
- "archived_date": "2026-11-02",
- "note": "First night of pilot families: order pay 3, drills 0.10, commander 0.30.",
+ "status": "active",
+ "archived_reason": "",
+ "archived_date": "",
+ "note": "First night of pilot families: order pay 3, drills 0.10, commander 0.30. Archived 2026-11-02: Failed the drill gate on all 8 bars, 2026-11-02. Kept for the round robin and its family line. Restored 2026-11-07: The order gate was dropped; culls will go by wins above replacement.",
  "ratings": [
   {
    "phase": "first-night",

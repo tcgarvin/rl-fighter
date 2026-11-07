@@ -384,6 +384,13 @@ def test_cli_adds_a_child_under_its_parents_founder_and_archives_it(
     assert (member.status, member.archived_reason) == ("archived", "gate")
     assert main([*archive, "--date", "2026-11-03"]) == 2, "already archived"
 
+    restore = ["restore", *common, "--id", "grandchild", "--reason", "gate dropped"]
+    assert main([*restore, "--date", "2026-11-07"]) == 0
+    member = load_population(season).member("grandchild")
+    assert member.is_active and not member.archived_reason
+    assert "Archived 2026-11-02: gate Restored 2026-11-07: gate dropped" in member.note
+    assert main([*restore, "--date", "2026-11-08"]) == 2, "not archived"
+
 
 def test_cli_records_drills_judged_by_the_bars_it_is_given(
     season: Path, tmp_path: Path

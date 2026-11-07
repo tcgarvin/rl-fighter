@@ -19,10 +19,10 @@
  },
  "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters_pay1/checkpoints/ppo_bc_462.pt",
  "sha256": "638b4394aa6e465c1e9ada826bb10d73ad72cc347bddfad906d497b374d1597c",
- "status": "archived",
- "archived_reason": "Drill gate, second-night: fighters_pay1_462 failed the drill gate: goto_arrival, goto_lift, attack_target_hit, attack_side, attack_flip, defend_more_on_named, defend_side, defend_flip.",
- "archived_date": "2026-11-07",
- "note": "Night 2: night 1's fighters replayed at order pay 1.",
+ "status": "active",
+ "archived_reason": "",
+ "archived_date": "",
+ "note": "Night 2: night 1's fighters replayed at order pay 1. Archived 2026-11-07: Drill gate, second-night: fighters_pay1_462 failed the drill gate: goto_arrival, goto_lift, attack_target_hit, attack_side, attack_flip, defend_more_on_named, defend_side, defend_flip. Restored 2026-11-07: The order gate was dropped; culls will go by wins above replacement.",
  "ratings": [
   {
    "phase": "second-night",
