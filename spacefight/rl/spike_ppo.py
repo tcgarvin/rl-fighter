@@ -1355,11 +1355,13 @@ class SpikeTrainer:
         self.rng.bit_generator.state = train["numpy_rng"]
         self.next_update = int(train["next_update"])
         self.elapsed = float(train["elapsed"])
-        self._resumed_enemy_results = list(train.get("enemy_results", []))
         ckpt_dir = path.parent
-        self.pool = SnapshotPool(
-            [(int(u), _pool_path(str(n), ckpt_dir)) for u, n in train["pool"]]
+        entries, self._resumed_enemy_results = reseed_pool(
+            [(int(u), _pool_path(str(n), ckpt_dir)) for u, n in train["pool"]],
+            self.config.pool_seed,
+            list(train.get("enemy_results", [])),
         )
+        self.pool = SnapshotPool(entries)
 
     def _record_resumed_config(self) -> None:
         """Rewrite ``config.yaml`` if the resume changed the config, keeping the
@@ -1972,3 +1974,40 @@ def _pool_name(path: str, ckpt_dir: Path) -> str:
 def _pool_path(name: str, ckpt_dir: Path) -> str:
     """Inverse of ``_pool_name``."""
     return name if len(Path(name).parts) > 1 else str(ckpt_dir / name)
+
+
+def reseed_pool(
+    entries: Sequence[tuple[int, str]],
+    seeds: Sequence[str],
+    results: Sequence[Sequence[float]],
+) -> tuple[list[tuple[int, str]], list[list[float]]]:
+    """A resumed pool whose seeds are the config's, which may differ from the run's.
+
+    The assigner treats the first ``len(pool_seed)`` entries as seeds, so a resume that
+    added seeds but kept the checkpoint's pool would count the run's own early snapshots
+    as seeds and never draw the new ones.
+
+    Args:
+        entries: The checkpoint's pool, ``(update, path)``; seeds have update -1.
+        seeds: The config's ``pool_seed`` paths.
+        results: The checkpoint's ``EnemyResults.state()`` rows, keyed by pool index.
+
+    Returns:
+        The config's seeds then the run's snapshots in order, and the results moved to
+        their entry's new index. Results against a seed the config no longer names are
+        dropped.
+
+    Raises:
+        IndexError: A result row names an index outside ``entries``.
+    """
+    new_entries = [(-1, str(s)) for s in seeds] + [(u, p) for u, p in entries if u >= 0]
+    new_index = {p: i for i, (_, p) in enumerate(new_entries)}
+    moved: list[list[float]] = []
+    for index, wins, matches in results:
+        old = int(index)
+        if not 0 <= old < len(entries):
+            raise IndexError(f"enemy result for pool index {old} of {len(entries)}")
+        path = entries[old][1]
+        if path in new_index:
+            moved.append([float(new_index[path]), float(wins), float(matches)])
+    return new_entries, sorted(moved)

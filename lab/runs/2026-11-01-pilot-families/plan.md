@@ -68,7 +68,47 @@ the gate but loses to it. The gate archived `fighters_506` and `scratch_417`, an
 whether pay 3 was what moved following. Add `fighters_506` and `followers_513` to the enemy
 pool.
 
-## Arms
+## Night 2 (prepared 2026-11-06)
+
+The next night above, with one choice made: `fighters_pay1` starts from `f995_701`, not
+from `fighters_506`, with night 1's drills (0.10) and pool. Its only difference from night
+1's `fighters` is order pay 1 rather than 3, so comparing the two at the same update
+answers whether pay 3 moved following. It is also a new branch under `f995_701`, rather
+than another child of the top pilot.
+
+| Arm | Starts from | Drills | Commander | No commander | Order pay | Pool seeds |
+|---|---|---|---|---|---|---|
+| `fighters` | its update 506 (resume) | **0.25** | 0.25 | 0.50 | 3 | night 1's + `fighters_506`, `followers_513` |
+| `followers` | its update 513 (resume) | 0.25 | 0.50 | 0.25 | 1 | night 1's + `fighters_506`, `followers_513` |
+| `fighters_pay1` | `f995_701` | 0.10 | 0.30 | 0.60 | **1** | night 1's |
+
+**A resume bug, fixed first.** Before this fix, a resume rebuilt the enemy pool from the
+checkpoint and ignored a changed `pool_seed`, but took the count of seeds from the config. So the
+two new seeds would never have been drawn, and the run's own update-50 and update-100
+snapshots would have been sampled as seeds. `reseed_pool` (`spacefight/rl/spike_ppo.py`)
+now puts the config's seeds first and moves the weighted-sampling results with their
+entries. On the real checkpoints all 14 and 15 results carry over and the new seeds
+start even.
+
+**Morning, unattended:** `morning.sh` runs drills on each arm's latest checkpoint, adds
+the three as members with their drill records, plays the round robin seeded with
+`first-night`'s 66 pairs (39 new pairs), and writes the report with shadow culls. It
+archives nothing; gate archiving is decided when reading the report. Expect about 1.5 hours
+at 12 threads (night 1's pairs took about 2 minutes each), so the PPO deadline sits that
+far before the results are wanted.
+
+```bash
+cd ~/code/rl-fighter && DEADLINE="07:30" PHASE=second-night nohup setsid bash -c \
+  'lab/runs/2026-11-01-pilot-families/run.sh >> lab/runs/2026-11-01-pilot-families/run.out 2>&1 &&
+   lab/runs/2026-11-01-pilot-families/morning.sh > lab/runs/2026-11-01-pilot-families/morning.out 2>&1' \
+  > /dev/null 2>&1 &
+```
+
+Checked before launch: full pytest (714 passed), `SMOKE=1 N_UPDATES=5 run.sh` (both
+resumed arms took the new settings and the 7-seed pool), and `morning.sh` rehearsed end
+to end on the smoke checkpoints against a copy of the season.
+
+## Arms (night 1)
 
 All arms: preset `pilots_v1`, discount 0.995 with order pay following it, no script pull,
 no KL anchor, constant LR, 4 sim + 4 torch threads, checkpoints every 50 updates.

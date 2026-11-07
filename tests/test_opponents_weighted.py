@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from collections import Counter
 from pathlib import Path
 
@@ -18,7 +19,12 @@ from spacefight.rl.opponents import (
     OpponentSchedule,
     pfsp_probabilities,
 )
-from spacefight.rl.spike_ppo import PPOConfig, SpikeTrainer, latest_checkpoint
+from spacefight.rl.spike_ppo import (
+    PPOConfig,
+    SpikeTrainer,
+    latest_checkpoint,
+    reseed_pool,
+)
 
 ASSETS = str(Path(__file__).resolve().parent.parent / "assets")
 ALL_SNAPSHOT = OpponentSchedule([[0, 0.0, 0.0, 1.0]])
@@ -252,3 +258,50 @@ def test_the_uniform_trainer_tracks_nothing_and_adds_nothing_to_its_checkpoint(
         weights_only=True,
     )
     assert "enemy_results" not in payload["train"]
+
+
+def test_reseeding_puts_the_config_seeds_first_and_moves_results_with_their_entry() -> (
+    None
+):
+    entries = [(-1, "a.pt"), (50, "run/50.pt"), (100, "run/100.pt")]
+    results = [[0.0, 3.0, 4.0], [1.0, 1.0, 2.0], [2.0, 0.5, 1.0]]
+    new_entries, moved = reseed_pool(entries, ["a.pt", "b.pt"], results)
+    assert new_entries == [
+        (-1, "a.pt"),
+        (-1, "b.pt"),
+        (50, "run/50.pt"),
+        (100, "run/100.pt"),
+    ]
+    assert moved == [[0.0, 3.0, 4.0], [2.0, 1.0, 2.0], [3.0, 0.5, 1.0]]
+
+
+def test_reseeding_drops_results_against_a_seed_no_longer_named() -> None:
+    entries = [(-1, "a.pt"), (-1, "b.pt"), (50, "run/50.pt")]
+    results = [[0.0, 3.0, 4.0], [1.0, 1.0, 2.0], [2.0, 0.5, 1.0]]
+    new_entries, moved = reseed_pool(entries, ["b.pt"], results)
+    assert new_entries == [(-1, "b.pt"), (50, "run/50.pt")]
+    assert moved == [[0.0, 1.0, 2.0], [1.0, 0.5, 1.0]]
+
+
+def test_a_resume_that_adds_a_seed_draws_it_and_keeps_results_on_their_entry(
+    tmp_path: Path,
+) -> None:
+    seeds = []
+    for name in ("seed_a", "seed_b"):
+        seed_run = tmp_path / name
+        SpikeTrainer(small_config(), seed_run).train(on_update_end=None)
+        seeds.append(str(latest_checkpoint(seed_run, "scratch")))
+
+    run = tmp_path / "run"
+    first = small_config(enemy_sampling="pfsp", pool_seed=seeds[:1], pool_seed_p=0.5)
+    trainer = SpikeTrainer(first, run)
+    trainer.train(on_update_end=None)
+    before = trainer.pool.entries
+    state = trainer.opponents.results.state()
+    assert state
+
+    widened = dataclasses.replace(first, pool_seed=seeds, n_updates=6)
+    resumed = SpikeTrainer(widened, run, resume=True)
+    assert resumed.pool.entries == [(-1, seeds[0]), (-1, seeds[1])] + before[1:]
+    expected = sorted([float(i if i == 0 else i + 1), w, m] for i, w, m in state)
+    assert resumed.opponents.results.state() == expected
