@@ -310,3 +310,51 @@ fn bad_mission_configs_are_errors() {
         r#"{"seed": 1, "commanders": ["robot", "scripted"], "fleets": [["fighter"], ["fighter"]]}"#;
     assert!(MatchCore::new(&hulls(), WEAPONS, cmd).is_err());
 }
+
+#[test]
+fn a_learned_commander_decides_through_the_bridge() {
+    use sim::commander_io::{ACTION_DIM, FLAT_DIM, FLAT_LAYOUT, act};
+    let cfg = CARRIER_BATTLE.replace(
+        r#""mission": "carrier_battle","#,
+        r#""mission": "carrier_battle", "commanders": ["learned", "scripted"],"#,
+    );
+    let mut m = MatchCore::new(&hulls(), WEAPONS, &cfg).unwrap();
+    let mut launch = vec![0i32; ACTION_DIM];
+    launch[act::LAUNCH] = 1;
+    launch[act::WAYPOINT] = 1;
+    assert!(!m.commander_due(0).unwrap());
+    assert!(m.submit_commander_action(0, &launch).is_err(), "not due");
+    assert!(m.commander_due(2).is_err());
+    while !m.commander_due(0).unwrap() {
+        m.step();
+    }
+    assert_eq!(m.tick() + 1, sim::command::LEARNED_COMMAND_TICKS);
+    assert!(
+        !m.commander_due(1).unwrap(),
+        "the scripted team keeps 60 ticks"
+    );
+    let f = m.commander_features(0).unwrap();
+    assert_eq!(f.len(), FLAT_DIM);
+    assert_eq!(f[1], 1.0, "carrier battle role");
+    let (_, launch_off, _) = FLAT_LAYOUT[3];
+    assert_eq!(&f[launch_off..launch_off + 3], &[1.0, 0.0, 1.0]);
+    let (_, valid_off, _) = FLAT_LAYOUT[2];
+    assert_eq!(f[valid_off], 1.0, "the carrier is an entity");
+    assert_eq!(f[valid_off + 3], 0.0, "slot 3 is docked");
+    assert!(
+        m.submit_commander_action(1, &launch).is_err(),
+        "scripted team"
+    );
+    let mut bad = launch.clone();
+    bad[act::WAYPOINT] = 26;
+    assert!(m.submit_commander_action(0, &bad).is_err());
+    assert!(m.submit_commander_action(0, &launch[..10]).is_err());
+    assert_eq!(m.submit_commander_action(0, &launch).unwrap(), 2);
+    m.step();
+    let results = m.command_results_json(0).unwrap();
+    assert!(results.contains("\"launched\""), "{results}");
+    assert!(results.contains("\"waypoint\""), "{results}");
+    let values = m.team_values();
+    assert_eq!(values.len(), 2);
+    assert!(values[0] > 0.0 && values[1] > 0.0);
+}

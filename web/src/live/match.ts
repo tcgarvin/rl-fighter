@@ -1,10 +1,12 @@
 // One live match: the WASM sim stepped one 30 Hz tick at a time, each strike craft
 // flown by a pilot picked for it at random and every capital ship (carrier, freighter)
-// by the sim's own script (SIM_SPEC §11). The commanders are scripted inside the sim's step.
+// by the sim's own script (SIM_SPEC §11). Each side's commander is drawn from the
+// bundle's stable: the scripted one runs inside the sim's step; a learned one decides
+// here, once a second, on the ticks the sim says it is due (docs/COMMANDER.md).
 // No DOM or three.js here, so tools/web/live_smoke.mjs runs the same loop headless.
 
 import { mulberry32, type Rng } from "./policy.js";
-import type { LivePilot } from "./bundle.ts";
+import { SCRIPTED_COMMANDER, type LiveCommander, type LivePilot } from "./bundle.ts";
 import type { MissionName } from "./missions.ts";
 import {
   END_REASONS,
@@ -46,7 +48,8 @@ const REASONS: Partial<Record<SimEndReason, EndReason>> = {
 };
 
 export interface Timing {
-  /** Moving averages over ~30 ticks, ms (sim includes the capital-ship scripts). */
+  /** Moving averages over ~30 ticks, ms (sim includes the capital-ship scripts; nn the
+   * pilots and any learned commander's decision). */
   sim: number;
   nn: number;
   ticks: number;
@@ -54,11 +57,30 @@ export interface Timing {
 
 // Keeps the pilot draw apart from the ships' sampling streams and the roster draw.
 const PILOT_SALT = 0x70696c6f;
+// Keeps the commander draw apart from the pilot draw.
+const COMMANDER_SALT = 0x636d6472;
 
 /** One pilot per ship, each drawn alone from `pilots`, the same for the same seed. */
 export function assignPilots<P>(pilots: readonly P[], nShips: number, seed: number): P[] {
   const rng = mulberry32(Math.imul(seed | 0, 0x2545f491) ^ PILOT_SALT);
   return Array.from({ length: nShips }, () => pilots[Math.floor(rng() * pilots.length)]!);
+}
+
+/** Each side's commander, drawn alone and uniformly from `stable`, the same for the same seed. */
+export function assignCommanders<C>(stable: readonly C[], seed: number): [C, C] {
+  const rng = mulberry32(Math.imul(seed | 0, 0x27d4eb2d) ^ COMMANDER_SALT);
+  const pick = (): C => stable[Math.floor(rng() * stable.length)]!;
+  return [pick(), pick()];
+}
+
+/** What a learned commander has done this match (zeros for a scripted side). */
+export interface CommanderStats {
+  decisions: number;
+  /** Commands its decisions decoded to (squad, waypoint and launch commands). */
+  commands: number;
+  /** Total and worst ms of a decision (features, forward pass, sampling, submit). */
+  ms: number;
+  worstMs: number;
 }
 
 /** What a ship has done this match. */
@@ -90,6 +112,8 @@ export interface LiveMatchOptions {
   fleets: Fleets;
   seed: number;
   mission?: MissionName;
+  /** Each side's commander (assignCommanders over Bundle.commanders); default: both scripted. */
+  commanders?: [LiveCommander, LiveCommander];
 }
 
 function emptyShip(i: number): ShipState {
@@ -136,6 +160,12 @@ export class LiveMatch {
   readonly watched: WatchedAction;
   /** The watched row came from the sim's script, so its logits mean nothing. */
   watchedScripted = false;
+  /** Each side's commander. */
+  readonly commanders: [LiveCommander, LiveCommander];
+  readonly commanderStats: [CommanderStats, CommanderStats] = [
+    { decisions: 0, commands: 0, ms: 0, worstMs: 0 },
+    { decisions: 0, commands: 0, ms: 0, worstMs: 0 },
+  ];
 
   private readonly sim: SimModule;
   private readonly layout: SimLayout;
@@ -151,6 +181,9 @@ export class LiveMatch {
   private readonly squadPool: SquadState[] = [];
   /** The v4 views (ship ext, squads, teams, convoy) exist in this wasm. */
   private readonly v4: boolean;
+  /** Per side: the learned commander's sampling stream and decision buffer. */
+  private readonly commanderRngs: [Rng, Rng];
+  private readonly decisions: [Int32Array, Int32Array];
 
   constructor(o: LiveMatchOptions) {
     this.sim = o.sim;
@@ -167,6 +200,11 @@ export class LiveMatch {
     this.arenaRadius = this.v4 ? o.sim.arenaRadiusForMission(this.mission, this.nShips) : o.sim.arenaRadiusFor(this.nShips);
     // Deathmatch keeps the champion's trained clock; missions take the sim's default.
     this.timeLimitTicks = deathmatch ? o.settings.time_limit_ticks : o.sim.missionTimeLimitTicks(this.mission);
+    this.commanders = o.commanders ?? [SCRIPTED_COMMANDER, SCRIPTED_COMMANDER];
+    const learned = this.commanders.some((c) => c.net !== null);
+    if (learned && !this.v4) throw new Error("a learned commander needs a SIM_VERSION 4+ bundle");
+    this.commanderRngs = [0, 1].map((t) => mulberry32(Math.imul(o.seed | 0, 0x85ebca6b) + t * 7919 + 3)) as [Rng, Rng];
+    this.decisions = [new Int32Array(40), new Int32Array(40)];
     this.match = new o.sim.WasmMatch(
       o.catalogue.hulls,
       o.catalogue.weapons,
@@ -177,6 +215,8 @@ export class LiveMatch {
         reaction_ticks: o.settings.reaction_ticks,
         fleets: o.fleets,
         ...(deathmatch ? {} : { mission: this.mission }),
+        // Only a match with a learned side names its commanders, so others stay as they were.
+        ...(learned ? { commanders: this.commanders.map((c) => (c.net ? "learned" : "scripted")) } : {}),
       }),
     );
     this.row = new Int8Array(o.layout.actionWidth);
@@ -269,10 +309,30 @@ export class LiveMatch {
     return v;
   }
 
+  /** Run each learned side's commander if its decision is due this step; returns the ms spent. */
+  private decide(m: WasmMatch): number {
+    let spent = 0;
+    for (const team of [0, 1] as const) {
+      const net = this.commanders[team].net;
+      if (!net || !m.commander_due(team)) continue;
+      const t0 = performance.now();
+      const action = net.act(m.commander_features(team), this.commanderRngs[team], this.decisions[team]);
+      const made = m.submit_commander_action(team, action);
+      const ms = performance.now() - t0;
+      const st = this.commanderStats[team];
+      st.decisions += 1;
+      st.commands += made;
+      st.ms += ms;
+      st.worstMs = Math.max(st.worstMs, ms);
+      spent += ms;
+    }
+    return spent;
+  }
+
   /** Choose every ship's action (policy or script), advance one tick, refresh the views. */
   step(): void {
     const m = this.wasm;
-    let nn = 0;
+    let nn = this.decide(m);
     let script = 0;
     for (let s = 0; s < this.nShips; s++) {
       const ship = this.ships[s]!;

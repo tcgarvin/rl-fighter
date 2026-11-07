@@ -1,12 +1,13 @@
 // The DOM layer over the canvas: the running tally, match status, the perf readout
 // (sim + inference ms per tick against the 33 ms budget), the mission panel (carrier
-// hull per side, or the convoy's progress), the caption, the result banner with the
+// hull per side, or the convoy's progress, and which commander runs each side once the
+// stable holds a learned one), the caption, the result banner with the
 // reason the match ended and, behind the "Technical details" toggle, per-ship numbers next to each hull.
 // The "Show commands" toggle's state lives on <body class="commands">.
 
 import { JUMP_CHARGING, JUMP_DEPARTED, SIM_HZ, TICK_BUDGET_MS } from "./sim.ts";
 import type { LiveMatch } from "./match.ts";
-import type { BundleManifest } from "./bundle.ts";
+import { commanderName, type BundleManifest, type LiveCommander } from "./bundle.ts";
 import { TEAM_CLASSES, TEAM_NAMES, TEAM_WORDS, escapeHtml, teamSpan } from "./teams.ts";
 
 export { TEAM_CLASSES, TEAM_NAMES };
@@ -88,14 +89,15 @@ export class Hud {
   }
 
   /**
-   * The caption under the battle; `replay` marks a past champion (?champion=) and
-   * `capitals` a match with scripted carriers or freighters in it.
+   * The caption under the battle; `replay` marks a past champion (?champion=),
+   * `capitals` a match with scripted carriers or freighters in it, and `commanders`
+   * each side's commander this match.
    */
-  setCaption(manifest: BundleManifest, replay = false, capitals = false): void {
+  setCaption(manifest: BundleManifest, replay = false, capitals = false, commanders: readonly LiveCommander[] = []): void {
     const c = manifest.champion;
     const mixed = manifest.roster.hulls.length > 1 ? " One net flies every hull." : "";
     const craft = capitals ? "fighter" : "ship";
-    const scripts = capitals ? "Carriers, freighters and both commanders are scripted. " : "";
+    const scripts = scriptsSentence(capitals, commanders);
     const nPilots = manifest.pilots?.length ?? 1;
     if (!replay && nPilots > 1) {
       const lead = `Each ${craft} here is flown by one of ${nPilots} neural networks, picked at random ship by ship, flying by thruster and trigger, trained overnight. Tap a ship to look closer. `;
@@ -125,9 +127,12 @@ export class Hud {
     this.metaEl.classList.add("error");
   }
 
-  /** The mission panel under the status: carrier hull per side, or the convoy's progress. */
-  updateMission(match: LiveMatch | null): void {
-    const html = match ? missionPanel(match) : "";
+  /**
+   * The mission panel under the status: carrier hull per side, or the convoy's
+   * progress; and, with `commanders`, which commander runs each side.
+   */
+  updateMission(match: LiveMatch | null, commanders = false): void {
+    const html = match ? missionPanel(match) + (commanders ? commanderRow(match) : "") : "";
     if (html === this.missionHtml) return;
     this.missionHtml = html;
     this.missionEl.innerHTML = html;
@@ -224,6 +229,21 @@ export class Hud {
       `<span class="stats">${throttleBar(ship.throttles, thrusters)} S${pct(0)} E${pct(1)} W${pct(2)}</span>`
     );
   }
+}
+
+/** Which commander runs each side, one short line in the sides' colours. */
+function commanderRow(match: LiveMatch): string {
+  const side = (t: 0 | 1) => teamSpan(t, `${TEAM_NAMES[t]} ${escapeHtml(commanderName(match.commanders[t]))}`);
+  return `<div class="mrow msub"><span class="mlabel">CMD</span>${side(0)} · ${side(1)}</div>`;
+}
+
+/** What the caption says is scripted, and which commander is a net. */
+function scriptsSentence(capitals: boolean, commanders: readonly LiveCommander[]): string {
+  const learned = [0, 1].filter((t) => commanders[t]?.net);
+  if (learned.length === 0) return capitals ? "Carriers, freighters and both commanders are scripted. " : "";
+  const who = learned.length === 2 ? "Both commanders are neural networks" : `The ${TEAM_WORDS[learned[0]!]} commander is a neural network`;
+  const net = `${who} too, giving orders once a second.`;
+  return capitals ? `Carriers and freighters are scripted. ${net} ` : `${net} `;
 }
 
 function pct(hp: number, max: number): number {

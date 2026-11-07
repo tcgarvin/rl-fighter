@@ -1,8 +1,10 @@
 // The command log behind "show commands": an ambient computer readout of what each
 // side's commander does (launches, squad orders) and what the convoy's jump drives do,
-// fed from the sim's events. Collapsed it is a few faint lines, not meant to be read
+// fed from the sim's events, which it raises alike for a scripted commander and for the
+// decisions a learned one submits. Collapsed it is a few faint lines, not meant to be read
 // in passing; a tap opens it into a readable panel, and another tap closes it.
 
+import { commanderName } from "./bundle.ts";
 import type { LiveMatch } from "./match.ts";
 import { MISSION_TITLES, type MissionName } from "./missions.ts";
 import { ORDER_KINDS, SIM_HZ, type SimEvent } from "./sim.ts";
@@ -53,6 +55,13 @@ export class CommandLog {
   /** A separator and the opening lines for a new match. */
   newMatch(number: number, m: LiveMatch): void {
     this.line(-1, `── MATCH ${String(number).padStart(2, "0")} · ${MISSION_TITLES[m.mission as MissionName].toUpperCase()} ──`, "cl-sep");
+    // Who is in command, once a learned commander is on the field.
+    if (m.commanders.some((c) => c.net)) {
+      for (const team of [0, 1] as const) {
+        const c = m.commanders[team];
+        this.line(team, `${this.who(team)} › ${commanderName(c)} in command${c.net ? "{ · neural net, decides each second}" : ""}`, "", 0);
+      }
+    }
     if (m.convoy) {
       const c = m.convoy;
       this.line(0, `${this.who(0)} › convoy under way · ${c.total} freighters → jump point{ ${fmtPoint(c.jumpX, c.jumpY)}}`, "", 0);

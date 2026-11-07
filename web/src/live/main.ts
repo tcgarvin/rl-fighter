@@ -4,11 +4,14 @@
 // (jump-in, bay launches, a convoy already under way), plays to the mission's end,
 // holds the result over the burning wreck, and starts the next. The Rust sim (WASM)
 // and the pilot policies run on the main thread at 30 Hz; rendering interpolates
-// between ticks. A pilot picked per ship flies each strike craft; carriers, freighters and both
-// commanders are the sim's scripts.
+// between ticks. A pilot picked per ship flies each strike craft; carriers and freighters are
+// the sim's scripts; each side's commander is drawn from the bundle's stable (the sim's
+// scripted one, or a learned net that decides once a second).
 //
 // URL parameters: seed (pin the match seeds), mission (deathmatch, carrier or convoy:
-// every match is that mission; default: rotate), fleets (duel or NvM for deathmatch,
+// every match is that mission; default: rotate), commander (an id from the stable for
+// both sides, or two ids, Azure's then Ember's, comma-separated; default: a draw per
+// side per match), fleets (duel or NvM for deathmatch,
 // implies it; default: a random draft), champion (replay a past champion), details
 // (open the technical details), commands (1/0: show or hide the commander layer,
 // overriding the viewer's remembered choice), warmup (fast-forward that many sim
@@ -20,12 +23,12 @@
 import { mountNav } from "../shell/nav";
 import "./live.css";
 import { mulberry32 } from "./policy.js";
-import { fetchManifest, loadBundle, type Bundle, type BundleManifest } from "./bundle.ts";
+import { fetchManifest, loadBundle, type Bundle, type BundleManifest, type LiveCommander } from "./bundle.ts";
 import { CommandLog } from "./cmdlog.ts";
 import { Hud, type Tally } from "./hud.ts";
 import { pickShip, type OnScreen } from "./inspect.ts";
 import { Inspector } from "./inspector.ts";
-import { LiveMatch } from "./match.ts";
+import { LiveMatch, assignCommanders } from "./match.ts";
 import { MISSION_TAGS, availableMissions, defaultRosters, missionBrief, missionFor, missionRoster, parseMission, type DefaultRosters, type MissionName } from "./missions.ts";
 import { Muster } from "./muster.ts";
 import { parseRosterMode, type Roster } from "./roster.ts";
@@ -65,6 +68,9 @@ const rosterMode = parseRosterMode(params.get("fleets"));
 // ?fleets= sizes a deathmatch, so it pins that mission unless ?mission= says otherwise.
 const pinnedMission: MissionName | null = parseMission(params.get("mission")) ?? (rosterMode.kind === "fixed" ? "deathmatch" : null);
 const pinnedSeed = params.has("seed") ? Number(params.get("seed")) : null;
+// ?commander=<id> (both sides) or <azure>,<ember>: ids from the bundle's stable.
+const pinnedCommanders = (params.get("commander") ?? "").split(",").map((id) => id.trim()).filter(Boolean).slice(0, 2);
+const warnedCommanders = new Set<string>();
 const warmup = Math.max(0, Number(params.get("warmup") ?? 0));
 const speed = Math.min(32, Math.max(1, Number(params.get("speed") ?? 1) || 1));
 let showDetails = params.has("details");
@@ -162,6 +168,22 @@ async function checkBundle(retryFailed: boolean): Promise<void> {
 }
 
 // ---- Match lifecycle ----
+/** Each side's commander: the pinned ids where the stable has them, else the draw. */
+function chooseCommanders(seed: number): [LiveCommander, LiveCommander] {
+  const drawn = assignCommanders(bundle.commanders, seed);
+  if (pinnedCommanders.length === 0) return drawn;
+  const ids = pinnedCommanders.length === 1 ? [pinnedCommanders[0]!, pinnedCommanders[0]!] : pinnedCommanders;
+  return drawn.map((fallback, team) => {
+    const id = ids[team]!;
+    const found = bundle.commanders.find((c) => c.id === id);
+    if (!found && !warnedCommanders.has(id)) {
+      warnedCommanders.add(id);
+      console.warn(`live: ?commander=${id} is not in this bundle's stable (${bundle.commanders.map((c) => c.id).join(", ")}); drawing instead`);
+    }
+    return found ?? fallback;
+  }) as [LiveCommander, LiveCommander];
+}
+
 function startMatch(): void {
   select(-1);
   if (pending) {
@@ -172,7 +194,8 @@ function startMatch(): void {
   nextSeed = (nextSeed + 1) % 1_000_000_000;
   const mission = missionFor(seed, missions, pinnedMission);
   roster = missionRoster(mission, rosterMode, bundle.manifest.roster, bundle.catalogue.info, mulberry32(seed ^ ROSTER_SALT), rosters);
-  const next = new LiveMatch({ ...bundle, settings: bundle.manifest.match, fleets: roster.fleets, seed, mission });
+  const commanders = chooseCommanders(seed);
+  const next = new LiveMatch({ ...bundle, settings: bundle.manifest.match, fleets: roster.fleets, seed, mission, commanders });
   world.setArena(next.arenaRadius);
   world.beginMatch(next);
   match?.free();
@@ -183,8 +206,8 @@ function startMatch(): void {
   matchNumber += 1;
   phase = "muster";
   phaseTime = 0;
-  hud.setCaption(bundle.manifest, bundleBase !== CURRENT_BUNDLE, next.ships.some((s) => s.role !== "strike"));
-  hud.updateMission(next);
+  hud.setCaption(bundle.manifest, bundleBase !== CURRENT_BUNDLE, next.ships.some((s) => s.role !== "strike"), commanders);
+  hud.updateMission(next, showCommanderRow(next));
   cmdlog.newMatch(matchNumber, next);
   const brief = missionBrief(mission, next.convoy);
   muster.show({ number: matchNumber, mission, brief, roster, info: bundle.catalogue.info, thumbnails, duration: MUSTER_SECONDS });
@@ -230,6 +253,11 @@ function fastForward(seconds: number): void {
   }
   world.settle();
   if (match.over) finishMatch(match);
+}
+
+/** Say who commands each side once the stable holds a learned commander (or one is pinned). */
+function showCommanderRow(m: LiveMatch): boolean {
+  return bundle.commanders.some((c) => c.net) || m.commanders.some((c) => c.net);
 }
 
 // ---- Frame loop ----
@@ -292,7 +320,7 @@ function frame(now: number): void {
   placeJumpLabel();
   updateInspected(realDt);
   if (match) {
-    hud.updateMission(match);
+    hud.updateMission(match, showCommanderRow(match));
     hud.updateMarkers(match, showDetails, (i) => world.shipOnScreen(i, window.innerWidth, window.innerHeight), thrusterCounts);
     const who = bundle.pilots.length > 1 ? `${bundle.pilots.length} pilots` : bundle.manifest.champion.name;
     hud.setMeta(statusLine(match), `seed ${match.seed} · ${who} · ${bundle.manifest.bundle_id.slice(0, 8)}`);
@@ -452,6 +480,8 @@ if (params.has("debug")) {
       tickMs: match ? match.timing.sim + match.timing.nn : 0,
       bundle: bundle?.manifest.bundle_id,
       pilots: match ? match.ships.map((_, i) => match!.pilotId(i)) : [],
+      commanders: match ? match.commanders.map((c) => c.id) : [],
+      commanderStats: match ? match.commanderStats.map((st) => ({ ...st })) : [],
       selected,
       gpu: world.gpuStats(),
       zoom: world.cam.zoomLevel,

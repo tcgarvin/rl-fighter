@@ -95,6 +95,26 @@ check(sim.pilot_compatible(3) && !sim.pilot_compatible(2), "pilot_compatible");
 check(sim.SHIP_EXT_STRIDE() === 10 && sim.SQUAD_STRIDE() === 9 && sim.TEAM_STRIDE() === 8 && sim.CONVOY_STRIDE() === 14, "v4 strides");
 check(sim.MAX_SHIPS() === 20 && sim.COMMAND_TICKS() === 60 && sim.arenaRadiusForMission("convoy_escort", 13) === 450, "v4 constants");
 
+// The learned commander (docs/COMMANDER.md): constants, the flat features and a decision.
+{
+  const io = JSON.parse(sim.commanderIoJson());
+  check(io.version === sim.COMMANDER_IO_VERSION() && io.flat_dim === sim.COMMANDER_FEATURES_LEN(), "commanderIoJson");
+  check(sim.COMMANDER_FEATURES_LEN() === 1082 && sim.COMMANDER_ACTION_DIM() === 40 && sim.LEARNED_COMMAND_TICKS() === 30, "commander constants");
+  check(io.flat_layout.at(-1).join() === "ward_mask,1062,20", "commander flat layout ends with the ward mask");
+  const fleet = ["carrier", "fighter", "strafer", "fighter", "gunship", "fighter", "fighter"];
+  const cfg = { seed: 3, mission: "carrier_battle", commanders: ["learned", "scripted"], fleets: [fleet, fleet] };
+  const m = new sim.WasmMatch(hulls, weapons, JSON.stringify(cfg));
+  while (!m.commander_due(0)) m.step();
+  const f = m.commander_features(0);
+  check(f.length === sim.COMMANDER_FEATURES_LEN(), "commander_features length");
+  const action = new Int32Array(sim.COMMANDER_ACTION_DIM());
+  action[0] = 1; // launch a fighter
+  check(m.submit_commander_action(0, action) === 1, "a launch decision makes one command");
+  m.step();
+  check(m.command_results_json(0).includes('"launched"'), "the learned launch happened");
+  m.free();
+}
+
 let threw = false;
 try {
   new sim.WasmMatch(hulls, weapons, '{"seed":1,"fleets":[["fighter"],["bomber"]]}');

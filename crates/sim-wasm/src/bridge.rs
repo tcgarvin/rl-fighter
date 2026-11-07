@@ -5,6 +5,7 @@
 use serde::Deserialize;
 use sim::actions::{self, ACTION_WIDTH, ShipAction};
 use sim::command::{CommanderMode, MAX_SQUADS, Order, Waypoint};
+use sim::commander_io::{self, CommanderLocks};
 use sim::data::{Catalogue, HullId};
 use sim::mission::{JumpState, Mission, is_carrier, is_transport};
 use sim::obs::OBS_DIM;
@@ -77,7 +78,8 @@ struct ConfigJson {
     /// §10.3); absent is deathmatch.
     #[serde(default)]
     mission: Option<serde_json::Value>,
-    /// v4: `["scripted", "external"]`; absent is both scripted.
+    /// v4: `["scripted", "external"]` (also `"random"`, `"learned"`); absent is both
+    /// scripted.
     #[serde(default)]
     commanders: Option<Vec<String>>,
     /// v6: `[team 0, team 1]` hidden-order mode; absent is both false.
@@ -139,6 +141,9 @@ pub fn parse_config(cat: &Catalogue, config_json: &str) -> Result<MatchConfig, S
 pub struct MatchCore {
     cat: Catalogue,
     m: Match,
+    /// Per team: the learned commander's lock state (`sim::commander_io`), as long
+    /// as the match (a new match is a new `MatchCore`).
+    locks: [CommanderLocks; 2],
     ships: Vec<f32>,
     ship_ext: Vec<f32>,
     projectiles: Vec<f32>,
@@ -173,6 +178,7 @@ impl MatchCore {
         let mut core = MatchCore {
             cat,
             m,
+            locks: Default::default(),
             ships: Vec::new(),
             ship_ext: Vec::new(),
             projectiles: Vec::new(),
@@ -287,6 +293,63 @@ impl MatchCore {
             self.m.submit_command(team, c);
         }
         Ok(())
+    }
+
+    /// The learned commander (`docs/COMMANDER.md`): whether the next `step` is
+    /// `team`'s slow tick (a `"learned"` team every `LEARNED_COMMAND_TICKS`).
+    pub fn commander_due(&self, team: u32) -> Result<bool, String> {
+        Ok(self.m.command_due_for(check_team(team)?))
+    }
+
+    /// The learned commander: `team`'s inputs and the masks of its next decision,
+    /// flat (`sim::commander_io::FLAT_LAYOUT`, `FLAT_DIM` floats): globals (53),
+    /// entities (20 x 40, slot order), valid (20), launch mask (3), waypoint mask (26),
+    /// squad mask (20 x 6), order mask (4 x 5), target mask (20), ward mask (20);
+    /// bools as 0/1.
+    pub fn commander_features(&self, team: u32) -> Result<Vec<f32>, String> {
+        let team = check_team(team)?;
+        let f = commander_io::features(&self.m, &self.cat, team, &self.locks[usize::from(team)]);
+        let mut out = Vec::with_capacity(commander_io::FLAT_DIM);
+        f.write_flat(&mut out);
+        Ok(out)
+    }
+
+    /// The learned commander: decode `team`'s decision (`ACTION_DIM` integers,
+    /// `docs/COMMANDER.md` "Outputs"; a choice its masks forbid reads as keep), update
+    /// the team's locks and queue the commands for its coming slow tick. Returns how
+    /// many commands were queued. Errors, changing nothing, unless the team's
+    /// commander is `"learned"` (or `"external"`), `commander_due(team)` and every
+    /// value is within its head's choices.
+    pub fn submit_commander_action(&mut self, team: u32, action: &[i32]) -> Result<u32, String> {
+        let team = check_team(team)?;
+        let mode = self.m.cfg.commanders[usize::from(team)];
+        if !mode.takes_commands() {
+            return Err(format!(
+                "team {team} has a {:?} commander, which takes no decisions",
+                mode.name()
+            ));
+        }
+        if !self.m.command_due_for(team) {
+            return Err(format!(
+                "team {team}: no slow tick on the next step (tick {}); submit when \
+                 commander_due(team)",
+                self.m.tick()
+            ));
+        }
+        let n = commander_io::submit(
+            &mut self.m,
+            &self.cat,
+            team,
+            &mut self.locks[usize::from(team)],
+            action,
+        )
+        .map_err(|e| e.to_string())?;
+        Ok(n as u32)
+    }
+
+    /// `[team 0, team 1]` values now (`Match::team_values`).
+    pub fn team_values(&self) -> Vec<f32> {
+        self.m.team_values().to_vec()
     }
 
     /// v4: JSON array of `team`'s command outcomes on the last slow tick.

@@ -8,6 +8,7 @@ pub mod arena;
 pub mod arrival;
 pub mod collision;
 pub mod command;
+pub mod commander_io;
 pub mod damage;
 pub mod data;
 pub mod events;

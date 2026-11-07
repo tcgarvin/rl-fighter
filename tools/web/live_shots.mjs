@@ -6,7 +6,10 @@
 // the bundle) first, e.g. `cd web && npx vite preview --port 4173`.
 //
 // Usage: node tools/web/live_shots.mjs [base=http://localhost:4173] [out=web/shots/live]
-// Env: RLF_SHOTS_ONLY=<substring> takes only the scenes whose name contains it.
+// Env: RLF_SHOTS_ONLY=<substring> takes only the scenes whose name contains it;
+// RLF_SHOTS_COMMANDER=<id> adds scenes with that learned commander from the bundle's
+// stable forced on (?commander=): a carrier battle and a convoy with the commander
+// layer on, and the inspector's details on one of its strike craft.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -33,6 +36,15 @@ const MISSION_SCENES = (mission, seed, mid) => [
   { name: `${mission}-mid-commands`, query: `seed=${seed}&mission=${mission}&warmup=${mid}&commands=1`, phase: "battle", after: 1.5 },
   { name: `${mission}-result`, query: `seed=${seed}&mission=${mission}&warmup=999&commands=0`, phase: "result", after: 1.0 },
 ];
+const learnedScenes = (id) =>
+  id
+    ? [
+        { name: `learned-${id}-carrier-mid-commands`, query: `seed=5&mission=carrier&commander=${id}&warmup=40&commands=1`, phase: "battle", after: 1.5 },
+        { name: `learned-${id}-convoy-mid-commands`, query: `seed=3&mission=convoy&commander=scripted,${id}&warmup=30&commands=1`, phase: "battle", after: 1.5 },
+        { name: `learned-${id}-deathmatch-commands`, query: `seed=11&fleets=3v3&commander=${id}&warmup=12&commands=1`, phase: "battle", after: 1.5 },
+        { name: `learned-${id}-inspect`, query: `seed=11&fleets=3v3&commander=${id},scripted&warmup=6&commands=0&inspect=0&outputs=1`, phase: "battle", after: 3 },
+      ]
+    : [];
 const SCENES = [
   { name: "muster", query: "seed=11&mission=deathmatch&commands=0", phase: "muster", after: 1.6 },
   { name: "battle", query: "seed=11&fleets=3v3&warmup=24&commands=0", phase: "battle", after: 1.5 },
@@ -44,6 +56,7 @@ const SCENES = [
   { name: "inspect-carrier", query: "seed=5&mission=carrier&warmup=50&commands=0&inspect=0&outputs=1", phase: "battle", after: 3 },
   ...MISSION_SCENES("carrier", 5, 50),
   ...MISSION_SCENES("convoy", 3, 30),
+  ...learnedScenes(process.env.RLF_SHOTS_COMMANDER ?? ""),
   ...(process.env.RLF_SHOTS_EXTRA ?? "").split(";").filter(Boolean).map((s) => {
     const [name, query, phase, after] = s.split("|");
     return { name, query, phase, after: Number(after ?? 1.5) };

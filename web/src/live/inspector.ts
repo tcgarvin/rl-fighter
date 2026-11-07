@@ -3,10 +3,11 @@
 // and the odds it gave each output on the last tick, next to what it drew. The rows are
 // built once per ship and only their numbers change, a few times a second.
 
-import { TEAM_CLASSES, TEAM_NAMES, escapeHtml } from "./teams.ts";
+import { TEAM_CLASSES, TEAM_NAMES, TEAM_WORDS, escapeHtml } from "./teams.ts";
 import { JUMP_CHARGING, JUMP_DEPARTED, ROLE_CARRIER, type ShipState } from "./sim.ts";
 import { POWER_NAMES, outputRows, rowOdds, type OutputKind, type OutputRow } from "./inspect.ts";
 import type { LiveMatch } from "./match.ts";
+import { commanderName } from "./bundle.ts";
 
 const REFRESH_SECONDS = 0.12;
 const RAD_TO_DEG = 180 / Math.PI;
@@ -90,7 +91,8 @@ export class Inspector {
     this.root.className = TEAM_CLASSES[ship.team]!;
     this.root.hidden = false;
     const strike = ship.role === "strike";
-    this.more.replaceChildren(...(strike ? this.pilotFacts(match, i, entry) : this.scriptFacts()), this.record);
+    const facts = strike ? this.pilotFacts(match, i, entry) : this.scriptFacts();
+    this.more.replaceChildren(...facts, ...this.commanderFacts(match, ship.team), this.record);
     const heads = match.pilot(i).policy.manifest.heads;
     this.buildRows(outputRows(heads, match.validHeads(i), thrusters, turrets), strike);
     this.setTitle(match, i, "");
@@ -154,6 +156,15 @@ export class Inspector {
     if (obsDim < ORDER_OBS_DIM) return "Orders: this net has no inputs for them.";
     if (!follows || follows.go_to === undefined) return "Orders: never drilled.";
     return `Order drills: go-to ${percent(follows.go_to)} · attack ${percent(follows.attack ?? 0)} · defend ${percent(follows.defend ?? 0)}`;
+  }
+
+  /** Who gives this side its orders; a learned commander's note too. */
+  private commanderFacts(match: LiveMatch, team: number): HTMLElement[] {
+    const c = match.commanders[team === 0 ? 0 : 1];
+    const what = c.net ? "a neural net, deciding once a second" : "the sim's script";
+    const facts = [el("p", "ins-fact", `${TEAM_WORDS[team]} commander: ${commanderName(c)} · ${what}`)];
+    if (c.net && c.entry.note) facts.push(el("p", "ins-fact", c.entry.note));
+    return facts;
   }
 
   private scriptFacts(): HTMLElement[] {

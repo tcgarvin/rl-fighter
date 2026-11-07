@@ -39,6 +39,15 @@ export interface WasmMatch {
   convoy(): Float32Array;
   /** v5: the last step's order reward per ship (SIM_SPEC §8). */
   order_rewards?(): Float32Array;
+  // The learned commander (docs/COMMANDER.md "Bindings"; config commanders "learned").
+  /** Whether the next step() is `team`'s slow tick, when a learned team decides. */
+  commander_due(team: number): boolean;
+  /** `team`'s inputs and masks, COMMANDER_FEATURES_LEN floats in commanderIoJson()'s flat layout. */
+  commander_features(team: number): Float32Array;
+  /** Decode and queue `team`'s decision (COMMANDER_ACTION_DIM ints); returns how many commands it made. */
+  submit_commander_action(team: number, action: Int32Array): number;
+  /** [team 0, team 1] values now. */
+  team_values(): Float32Array;
 }
 
 export interface SimModule {
@@ -57,6 +66,13 @@ export interface SimModule {
   missionTimeLimitTicks(mission: string): number;
   MAX_SHIPS(): number;
   COMMAND_TICKS(): number;
+  /** The learned commander's interface (absent in a wasm before it). */
+  COMMANDER_IO_VERSION?(): number;
+  COMMANDER_FEATURES_LEN?(): number;
+  COMMANDER_ACTION_DIM?(): number;
+  LEARNED_COMMAND_TICKS?(): number;
+  /** JSON {version, ..., flat_dim, flat_layout: [[name, offset, width], ...]}. */
+  commanderIoJson?(): string;
   MAX_SQUADS(): number;
   SHIP_EXT_STRIDE(): number;
   SQUAD_STRIDE(): number;

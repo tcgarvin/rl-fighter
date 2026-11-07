@@ -38,3 +38,14 @@ export function readPilotFiles(bundleDir, manifest) {
   }
   return files;
 }
+
+/** Each learned commander's export by its `dir`, for assembleBundle. */
+export function readCommanderFiles(bundleDir, manifest) {
+  const files = {};
+  for (const c of manifest.commanders ?? []) {
+    if (c.kind !== "learned") continue;
+    const { manifest: cm, weights } = readPolicyFiles(path.join(bundleDir, c.dir));
+    files[c.dir] = { cm, weights };
+  }
+  return files;
+}

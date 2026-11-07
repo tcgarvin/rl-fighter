@@ -1,10 +1,13 @@
 // The champion bundle (scripts/build_bundle.sh → /bundle/): the sim wasm, the exported
 // policy, the pilots the page picks from ship by ship (a bundle without any flies the
-// champion alone), the catalogue and manifest.json (rlf.bundle/1). Every file but the manifest
-// is fetched with ?v=<bundle_id>, so a new bundle never mixes with a cached old one and
-// its wasm instantiates as a fresh module next to the running one.
+// champion alone), the commanders each side draws from (a bundle without any keeps the
+// sim's scripted commander on both), the catalogue and manifest.json (rlf.bundle/1).
+// Every file but the manifest is fetched with ?v=<bundle_id>, so a new bundle never
+// mixes with a cached old one and its wasm instantiates as a fresh module next to the
+// running one.
 
 import { createPolicy, type Policy, type PolicyManifest } from "./policy.js";
+import { createCommander, type Commander, type CommanderManifest, type FlatLayoutEntry } from "./commander.js";
 import { pilotObsDim, simLayout, type Catalogue, type MatchSettings, type SimLayout, type SimModule } from "./sim.ts";
 import type { RosterRules } from "./roster.ts";
 
@@ -50,6 +53,41 @@ export interface PolicyFiles {
 
 export const CHAMPION_DIR = "policy";
 
+/** One entry of manifest.commanders (tools/live_commanders.py): `dir` holds a learned one's export. */
+export interface CommanderEntry {
+  id: string;
+  kind: "scripted" | "learned";
+  note: string;
+  dir?: string;
+  update?: number;
+}
+
+/** A commander ready to decide: the sim's script (net null) or a learned net. */
+export interface LiveCommander {
+  id: string;
+  kind: "scripted" | "learned";
+  net: Commander | null;
+  entry: CommanderEntry;
+}
+
+export const SCRIPTED_COMMANDER: LiveCommander = {
+  id: "scripted",
+  kind: "scripted",
+  net: null,
+  entry: { id: "scripted", kind: "scripted", note: "" },
+};
+
+/** A commander as the page names it: its id, or "scripted". */
+export function commanderName(c: LiveCommander): string {
+  return c.net ? c.id : "scripted";
+}
+
+/** A learned commander's exported files. */
+export interface CommanderFiles {
+  cm: CommanderManifest;
+  weights: ArrayBuffer;
+}
+
 export interface BundleManifest {
   schema: string;
   bundle_id: string;
@@ -71,6 +109,10 @@ export interface BundleManifest {
   pilots?: PilotEntry[];
   /** The logbook entry that introduces them (lab/runs/<id>). */
   pilots_entry?: string;
+  /** The commanders each side draws from; absent: both sides scripted. */
+  commanders?: CommanderEntry[];
+  /** The logbook entry that introduces the learned ones ("" if none). */
+  commanders_entry?: string;
 }
 
 export interface Bundle {
@@ -79,6 +121,8 @@ export interface Bundle {
   layout: SimLayout;
   /** At least one; the champion alone in a bundle that lists none. */
   pilots: LivePilot[];
+  /** At least one: the scripted commander alone in a bundle that lists none. */
+  commanders: LiveCommander[];
   catalogue: Catalogue;
 }
 
@@ -110,14 +154,52 @@ export function parseManifest(raw: unknown): BundleManifest {
     "pilots",
     0,
   );
+  const { commanders } = raw;
+  need(
+    commanders === undefined ||
+      (Array.isArray(commanders) &&
+        commanders.length > 0 &&
+        commanders.every((c) => isRecord(c) && typeof c.id === "string" && (c.kind === "scripted" || (c.kind === "learned" && typeof c.dir === "string")))),
+    "commanders",
+    0,
+  );
   return raw as unknown as BundleManifest;
+}
+
+/** The learned commander's interface of this wasm, which every learned commander must match. */
+function commanderExpect(sim: SimModule): { ioVersion: number; featuresLen: number; actionDim: number; flatLayout: FlatLayoutEntry[] } {
+  if (typeof sim.commanderIoJson !== "function" || typeof sim.COMMANDER_IO_VERSION !== "function") {
+    throw new Error("bundle lists a learned commander, but its wasm has no learned commander interface");
+  }
+  const io = JSON.parse(sim.commanderIoJson()) as { flat_layout: FlatLayoutEntry[] };
+  return { ioVersion: sim.COMMANDER_IO_VERSION(), featuresLen: sim.COMMANDER_FEATURES_LEN!(), actionDim: sim.COMMANDER_ACTION_DIM!(), flatLayout: io.flat_layout };
+}
+
+/** The bundle's commanders, each learned one checked against the wasm (createCommander). */
+function assembleCommanders(manifest: BundleManifest, sim: SimModule, files: Record<string, CommanderFiles>): LiveCommander[] {
+  const entries = manifest.commanders ?? [];
+  if (entries.length === 0) return [SCRIPTED_COMMANDER];
+  const expect = entries.some((e) => e.kind === "learned") ? commanderExpect(sim) : null;
+  return entries.map((entry) => {
+    if (entry.kind === "scripted") return { id: entry.id, kind: "scripted", net: null, entry };
+    const f = files[entry.dir!];
+    if (!f) throw new Error(`bundle lists commander ${entry.id}, but ${entry.dir} was not loaded`);
+    return { id: entry.id, kind: "learned", net: createCommander(f.cm, f.weights, expect!), entry };
+  });
+}
+
+/** The `dir` of every learned commander the manifest lists. */
+export function commanderDirs(manifest: BundleManifest): string[] {
+  return (manifest.commanders ?? []).flatMap((c) => (c.kind === "learned" && c.dir ? [c.dir] : []));
 }
 
 /**
  * Put loaded parts together and check they agree: the manifest's sim version against
- * the wasm, every policy against the wasm's layout (createPolicy), and the catalogue by
+ * the wasm, every policy against the wasm's layout (createPolicy), every learned
+ * commander against its commander interface (createCommander), and the catalogue by
  * building and freeing a one-ship-a-side match of every rostered hull. `pilotFiles` holds
- * each listed pilot's export by its `dir`, all but the champion's.
+ * each listed pilot's export by its `dir`, all but the champion's; `commanderFiles` each
+ * learned commander's.
  */
 export function assembleBundle(
   manifest: BundleManifest,
@@ -126,6 +208,7 @@ export function assembleBundle(
   weights: ArrayBuffer,
   catalogue: Catalogue,
   pilotFiles: Record<string, PolicyFiles> = {},
+  commanderFiles: Record<string, CommanderFiles> = {},
 ): Bundle {
   const layout = simLayout(sim);
   if (layout.simVersion !== manifest.sim_version) throw new Error(`bundle says sim_version ${manifest.sim_version}, its wasm is ${layout.simVersion}`);
@@ -148,7 +231,8 @@ export function assembleBundle(
     const probe = new sim.WasmMatch(catalogue.hulls, catalogue.weapons, JSON.stringify({ seed: 0, ...manifest.match, fleets: [[hull], [hull]] }));
     probe.free();
   }
-  return { manifest, sim, layout, pilots, catalogue };
+  const commanders = assembleCommanders(manifest, sim, commanderFiles);
+  return { manifest, sim, layout, pilots, commanders, catalogue };
 }
 
 async function fetchOk(url: string, init?: RequestInit): Promise<Response> {
@@ -172,13 +256,20 @@ export async function loadBundle(base: string, manifest: BundleManifest): Promis
     const pm = (await (await fetchOk(`${base}${dir}/manifest.json${v}`)).json()) as PolicyManifest;
     return { pm, weights: await (await fetchOk(`${base}${dir}/${pm.weights_file}${v}`)).arrayBuffer() };
   };
+  const commanderFiles = async (dir: string): Promise<CommanderFiles> => {
+    const cm = (await (await fetchOk(`${base}${dir}/manifest.json${v}`)).json()) as CommanderManifest;
+    return { cm, weights: await (await fetchOk(`${base}${dir}/${cm.weights_file}${v}`)).arrayBuffer() };
+  };
   const dirs = (manifest.pilots ?? []).map((p) => p.dir).filter((d) => d !== CHAMPION_DIR);
-  const [, { pm, weights }, catalogue, pilotFiles] = await Promise.all([
+  const cdirs = commanderDirs(manifest);
+  const [, { pm, weights }, catalogue, pilotFiles, cfiles] = await Promise.all([
     sim.default({ module_or_path: new URL(`pkg/sim_wasm_bg.wasm${v}`, absolute) }),
     policyFiles(CHAMPION_DIR),
     fetchOk(`${base}catalogue.json${v}`).then((r) => r.json() as Promise<Catalogue>),
     Promise.all(dirs.map(policyFiles)),
+    Promise.all(cdirs.map(commanderFiles)),
   ]);
   const byDir = Object.fromEntries(dirs.map((d, i) => [d, pilotFiles[i]!]));
-  return assembleBundle(manifest, sim, pm, weights, catalogue, byDir);
+  const byCommanderDir = Object.fromEntries(cdirs.map((d, i) => [d, cfiles[i]!]));
+  return assembleBundle(manifest, sim, pm, weights, catalogue, byDir, byCommanderDir);
 }

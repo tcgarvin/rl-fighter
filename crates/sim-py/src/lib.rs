@@ -7,7 +7,7 @@ mod vec_env;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use sim::actions::{ACTION_WIDTH, FIRE_OFFSET, POWER_OFFSET, SLEW_OFFSET, THROTTLE_OFFSET};
-use sim::command::{COMMAND_TICKS, CommanderMode, MAX_SQUADS};
+use sim::command::{COMMAND_TICKS, CommanderMode, LEARNED_COMMAND_TICKS, MAX_SQUADS};
 use sim::events;
 use sim::mission::{EndReason, MissionKind};
 use sim::obs::{N_NEAR_SHIPS, N_ORDER_SHIPS, SHIP_EXTRA_W};
@@ -44,16 +44,11 @@ fn rlf_sim(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("MAX_TRAIN_SHIPS", sim::setup::MAX_TRAIN_SHIPS)?;
     m.add(
         "COMMANDER_MODES",
-        [
-            CommanderMode::Scripted,
-            CommanderMode::External,
-            CommanderMode::Random,
-        ]
-        .map(CommanderMode::name)
-        .to_vec(),
+        CommanderMode::ALL.map(CommanderMode::name).to_vec(),
     )?;
     m.add("N_NEAR_SHIPS", N_NEAR_SHIPS)?;
     m.add("COMMAND_TICKS", COMMAND_TICKS)?;
+    m.add("LEARNED_COMMAND_TICKS", LEARNED_COMMAND_TICKS)?;
     m.add("MAX_SQUADS", MAX_SQUADS)?;
     m.add(
         "MISSIONS",
@@ -127,7 +122,102 @@ fn rlf_sim(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(mission_time_limit_s, m)?)?;
     m.add_function(wrap_pyfunction!(pilot_compatible, m)?)?;
     m.add_function(wrap_pyfunction!(mission_rosters, m)?)?;
+    m.add_function(wrap_pyfunction!(commander_io, m)?)?;
     Ok(())
+}
+
+/// The learned commander's interface constants (`sim::commander_io`,
+/// `docs/COMMANDER.md`), a new dict: `version`, the dims and scales, `lock_decisions`,
+/// `goto_radius`, `vel_scale`, `point_radii`, `command_ticks` (the learned cadence),
+/// the action heads as `actions` (`name -> (offset, width, choices)`), the entity and
+/// global blocks as `entity_layout` / `global_layout` (`name -> (offset, width)`), and
+/// the browser's flat feature layout as `flat_layout` (`name -> (offset, width)`).
+#[pyfunction]
+fn commander_io<'py>(py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+    use sim::commander_io as io;
+    let d = PyDict::new(py);
+    d.set_item("version", io::COMMANDER_IO_VERSION)?;
+    d.set_item("entity_dim", io::ENTITY_DIM)?;
+    d.set_item("global_dim", io::GLOBAL_DIM)?;
+    d.set_item("action_dim", io::ACTION_DIM)?;
+    d.set_item("n_entities", io::N_ENTITIES)?;
+    d.set_item("n_points", io::N_POINTS)?;
+    d.set_item("n_squads", MAX_SQUADS)?;
+    d.set_item("n_launch_hulls", io::N_LAUNCH_HULLS)?;
+    d.set_item("n_waypoint_choices", io::N_WAYPOINT_CHOICES)?;
+    d.set_item("n_squad_choices", io::N_SQUAD_CHOICES)?;
+    d.set_item("n_order_choices", io::N_ORDER_CHOICES)?;
+    d.set_item("squad_globals", io::SQUAD_GLOBALS)?;
+    d.set_item("lock_decisions", io::LOCK_DECISIONS)?;
+    d.set_item("goto_radius", io::GOTO_RADIUS)?;
+    d.set_item("vel_scale", io::VEL_SCALE)?;
+    d.set_item("point_radii", io::POINT_RADII.to_vec())?;
+    d.set_item("point_bearings", io::POINT_BEARINGS)?;
+    d.set_item("command_ticks", LEARNED_COMMAND_TICKS)?;
+    d.set_item("flat_dim", io::FLAT_DIM)?;
+    let actions = PyDict::new(py);
+    for (name, off, width) in [
+        ("launch", io::act::LAUNCH, io::N_LAUNCH_HULLS),
+        ("waypoint", io::act::WAYPOINT, 1),
+        ("squad", io::act::SQUAD, io::N_ENTITIES),
+        ("order", io::act::ORDER, MAX_SQUADS),
+        ("target", io::act::TARGET, MAX_SQUADS),
+        ("ward", io::act::WARD, MAX_SQUADS),
+        ("point", io::act::POINT, MAX_SQUADS),
+    ] {
+        actions.set_item(name, (off, width, io::head_choices(off)))?;
+    }
+    d.set_item("actions", actions)?;
+    let entity = PyDict::new(py);
+    for (name, off, width) in [
+        ("valid", io::ent::VALID, 1),
+        ("own", io::ent::OWN, 1),
+        ("class", io::ent::CLASS, sim::order::N_HULL_CLASSES),
+        ("pos", io::ent::POS, 2),
+        ("vel", io::ent::VEL, 2),
+        ("heading", io::ent::HEADING, 2),
+        ("hull", io::ent::HULL, 1),
+        ("shield", io::ent::SHIELD, 1),
+        ("on_field", io::ent::ON_FIELD, 1),
+        ("arriving", io::ent::ARRIVING, 1),
+        ("charging", io::ent::CHARGING, 1),
+        ("squad", io::ent::SQUAD, 1 + MAX_SQUADS),
+        ("order", io::ent::ORDER, 4),
+        ("target_of", io::ent::TARGET_OF, MAX_SQUADS),
+        ("ward_of", io::ent::WARD_OF, MAX_SQUADS),
+        ("threat", io::ent::THREAT, 1),
+        ("dist_own", io::ent::DIST_OWN, 1),
+        ("dist_enemy", io::ent::DIST_ENEMY, 1),
+        ("ship_lock", io::ent::SHIP_LOCK, 1),
+    ] {
+        entity.set_item(name, (off, width))?;
+    }
+    d.set_item("entity_layout", entity)?;
+    let globals = PyDict::new(py);
+    for (name, off, width) in [
+        ("role", io::glob::ROLE, 4),
+        ("time_left", io::glob::TIME_LEFT, 1),
+        ("tick", io::glob::TICK, 1),
+        ("reserves", io::glob::RESERVES, io::N_LAUNCH_HULLS),
+        ("bays_ready", io::glob::BAYS_READY, 1),
+        ("bays", io::glob::BAYS, 1),
+        ("carrier", io::glob::CARRIER, 1),
+        ("enemy_carrier", io::glob::ENEMY_CARRIER, 1),
+        ("convoy", io::glob::CONVOY, 5),
+        ("squads", io::glob::SQUADS, MAX_SQUADS * io::SQUAD_GLOBALS),
+        ("own_strike", io::glob::OWN_STRIKE, 1),
+        ("enemy_strike", io::glob::ENEMY_STRIKE, 1),
+        ("launch_age", io::glob::LAUNCH_AGE, 1),
+    ] {
+        globals.set_item(name, (off, width))?;
+    }
+    d.set_item("global_layout", globals)?;
+    let flat = PyDict::new(py);
+    for (name, off, width) in io::FLAT_LAYOUT {
+        flat.set_item(name, (off, width))?;
+    }
+    d.set_item("flat_layout", flat)?;
+    Ok(d)
 }
 
 /// Arena radius in metres for a match of `n_ships` ships in total (both teams):

@@ -16,6 +16,7 @@ export default defineConfig({
         notebook: resolve(__dirname, "notebook/index.html"),
         hulls: resolve(__dirname, "hulls/index.html"),
         pilot: resolve(__dirname, "pilot/index.html"),
+        commander: resolve(__dirname, "commander/index.html"),
       },
     },
   },

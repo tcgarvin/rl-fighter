@@ -1,4 +1,4 @@
-// Full-page screenshots of the notebook, hull catalogue and pilot page in headless
+// Full-page screenshots of the notebook, hull catalogue, pilot and commander pages in headless
 // Chromium, at the iPhone portrait size (390×844) and a desktop (1440×900), for review.
 // Fails on page errors, on the pages' own error states (missing data), and on
 // horizontal page scroll (the phone-first rule). Serve web/dist first, e.g. `cd web && npx vite preview --port 4173`.
@@ -35,6 +35,7 @@ const SCENES = [
   { name: "notebook-plan", url: `/notebook/#${run}/plan`, ready: ".nb-entry-head", settle: 0.5 },
   { name: "hulls", url: "/hulls/", ready: ".hull-list", settle: 2.0 },
   { name: "pilot", url: "/pilot/", ready: ".pilot-head", settle: 0.3 },
+  { name: "commander", url: "/commander/", ready: ".commander-head", settle: 0.3 },
 ];
 const only = process.env.RLF_SHOTS_SCENES?.split(",").filter(Boolean);
 if (only) {

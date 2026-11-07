@@ -17,6 +17,7 @@
 use rayon::prelude::*;
 use sim::actions::{self, ACTION_WIDTH, ShipAction};
 use sim::command::CommanderMode;
+use sim::commander_io::{self, CommanderFeatures, CommanderLocks, DecodeError};
 use sim::data::{Catalogue, HullId};
 use sim::mission::Mission;
 use sim::obs::OBS_DIM;
@@ -94,6 +95,24 @@ pub enum BatchError {
         index: usize,
         n_envs: usize,
     },
+    /// A commander decision for a team whose commander takes none (`scripted`,
+    /// `random`).
+    CommanderMode {
+        index: usize,
+        team: u8,
+        mode: CommanderMode,
+    },
+    /// A commander decision for a team whose slow tick is not the next step.
+    CommanderNotDue {
+        index: usize,
+        team: u8,
+        tick: u32,
+    },
+    /// A commander decision that does not decode (`commander_io::validate_action`).
+    Decode {
+        index: usize,
+        error: DecodeError,
+    },
 }
 
 impl std::fmt::Display for BatchError {
@@ -108,6 +127,18 @@ impl std::fmt::Display for BatchError {
             BatchError::EnvIndex { index, n_envs } => {
                 write!(f, "env index {index} out of range for {n_envs} envs")
             }
+            BatchError::CommanderMode { index, team, mode } => write!(
+                f,
+                "env {index} team {team} has a {:?} commander, which takes no decisions \
+                 (needs \"learned\" or \"external\")",
+                mode.name()
+            ),
+            BatchError::CommanderNotDue { index, team, tick } => write!(
+                f,
+                "env {index} team {team}: no slow tick on the next step (tick {tick}); \
+                 submit only where commander_due(team) is true"
+            ),
+            BatchError::Decode { index, error } => write!(f, "env {index}: {error}"),
         }
     }
 }
@@ -192,6 +223,9 @@ struct Slot {
     next: Option<Roster>,
     /// Flat `EVENT_STRIDE` encoding of the last step's events (record_events only).
     events: Vec<f32>,
+    /// Per team: the learned commander's lock state (`commander_io`), reset whenever
+    /// `m` is rebuilt.
+    locks: [CommanderLocks; 2],
 }
 
 pub struct Batch {
@@ -249,6 +283,7 @@ impl Batch {
                 roster: cfg.roster.clone(),
                 next: None,
                 events: Vec::new(),
+                locks: Default::default(),
             })
             .collect();
         Ok(Batch {
@@ -324,6 +359,7 @@ impl Batch {
                     }
                     slot.episode = 0;
                     slot.m = build_match(cat, cfg, &slot.roster, i, 0);
+                    slot.locks = Default::default();
                     r.rewards.fill(0.0);
                     r.order_rewards.fill(0.0);
                     r.ward_threat.fill(false);
@@ -353,6 +389,89 @@ impl Batch {
                 .enumerate()
                 .for_each(|(i, (slot, mut r))| step_one(cat, cfg, i, slot, &mut r));
         });
+    }
+
+    /// Team `team`'s commander lock state in env `i` (`commander_io::CommanderLocks`).
+    pub fn commander_locks(&self, i: usize, team: u8) -> &CommanderLocks {
+        &self.slots[i].locks[usize::from(team & 1)]
+    }
+
+    /// Per env: whether the next step is team `team`'s slow tick.
+    pub fn commander_due(&self, team: u8) -> Vec<bool> {
+        self.slots
+            .iter()
+            .map(|s| s.m.command_due_for(team))
+            .collect()
+    }
+
+    /// Per env: team `team`'s commander features and masks now (`commander_io`).
+    pub fn commander_features(&self, team: u8) -> Vec<CommanderFeatures> {
+        let cat = &self.cat;
+        self.pool.install(|| {
+            self.slots
+                .par_iter()
+                .map(|s| commander_io::features(&s.m, cat, team, &s.locks[usize::from(team & 1)]))
+                .collect()
+        })
+    }
+
+    /// Per env: both teams' values (`Match::team_values`).
+    pub fn team_values(&self) -> Vec<[f32; 2]> {
+        self.slots.iter().map(|s| s.m.team_values()).collect()
+    }
+
+    /// Whether `action` may be submitted for team `team` of env `i` now: the env
+    /// exists, the team's commander takes decisions (`learned` or `external`), its
+    /// slow tick is the next step and the decision decodes.
+    pub fn check_commander_action(
+        &self,
+        i: usize,
+        team: u8,
+        action: &[i32],
+    ) -> Result<(), BatchError> {
+        let n_envs = self.cfg.n_envs;
+        if i >= n_envs {
+            return Err(BatchError::EnvIndex { index: i, n_envs });
+        }
+        let m = &self.slots[i].m;
+        let mode = m.cfg.commanders[usize::from(team & 1)];
+        if !mode.takes_commands() {
+            return Err(BatchError::CommanderMode {
+                index: i,
+                team,
+                mode,
+            });
+        }
+        if !m.command_due_for(team) {
+            return Err(BatchError::CommanderNotDue {
+                index: i,
+                team,
+                tick: m.tick(),
+            });
+        }
+        commander_io::validate_action(action)
+            .map_err(|error| BatchError::Decode { index: i, error })
+    }
+
+    /// Decode team `team`'s decision `action` for env `i` (`commander_io::decode`),
+    /// queue its commands for the coming slow tick and update the team's locks.
+    /// Returns how many commands were queued.
+    pub fn submit_commander_action(
+        &mut self,
+        i: usize,
+        team: u8,
+        action: &[i32],
+    ) -> Result<usize, BatchError> {
+        self.check_commander_action(i, team, action)?;
+        let slot = &mut self.slots[i];
+        commander_io::submit(
+            &mut slot.m,
+            &self.cat,
+            team,
+            &mut slot.locks[usize::from(team & 1)],
+            action,
+        )
+        .map_err(|error| BatchError::Decode { index: i, error })
     }
 
     /// Write the scripted controller's action rows into `actions` (`[N,S,21]`) for
@@ -493,6 +612,7 @@ fn step_one(
             slot.roster = next;
         }
         slot.m = build_match(cat, cfg, &slot.roster, index, slot.episode);
+        slot.locks = Default::default();
     }
     write_post_step(cat, slot, r, done);
 }
@@ -740,6 +860,63 @@ mod tests {
                     .all(|&x| x == 0.0)
             );
         }
+    }
+
+    #[test]
+    fn commander_locks_live_beside_each_match_and_reset_with_it() {
+        let cat = catalogue();
+        let roster = Roster {
+            commanders: [CommanderMode::Learned, CommanderMode::Scripted],
+            ..duel(&cat)
+        };
+        let mut b = Batch::new(
+            catalogue(),
+            BatchConfig {
+                n_envs: 2,
+                base_seed: 3,
+                reaction_ticks: 2,
+                order_shaping_gamma: sim::reward::ORDER_SHAPING_GAMMA,
+                roster,
+                n_ships: 2,
+                n_threads: 1,
+                record_events: false,
+            },
+        )
+        .unwrap();
+        let mut o = Owned::new(2, 2);
+        b.reset(o.bufs());
+        let mut a = [0i32; commander_io::ACTION_DIM];
+        a[commander_io::act::SQUAD] = 2;
+        assert!(matches!(
+            b.submit_commander_action(0, 0, &a),
+            Err(BatchError::CommanderNotDue { .. })
+        ));
+        assert!(matches!(
+            b.check_commander_action(0, 1, &a),
+            Err(BatchError::CommanderMode { .. })
+        ));
+        scripted_steps(&mut b, &mut o, 29);
+        assert_eq!(b.commander_due(0), vec![true, true]);
+        assert_eq!(b.commander_due(1), vec![false, false]);
+        a[commander_io::act::ORDER] = 9;
+        assert!(matches!(
+            b.submit_commander_action(0, 0, &a),
+            Err(BatchError::Decode { .. })
+        ));
+        assert_eq!(b.commander_locks(0, 0).decisions, 0, "nothing decoded");
+        a[commander_io::act::ORDER] = 0;
+        assert_eq!(b.submit_commander_action(0, 0, &a).unwrap(), 1);
+        assert_eq!(b.commander_locks(0, 0).decisions, 1);
+        assert_eq!(b.commander_locks(1, 0).decisions, 0, "env 1 untouched");
+        scripted_steps(&mut b, &mut o, 1);
+        assert_eq!(b.match_at(0).command.squads[0][0].members, 0b1);
+        let f = b.commander_features(0);
+        assert_eq!(f[0].entities[0][commander_io::ent::SHIP_LOCK], 1.0);
+        assert_eq!(f[1].entities[0][commander_io::ent::SHIP_LOCK], 0.0);
+        // The duel ends on its 300-tick clock; the rebuilt match starts unlocked.
+        scripted_steps(&mut b, &mut o, 271);
+        assert_eq!(o.episode_count[0], 1);
+        assert_eq!(*b.commander_locks(0, 0), CommanderLocks::default());
     }
 
     #[test]

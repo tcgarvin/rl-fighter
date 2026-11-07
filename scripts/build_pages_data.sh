@@ -5,7 +5,9 @@
 # Both directories are gitignored; run this before `npm run build` in web/.
 # It also checks the static /pilot/ page (web/pilot/index.html) against the code and,
 # when the champion bundle has been built, against the exported champion weights
-# (tools/pilot_facts.py), and fails if the page has gone stale.
+# (tools/pilot_facts.py), and the static /commander/ page (web/commander/index.html)
+# against spacefight.commander and docs/COMMANDER.md (tools/commander_facts.py), and
+# fails if either page has gone stale.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -23,3 +25,4 @@ else
     echo "pilot page: no $POLICY_MANIFEST (bundle not built); checking against the code only"
     uv run python -m tools.pilot_facts --page web/pilot/index.html
 fi
+uv run python -m tools.commander_facts --page web/commander/index.html

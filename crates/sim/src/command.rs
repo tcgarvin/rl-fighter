@@ -1,13 +1,16 @@
 //! The commander layer (SIM_SPEC §5.9, v4; DESIGN §7 "Hierarchy"): squads, orders,
-//! waypoints and launches, decided on a slow tick every `COMMAND_TICKS`.
+//! waypoints and launches, decided on a slow tick every `COMMAND_TICKS` (a learned
+//! team every `LEARNED_COMMAND_TICKS`, `docs/COMMANDER.md`).
 //!
-//! On every step whose tick is a multiple of `COMMAND_TICKS` (stage 1b), the sim
-//! first sanitises each team's squads (drops members that died or jumped out, and
-//! clears orders whose target or ward is gone) and waypoints, then gathers each
-//! team's commands — from the scripted commander (`scripted::commander`) for a
-//! `Scripted` team, or from the team's inbox for an `External` one — and applies team
-//! 0's, then team 1's, in order. Both scripted commanders read the state before
-//! either team's commands apply. No commands means the previous orders stand.
+//! On every step whose tick is a multiple of a team's command ticks (stage 1b), the
+//! sim first sanitises the squads (drops members that died or jumped out, and clears
+//! orders whose target or ward is gone) and waypoints of each team that is due, then
+//! gathers their commands — from the scripted commander (`scripted::commander`) for a
+//! `Scripted` team, or from the team's inbox for an `External` or `Learned` one — and
+//! applies team 0's, then team 1's, in order. Both scripted commanders read the state
+//! before either team's commands apply. No commands means the previous orders stand.
+//! Without a learned team both teams are due on the same ticks, as before v6's
+//! learned commander, so those matches are unchanged.
 //!
 //! Squads, orders and waypoints are sim state (hashed). Invalid commands never panic:
 //! a launch that cannot happen and a waypoint for the wrong ship are refused; squad
@@ -26,8 +29,11 @@ use crate::mission::{ConvoyStatus, JumpState, MissionKind, is_capital_ship, is_t
 use crate::scripted;
 use crate::state::{Attach, MAX_REACTION_TICKS, MAX_SHIPS, Match, NONE, Ship, ShipIdx};
 
-/// Ticks between commander decisions (2 s at 30 Hz).
+/// Ticks between commander decisions (2 s at 30 Hz): scripted, random and external
+/// teams.
 pub const COMMAND_TICKS: u32 = 60;
+/// Ticks between a learned commander's decisions (1 s; `docs/COMMANDER.md`).
+pub const LEARNED_COMMAND_TICKS: u32 = 30;
 /// Squads per team.
 pub const MAX_SQUADS: usize = 4;
 /// A bay that launched may launch again this many ticks later (1.5 s).
@@ -60,24 +66,48 @@ pub enum CommanderMode {
     /// from the commander's own rng streams (`scripted::random_commander`), for
     /// training pilots to follow any order.
     Random,
+    /// The learned commander (`docs/COMMANDER.md`): like `External`, the caller
+    /// submits commands (decoded by `commander_io::decode`), but on its own cadence,
+    /// `LEARNED_COMMAND_TICKS`.
+    Learned,
 }
 
 impl CommanderMode {
+    /// Every mode, in `from_name` order.
+    pub const ALL: [CommanderMode; 4] = [
+        CommanderMode::Scripted,
+        CommanderMode::External,
+        CommanderMode::Random,
+        CommanderMode::Learned,
+    ];
+
     pub fn name(self) -> &'static str {
         match self {
             CommanderMode::Scripted => "scripted",
             CommanderMode::External => "external",
             CommanderMode::Random => "random",
+            CommanderMode::Learned => "learned",
         }
     }
 
     pub fn from_name(name: &str) -> Option<CommanderMode> {
-        match name {
-            "scripted" => Some(CommanderMode::Scripted),
-            "external" => Some(CommanderMode::External),
-            "random" => Some(CommanderMode::Random),
-            _ => None,
+        CommanderMode::ALL.into_iter().find(|c| c.name() == name)
+    }
+
+    /// Ticks between this commander's slow ticks: `LEARNED_COMMAND_TICKS` for a
+    /// learned team, `COMMAND_TICKS` for every other.
+    pub fn command_ticks(self) -> u32 {
+        match self {
+            CommanderMode::Learned => LEARNED_COMMAND_TICKS,
+            CommanderMode::Scripted | CommanderMode::External | CommanderMode::Random => {
+                COMMAND_TICKS
+            }
         }
+    }
+
+    /// Whether the caller submits this team's commands (`External`, `Learned`).
+    pub fn takes_commands(self) -> bool {
+        matches!(self, CommanderMode::External | CommanderMode::Learned)
     }
 }
 
@@ -351,13 +381,30 @@ fn clamp_to_disc(p: Vec2, r: f32) -> Vec2 {
 }
 
 impl Match {
-    /// Whether the next `step` is a slow tick (commands submitted now apply then).
+    /// Whether the next `step` is a slow tick of either team (commands submitted now
+    /// apply then). Without a learned team both teams share every slow tick.
     pub fn command_due(&self) -> bool {
-        (self.tick + 1) % COMMAND_TICKS == 0
+        self.command_due_for(0) || self.command_due_for(1)
     }
 
-    /// Queue `cmd` for `team`'s next slow tick (`External` mode; a `Scripted` team's
-    /// inbox is discarded on the slow tick).
+    /// Whether the next `step` is `team`'s slow tick (`docs/COMMANDER.md`: a learned
+    /// team every `LEARNED_COMMAND_TICKS`, others every `COMMAND_TICKS`).
+    pub fn command_due_for(&self, team: u8) -> bool {
+        (self.tick + 1) % self.command_ticks(team) == 0
+    }
+
+    /// Ticks between `team`'s slow ticks.
+    pub fn command_ticks(&self, team: u8) -> u32 {
+        self.cfg.commanders[usize::from(team & 1)].command_ticks()
+    }
+
+    /// Whether the current tick is `team`'s slow tick (stage 1b).
+    fn slow_tick(&self, team: u8) -> bool {
+        self.tick % self.command_ticks(team) == 0
+    }
+
+    /// Queue `cmd` for `team`'s next slow tick (`External` and `Learned` modes; a
+    /// `Scripted` or `Random` team's inbox is discarded on its slow tick).
     pub fn submit_command(&mut self, team: u8, cmd: Command) {
         self.inbox[usize::from(team & 1)].push(cmd);
     }
@@ -367,24 +414,31 @@ impl Match {
         &self.command_results[usize::from(team & 1)]
     }
 
-    /// Stage 1b (v4): on a slow tick, sanitise, gather and apply both teams'
-    /// commands (module docs).
+    /// Stage 1b (v4): on a slow tick, sanitise, gather and apply the commands of
+    /// every team whose slow tick it is (module docs). Each team has its own cadence
+    /// (`command_ticks`); a team that is not due keeps its inbox for its own slow tick.
     pub(crate) fn step_commanders(&mut self, cat: &Catalogue) {
-        if self.tick % COMMAND_TICKS != 0 {
+        let due = [self.slow_tick(0), self.slow_tick(1)];
+        if !due[0] && !due[1] {
             return;
         }
         let before = self.command.squads;
         for team in 0..2u8 {
-            self.command_results[usize::from(team)].clear();
-            self.sanitize_squads(team);
+            if due[usize::from(team)] {
+                self.command_results[usize::from(team)].clear();
+                self.sanitize_squads(team);
+            }
         }
-        self.sanitize_waypoints();
+        self.sanitize_waypoints(due);
         let mut batches: [Vec<Command>; 2] = [Vec::new(), Vec::new()];
         for team in 0..2u8 {
             let t = usize::from(team);
+            if !due[t] {
+                continue;
+            }
             let inbox = std::mem::take(&mut self.inbox[t]);
             batches[t] = match self.cfg.commanders[t] {
-                CommanderMode::External => inbox,
+                CommanderMode::External | CommanderMode::Learned => inbox,
                 CommanderMode::Scripted => scripted::commander::commands(self, cat, team),
                 CommanderMode::Random => {
                     // Its own streams (cloned out and back: `commands` reads the match).
@@ -492,10 +546,10 @@ impl Match {
         }
     }
 
-    /// Unset the waypoints of ships that died or jumped out.
-    fn sanitize_waypoints(&mut self) {
+    /// Unset the waypoints of ships of the `due` teams that died or jumped out.
+    fn sanitize_waypoints(&mut self, due: [bool; 2]) {
         for s in 0..self.ships.len() {
-            if !self.in_match(s) {
+            if due[usize::from(self.ships[s].team & 1)] && !self.in_match(s) {
                 self.command.waypoints[s] = Waypoint::Unset;
             }
         }

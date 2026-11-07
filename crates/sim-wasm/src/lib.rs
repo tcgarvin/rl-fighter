@@ -124,6 +124,57 @@ pub fn command_ticks() -> u32 {
     sim::command::COMMAND_TICKS
 }
 
+/// Ticks between a learned commander's decisions (`docs/COMMANDER.md`).
+#[wasm_bindgen(js_name = LEARNED_COMMAND_TICKS)]
+pub fn learned_command_ticks() -> u32 {
+    sim::command::LEARNED_COMMAND_TICKS
+}
+
+/// The learned commander's interface version (`sim::commander_io`).
+#[wasm_bindgen(js_name = COMMANDER_IO_VERSION)]
+pub fn commander_io_version() -> u32 {
+    sim::commander_io::COMMANDER_IO_VERSION
+}
+
+/// Floats of `WasmMatch.commander_features(team)`.
+#[wasm_bindgen(js_name = COMMANDER_FEATURES_LEN)]
+pub fn commander_features_len() -> usize {
+    sim::commander_io::FLAT_DIM
+}
+
+/// Integers of one decision for `WasmMatch.submit_commander_action`.
+#[wasm_bindgen(js_name = COMMANDER_ACTION_DIM)]
+pub fn commander_action_dim() -> usize {
+    sim::commander_io::ACTION_DIM
+}
+
+/// The learned commander's interface as JSON: `{"version", "entity_dim",
+/// "global_dim", "action_dim", "n_entities", "n_points", "command_ticks", "flat_dim",
+/// "flat_layout": [[name, offset, width], ...]}` (the layout of `commander_features`,
+/// in order; masks 0/1).
+#[wasm_bindgen(js_name = commanderIoJson)]
+pub fn commander_io_json() -> String {
+    use sim::commander_io as io;
+    let layout: Vec<String> = io::FLAT_LAYOUT
+        .iter()
+        .map(|(n, o, w)| format!("[\"{n}\",{o},{w}]"))
+        .collect();
+    format!(
+        "{{\"version\":{},\"entity_dim\":{},\"global_dim\":{},\"action_dim\":{},\
+         \"n_entities\":{},\"n_points\":{},\"command_ticks\":{},\"flat_dim\":{},\
+         \"flat_layout\":[{}]}}",
+        io::COMMANDER_IO_VERSION,
+        io::ENTITY_DIM,
+        io::GLOBAL_DIM,
+        io::ACTION_DIM,
+        io::N_ENTITIES,
+        io::N_POINTS,
+        sim::command::LEARNED_COMMAND_TICKS,
+        io::FLAT_DIM,
+        layout.join(",")
+    )
+}
+
 /// v4: squads per team.
 #[wasm_bindgen(js_name = MAX_SQUADS)]
 pub fn max_squads() -> usize {
@@ -258,7 +309,7 @@ impl WasmMatch {
     /// `hull_yamls`: `[[dir_name, hull_yaml_text], ...]`; `weapons_yaml`: the text of
     /// `weapons.yaml`; `config_json`: `{"seed": 7, "arena_radius": 450,
     /// "time_limit_ticks": 2700, "reaction_ticks": 2, "fleets": [["fighter"], ["fighter"]],
-    /// "mission": "carrier_battle", "commanders": ["scripted", "external"]}`
+    /// "mission": "carrier_battle", "commanders": ["scripted", "learned"]}`
     /// (all but seed and fleets optional; v4 `mission` is a kind name or a spec
     /// object, SIM_SPEC §10.3). Throws on bad YAML, JSON, hull names, fleets or
     /// fleets that do not fit the mission.
@@ -322,6 +373,36 @@ impl WasmMatch {
     /// slow tick; used only when that team's commander is `"external"`.
     pub fn submit_commands(&mut self, team: u32, json: &str) -> Result<(), JsError> {
         self.core.submit_commands(team, json).map_err(js_err)
+    }
+
+    /// The learned commander: whether the next `step()` is `team`'s slow tick (a
+    /// `"learned"` team every `LEARNED_COMMAND_TICKS`, others every `COMMAND_TICKS`).
+    pub fn commander_due(&self, team: u32) -> Result<bool, JsError> {
+        self.core.commander_due(team).map_err(js_err)
+    }
+
+    /// The learned commander: `team`'s inputs and masks, `COMMANDER_FEATURES_LEN`
+    /// floats in the `commanderIoJson()` layout: globals (53), entities (20 x 40),
+    /// valid (20), launch mask (3), waypoint mask (26), squad mask (20 x 6), order mask
+    /// (4 x 5), target mask (20), ward mask (20); masks 0/1.
+    pub fn commander_features(&self, team: u32) -> Result<Vec<f32>, JsError> {
+        self.core.commander_features(team).map_err(js_err)
+    }
+
+    /// The learned commander: decode and queue `team`'s decision
+    /// (`COMMANDER_ACTION_DIM` integers) for its coming slow tick; returns how many
+    /// commands it made. Throws unless the team is `"learned"` (or `"external"`) and
+    /// due, or for a value outside its head's choices.
+    pub fn submit_commander_action(&mut self, team: u32, action: &[i32]) -> Result<u32, JsError> {
+        self.core
+            .submit_commander_action(team, action)
+            .map_err(js_err)
+    }
+
+    /// `[team 0, team 1]` values now: hull + half shield of every ship still in the
+    /// match.
+    pub fn team_values(&self) -> Vec<f32> {
+        self.core.team_values()
     }
 
     /// v4: JSON array of `team`'s command outcomes on the last slow tick.

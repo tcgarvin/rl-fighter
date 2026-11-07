@@ -76,7 +76,12 @@ def test_module_constants():
     assert rlf_sim.SHIP_EXTRA_W == 10 and rlf_sim.N_ORDER_SHIPS == 5
     assert list(rlf_sim.ORDER_KINDS) == ["attack", "defend", "goto"]
     assert rlf_sim.MAX_TRAIN_SHIPS == 12
-    assert list(rlf_sim.COMMANDER_MODES) == ["scripted", "external", "random"]
+    assert list(rlf_sim.COMMANDER_MODES) == [
+        "scripted",
+        "external",
+        "random",
+        "learned",
+    ]
     assert rlf_sim.MAX_SHIPS == 20 and rlf_sim.N_NEAR_SHIPS == 7
     assert rlf_sim.EVENT_KINDS["collision"] == EVENT_COLLISION
     assert rlf_sim.EVENT_KINDS["match_end"] == EVENT_MATCH_END

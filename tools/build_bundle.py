@@ -15,7 +15,9 @@ and the hull YAMLs and writes the remaining two files:
   (id, name, notebook run, the hulls it is certified to fly, an eval summary), the
   match config it was trained on, and the roster rules the page drafts from. With a
   ``pilots/index.json`` (``tools/live_pilots.py``) it also lists the pilots the page
-  picks from, ship by ship; without one the champion flies every strike craft.
+  picks from, ship by ship; without one the champion flies every strike craft. With a
+  ``commanders/index.json`` (``tools/live_commanders.py``) it lists the commanders each
+  side draws from; without one both sides keep the sim's scripted commander.
 
 The bundle id is a hash of the wasm, the weights, the catalogue and the manifest's
 own settings, so rebuilding the same inputs keeps the id and the live page does not
@@ -216,17 +218,45 @@ def pilots_entry(bundle: Path) -> str:
     return str(json.loads(index.read_text())["entry"]) if index.is_file() else ""
 
 
+def live_commanders(bundle: Path) -> tuple[list[dict[str, Any]], str]:
+    """The commanders in ``commanders/index.json`` and the entry introducing them;
+    ``([], "")`` when the bundle has none.
+
+    Raises:
+        BundleError: A listed learned commander's exported files are missing.
+    """
+    index = bundle / "commanders" / "index.json"
+    if not index.is_file():
+        return [], ""
+    data = json.loads(index.read_text())
+    commanders: list[dict[str, Any]] = data["commanders"]
+    for c in commanders:
+        if c["kind"] != "learned":
+            continue
+        for name in ("manifest.json", "weights.bin"):
+            if not (bundle / c["dir"] / name).is_file():
+                raise BundleError(f"commander {c['id']}: {c['dir']}/{name} is missing")
+    return commanders, str(data["entry"])
+
+
 def bundle_id(bundle: Path, settings: dict[str, Any]) -> str:
-    """Content hash of the wasm, every pilot's weights, the catalogue and the settings."""
+    """Content hash of the wasm, every pilot's and commander's weights, the catalogue
+    and the settings."""
     digest = hashlib.sha256()
     pilot_weights = sorted(
         f"{p['dir']}/weights.bin" for p in settings.get("pilots", ())
+    )
+    commander_weights = sorted(
+        f"{c['dir']}/weights.bin"
+        for c in settings.get("commanders", ())
+        if c["kind"] == "learned"
     )
     for rel in (
         "pkg/sim_wasm_bg.wasm",
         "pkg/sim_wasm.js",
         "policy/weights.bin",
         *pilot_weights,
+        *commander_weights,
         "catalogue.json",
     ):
         digest.update(rel.encode())
@@ -327,6 +357,10 @@ def build(
     if pilots:
         settings["pilots"] = pilots
         settings["pilots_entry"] = pilots_entry(bundle)
+    commanders, commanders_entry = live_commanders(bundle)
+    if commanders:
+        settings["commanders"] = commanders
+        settings["commanders_entry"] = commanders_entry
     manifest = {"schema": SCHEMA, "bundle_id": bundle_id(bundle, settings), **settings}
     (bundle / "manifest.json").write_text(json.dumps(manifest, indent=1) + "\n")
     return manifest

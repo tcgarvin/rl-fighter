@@ -1,0 +1,965 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#060a10" />
+    <title>RL Fighter · How the commander works</title>
+    <meta name="description" content="What the commander network is: what it sees, what it decides, how it is built and trained, and what it is not yet." />
+  </head>
+  <!--
+    Every number that can drift sits in an element whose data-fact attribute names it.
+    tools/commander_facts.py computes the same facts from spacefight.commander (layout,
+    network, training config) and docs/COMMANDER.md; scripts/build_pages_data.sh and
+    tests/test_commander_page.py fail when this page disagrees. Update the text, not the
+    check. The figures' data-width, data-head and data-point attributes are checked too.
+  -->
+  <body>
+    <main class="page pilot commander" id="main">
+      <header class="pilot-head commander-head">
+        <p class="kicker">How the commander works</p>
+        <h1>A second network gives the orders</h1>
+        <p class="commander-status"><span class="commander-status__dot"></span>In training, not yet on the live page</p>
+        <p class="lede">
+          Above the pilots sits a commander: a network that runs a whole team and decides, once a
+          second, which ships fly together, what each squad should do, where the carrier
+          goes and when to launch from it. It never touches a thruster. Its orders reach
+          the pilots through their observations, and the pilots do the flying. Unlike the
+          pilot, it reads the battle with <strong>attention</strong>, so it can point at
+          one particular ship and say "attack that one" or "guard this one". The
+          commanders on the live page today are still the sim's script.
+        </p>
+        <dl class="pilot-stats">
+          <div><dt>inputs</dt><dd><span data-fact="io.max_entities">20</span> × <span data-fact="io.entity_dim">40</span> + <span data-fact="io.global_dim">53</span></dd></div>
+          <div><dt>decisions</dt><dd><span data-fact="cadence.per_s">1</span> a second</dd></div>
+          <div><dt>outputs</dt><dd data-fact="io.action_dim">40</dd></div>
+          <div><dt>weights</dt><dd data-fact="actor.params">84,676</dd></div>
+        </dl>
+      </header>
+
+      <div class="pilot-body prose">
+        <section id="picture">
+          <h2>In one picture</h2>
+          <p>
+            Once a second the sim hands the commander a table: one row of
+            <span data-fact="io.entity_dim">40</span> numbers for each of the
+            <span data-fact="io.max_entities">20</span> ship slots, and
+            <span data-fact="io.global_dim">53</span> numbers about the match. A shared
+            encoder turns each ship's row into <span data-fact="net.width">64</span>
+            numbers. One layer of self-attention lets every ship's vector take in the
+            others. The average over the ships, joined with the match numbers, becomes a
+            summary of <span data-fact="net.summary">128</span>. Three groups of heads read
+            the summary and the ship vectors, and the
+            <span data-fact="io.action_dim">40</span> integers they choose go back to the
+            sim, which turns them into commands and runs the next
+            <span data-fact="cadence.ticks">30</span> ticks.
+          </p>
+          <figure class="figure wide pilot-figure">
+            <p class="figure__title">The actor, top to bottom</p>
+            <svg class="diagram" viewBox="0 0 360 400" role="img" aria-labelledby="net-fig-title net-fig-desc">
+            <title id="net-fig-title">The commander network</title>
+            <desc id="net-fig-desc">Twenty ship slots of 40 numbers each and 53 match numbers go in. A shared encoder turns each ship into 64 numbers, one self-attention layer lets every ship look at the others, and the mean of the ships joined with the match numbers becomes a 128-number summary. Three groups of heads read the summary and the ship vectors: the squad of each ship, an order and its target, ward or point per squad, and the launches and carrier waypoint. The 40 chosen integers are decoded by the sim into commands, the sim runs 30 ticks, and the next decision begins.</desc>
+            <text class="dg-kicker" x="66" y="12">INPUTS</text>
+            <text class="dg-small" x="350" y="12" text-anchor="end">one team, its own frame</text>
+            <rect class="seg c-own" x="66.0" y="20" width="9" height="28" />
+            <rect class="seg c-own" x="76.5" y="20" width="9" height="28" />
+            <rect class="seg c-own" x="87.0" y="20" width="9" height="28" />
+            <rect class="seg c-own" x="97.5" y="20" width="9" height="28" />
+            <rect class="seg c-own" x="108.0" y="20" width="9" height="28" />
+            <rect class="seg c-own" x="118.5" y="20" width="9" height="28" />
+            <rect class="seg c-own" x="129.0" y="20" width="9" height="28" />
+            <rect class="seg c-own" x="139.5" y="20" width="9" height="28" />
+            <rect class="seg c-own" x="150.0" y="20" width="9" height="28" />
+            <rect class="seg c-own" x="160.5" y="20" width="9" height="28" />
+            <rect class="seg c-own" x="171.0" y="20" width="9" height="28" />
+            <rect class="seg c-own" x="181.5" y="20" width="9" height="28" />
+            <rect class="seg c-own" x="192.0" y="20" width="9" height="28" />
+            <rect class="seg c-own" x="202.5" y="20" width="9" height="28" />
+            <rect class="seg c-own" x="213.0" y="20" width="9" height="28" />
+            <rect class="seg c-own" x="223.5" y="20" width="9" height="28" />
+            <rect class="seg c-own" x="234.0" y="20" width="9" height="28" />
+            <rect class="seg c-own" x="244.5" y="20" width="9" height="28" />
+            <rect class="seg c-own" x="255.0" y="20" width="9" height="28" />
+            <rect class="seg c-own" x="265.5" y="20" width="9" height="28" />
+            <rect class="seg c-order" x="292" y="20" width="58" height="28" />
+            <rect class="dg-chip" x="126" y="25" width="88" height="18" rx="9" />
+            <text class="dg-num" x="170" y="38" text-anchor="middle"><tspan data-fact="io.max_entities">20</tspan> × <tspan data-fact="io.entity_dim">40</tspan></text>
+            <rect class="dg-chip" x="302" y="25" width="38" height="18" rx="9" />
+            <text class="dg-num" x="321" y="38" text-anchor="middle"><tspan data-fact="io.global_dim">53</tspan></text>
+            <text class="dg-small" x="170" y="61" text-anchor="middle">ship slots</text>
+            <text class="dg-small" x="321" y="61" text-anchor="middle">the match</text>
+            <line class="dg-line" x1="170" x2="170" y1="66" y2="75" />
+            <path class="dg-arrow" d="M166,74 L170,80 L174,74 Z" />
+            <rect class="box" x="96" y="78" width="148" height="34" rx="3" />
+            <text class="dg-kicker" x="104" y="90">SHARED ENCODER</text>
+            <text class="dg-num" x="170" y="105" text-anchor="middle"><tspan data-fact="io.entity_dim">40</tspan> → 64 → <tspan data-fact="net.width">64</tspan> · tanh</text>
+            <text class="dg-small" x="250" y="99"><tspan data-fact="actor.trunk.encode">6,784</tspan></text>
+            <line class="dg-line" x1="170" x2="170" y1="112" y2="125" />
+            <path class="dg-arrow" d="M166,124 L170,130 L174,124 Z" />
+            <rect class="box" x="96" y="128" width="148" height="34" rx="3" />
+            <text class="dg-kicker" x="104" y="140">SELF-ATTENTION</text>
+            <text class="dg-num" x="170" y="155" text-anchor="middle"><tspan data-fact="net.attention_heads">4</tspan> heads × <tspan data-fact="net.head_width">16</tspan> · residual</text>
+            <text class="dg-small" x="250" y="149"><tspan data-fact="actor.trunk.attention">16,640</tspan></text>
+            <line class="dg-line" x1="170" x2="170" y1="162" y2="175" />
+            <path class="dg-arrow" d="M166,174 L170,180 L174,174 Z" />
+            <rect class="box" x="96" y="178" width="148" height="34" rx="3" />
+            <text class="dg-kicker" x="104" y="190">SUMMARY</text>
+            <text class="dg-num" x="170" y="205" text-anchor="middle">mean + <tspan data-fact="io.global_dim">53</tspan> → <tspan data-fact="net.summary">128</tspan> · tanh</text>
+            <text class="dg-small" x="250" y="199"><tspan data-fact="actor.trunk.summary">15,104</tspan></text>
+            <path class="dg-line" d="M321,66 L321,166 Q321,170 317,170 L234,170 Q230,170 230,174 L230,175" />
+            <path class="dg-arrow" d="M226,174 L230,180 L234,174 Z" />
+            <path class="dg-ships" d="M96,154 L40,154 Q36,154 36,158 L36,241" />
+            <path class="dg-arrow dg-arrow--ships" d="M32,240 L36,246 L40,240 Z" />
+            <path class="dg-ships" d="M36,228 L146,228 Q150,228 150,232 L150,241" />
+            <path class="dg-arrow dg-arrow--ships" d="M146,240 L150,246 L154,240 Z" />
+            <text class="dg-small dg-ships-label" x="42" y="222">each ship's 64</text>
+            <path class="dg-fan" d="M140,212 C140,230 70,226 70,246" />
+            <path class="dg-fan" d="M170,212 C170,230 190,226 190,246" />
+            <path class="dg-fan" d="M200,212 C200,230 299,226 299,246" />
+            <rect class="box" x="20" y="246" width="100" height="34" rx="3" />
+            <text class="dg-num" x="70.0" y="260" text-anchor="middle">squad of ship ×<tspan data-fact="io.max_entities">20</tspan></text>
+            <text class="dg-small" x="70.0" y="274" text-anchor="middle"><tspan data-fact="io.squad_choices">6</tspan>-way each</text>
+            <text class="dg-small" x="70.0" y="294" text-anchor="middle"><tspan data-fact="actor.squad">12,742</tspan></text>
+            <rect class="box" x="126" y="246" width="110" height="34" rx="3" />
+            <text class="dg-num" x="181.0" y="260" text-anchor="middle">per squad ×<tspan data-fact="io.n_squads">4</tspan></text>
+            <text class="dg-small" x="181.0" y="274" text-anchor="middle">order, point, 2 pointers</text>
+            <text class="dg-small" x="181.0" y="294" text-anchor="middle"><tspan data-fact="actor.per_squad">29,278</tspan></text>
+            <rect class="box" x="246" y="246" width="106" height="34" rx="3" />
+            <text class="dg-num" x="299.0" y="260" text-anchor="middle">launch ×<tspan data-fact="io.launch_hulls">3</tspan></text>
+            <text class="dg-small" x="299.0" y="274" text-anchor="middle">carrier waypoint</text>
+            <text class="dg-small" x="299.0" y="294" text-anchor="middle"><tspan data-fact="actor.summary_heads">4,128</tspan></text>
+            <line class="dg-line" x1="170" x2="170" y1="300" y2="311" />
+            <path class="dg-arrow" d="M166,310 L170,316 L174,310 Z" />
+            <rect class="box" x="60" y="314" width="220" height="28" rx="3" />
+            <text class="dg-num" x="170" y="332" text-anchor="middle"><tspan data-fact="io.action_dim">40</tspan> integers → commands</text>
+            <line class="dg-line" x1="170" x2="170" y1="342" y2="353" />
+            <path class="dg-arrow" d="M166,352 L170,358 L174,352 Z" />
+            <rect class="box box--sim" x="60" y="356" width="220" height="28" rx="3" />
+            <text class="dg-num" x="170" y="374" text-anchor="middle">sim runs <tspan data-fact="cadence.ticks">30</tspan> ticks (<tspan data-fact="cadence.per_s">1</tspan> s)</text>
+            <path class="dg-loop" d="M60,370 L18,370 Q12,370 12,364 L12,40 Q12,34 18,34 L60,34" />
+            <path class="dg-arrow" d="M59,30 L65,34 L59,38 Z" />
+            <text class="dg-small" text-anchor="middle" transform="translate(9 330) rotate(-90)">next decision</text>
+            </svg>
+            <figcaption class="figure__caption">
+              Not to scale. The number beside each box, or under each group of heads, is
+              its weights and biases; together they make
+              <span data-fact="actor.params">84,676</span>. The blue lines carry each ship's
+              own vector past the summary to the heads that put a ship in a squad or point
+              at a ship. Source:
+              <a class="code-link" href="https://github.com/tcgarvin/rl-fighter/blob/main/spacefight/commander/policy.py"><code>spacefight/commander/policy.py</code></a>.
+            </figcaption>
+          </figure>
+        </section>
+
+        <section id="sees">
+          <h2>What the commander sees</h2>
+          <p>
+            The inputs are built by the Rust sim; their layout is agreed in
+            <a class="code-link" href="https://github.com/tcgarvin/rl-fighter/blob/main/docs/COMMANDER.md"><code>docs/COMMANDER.md</code></a>.
+            The pilot sees the battle from its own cockpit. The commander sees it from its
+            team's side of the map: the <strong>team frame</strong> is the world as it is
+            for team 0 and turned half a circle for team 1, so every commander's home is
+            on the left (−x) and the enemy's on the right. Positions are divided by the
+            arena radius, velocities by <span data-fact="io.vel_scale">100</span> m/s.
+          </p>
+          <p>
+            A ship gets a row when it is alive and on the field or jumping in. Ships still
+            docked in a carrier's hangar have no row; the match numbers count them. An
+            empty slot is all zeros, with its <em>valid</em> flag at 0. Rows sit by ship
+            slot, not sorted by distance, so choosing a row means choosing a ship.
+          </p>
+          <figure class="figure wide pilot-figure">
+            <p class="figure__title">One ship's <span data-fact="io.entity_dim">40</span> numbers</p>
+            <ul class="legend">
+              <li><span class="legend__key legend__key--block c-own"></span>the ship</li>
+              <li><span class="legend__key legend__key--block c-order"></span>its squad and order</li>
+              <li><span class="legend__key legend__key--block c-other"></span>its part in the plan</li>
+            </ul>
+            <svg class="diagram" viewBox="0 0 360 376" role="img" aria-labelledby="ent-fig-title ent-fig-desc">
+            <title id="ent-fig-title">One ship's 40 numbers</title>
+            <desc id="ent-fig-desc">Each ship slot is 40 numbers: valid 1, own team 1, hull class 6, position 2, velocity 2, heading 2, hull and shield 2, on the field, arriving and charging 3, its squad 5, its order 4, an attack target of squad 1 to 4, the defend ward of squad 1 to 4, threatens my capital ship 1, distances to the carriers 2, squad-move lock 1.</desc>
+            <rect class="seg c-own" data-block="valid" data-width="1" x="4.0" y="4" width="7.8" height="14" />
+            <rect class="seg c-own" data-block="own" data-width="1" x="12.8" y="4" width="7.8" height="14" />
+            <rect class="seg c-own" data-block="class" data-width="6" x="21.6" y="4" width="51.8" height="14" />
+            <rect class="seg c-own" data-block="pos" data-width="2" x="74.4" y="4" width="16.6" height="14" />
+            <rect class="seg c-own" data-block="vel" data-width="2" x="92.0" y="4" width="16.6" height="14" />
+            <rect class="seg c-own" data-block="heading" data-width="2" x="109.6" y="4" width="16.6" height="14" />
+            <rect class="seg c-own" data-block="health" data-width="2" x="127.2" y="4" width="16.6" height="14" />
+            <rect class="seg c-own" data-block="state" data-width="3" x="144.8" y="4" width="25.4" height="14" />
+            <rect class="seg c-order" data-block="squad" data-width="5" x="171.2" y="4" width="43.0" height="14" />
+            <rect class="seg c-order" data-block="order" data-width="4" x="215.2" y="4" width="34.2" height="14" />
+            <rect class="seg c-other" data-block="target" data-width="4" x="250.4" y="4" width="34.2" height="14" />
+            <rect class="seg c-other" data-block="ward" data-width="4" x="285.6" y="4" width="34.2" height="14" />
+            <rect class="seg c-other" data-block="threat" data-width="1" x="320.8" y="4" width="7.8" height="14" />
+            <rect class="seg c-other" data-block="dist" data-width="2" x="329.6" y="4" width="16.6" height="14" />
+            <rect class="seg c-order" data-block="lock" data-width="1" x="347.2" y="4" width="7.8" height="14" />
+            <text class="dg-small" x="4" y="31">0</text>
+            <text class="dg-small" x="356" y="31" text-anchor="end"><tspan data-fact="io.entity_dim">40</tspan></text>
+            <text class="dg-label" x="112" y="54" text-anchor="end">valid</text>
+            <rect class="bar c-own" x="118" y="44" width="14.0" height="12" rx="1" />
+            <text class="dg-num" x="138.0" y="54">1</text>
+            <text class="dg-label" x="112" y="76" text-anchor="end">own team</text>
+            <rect class="bar c-own" x="118" y="66" width="14.0" height="12" rx="1" />
+            <text class="dg-num" x="138.0" y="76">1</text>
+            <text class="dg-label" x="112" y="98" text-anchor="end">hull class</text>
+            <rect class="bar c-own" x="118" y="88" width="84.0" height="12" rx="1" />
+            <line class="tick" x1="132.0" x2="132.0" y1="88" y2="100" />
+            <line class="tick" x1="146.0" x2="146.0" y1="88" y2="100" />
+            <line class="tick" x1="160.0" x2="160.0" y1="88" y2="100" />
+            <line class="tick" x1="174.0" x2="174.0" y1="88" y2="100" />
+            <line class="tick" x1="188.0" x2="188.0" y1="88" y2="100" />
+            <text class="dg-num" x="208.0" y="98">6</text>
+            <text class="dg-label" x="112" y="120" text-anchor="end">position</text>
+            <rect class="bar c-own" x="118" y="110" width="28.0" height="12" rx="1" />
+            <line class="tick" x1="132.0" x2="132.0" y1="110" y2="122" />
+            <text class="dg-num" x="152.0" y="120">2</text>
+            <text class="dg-label" x="112" y="142" text-anchor="end">velocity</text>
+            <rect class="bar c-own" x="118" y="132" width="28.0" height="12" rx="1" />
+            <line class="tick" x1="132.0" x2="132.0" y1="132" y2="144" />
+            <text class="dg-num" x="152.0" y="142">2</text>
+            <text class="dg-label" x="112" y="164" text-anchor="end">heading</text>
+            <rect class="bar c-own" x="118" y="154" width="28.0" height="12" rx="1" />
+            <line class="tick" x1="132.0" x2="132.0" y1="154" y2="166" />
+            <text class="dg-num" x="152.0" y="164">2</text>
+            <text class="dg-label" x="112" y="186" text-anchor="end">hull, shield</text>
+            <rect class="bar c-own" x="118" y="176" width="28.0" height="12" rx="1" />
+            <line class="tick" x1="132.0" x2="132.0" y1="176" y2="188" />
+            <text class="dg-num" x="152.0" y="186">2</text>
+            <text class="dg-label" x="112" y="208" text-anchor="end">field, arriving, jump</text>
+            <rect class="bar c-own" x="118" y="198" width="42.0" height="12" rx="1" />
+            <line class="tick" x1="132.0" x2="132.0" y1="198" y2="210" />
+            <line class="tick" x1="146.0" x2="146.0" y1="198" y2="210" />
+            <text class="dg-num" x="166.0" y="208">3</text>
+            <text class="dg-label" x="112" y="230" text-anchor="end">its squad</text>
+            <rect class="bar c-order" x="118" y="220" width="70.0" height="12" rx="1" />
+            <line class="tick" x1="132.0" x2="132.0" y1="220" y2="232" />
+            <line class="tick" x1="146.0" x2="146.0" y1="220" y2="232" />
+            <line class="tick" x1="160.0" x2="160.0" y1="220" y2="232" />
+            <line class="tick" x1="174.0" x2="174.0" y1="220" y2="232" />
+            <text class="dg-num" x="194.0" y="230">5</text>
+            <text class="dg-label" x="112" y="252" text-anchor="end">its order</text>
+            <rect class="bar c-order" x="118" y="242" width="56.0" height="12" rx="1" />
+            <line class="tick" x1="132.0" x2="132.0" y1="242" y2="254" />
+            <line class="tick" x1="146.0" x2="146.0" y1="242" y2="254" />
+            <line class="tick" x1="160.0" x2="160.0" y1="242" y2="254" />
+            <text class="dg-num" x="180.0" y="252">4</text>
+            <text class="dg-label" x="112" y="274" text-anchor="end">target of squad</text>
+            <rect class="bar c-other" x="118" y="264" width="56.0" height="12" rx="1" />
+            <line class="tick" x1="132.0" x2="132.0" y1="264" y2="276" />
+            <line class="tick" x1="146.0" x2="146.0" y1="264" y2="276" />
+            <line class="tick" x1="160.0" x2="160.0" y1="264" y2="276" />
+            <text class="dg-num" x="180.0" y="274">4</text>
+            <text class="dg-label" x="112" y="296" text-anchor="end">ward of squad</text>
+            <rect class="bar c-other" x="118" y="286" width="56.0" height="12" rx="1" />
+            <line class="tick" x1="132.0" x2="132.0" y1="286" y2="298" />
+            <line class="tick" x1="146.0" x2="146.0" y1="286" y2="298" />
+            <line class="tick" x1="160.0" x2="160.0" y1="286" y2="298" />
+            <text class="dg-num" x="180.0" y="296">4</text>
+            <text class="dg-label" x="112" y="318" text-anchor="end">threatens mine</text>
+            <rect class="bar c-other" x="118" y="308" width="14.0" height="12" rx="1" />
+            <text class="dg-num" x="138.0" y="318">1</text>
+            <text class="dg-label" x="112" y="340" text-anchor="end">to the carriers</text>
+            <rect class="bar c-other" x="118" y="330" width="28.0" height="12" rx="1" />
+            <line class="tick" x1="132.0" x2="132.0" y1="330" y2="342" />
+            <text class="dg-num" x="152.0" y="340">2</text>
+            <text class="dg-label" x="112" y="362" text-anchor="end">move lock</text>
+            <rect class="bar c-order" x="118" y="352" width="14.0" height="12" rx="1" />
+            <text class="dg-num" x="138.0" y="362">1</text>
+            </svg>
+            <figcaption class="figure__caption">
+              The strip is one row in order; each bar below is one block, a tick per number.
+              Every ship slot, own or enemy, has the same layout. Squad and order blocks
+              are zeros for enemy ships.
+            </figcaption>
+          </figure>
+          <ul>
+            <li>
+              <strong>What it is</strong> (8): valid; own team or enemy; its hull class
+              as one of six (fighter, strafer, gunship, carrier, freighter and a spare for
+              a hull added later).
+            </li>
+            <li>
+              <strong>Where it is going</strong> (6): position, velocity and heading.
+            </li>
+            <li>
+              <strong>Its state</strong> (5): hull and shield left, as fractions; whether
+              it is on the field, jumping in, or (a transport) charging its jump out.
+            </li>
+            <li>
+              <strong>Its squad and order</strong> (10, own strike craft only): which squad
+              it is in (none, or 1 to <span data-fact="io.n_squads">4</span>), what kind of
+              order that squad is following (none, attack, defend, go to), and how long
+              until it may be moved to another squad.
+            </li>
+            <li>
+              <strong>Its part in the plan</strong> (11): for each squad, whether this ship
+              is the squad's attack target, and whether it is the squad's defend ward;
+              whether it is an enemy threatening one of my capital ships; its distance to
+              my carrier (or lead transport) and to the enemy's.
+            </li>
+          </ul>
+          <figure class="figure wide pilot-figure">
+            <p class="figure__title">The <span data-fact="io.global_dim">53</span> match numbers</p>
+            <ul class="legend">
+              <li><span class="legend__key legend__key--block c-order"></span>the mission and its clock</li>
+              <li><span class="legend__key legend__key--block c-own"></span>my carrier and hangar</li>
+              <li><span class="legend__key legend__key--block c-other"></span>the convoy and the field</li>
+              <li><span class="legend__key legend__key--block c-queue"></span>my squads</li>
+            </ul>
+            <svg class="diagram" viewBox="0 0 360 244" role="img" aria-labelledby="glob-fig-title glob-fig-desc">
+            <title id="glob-fig-title">The 53 match numbers</title>
+            <desc id="glob-fig-desc">53 numbers: role 4, clock 2, hangar reserves 3, bays 2, carriers alive 2, convoy 5, four squads of 8, strike craft on the field 2, time since the last launch 1.</desc>
+            <rect class="seg c-order" data-block="role" data-width="4" x="4.0" y="4" width="25.6" height="14" />
+            <rect class="seg c-order" data-block="clock" data-width="2" x="30.6" y="4" width="12.3" height="14" />
+            <rect class="seg c-own" data-block="reserves" data-width="3" x="43.8" y="4" width="18.9" height="14" />
+            <rect class="seg c-own" data-block="bays" data-width="2" x="63.8" y="4" width="12.3" height="14" />
+            <rect class="seg c-own" data-block="carriers" data-width="2" x="77.1" y="4" width="12.3" height="14" />
+            <rect class="seg c-other" data-block="convoy" data-width="5" x="90.3" y="4" width="32.2" height="14" />
+            <rect class="seg c-queue" data-block="squads" data-width="32" x="123.5" y="4" width="211.5" height="14" />
+            <rect class="seg c-other" data-block="field" data-width="2" x="336.1" y="4" width="12.3" height="14" />
+            <rect class="seg c-own" data-block="launch_age" data-width="1" x="349.4" y="4" width="5.6" height="14" />
+            <text class="dg-small" x="4" y="31">0</text>
+            <text class="dg-small" x="356" y="31" text-anchor="end"><tspan data-fact="io.global_dim">53</tspan></text>
+            <text class="dg-label" x="112" y="54" text-anchor="end">role</text>
+            <rect class="bar c-order" x="118" y="44" width="24.0" height="12" rx="1" />
+            <line class="tick" x1="124.0" x2="124.0" y1="44" y2="56" />
+            <line class="tick" x1="130.0" x2="130.0" y1="44" y2="56" />
+            <line class="tick" x1="136.0" x2="136.0" y1="44" y2="56" />
+            <text class="dg-num" x="148.0" y="54">4</text>
+            <text class="dg-label" x="112" y="76" text-anchor="end">clock</text>
+            <rect class="bar c-order" x="118" y="66" width="12.0" height="12" rx="1" />
+            <line class="tick" x1="124.0" x2="124.0" y1="66" y2="78" />
+            <text class="dg-num" x="136.0" y="76">2</text>
+            <text class="dg-label" x="112" y="98" text-anchor="end">hangar</text>
+            <rect class="bar c-own" x="118" y="88" width="18.0" height="12" rx="1" />
+            <line class="tick" x1="124.0" x2="124.0" y1="88" y2="100" />
+            <line class="tick" x1="130.0" x2="130.0" y1="88" y2="100" />
+            <text class="dg-num" x="142.0" y="98">3</text>
+            <text class="dg-label" x="112" y="120" text-anchor="end">bays</text>
+            <rect class="bar c-own" x="118" y="110" width="12.0" height="12" rx="1" />
+            <line class="tick" x1="124.0" x2="124.0" y1="110" y2="122" />
+            <text class="dg-num" x="136.0" y="120">2</text>
+            <text class="dg-label" x="112" y="142" text-anchor="end">carriers alive</text>
+            <rect class="bar c-own" x="118" y="132" width="12.0" height="12" rx="1" />
+            <line class="tick" x1="124.0" x2="124.0" y1="132" y2="144" />
+            <text class="dg-num" x="136.0" y="142">2</text>
+            <text class="dg-label" x="112" y="164" text-anchor="end">convoy</text>
+            <rect class="bar c-other" x="118" y="154" width="30.0" height="12" rx="1" />
+            <line class="tick" x1="124.0" x2="124.0" y1="154" y2="166" />
+            <line class="tick" x1="130.0" x2="130.0" y1="154" y2="166" />
+            <line class="tick" x1="136.0" x2="136.0" y1="154" y2="166" />
+            <line class="tick" x1="142.0" x2="142.0" y1="154" y2="166" />
+            <text class="dg-num" x="154.0" y="164">5</text>
+            <text class="dg-label" x="112" y="186" text-anchor="end">squads</text>
+            <rect class="bar c-queue" x="118" y="176" width="192.0" height="12" rx="1" />
+            <line class="tick" x1="166.0" x2="166.0" y1="176" y2="188" />
+            <line class="tick" x1="214.0" x2="214.0" y1="176" y2="188" />
+            <line class="tick" x1="262.0" x2="262.0" y1="176" y2="188" />
+            <text class="dg-num" x="316.0" y="186"><tspan data-fact="io.n_squads">4</tspan> × <tspan data-fact="io.squad_global_dim">8</tspan></text>
+            <text class="dg-label" x="112" y="208" text-anchor="end">strike craft</text>
+            <rect class="bar c-other" x="118" y="198" width="12.0" height="12" rx="1" />
+            <line class="tick" x1="124.0" x2="124.0" y1="198" y2="210" />
+            <text class="dg-num" x="136.0" y="208">2</text>
+            <text class="dg-label" x="112" y="230" text-anchor="end">since launch</text>
+            <rect class="bar c-own" x="118" y="220" width="6.0" height="12" rx="1" />
+            <text class="dg-num" x="130.0" y="230">1</text>
+            </svg>
+            <figcaption class="figure__caption">
+              The squads block is <span data-fact="io.n_squads">4</span> records of
+              <span data-fact="io.squad_global_dim">8</span>, one per squad. Each squad's
+              record also goes straight into that squad's heads.
+            </figcaption>
+          </figure>
+          <ul>
+            <li>
+              <strong>The mission</strong> (6): which role this team plays (deathmatch,
+              carrier battle, convoy defender, convoy attacker), and the time left and gone,
+              as shares of the time limit.
+            </li>
+            <li>
+              <strong>My carrier and hangar</strong> (8): how many fighters, strafers and
+              gunships are still docked, how many launch bays are ready and how many the
+              carrier has, whether my carrier and the enemy's are still alive, and how
+              long since my last launch.
+            </li>
+            <li>
+              <strong>The convoy</strong> (5): transports escaped, destroyed, needed to
+              escape, needed to destroy, and charging their jump, each as a share of the
+              convoy. Zeros outside a convoy.
+            </li>
+            <li>
+              <strong>My squads</strong> (<span data-fact="io.n_squads">4</span> ×
+              <span data-fact="io.squad_global_dim">8</span>): each squad's size, its order
+              kind, how long its order stays locked, and its go-to point if it has one.
+            </li>
+            <li>
+              <strong>The field</strong> (2): how many strike craft each side has out.
+            </li>
+          </ul>
+          <p>
+            The commander does not see the fight in detail: no shots, no guns, no
+            thrusters. It sees where the ships are, how hurt they are, and what its squads
+            are doing. Nor is it told which pilot flies which ship.
+          </p>
+        </section>
+
+        <section id="decides">
+          <h2>What it decides</h2>
+          <p>
+            Each second the commander makes one decision: a row of
+            <span data-fact="io.action_dim">40</span> small integers, one per head. Nearly
+            every head has a <strong>keep</strong> choice, which changes nothing, and most
+            of the time keep is the right answer. Whatever is new becomes a command that
+            the sim carries out on the team's next slow tick
+            (<a class="code-link" href="https://github.com/tcgarvin/rl-fighter/blob/main/crates/sim/src/command.rs"><code>crates/sim/src/command.rs</code></a>).
+          </p>
+          <figure class="figure wide pilot-figure">
+            <p class="figure__title">One decision, head by head</p>
+            <svg class="diagram" viewBox="0 0 360 210" role="img" aria-labelledby="act-fig-title act-fig-desc">
+            <title id="act-fig-title">One decision</title>
+            <desc id="act-fig-desc">A decision is 40 integers: 3 launch heads, 1 carrier waypoint, 20 squad heads (one per ship slot), and per squad 1 to 4 an order, an attack target, a defend ward and a go-to point.</desc>
+            <rect class="cell on" data-head="launch" x="4.0" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="launch" x="12.8" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="launch" x="21.6" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="waypoint" x="30.4" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="squad" x="39.2" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="squad" x="48.0" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="squad" x="56.8" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="squad" x="65.6" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="squad" x="74.4" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="squad" x="83.2" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="squad" x="92.0" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="squad" x="100.8" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="squad" x="109.6" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="squad" x="118.4" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="squad" x="127.2" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="squad" x="136.0" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="squad" x="144.8" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="squad" x="153.6" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="squad" x="162.4" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="squad" x="171.2" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="squad" x="180.0" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="squad" x="188.8" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="squad" x="197.6" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="squad" x="206.4" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="order" x="215.2" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="order" x="224.0" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="order" x="232.8" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="order" x="241.6" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="target" x="250.4" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="target" x="259.2" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="target" x="268.0" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="target" x="276.8" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="ward" x="285.6" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="ward" x="294.4" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="ward" x="303.2" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="ward" x="312.0" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="point" x="320.8" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="point" x="329.6" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="point" x="338.4" y="4" width="7" height="12" rx="1.5" />
+            <rect class="cell on" data-head="point" x="347.2" y="4" width="7" height="12" rx="1.5" />
+            <text class="dg-small" x="4" y="29">0</text>
+            <text class="dg-small" x="356" y="29" text-anchor="end"><tspan data-fact="io.action_dim">40</tspan></text>
+            <text class="dg-label" x="112" y="52" text-anchor="end">launch</text>
+            <rect class="cell on" x="118.0" y="42" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="126.6" y="42" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="135.2" y="42" width="7" height="12" rx="1.5" />
+            <text class="dg-num" x="147.8" y="52">×3</text>
+            <text class="dg-small" x="352" y="52" text-anchor="end">2-way</text>
+            <text class="dg-label" x="112" y="76" text-anchor="end">carrier waypoint</text>
+            <rect class="cell on" x="118.0" y="66" width="7" height="12" rx="1.5" />
+            <text class="dg-num" x="130.6" y="76">×1</text>
+            <text class="dg-small" x="352" y="76" text-anchor="end">26-way</text>
+            <text class="dg-label" x="112" y="100" text-anchor="end">squad of ship</text>
+            <rect class="cell on" x="118.0" y="90" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="126.6" y="90" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="135.2" y="90" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="143.8" y="90" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="152.4" y="90" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="161.0" y="90" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="169.6" y="90" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="178.2" y="90" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="186.8" y="90" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="195.4" y="90" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="204.0" y="90" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="212.6" y="90" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="221.2" y="90" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="229.8" y="90" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="238.4" y="90" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="247.0" y="90" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="255.6" y="90" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="264.2" y="90" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="272.8" y="90" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="281.4" y="90" width="7" height="12" rx="1.5" />
+            <text class="dg-num" x="294.0" y="100">×20</text>
+            <text class="dg-small" x="352" y="100" text-anchor="end">6-way</text>
+            <text class="dg-label" x="112" y="124" text-anchor="end">order of squad</text>
+            <rect class="cell on" x="118.0" y="114" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="126.6" y="114" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="135.2" y="114" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="143.8" y="114" width="7" height="12" rx="1.5" />
+            <text class="dg-num" x="156.4" y="124">×4</text>
+            <text class="dg-small" x="352" y="124" text-anchor="end">5-way</text>
+            <text class="dg-label" x="112" y="148" text-anchor="end">attack target</text>
+            <rect class="cell on" x="118.0" y="138" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="126.6" y="138" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="135.2" y="138" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="143.8" y="138" width="7" height="12" rx="1.5" />
+            <text class="dg-num" x="156.4" y="148">×4</text>
+            <text class="dg-small" x="352" y="148" text-anchor="end">20 slots</text>
+            <text class="dg-label" x="112" y="172" text-anchor="end">defend ward</text>
+            <rect class="cell on" x="118.0" y="162" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="126.6" y="162" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="135.2" y="162" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="143.8" y="162" width="7" height="12" rx="1.5" />
+            <text class="dg-num" x="156.4" y="172">×4</text>
+            <text class="dg-small" x="352" y="172" text-anchor="end">20 slots</text>
+            <text class="dg-label" x="112" y="196" text-anchor="end">go-to point</text>
+            <rect class="cell on" x="118.0" y="186" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="126.6" y="186" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="135.2" y="186" width="7" height="12" rx="1.5" />
+            <rect class="cell on" x="143.8" y="186" width="7" height="12" rx="1.5" />
+            <text class="dg-num" x="156.4" y="196">×4</text>
+            <text class="dg-small" x="352" y="196" text-anchor="end">25 points</text>
+            </svg>
+            <figcaption class="figure__caption">
+              The strip is the decision in order; each row below is one kind of head and
+              how many choices each one has.
+            </figcaption>
+          </figure>
+          <div class="table-wrap">
+            <table class="data pilot-table">
+              <thead>
+                <tr><th>head</th><th class="num">count</th><th class="num">choices</th><th>meaning</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>launch</td>
+                  <td class="num" data-fact="io.launch_hulls">3</td>
+                  <td class="num">2</td>
+                  <td>per strike hull (fighter, strafer, gunship): hold, or launch one from the carrier's hangar</td>
+                </tr>
+                <tr>
+                  <td>waypoint</td>
+                  <td class="num">1</td>
+                  <td class="num" data-fact="io.waypoint_choices">26</td>
+                  <td>keep, or steer the carrier to one of the <span data-fact="io.n_points">25</span> map points</td>
+                </tr>
+                <tr>
+                  <td>squad</td>
+                  <td class="num" data-fact="io.max_entities">20</td>
+                  <td class="num" data-fact="io.squad_choices">6</td>
+                  <td>per ship slot: keep, no squad, or squad 1 to 4</td>
+                </tr>
+                <tr>
+                  <td>order</td>
+                  <td class="num" data-fact="io.n_squads">4</td>
+                  <td class="num" data-fact="io.order_choices">5</td>
+                  <td>per squad: keep, none, attack, defend, go to</td>
+                </tr>
+                <tr>
+                  <td>target</td>
+                  <td class="num" data-fact="io.n_squads">4</td>
+                  <td class="num" data-fact="io.max_entities">20</td>
+                  <td>per squad: the ship to attack, by slot</td>
+                </tr>
+                <tr>
+                  <td>ward</td>
+                  <td class="num" data-fact="io.n_squads">4</td>
+                  <td class="num" data-fact="io.max_entities">20</td>
+                  <td>per squad: the own ship to defend, by slot</td>
+                </tr>
+                <tr>
+                  <td>point</td>
+                  <td class="num" data-fact="io.n_squads">4</td>
+                  <td class="num" data-fact="io.n_points">25</td>
+                  <td>per squad: the map point to go to</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            A target, ward or point head only counts when its squad's order picks that
+            kind. A squad told to defend uses its ward head and ignores the other two, in
+            training as in play. Squads are formed first, then each squad's order applies,
+            so one decision can gather four fighters into a squad and send them after a
+            carrier.
+          </p>
+
+          <h3>The map points</h3>
+          <p>
+            A go-to order or a carrier waypoint names one of
+            <span data-fact="io.n_points">25</span> fixed points, not any spot on the map.
+            Point 0 is the centre. The rest sit on
+            <span data-fact="points.rings">3</span> rings, at
+            <span data-fact="points.radii">0.3, 0.6, 0.85</span> of the arena radius,
+            <span data-fact="points.per_ring">8</span> to a ring and
+            <span data-fact="points.bearing">45</span> degrees apart, counted
+            counter-clockwise from straight at the enemy. A squad sent to a point is asked
+            to get within <span data-fact="goto.radius">60</span> m of it.
+          </p>
+          <figure class="figure wide pilot-figure commander-points">
+            <p class="figure__title">The <span data-fact="io.n_points">25</span> map points, in the team frame</p>
+            <svg class="diagram" viewBox="0 0 360 344" role="img" aria-labelledby="pts-fig-title pts-fig-desc">
+            <title id="pts-fig-title">The 25 map points</title>
+            <desc id="pts-fig-desc">The arena in the team frame, home side on the left, enemy side on the right. Point 0 is the centre; points 1 to 8, 9 to 16 and 17 to 24 sit on rings at 0.3, 0.6 and 0.85 of the arena radius, 45 degrees apart, counting counter-clockwise from straight toward the enemy.</desc>
+            <circle class="arena" cx="180" cy="176" r="150" />
+            <circle class="ring" cx="180" cy="176" r="45.0" />
+            <circle class="ring" cx="180" cy="176" r="90.0" />
+            <circle class="ring" cx="180" cy="176" r="127.5" />
+            <line class="axis" x1="30" x2="330" y1="176" y2="176" />
+            <text class="dg-kicker" x="4" y="12">← HOME SIDE</text>
+            <text class="dg-kicker" x="356" y="12" text-anchor="end">ENEMY SIDE →</text>
+            <circle class="pt" data-point="0" data-x="0.0000" data-y="0.0000" cx="180.0" cy="176.0" r="3.2" />
+            <text class="pt-label" x="187.0" y="188.0" text-anchor="middle">0</text>
+            <circle class="pt" data-point="1" data-x="0.3000" data-y="0.0000" cx="225.0" cy="176.0" r="3.2" />
+            <text class="pt-label" x="234.0" y="179.5" text-anchor="middle">1</text>
+            <circle class="pt" data-point="2" data-x="0.2121" data-y="0.2121" cx="211.8" cy="144.2" r="3.2" />
+            <text class="pt-label" x="218.2" y="141.3" text-anchor="middle">2</text>
+            <circle class="pt" data-point="3" data-x="0.0000" data-y="0.3000" cx="180.0" cy="131.0" r="3.2" />
+            <text class="pt-label" x="180.0" y="125.5" text-anchor="middle">3</text>
+            <circle class="pt" data-point="4" data-x="-0.2121" data-y="0.2121" cx="148.2" cy="144.2" r="3.2" />
+            <text class="pt-label" x="141.8" y="141.3" text-anchor="middle">4</text>
+            <circle class="pt" data-point="5" data-x="-0.3000" data-y="0.0000" cx="135.0" cy="176.0" r="3.2" />
+            <text class="pt-label" x="126.0" y="179.5" text-anchor="middle">5</text>
+            <circle class="pt" data-point="6" data-x="-0.2121" data-y="-0.2121" cx="148.2" cy="207.8" r="3.2" />
+            <text class="pt-label" x="141.8" y="217.7" text-anchor="middle">6</text>
+            <circle class="pt" data-point="7" data-x="0.0000" data-y="-0.3000" cx="180.0" cy="221.0" r="3.2" />
+            <text class="pt-label" x="180.0" y="233.5" text-anchor="middle">7</text>
+            <circle class="pt" data-point="8" data-x="0.2121" data-y="-0.2121" cx="211.8" cy="207.8" r="3.2" />
+            <text class="pt-label" x="218.2" y="217.7" text-anchor="middle">8</text>
+            <circle class="pt" data-point="9" data-x="0.6000" data-y="0.0000" cx="270.0" cy="176.0" r="3.2" />
+            <text class="pt-label" x="279.0" y="179.5" text-anchor="middle">9</text>
+            <circle class="pt" data-point="10" data-x="0.4243" data-y="0.4243" cx="243.6" cy="112.4" r="3.2" />
+            <text class="pt-label" x="250.0" y="109.5" text-anchor="middle">10</text>
+            <circle class="pt" data-point="11" data-x="0.0000" data-y="0.6000" cx="180.0" cy="86.0" r="3.2" />
+            <text class="pt-label" x="180.0" y="80.5" text-anchor="middle">11</text>
+            <circle class="pt" data-point="12" data-x="-0.4243" data-y="0.4243" cx="116.4" cy="112.4" r="3.2" />
+            <text class="pt-label" x="110.0" y="109.5" text-anchor="middle">12</text>
+            <circle class="pt" data-point="13" data-x="-0.6000" data-y="0.0000" cx="90.0" cy="176.0" r="3.2" />
+            <text class="pt-label" x="81.0" y="179.5" text-anchor="middle">13</text>
+            <circle class="pt" data-point="14" data-x="-0.4243" data-y="-0.4243" cx="116.4" cy="239.6" r="3.2" />
+            <text class="pt-label" x="110.0" y="249.5" text-anchor="middle">14</text>
+            <circle class="pt" data-point="15" data-x="0.0000" data-y="-0.6000" cx="180.0" cy="266.0" r="3.2" />
+            <text class="pt-label" x="180.0" y="278.5" text-anchor="middle">15</text>
+            <circle class="pt" data-point="16" data-x="0.4243" data-y="-0.4243" cx="243.6" cy="239.6" r="3.2" />
+            <text class="pt-label" x="250.0" y="249.5" text-anchor="middle">16</text>
+            <circle class="pt" data-point="17" data-x="0.8500" data-y="0.0000" cx="307.5" cy="176.0" r="3.2" />
+            <text class="pt-label" x="316.5" y="179.5" text-anchor="middle">17</text>
+            <circle class="pt" data-point="18" data-x="0.6010" data-y="0.6010" cx="270.2" cy="85.8" r="3.2" />
+            <text class="pt-label" x="276.5" y="83.0" text-anchor="middle">18</text>
+            <circle class="pt" data-point="19" data-x="0.0000" data-y="0.8500" cx="180.0" cy="48.5" r="3.2" />
+            <text class="pt-label" x="180.0" y="43.0" text-anchor="middle">19</text>
+            <circle class="pt" data-point="20" data-x="-0.6010" data-y="0.6010" cx="89.8" cy="85.8" r="3.2" />
+            <text class="pt-label" x="83.5" y="83.0" text-anchor="middle">20</text>
+            <circle class="pt" data-point="21" data-x="-0.8500" data-y="0.0000" cx="52.5" cy="176.0" r="3.2" />
+            <text class="pt-label" x="43.5" y="179.5" text-anchor="middle">21</text>
+            <circle class="pt" data-point="22" data-x="-0.6010" data-y="-0.6010" cx="89.8" cy="266.2" r="3.2" />
+            <text class="pt-label" x="83.5" y="276.0" text-anchor="middle">22</text>
+            <circle class="pt" data-point="23" data-x="0.0000" data-y="-0.8500" cx="180.0" cy="303.5" r="3.2" />
+            <text class="pt-label" x="180.0" y="316.0" text-anchor="middle">23</text>
+            <circle class="pt" data-point="24" data-x="0.6010" data-y="-0.6010" cx="270.2" cy="266.2" r="3.2" />
+            <text class="pt-label" x="276.5" y="276.0" text-anchor="middle">24</text>
+            </svg>
+            <figcaption class="figure__caption">
+              The rings are drawn to scale against the arena's edge. Because the frame turns
+              with the team, point 17 means "deep on the enemy's side" for both teams. The
+              waypoint head counts the same points from 1, since its choice 0 is keep.
+            </figcaption>
+          </figure>
+
+          <h3>Masks: only choices that make sense</h3>
+          <p>
+            Before each decision the sim works out which choices are allowed, and a choice
+            that is not gets a score so low it is never picked. Keep and hold are always
+            allowed.
+          </p>
+          <ul>
+            <li>
+              <strong>Launch</strong> a hull only when my carrier is alive, has one of that
+              hull docked, and has a bay ready. Launches go fighter, strafer, gunship, and
+              the sim picks the bay.
+            </li>
+            <li><strong>Waypoint</strong>: a map point only while my carrier is alive.</li>
+            <li>
+              <strong>Squad</strong>: only for my own strike craft on the field or jumping
+              in, and not while that ship's move lock lasts.
+            </li>
+            <li>
+              <strong>Order</strong>: only while my team has strike craft out and the
+              squad's order lock has run out. Attack also needs an enemy on the field,
+              defend an own ship on the field.
+            </li>
+            <li>
+              <strong>Target</strong>: enemy ships on the field. <strong>Ward</strong>: own
+              ships on the field, strike craft or capital ship. <strong>Point</strong>:
+              every point, always.
+            </li>
+          </ul>
+
+          <h3>Locks: no dithering</h3>
+          <p>
+            A network that decides every second could change its mind every second, and
+            pilots chasing a new order each second get nowhere. So when a squad's order
+            changes (a new kind, target, ward or point), that squad's order head is locked
+            to keep for the next <span data-fact="io.lock_decisions">3</span> decisions.
+            When a ship moves to another squad, its squad head is locked for
+            <span data-fact="io.lock_decisions">3</span> too. Repeating the same order is
+            not a change, and launches are never locked. The time left on each lock is in
+            the inputs, so the commander can see when it may act again.
+          </p>
+          <figure class="figure wide pilot-figure">
+            <p class="figure__title">One squad's order lock</p>
+            <ul class="legend">
+              <li><span class="legend__key legend__key--lock lk--set"></span>order changed</li>
+              <li><span class="legend__key legend__key--lock lk--locked"></span>locked to keep</li>
+              <li><span class="legend__key legend__key--lock lk--free"></span>free to change</li>
+            </ul>
+            <svg class="diagram" viewBox="0 0 360 92" role="img" aria-labelledby="lock-fig-title lock-fig-desc">
+            <title id="lock-fig-title">An order lock</title>
+            <desc id="lock-fig-desc">At decision 1 the commander changes squad 2's order. For decisions 2, 3 and 4 its order head can only keep. At decision 5 it is free again.</desc>
+            <text class="dg-kicker" x="4" y="12">DECISION, ONE A SECOND</text>
+            <rect class="lk lk--set" x="30" y="22" width="46" height="26" rx="3" />
+            <text class="dg-num" x="53.0" y="39" text-anchor="middle">1</text>
+            <text class="dg-small" x="53.0" y="64" text-anchor="middle">change</text>
+            <rect class="lk lk--locked" x="82" y="22" width="46" height="26" rx="3" />
+            <text class="dg-num" x="105.0" y="39" text-anchor="middle">2</text>
+            <text class="dg-small" x="105.0" y="64" text-anchor="middle">keep</text>
+            <rect class="lk lk--locked" x="134" y="22" width="46" height="26" rx="3" />
+            <text class="dg-num" x="157.0" y="39" text-anchor="middle">3</text>
+            <text class="dg-small" x="157.0" y="64" text-anchor="middle">keep</text>
+            <rect class="lk lk--locked" x="186" y="22" width="46" height="26" rx="3" />
+            <text class="dg-num" x="209.0" y="39" text-anchor="middle">4</text>
+            <text class="dg-small" x="209.0" y="64" text-anchor="middle">keep</text>
+            <rect class="lk lk--free" x="238" y="22" width="46" height="26" rx="3" />
+            <text class="dg-num" x="261.0" y="39" text-anchor="middle">5</text>
+            <text class="dg-small" x="261.0" y="64" text-anchor="middle">free</text>
+            <rect class="lk lk--free" x="290" y="22" width="46" height="26" rx="3" />
+            <text class="dg-num" x="313.0" y="39" text-anchor="middle">6</text>
+            <text class="dg-small" x="313.0" y="64" text-anchor="middle">free</text>
+            <line class="dg-line" x1="82" x2="232" y1="78" y2="78" />
+            <line class="dg-line" x1="82" x2="82" y1="74" y2="82" />
+            <line class="dg-line" x1="232" x2="232" y1="74" y2="82" />
+            <text class="dg-small" x="157.0" y="90" text-anchor="middle">locked for 3 decisions</text>
+            </svg>
+            <figcaption class="figure__caption">
+              So a squad's order changes at most once every
+              <span data-fact="io.lock_period">4</span> seconds. The scripted commander
+              issues its orders every <span data-fact="cadence.scripted_ticks">60</span>
+              ticks (<span data-fact="cadence.scripted_s">2</span> s); the learned one
+              decides every <span data-fact="cadence.ticks">30</span>.
+            </figcaption>
+          </figure>
+        </section>
+
+        <section id="network">
+          <h2>The network</h2>
+          <div class="table-wrap">
+            <table class="data pilot-table commander-table">
+              <thead>
+                <tr><th>part</th><th>shape</th><th>activation</th><th class="num">parameters</th></tr>
+              </thead>
+              <tbody>
+                <tr class="group"><td colspan="4">trunk</td></tr>
+                <tr><td>encoder 1</td><td><span data-fact="io.entity_dim">40</span> → 64</td><td>tanh</td><td class="num" data-fact="actor.trunk.encode.l0">2,624</td></tr>
+                <tr><td>encoder 2</td><td>64 → 64</td><td>tanh</td><td class="num" data-fact="actor.trunk.encode.l1">4,160</td></tr>
+                <tr><td>attention</td><td>query, key, value, output: 4 × (64 → 64)</td><td>softmax</td><td class="num" data-fact="actor.trunk.attention">16,640</td></tr>
+                <tr><td>summary</td><td><span data-fact="net.summary_in">117</span> → 128</td><td>tanh</td><td class="num" data-fact="actor.trunk.summary">15,104</td></tr>
+                <tr class="group"><td colspan="4">heads</td></tr>
+                <tr><td>launch</td><td>128 → 3 × 2</td><td>none (logits)</td><td class="num" data-fact="actor.launch">774</td></tr>
+                <tr><td>waypoint</td><td>128 → <span data-fact="io.waypoint_choices">26</span></td><td>none (logits)</td><td class="num" data-fact="actor.waypoint">3,354</td></tr>
+                <tr><td>squad 1</td><td><span data-fact="net.squad_in">192</span> → 64</td><td>tanh</td><td class="num" data-fact="actor.squad.l0">12,352</td></tr>
+                <tr><td>squad 2</td><td>64 → <span data-fact="io.squad_choices">6</span></td><td>none (logits)</td><td class="num" data-fact="actor.squad.l1">390</td></tr>
+                <tr><td>squad names</td><td>4 × <span data-fact="net.squad_embed">32</span>, learned</td><td></td><td class="num" data-fact="actor.squad_embed">128</td></tr>
+                <tr><td>squad query</td><td><span data-fact="net.query_in">168</span> → 64</td><td>tanh</td><td class="num" data-fact="actor.query">10,816</td></tr>
+                <tr><td>order</td><td>64 → <span data-fact="io.order_choices">5</span></td><td>none (logits)</td><td class="num" data-fact="actor.order">325</td></tr>
+                <tr><td>point</td><td>64 → <span data-fact="io.n_points">25</span></td><td>none (logits)</td><td class="num" data-fact="actor.point">1,625</td></tr>
+                <tr><td>attack</td><td>2 × (64 → 64), no bias</td><td>dot product</td><td class="num" data-fact="actor.attack">8,192</td></tr>
+                <tr><td>defend</td><td>2 × (64 → 64), no bias</td><td>dot product</td><td class="num" data-fact="actor.defend">8,192</td></tr>
+                <tr class="total"><td>actor</td><td></td><td></td><td class="num" data-fact="actor.params">84,676</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            That is the whole commander: <span data-fact="actor.params">84,676</span>
+            numbers, about <span data-fact="actor.kb">339</span> kB as 32-bit floats,
+            smaller than a single pilot. The trunk holds
+            <span data-fact="actor.trunk">38,528</span> of them and the heads
+            <span data-fact="actor.heads">46,148</span>. The summary's
+            <span data-fact="net.summary_in">117</span> inputs are the
+            <span data-fact="net.width">64</span>-number average of the ships and the
+            <span data-fact="io.global_dim">53</span> match numbers; a squad-of-ship head
+            reads that ship's vector and the summary
+            (<span data-fact="net.squad_in">192</span>); a squad query reads the squad's
+            name, its <span data-fact="io.squad_global_dim">8</span> match numbers and the
+            summary (<span data-fact="net.query_in">168</span>).
+          </p>
+          <p>
+            Most of it is <strong>shared</strong>. The encoder and the squad-of-ship head
+            run with the same weights on every ship, and the squad query with the same
+            weights for every squad, told apart only by a learned 32-number name per squad.
+            So twenty squad heads cost the weights of one.
+          </p>
+
+          <h3>Attention, plainly</h3>
+          <p>
+            After the encoder, each ship is a list of 64 numbers describing that ship on its
+            own. Attention lets each ship's description take in the rest of the battle.
+            Every ship makes three things from its vector: a question (the query), a label
+            (the key) and a message (the value). Each ship compares its question with every
+            ship's label, and the better a label fits, the more of that ship's message it
+            takes in. It adds the blend to its own vector rather than replacing it (the
+            residual), so it keeps what it knew. Four heads do this side by side, each with
+            questions of <span data-fact="net.head_width">16</span> numbers, so one head can
+            learn to look at nearby enemies while another looks at the carrier. What each
+            one looks for is up to training.
+          </p>
+          <p>
+            Ships that are not in play (destroyed, docked, empty slots) are left out of
+            every blend and out of the average. Nothing depends on the order of the rows,
+            so the same network can command a two-ship duel or a twenty-ship carrier battle.
+            The attention is written out by hand rather than with a library layer, so the
+            browser can copy it line by line.
+          </p>
+
+          <h3>Pointer heads</h3>
+          <p>
+            To attack a ship the commander has to name it, and the ships change every
+            match. A <strong>pointer head</strong> names one without a fixed menu. For each
+            squad, a query is built from the squad's name, its record and the summary. The
+            attack head turns the query and every ship's vector into 64 numbers each, with
+            its own weights, and multiplies them together number by number and adds up (a
+            dot product, divided by <span data-fact="net.pointer_scale">8</span>): one score
+            per ship. After the mask (enemy ships on the field only), the best-scoring ships
+            are the likeliest picks. The defend head works the same way with weights of its
+            own, over own ships. Either way, "which ship" is answered by matching what the
+            squad needs against what each ship is, and the ship in slot 3 is found exactly
+            as the ship in slot 17 would be.
+          </p>
+
+          <h3>The critic, used only in training</h3>
+          <p>
+            PPO also trains a <strong>critic</strong>: a second network that estimates, at
+            each decision, how the match is going for the commander's team, so training can
+            tell a good decision from a lucky one. It has the actor's trunk, with weights of
+            its own, and one number at the end
+            (<span data-fact="critic.params">39,361</span> parameters). It sees one thing
+            the actor does not: <strong>which pilot flies each ship</strong>. Every ship's
+            row gets <span data-fact="critic.pilot_onehot">11</span> more numbers, one for
+            each of the <span data-fact="pilots.live">10</span> pilots on the live list and
+            one for "a script" (capital ships), so its rows are
+            <span data-fact="critic.entity_in">51</span> wide.
+          </p>
+          <p>
+            A squad of strong pilots is worth more than the same ships with weaker ones, and
+            the critic can know that, which makes its estimates sharper. The actor has to
+            command whoever it is given, so it gets no such label. The critic never commands
+            anything and will not be shipped to the browser.
+          </p>
+        </section>
+
+        <section id="training">
+          <h2>How it is trained</h2>
+          <p>
+            By reinforcement learning with PPO
+            (<a class="code-link" href="https://github.com/tcgarvin/rl-fighter/blob/main/spacefight/commander/train.py"><code>spacefight/commander/train.py</code></a>),
+            where one step is one decision: one second of a match. There is no copying
+            stage. The commander starts from random weights, under pilots that already know
+            how to fight.
+          </p>
+          <ol>
+            <li>
+              <strong>The match.</strong> Each match draws a mission (deathmatch, carrier
+              battle or convoy, equally often) and a roster as on the live page, and puts
+              the learner on a random side. Every strike craft on both sides gets a pilot
+              drawn at random, ship by ship, from the
+              <span data-fact="pilots.live">10</span> on the live list. The pilots are
+              frozen: they do not learn while the commander does. Capital ships fly the
+              sim's scripts.
+            </li>
+            <li>
+              <strong>The enemy commander.</strong> The scripted commander
+              <span data-fact="train.opp.scripted">35 %</span> of the time, the random one
+              <span data-fact="train.opp.random">10 %</span>, the learner itself
+              <span data-fact="train.opp.self">30 %</span>, and one of its own earlier
+              snapshots <span data-fact="train.opp.snapshot">25 %</span>. A snapshot is
+              saved every <span data-fact="train.snapshot_every">20</span> updates and the
+              latest <span data-fact="train.max_snapshots">10</span> are kept. The ones it
+              beats least are drawn most: each is weighted by one minus the learner's score
+              against it, plus <span data-fact="train.pfsp_floor">0.1</span> so none is
+              forgotten. Until the first snapshot, their share goes to the learner itself.
+            </li>
+            <li>
+              <strong>The reward.</strong> +1 for a win, −1 for a loss and 0 for a draw at
+              the end, by each mission's own rules. Between those, a small running score:
+              the team's lead in value (each side's hull and shield points left, summed) as
+              a share of both teams' value at the start, times
+              <span data-fact="train.shaping">0.5</span>. Each decision is paid the change
+              in that lead. Because it is paid as a change in a score (a
+              <em>potential-based</em> shaping), the payments cancel over a match: they
+              cannot change which plan is best, only how soon the commander hears that a
+              decision went well.
+            </li>
+            <li>
+              <strong>The update.</strong> <span data-fact="train.decisions_per_update">4,096</span>
+              decisions per update, <span data-fact="train.epochs">4</span> passes over them
+              in batches of <span data-fact="train.minibatch">512</span>, clip
+              <span data-fact="train.clip">0.2</span>, a discount of
+              <span data-fact="train.gamma">0.99</span> per decision (a horizon of about
+              <span data-fact="train.horizon">100</span> seconds) and GAE λ
+              <span data-fact="train.lambda">0.95</span>. Against itself, both sides'
+              decisions are training data.
+            </li>
+          </ol>
+          <p>
+            Commanders and pilots are meant to take turns: commanders train over frozen
+            pilots, then pilots train under frozen commanders
+            (<a class="code-link" href="https://github.com/tcgarvin/rl-fighter/blob/main/docs/PILOT_TRAINING.md"><code>docs/PILOT_TRAINING.md</code></a>).
+            This is the first commander phase. The scripted commander stays in the stable
+            of opponents until learned ones beat it.
+          </p>
+        </section>
+
+        <section id="not-yet">
+          <h2>What it isn't (yet)</h2>
+          <ul>
+            <li>
+              <strong>On the live page.</strong> It is in training. The commanders you see
+              there are the sim's script (<a href="/?commands=1"><code>?commands=1</code></a>
+              draws their orders). Once a learned commander beats the script, it will be
+              exported to the browser like the pilots and run beside them.
+            </li>
+            <li>
+              <strong>In charge of the transports.</strong> Convoy transports stay on their
+              scripted route; their waypoint is never the commander's. Of the capital ships,
+              it steers only its carrier.
+            </li>
+            <li>
+              <strong>Aware of who flies a ship.</strong> Its inputs say what each ship is,
+              not which pilot is in it. Only the critic knows, and only in training.
+            </li>
+            <li>
+              <strong>A memory.</strong> It decides from what it sees now. The lock timers
+              and the time since its last launch are its only sense of what it did before.
+            </li>
+            <li>
+              <strong>Free to go anywhere.</strong> It sends squads and the carrier to one
+              of <span data-fact="io.n_points">25</span> points, a coarse map that is easy to
+              learn and easy to draw.
+            </li>
+          </ul>
+        </section>
+      </div>
+
+      <footer class="page-footer">
+        This page describes commander interface version
+        <span data-fact="io.version">1</span>
+        (<a href="https://github.com/tcgarvin/rl-fighter/blob/main/docs/COMMANDER.md"><code>docs/COMMANDER.md</code></a>)
+        and the network in <code>spacefight/commander/policy.py</code>. Its numbers are
+        checked against that code and the design by <code>tools/commander_facts.py</code>
+        on every site build.
+      </footer>
+    </main>
+    <script type="module" src="/src/commander/main.ts"></script>
+  </body>
+</html>

@@ -19,7 +19,9 @@
 #      override the manifest, RLF_SMOKE_MATCHES (default 4), RLF_BUNDLE_DIR writes the
 #      bundle somewhere else (scripts/build_site.sh: past champions' bundles),
 #      RLF_LIVE_PILOTS names a registry (lab/live_pilots.json) of pilots to fly ship by
-#      ship; without it the champion flies every strike craft.
+#      ship; without it the champion flies every strike craft. RLF_LIVE_COMMANDERS names
+#      a stable (lab/live_commanders.json) each side draws its commander from; without
+#      it both sides keep the sim's scripted commander.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -68,6 +70,15 @@ const dims = sim.pilotObsDimsJson ? sim.pilotObsDimsJson() : JSON.stringify(Obje
 console.log(sim.sim_version(), sim.OBS_DIM(), compat.join(','), dims);
 ")
 
+# The learned commander's interface in this build (docs/COMMANDER.md "Bindings"), which
+# every exported commander is checked against; empty in a wasm without one.
+COMMANDER_IO_JSON="$(node --input-type=module -e "
+import fs from 'node:fs';
+const sim = await import('$PKG/sim_wasm.js');
+sim.initSync({ module: fs.readFileSync('$PKG/sim_wasm_bg.wasm') });
+console.log(sim.commanderIoJson ? sim.commanderIoJson() : '');
+")"
+
 step "assemble $BUNDLE"
 rm -rf "$BUNDLE"
 mkdir -p "$BUNDLE/pkg"
@@ -89,6 +100,16 @@ if [[ -n "${RLF_LIVE_PILOTS:-}" ]]; then
         --wasm-pilot-compat "$PILOT_COMPAT" --wasm-pilot-obs-dims "$PILOT_OBS_DIMS"
 fi
 
+if [[ -n "${RLF_LIVE_COMMANDERS:-}" ]]; then
+    step "export live commanders: $RLF_LIVE_COMMANDERS"
+    if [[ -z "$COMMANDER_IO_JSON" ]]; then
+        echo "Error: this wasm has no learned commander interface (commanderIoJson)" >&2
+        exit 1
+    fi
+    "$PYTHON" -m tools.live_commanders export --registry "$RLF_LIVE_COMMANDERS" --bundle "$BUNDLE" \
+        --wasm-io-json "$COMMANDER_IO_JSON"
+fi
+
 step "catalogue + manifest"
 BUNDLE_ARGS=(--bundle "$BUNDLE" --run "$RUN_ID" --assets assets
     --sim-version "$SIM_VERSION" --pilot-compat "$PILOT_COMPAT")
@@ -98,7 +119,7 @@ BUNDLE_ARGS=(--bundle "$BUNDLE" --run "$RUN_ID" --assets assets
 [[ -n "${RLF_ROSTER_BUDGET:-}" ]] && BUNDLE_ARGS+=(--budget "$RLF_ROSTER_BUDGET")
 "$PYTHON" -m tools.build_bundle "${BUNDLE_ARGS[@]}"
 
-step "headless smoke: missions and drafted matches from the bundle (strike craft flown by the policy)"
+step "headless smoke: missions and drafted matches from the bundle (strike craft flown by the policy, commanders from the stable)"
 node --experimental-strip-types --no-warnings tools/web/live_smoke.mjs "$BUNDLE" "${RLF_SMOKE_MATCHES:-4}"
 
 step "built $BUNDLE ($(du -sh "$BUNDLE" | cut -f1))"

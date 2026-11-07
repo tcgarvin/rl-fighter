@@ -72,7 +72,7 @@ fn time_limit_ticks(time_limit_s: f32) -> PyResult<u32> {
 }
 
 /// Commander modes from `None` (`default`) or two names (`"scripted"`, `"random"`,
-/// `"external"`).
+/// `"external"`, `"learned"`).
 fn commanders_from_py(
     names: Option<Vec<String>>,
     default: [CommanderMode; 2],
@@ -342,8 +342,9 @@ impl VecEnv {
     /// rosters queued later with `set_next_roster` must fit in it. v4: `mission` is
     /// `None` (deathmatch, the v3 match), a kind name or a dict spec (SIM_SPEC §10.3);
     /// `commanders` names each team's commander mode, `"scripted"` (default),
-    /// `"external"` (commands via `submit_command`) or (v5) `"random"` (the scripted
-    /// logistics with random squads and orders). v6: `hide_orders` is `[team 0,
+    /// `"external"` (commands via `submit_command`), (v5) `"random"` (the scripted
+    /// logistics with random squads and orders) or `"learned"` (decisions via
+    /// `submit_commander_actions`, every `LEARNED_COMMAND_TICKS`; `docs/COMMANDER.md`). v6: `hide_orders` is `[team 0,
     /// team 1]` hidden-order mode (default both false): a hidden team's obs shows no
     /// order (SIM_SPEC §7.2); rewards and scripts are unaffected.
     /// `order_shaping_gamma` is the discount of the go-to order reward's shaping term
@@ -608,6 +609,194 @@ impl VecEnv {
         let out: Vec<bool> = (0..self.batch.n_envs())
             .map(|i| self.batch.match_at(i).command_due())
             .collect();
+        out.into_pyarray(py)
+    }
+
+    /// The learned commander (`docs/COMMANDER.md`): `bool[N]`, whether each match's
+    /// next step is team `team`'s slow tick (a `"learned"` team every
+    /// `LEARNED_COMMAND_TICKS`, every other every `COMMAND_TICKS`), the steps to call
+    /// `submit_commander_actions` on.
+    fn commander_due<'py>(
+        &self,
+        py: Python<'py>,
+        team: i64,
+    ) -> PyResult<Bound<'py, PyArray1<bool>>> {
+        let team = check_team(team)?;
+        Ok(self.batch.commander_due(team).into_pyarray(py))
+    }
+
+    /// The learned commander: team `team`'s inputs in every match now, with the masks
+    /// of its next decision (`sim::commander_io::features`; team frame, see
+    /// `docs/COMMANDER.md`). A dict of new arrays, `E = 20` entities (ship slots,
+    /// whatever `n_ships` is): `globals` f32 `[N, 53]`, `entities` f32 `[N, E, 40]`,
+    /// `valid` bool `[N, E]`, `launch_mask` bool `[N, 3]`, `waypoint_mask` bool `[N,
+    /// 26]`, `squad_mask` bool `[N, E, 6]`, `order_mask` bool `[N, 4, 5]`,
+    /// `target_mask` bool `[N, E]`, `ward_mask` bool `[N, E]`. Choice 0 (keep, hold)
+    /// is always allowed.
+    fn commander_features<'py>(&self, py: Python<'py>, team: i64) -> PyResult<Bound<'py, PyDict>> {
+        use numpy::ndarray::Array3;
+        use sim::commander_io as io;
+        let team = check_team(team)?;
+        let batch = &self.batch;
+        let feats = py.detach(|| batch.commander_features(team));
+        let n = feats.len();
+        let e = io::N_ENTITIES;
+        let mut globals = Array2::<f32>::zeros(Dim([n, io::GLOBAL_DIM]));
+        let mut entities = Array3::<f32>::zeros(Dim([n, e, io::ENTITY_DIM]));
+        let mut valid = Array2::<bool>::from_elem(Dim([n, e]), false);
+        let mut launch = Array2::<bool>::from_elem(Dim([n, io::N_LAUNCH_HULLS]), false);
+        let mut waypoint = Array2::<bool>::from_elem(Dim([n, io::N_WAYPOINT_CHOICES]), false);
+        let mut squad = Array3::<bool>::from_elem(Dim([n, e, io::N_SQUAD_CHOICES]), false);
+        let mut order = Array3::<bool>::from_elem(
+            Dim([n, sim::command::MAX_SQUADS, io::N_ORDER_CHOICES]),
+            false,
+        );
+        let mut target = Array2::<bool>::from_elem(Dim([n, e]), false);
+        let mut ward = Array2::<bool>::from_elem(Dim([n, e]), false);
+        for (i, f) in feats.iter().enumerate() {
+            for (j, &v) in f.globals.iter().enumerate() {
+                globals[[i, j]] = v;
+            }
+            for s in 0..e {
+                for (j, &v) in f.entities[s].iter().enumerate() {
+                    entities[[i, s, j]] = v;
+                }
+                for (j, &v) in f.masks.squad[s].iter().enumerate() {
+                    squad[[i, s, j]] = v;
+                }
+                valid[[i, s]] = f.valid[s];
+                target[[i, s]] = f.masks.target[s];
+                ward[[i, s]] = f.masks.ward[s];
+            }
+            for (j, &v) in f.masks.launch.iter().enumerate() {
+                launch[[i, j]] = v;
+            }
+            for (j, &v) in f.masks.waypoint.iter().enumerate() {
+                waypoint[[i, j]] = v;
+            }
+            for (k, row) in f.masks.order.iter().enumerate() {
+                for (j, &v) in row.iter().enumerate() {
+                    order[[i, k, j]] = v;
+                }
+            }
+        }
+        let out = PyDict::new(py);
+        out.set_item("globals", globals.into_pyarray(py))?;
+        out.set_item("entities", entities.into_pyarray(py))?;
+        out.set_item("valid", valid.into_pyarray(py))?;
+        out.set_item("launch_mask", launch.into_pyarray(py))?;
+        out.set_item("waypoint_mask", waypoint.into_pyarray(py))?;
+        out.set_item("squad_mask", squad.into_pyarray(py))?;
+        out.set_item("order_mask", order.into_pyarray(py))?;
+        out.set_item("target_mask", target.into_pyarray(py))?;
+        out.set_item("ward_mask", ward.into_pyarray(py))?;
+        Ok(out)
+    }
+
+    /// The learned commander: decode team `team`'s decisions, `actions` int32 `[K,
+    /// 40]` (`docs/COMMANDER.md` "Outputs"), for the envs `env_ids` int64 `[K]`, and
+    /// queue their commands for each env's coming slow tick (`sim::commander_io::
+    /// decode`: a choice its masks forbid reads as keep). Each env keeps per-team lock
+    /// state, reset whenever its match is rebuilt. Raises ValueError, before any env
+    /// is changed, for a wrong dtype or shape, a repeated env id, an env whose team
+    /// commander is not `"learned"` (or `"external"`), an env where
+    /// `commander_due(team)` is false, or a value outside its head's choices; IndexError
+    /// for an env id out of range.
+    fn submit_commander_actions(
+        &mut self,
+        team: i64,
+        env_ids: &Bound<'_, PyAny>,
+        actions: &Bound<'_, PyAny>,
+    ) -> PyResult<()> {
+        use sim::commander_io::ACTION_DIM;
+        let team = check_team(team)?;
+        let dtype_of = |a: &Bound<'_, PyAny>| {
+            a.getattr("dtype")
+                .map(|d| d.to_string())
+                .unwrap_or_else(|_| a.get_type().to_string())
+        };
+        let ids = env_ids.cast::<PyArray1<i64>>().map_err(|_| {
+            PyValueError::new_err(format!(
+                "env_ids must be a 1-d numpy int64 array; got {}",
+                dtype_of(env_ids)
+            ))
+        })?;
+        let acts = actions.cast::<PyArray2<i32>>().map_err(|_| {
+            PyValueError::new_err(format!(
+                "actions must be a 2-d numpy int32 array of shape (K, {ACTION_DIM}); got {}",
+                dtype_of(actions)
+            ))
+        })?;
+        let ids = ids
+            .to_vec()
+            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let acts = acts.readonly();
+        let shape = acts.shape();
+        if shape != [ids.len(), ACTION_DIM] {
+            return Err(PyValueError::new_err(format!(
+                "actions must have shape ({}, {ACTION_DIM}) for {} env ids; got {shape:?}",
+                ids.len(),
+                ids.len()
+            )));
+        }
+        let rows = acts.as_array();
+        let mut seen = vec![false; self.batch.n_envs()];
+        let mut checked = Vec::with_capacity(ids.len());
+        for (r, &i) in ids.iter().enumerate() {
+            let i = self.check_index(i)?;
+            if std::mem::replace(&mut seen[i], true) {
+                return Err(PyValueError::new_err(format!(
+                    "env id {i} appears twice in env_ids: one decision per env and slow tick"
+                )));
+            }
+            let row: Vec<i32> = rows.row(r).to_vec();
+            self.batch
+                .check_commander_action(i, team, &row)
+                .map_err(|e| PyValueError::new_err(e.to_string()))?;
+            checked.push((i, row));
+        }
+        for (i, row) in checked {
+            self.batch
+                .submit_commander_action(i, team, &row)
+                .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        }
+        Ok(())
+    }
+
+    /// The learned commander: team `team`'s lock state in match `i` (a dict:
+    /// `decisions` decoded this match, `squad_lock_left` per squad and
+    /// `ship_lock_left` per slot (decisions still locked, counting the next one), and
+    /// `last_launch_tick`, `None` before the first launch decision).
+    fn commander_locks<'py>(
+        &self,
+        py: Python<'py>,
+        i: i64,
+        team: i64,
+    ) -> PyResult<Bound<'py, PyDict>> {
+        let i = self.check_index(i)?;
+        let locks = self.batch.commander_locks(i, check_team(team)?);
+        let out = PyDict::new(py);
+        out.set_item("decisions", locks.decisions)?;
+        let squads: Vec<u32> = (0..sim::command::MAX_SQUADS)
+            .map(|k| locks.squad_lock_left(k))
+            .collect();
+        let ships: Vec<u32> = (0..MAX_SHIPS).map(|s| locks.ship_lock_left(s)).collect();
+        out.set_item("squad_lock_left", squads)?;
+        out.set_item("ship_lock_left", ships)?;
+        out.set_item("last_launch_tick", locks.last_launch_tick)?;
+        Ok(out)
+    }
+
+    /// `[N, 2] f32`, each match's team values now (`Match::team_values`: hull plus half
+    /// the shield of every ship still in the match, docked reserves included), the
+    /// learned commander's shaping potential.
+    fn team_values<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray2<f32>> {
+        let values = self.batch.team_values();
+        let mut out = Array2::<f32>::zeros(Dim([values.len(), 2]));
+        for (i, v) in values.iter().enumerate() {
+            out[[i, 0]] = v[0];
+            out[[i, 1]] = v[1];
+        }
         out.into_pyarray(py)
     }
 

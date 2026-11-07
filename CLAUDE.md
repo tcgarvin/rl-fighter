@@ -39,6 +39,7 @@ uv run maturin develop -m crates/sim-py/Cargo.toml --release
 uv run python -m pytest tests/test_rust_env.py -v
 uv run python -m pytest tests/test_rust_missions.py -v   # v4 missions + commander API, v5 orders/random commander
 uv run python -m pytest tests/test_rust_orders_v6.py -v  # v6 orders: defend / go-to, hidden orders, transit, threat sets
+uv run python -m pytest tests/test_commander_io.py -v    # learned commander I/O (docs/COMMANDER.md); Rust: cargo test -p sim --test commander_io
 # Mission timeline diagnostic (carrier battle, convoy escort, stub commanders)
 cargo test -p sim --test missions timeline -- --ignored --nocapture
 uv run python tools/bench_env.py --assert-floors   # v5: + 12-slot carrier/convoy training shapes
@@ -82,12 +83,24 @@ uv run python -m tools.live_pilots matchups \
     --results lab/population/2026-11-sim6/round_robin/first-night \
     --out lab/runs/2026-11-02-ten-pilots/matchups.json
 
-# Parity of the browser policy with torch; the headless live-match smoke test
-uv run python -m pytest tests/test_web_policy.py -v
+# The commanders the live page draws from, one per side per match: lab/live_commanders.json
+# (rlf.live_commanders/1; always "scripted", the sim's own). publish uploads each learned
+# checkpoint (spacefight.commander.policy.save_commander) to rl-fighter/commanders/<id>/
+# <sha256>.pt and rewrites the stable (--keep keeps the learned ones listed); each needs a
+# sentence in lab/live_commander_notes.json and the stable a logbook entry. scripts/
+# build_site.sh with no arguments exports them (tools/export_commander.py, rlf.web_commander/1)
+# into the bundle; ?commander=<id> or <azure>,<ember> forces them on the page.
+uv run python -m tools.live_commanders publish --entry 2026-11-08-commander-1 \
+    --commander c1_1200=<commander.pt> [--commander <id>=<pt> ...] [--keep]
+uv run python -m tools.live_commanders list
+
+# Parity of the browser policy and commander with torch; the headless live-match smoke
+# test (learned commanders: --commanders <azure>,<ember>|draw; default cycles them on both sides)
+uv run python -m pytest tests/test_web_policy.py tests/test_web_commander.py tests/test_live_commanders.py -v
 node --experimental-strip-types tools/web/live_smoke.mjs web/public/bundle 4 [--hulls fighter,strafer,gunship]
 # Screenshots (390x844, 1440x900) into web/shots/live/, and a 10-minute heap/GPU soak,
 # against a running preview / web/dist; RLF_GPU=1 uses the host GPU instead of SwiftShader
-node tools/web/live_shots.mjs http://localhost:4173
+node tools/web/live_shots.mjs http://localhost:4173    # RLF_SHOTS_COMMANDER=<id>: + scenes with it on
 node tools/web/live_soak.mjs 10 8     # RLF_SOAK_INSPECT=1 keeps the ship inspector open
 # M3 art preview without the sim (carrier, freighter, bay launch, jump charge/out, orders):
 # dev-only page web/dev/m3-art.html?scene=lineup|detail|convoy|launch|jump|quick|orders[&t=s]
@@ -158,10 +171,13 @@ uv run python -m pytest tests/test_population_records.py tests/test_population_r
 scripts/deploy.sh            # or --build (current champion) / <checkpoint.pt> <run-id> to rebuild first
 
 # Data for /notebook/ (from lab/runs) and /hulls/ (from assets/) into web/public/{notebook,hulls}/data/,
-# and the check that the static /pilot/ page (web/pilot/index.html, "How the pilot works")
-# still matches the sim, policy code, hulls and champion (tools/pilot_facts.py)
+# and the checks that the static /pilot/ page (web/pilot/index.html, "How the pilot works")
+# still matches the sim, policy code, hulls and champion (tools/pilot_facts.py), and the
+# static /commander/ page (web/commander/index.html, "How the commander works") matches
+# spacefight/commander and docs/COMMANDER.md (tools/commander_facts.py)
 scripts/build_pages_data.sh  # = cd web && npm run data
-uv run python -m pytest tests/test_build_notebook.py tests/test_build_catalogue.py tests/test_pilot_page.py -v
+uv run python -m pytest tests/test_build_notebook.py tests/test_build_catalogue.py tests/test_pilot_page.py \
+    tests/test_commander_page.py -v
 ```
 
 How pilots train (scenarios, order drills, families, what earns a place): `docs/PILOT_TRAINING.md`.
@@ -172,7 +188,9 @@ source of truth for that direction. The website (`web/`, Vite + TypeScript) serv
 live page at `/`: matches that loop forever, rotating team deathmatch, carrier battle
 and convoy escort (`web/src/live/missions.ts`: rotation, rosters, briefs; `?mission=
 deathmatch|carrier|convoy` pins one, `?commands=1` shows the commander layer), each
-strike craft flown by a pilot picked at random from `lab/live_pilots.json` and capital
+strike craft flown by a pilot picked at random from `lab/live_pilots.json`, each side's
+commander drawn from `lab/live_commanders.json` (a learned one runs `web/src/live/
+commander.js` in the sim's `learned` mode, `?commander=<id>` forces it) and capital
 ships by the sim's scripts; tapping a ship zooms in and opens `web/src/live/inspector.ts`,
 `?inspect=<slot>&outputs=1` does so from the URL (Rust
 sim in WASM, MLP inference in JS, `web/src/live/`, renderer modules in

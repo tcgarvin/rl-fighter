@@ -93,7 +93,10 @@ DRILL_KINDS: tuple[str, ...] = (DRILL_GOTO, DRILL_ATTACK, DRILL_DEFEND)
 SCRIPTED = "scripted"
 RANDOM = "random"
 EXTERNAL = "external"
-COMMANDER_MODES: tuple[str, ...] = (SCRIPTED, RANDOM, EXTERNAL)
+# The learned commander (``docs/COMMANDER.md``): decisions submitted every
+# ``LEARNED_COMMAND_TICKS`` through ``RustVecEnv.submit_commander_actions``.
+LEARNED = "learned"
+COMMANDER_MODES: tuple[str, ...] = (SCRIPTED, RANDOM, EXTERNAL, LEARNED)
 # Hull roles the learned pilot never flies (SIM_SPEC §11: scripts fly them).
 CAPITAL_ROLES: frozenset[str] = frozenset({"carrier", "transport"})
 

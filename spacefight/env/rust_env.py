@@ -37,6 +37,13 @@ exports ``order_transit``, ``ward_threat`` and ``ward_hull_lost`` and
 Go-to order pay's shaping term must use the trainer's discount, so ``RustVecEnv`` takes
 ``order_shaping_gamma`` and applies it to every match of the env (SIM_SPEC §8).
 
+The learned commander (``docs/COMMANDER.md``): a team whose commander is
+``"learned"`` decides every ``LEARNED_COMMAND_TICKS``. ``commander_due(team)`` says
+which envs decide before the next step, ``commander_features(team)`` gives every env's
+inputs and masks, ``submit_commander_actions(team, env_ids, actions)`` decodes the
+decisions in the sim (per env and team lock state, reset with the match) and
+``team_values()`` is the shaping potential.
+
 A ``Roster`` can also place its ships (``start_layout``), carry the orders an external
 commander opens with (``opening_orders``: the env queues them whenever that match is
 built, once a match and only for those matches, and the sim applies them on the first
@@ -490,6 +497,64 @@ class RustVecEnv:
         ``radius`` [N, S] f32, ``arrived`` [N, S] bool, ``instance_start`` [N, S]
         uint32."""
         return dict(self._env.order_tracks())
+
+    # -- the learned commander (docs/COMMANDER.md) ---------------------------
+
+    def commander_due(self, team: int) -> NDArray[np.bool_]:
+        """[N] bool, new: whether each env's next step is ``team``'s slow tick (a
+        ``"learned"`` team every ``LEARNED_COMMAND_TICKS``, others every
+        ``COMMAND_TICKS``).
+
+        Raises:
+            ValueError: ``team`` is not 0 or 1.
+        """
+        return self._env.commander_due(team)
+
+    def commander_features(self, team: int) -> dict[str, NDArray]:
+        """Team ``team``'s commander inputs and masks in every env now (new arrays;
+        ``E = MAX_SHIPS`` entities): ``globals`` [N, 53] f32, ``entities`` [N, E, 40]
+        f32, ``valid`` [N, E] bool, ``launch_mask`` [N, 3], ``waypoint_mask`` [N, 26],
+        ``squad_mask`` [N, E, 6], ``order_mask`` [N, 4, 5], ``target_mask`` [N, E],
+        ``ward_mask`` [N, E] (bool).
+
+        Raises:
+            ValueError: ``team`` is not 0 or 1.
+        """
+        return dict(self._env.commander_features(team))
+
+    def submit_commander_actions(
+        self,
+        team: int,
+        env_ids: Sequence[int] | NDArray[np.integer],
+        actions: NDArray[np.integer],
+    ) -> None:
+        """Decode and queue team ``team``'s decisions for the envs ``env_ids``.
+
+        Args:
+            team: 0 or 1.
+            env_ids: [K] env indices, each due (``commander_due(team)``) and with a
+                ``"learned"`` (or ``"external"``) commander on that team.
+            actions: [K, ACTION_DIM] integers (``docs/COMMANDER.md`` "Outputs").
+
+        Raises:
+            ValueError: A shape mismatch, a repeated env, an env not due or whose
+                team takes no decisions, or a value outside its head's choices; no
+                env is changed then.
+            IndexError: An env index out of range.
+        """
+        ids = np.ascontiguousarray(env_ids, dtype=np.int64).reshape(-1)
+        acts = np.ascontiguousarray(actions, dtype=np.int32)
+        self._env.submit_commander_actions(team, ids, acts)
+
+    def commander_locks(self, i: int, team: int) -> dict[str, object]:
+        """Team ``team``'s commander lock state in env ``i`` (``decisions``,
+        ``squad_lock_left``, ``ship_lock_left``, ``last_launch_tick``)."""
+        return dict(self._env.commander_locks(i, team))
+
+    def team_values(self) -> NDArray[np.float32]:
+        """[N, 2] f32, new: each env's team values now (hull + half shield of every
+        ship still in the match)."""
+        return self._env.team_values()
 
     # -- stepping -------------------------------------------------------------
 
