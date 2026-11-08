@@ -164,8 +164,23 @@ uv run python -m spacefight.population round-robin --season lab/population/2026-
 uv run python -m spacefight.population report --season lab/population/2026-11-sim6 \
     --results lab/population/2026-11-sim6/round_robin/existing-pilots \
     --phase existing-pilots --date YYYY-MM-DD [--record]
+# Wins above replacement (docs/PILOT_TRAINING.md section 5): live-like matches, the script in
+# the pilot draw, commanders from the live stable (--commanders live,scripted,random,<pt>);
+# chunked and resumable; war.json (rlf.population.war/1: matches + ridge logistic fit +
+# bootstrap) and war.md. war-fit refits saved matches. report --war: WAR shadow culls
+# (below replacement, founder cap, over 10 sparing the last of a family); the drill gate
+# archives nobody. ~1,440 a mission for +-3 wins/100, about an hour at 8 threads.
+uv run python -m spacefight.population war --season lab/population/2026-11-sim6 \
+    --out lab/population/2026-11-sim6/war/<phase> --n-per-mission 1440 --threads 8 \
+    [--members active|a,b,c] [--commanders live] [--chunk 96] [--seed 500000]
+uv run python -m spacefight.population war-fit --war <dir>/war.json [--out x.json] \
+    [--prior-sd 1.0] [--bootstrap 500]
+uv run python -m spacefight.population report --season lab/population/2026-11-sim6 \
+    --war <dir>/war.json --phase <phase> --date YYYY-MM-DD
+uv run python -m tools.live_pilots publish --season <season> --entry <entry> --war <war.json>
 uv run python -m pytest tests/test_population_records.py tests/test_population_rating.py \
-    tests/test_population_culling.py tests/test_round_robin.py tests/test_opponents_weighted.py -v
+    tests/test_population_culling.py tests/test_round_robin.py tests/test_opponents_weighted.py \
+    tests/test_war.py tests/test_war_matches.py -v
 
 # Deploy dist/ (rl-fighter.tcgarvin.com); needs NETLIFY_AUTH_TOKEN in .env
 scripts/deploy.sh            # or --build (current champion) / <checkpoint.pt> <run-id> to rebuild first

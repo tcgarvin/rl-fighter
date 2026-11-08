@@ -12,9 +12,12 @@ from collections.abc import Sequence
 from typing import Final
 
 from spacefight.population.culling import (
+    RULE_BELOW_REPLACEMENT,
     RULE_BOTTOM,
     RULE_FOUNDER_CAP,
+    RULE_OVER_CAP,
     ShadowCullReport,
+    WarShadowReport,
 )
 from spacefight.population.rating import Rating
 from spacefight.population.records import (
@@ -28,6 +31,7 @@ from spacefight.population.standings import (
     Transitivity,
     WinMatrix,
 )
+from spacefight.population.war import WarFit
 
 # Longest line a section writes before wrapping.
 LINE_WIDTH: Final = 64
@@ -194,6 +198,51 @@ def _cull_lines(report: ShadowCullReport) -> list[str]:
     return lines
 
 
+def _war_lines(fit: WarFit) -> list[str]:
+    level = round(100 * fit.ci_level)
+    lines = ["## Wins above replacement", ""]
+    lines += _wrap(
+        f"{fit.matches} live-like matches. Wins added per 100 matches a pilot flew "
+        f"in, over the script flying its ships, with the {level}% interval."
+    )
+    lines.append("")
+    for place, p in enumerate(fit.pilots, start=1):
+        if p.is_script:
+            text = f"{place}. **{p.pilot}** 0, replacement ({p.ships} ships)"
+        else:
+            text = (
+                f"{place}. **{p.pilot}** {p.war:+.1f} "
+                f"({p.ci_low:+.1f} to {p.ci_high:+.1f}; {p.ships} ships)"
+            )
+        lines += _wrap(text)
+    return lines
+
+
+def _war_cull_lines(report: WarShadowReport) -> list[str]:
+    lines = [f"## Would-be culls on WAR ({report.phase})", ""]
+    lines += _wrap("Shadow mode: nobody was culled and no record changed.")
+    lines.append("")
+    if not report.culls:
+        lines.append("Nobody would go.")
+    titles = {
+        RULE_BELOW_REPLACEMENT: "Below replacement",
+        RULE_FOUNDER_CAP: "Founder cap",
+        RULE_OVER_CAP: "Over the cap",
+    }
+    for cull in report.culls:
+        flag = " Close call." if cull.close_call else ""
+        lines += _bullet(f"**{cull.member}**, {titles[cull.rule]}. {cull.reason}{flag}")
+    if report.leaves_no_pilot:
+        lines += _bullet("That is every learned pilot measured.")
+    for spared in report.protected:
+        lines += _bullet(f"{spared.member} stays: {spared.reason}")
+    if report.unmeasured:
+        lines += _bullet(
+            f"Not measured, so outside the rule: {', '.join(report.unmeasured)}"
+        )
+    return lines
+
+
 def _distance_word(distance: int) -> str:
     if distance == UNRELATED:
         return "no relation"
@@ -238,6 +287,8 @@ def render_report(
     results: RoundRobinResults | None = None,
     shadow: ShadowCullReport | None = None,
     caveats: Sequence[str] = (),
+    war: WarFit | None = None,
+    war_shadow: WarShadowReport | None = None,
 ) -> str:
     """The whole report as Markdown (module docstring).
 
@@ -248,6 +299,9 @@ def render_report(
         results: The phase's round robin; ``None`` when there has been none yet.
         shadow: The phase's shadow culling; ``None`` when there has been none yet.
         caveats: Lines printed at the top, such as a small run's warning.
+        war: The phase's WAR fit; with it and no round robin, the combat ratings
+            section is left out.
+        war_shadow: The phase's WAR shadow culling.
     """
     lines = [f"# Pilot population: {population.season}", ""]
     if phase:
@@ -255,11 +309,11 @@ def render_report(
     for caveat in caveats:
         lines += [*_wrap(f"**Note:** {caveat}"), ""]
     ratings = results.ratings if results is not None else ()
-    sections = [
-        _family_lines(population),
-        family_tree_lines(population),
-        _rating_lines(population, ratings),
-    ]
+    sections = [_family_lines(population), family_tree_lines(population)]
+    if war is not None:
+        sections.append(_war_lines(war))
+    if war is None or results is not None:
+        sections.append(_rating_lines(population, ratings))
     if results is not None:
         sections.append(_variety_lines(results))
         matchups = ["## Who beats whom", ""]
@@ -268,6 +322,8 @@ def render_report(
             title = MISSION_NAMES.get(mission, mission)
             matchups += [*_matchup_lines(title, matrix), ""]
         sections.append(matchups[:-1])
+    if war_shadow is not None:
+        sections.append(_war_cull_lines(war_shadow))
     if shadow is not None:
         sections += [_cull_lines(shadow), _behaviour_lines(shadow)]
     for section in sections:

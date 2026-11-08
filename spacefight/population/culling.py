@@ -24,18 +24,36 @@ the tree is a good proxy for how differently pilots fly. It plays no part in the
 
 The constants are starting guesses in rating points and have not been tuned on real
 results: a 60-point cap is about a 0.58 win rate.
+
+**The WAR rule** (``war_shadow_cull``) is the one to watch from 2026-11-08: it judges
+pilots by wins above replacement in live-like matches (``war.py``) rather than by the
+round robin, and the drill gate no longer archives anyone. In order:
+
+1. Below replacement: an active member whose whole WAR interval is below 0 would go.
+   The script is never a candidate; it is replacement, 0 by definition.
+2. Founder cap (kept from the rule above): while one founder holds more than
+   ``FOUNDER_CAP`` of the survivors, its lowest-WAR survivor would go.
+3. Over the cap: while more than ``ACTIVE_CAP`` learned members survive, the lowest WAR
+   would go, except the last survivor of a family, which is spared and listed. That
+   protection does the job the diversity bonus did, in plain terms; the bonus itself is
+   not carried over, since points of bonus added to wins per 100 would make WAR read
+   as something it is not.
+
+A cull is a close call when its gap to the lowest survivor it could swap with is within
+their combined bootstrap standard deviations.
 """
 
 from __future__ import annotations
 
 import json
+import math
 import os
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from math import isfinite, sqrt
 from pathlib import Path
-from typing import Any, Final
+from typing import Any, Final, TypeVar
 
 import numpy as np
 
@@ -46,6 +64,7 @@ from spacefight.population.records import (
     Member,
     Population,
 )
+from spacefight.population.war import PilotWar
 
 SHADOW_SCHEMA: Final = "rlf.population.shadow/1"
 SHADOW_DIRNAME: Final = "shadow"
@@ -60,6 +79,12 @@ DIVERSITY_BONUS_CAP: Final = 60.0
 
 RULE_BOTTOM: Final = "bottom_on_combat"
 RULE_FOUNDER_CAP: Final = "founder_cap"
+
+WAR_SHADOW_SCHEMA: Final = "rlf.population.shadow_war/1"
+# Learned (not script) members a live WAR rule keeps at most; the live page flies 10.
+ACTIVE_CAP: Final = 10
+RULE_BELOW_REPLACEMENT: Final = "below_replacement"
+RULE_OVER_CAP: Final = "over_cap"
 
 
 @dataclass(frozen=True)
@@ -321,10 +346,16 @@ def _too_few(eligible: Sequence[Standing]) -> tuple[Protected, ...]:
     return tuple(Protected(s.member, reason) for s in eligible)
 
 
-def _founder_cap_culls(survivors: Sequence[Standing]) -> list[Standing]:
-    """Lowest survivors of any founder over the cap, weakest first per founder."""
+_Ranked = TypeVar("_Ranked", "Standing", "WarStanding")
+
+
+def _founder_cap_culls(survivors: Sequence[_Ranked]) -> list[_Ranked]:
+    """Lowest survivors of any founder over the cap, weakest first per founder.
+
+    ``survivors`` are best first.
+    """
     counts = Counter(s.founder for s in survivors)
-    culled: list[Standing] = []
+    culled: list[_Ranked] = []
     for founder, count in sorted(counts.items()):
         if count > FOUNDER_CAP:
             family = [s for s in survivors if s.founder == founder]
@@ -492,7 +523,219 @@ def shadow_cull(
     )
 
 
-def write_shadow_report(season_dir: Path, report: ShadowCullReport) -> Path:
+@dataclass(frozen=True)
+class WarStanding:
+    """One active measured member's place in the WAR rule.
+
+    Attributes:
+        member: The member.
+        family: Its family.
+        founder: Its founder.
+        war: Wins added per 100 matches it flew in.
+        ci_low: Lower end of its interval.
+        ci_high: Upper end.
+        se: Bootstrap standard deviation of ``war``.
+        matches: Matches it flew in.
+    """
+
+    member: str
+    family: str
+    founder: str
+    war: float
+    ci_low: float
+    ci_high: float
+    se: float
+    matches: int
+
+
+@dataclass(frozen=True)
+class WarShadowReport:
+    """What ``war_shadow_cull`` found. Nothing was changed by it.
+
+    Attributes:
+        phase: Phase name.
+        date: ``YYYY-MM-DD``.
+        source: The WAR JSON it read.
+        standings: Active measured learned members, highest WAR first.
+        culls: Who would go: below replacement, then founder cap, then over the cap.
+        protected: Who was spared, and why (the script, last of a family).
+        unmeasured: Active members the WAR run did not include.
+        founder_counts: Founder -> active measured members, before culls.
+        leaves_no_pilot: The rule would take every learned member.
+        constants: The rule's constants, for reading old reports.
+    """
+
+    phase: str
+    date: str
+    source: str
+    standings: tuple[WarStanding, ...]
+    culls: tuple[WouldCull, ...]
+    protected: tuple[Protected, ...]
+    unmeasured: tuple[str, ...]
+    founder_counts: dict[str, int]
+    leaves_no_pilot: bool
+    constants: dict[str, float]
+
+    def to_dict(self) -> dict[str, Any]:
+        """Plain JSON-ready dict."""
+        return {"schema": WAR_SHADOW_SCHEMA, **asdict(self)}
+
+
+def _war_close(member: WarStanding, rivals: Sequence[WarStanding]) -> bool:
+    """Whether ``member``'s gap to the lowest rival is within their combined noise."""
+    if not rivals:
+        return False
+    lowest = min(rivals, key=lambda s: (s.war, s.member))
+    return lowest.war - member.war <= sqrt(member.se**2 + lowest.se**2)
+
+
+def _war_standings(
+    population: Population, pilots: Sequence[PilotWar]
+) -> tuple[WarStanding, ...]:
+    rows = []
+    for p in pilots:
+        if p.is_script:
+            continue
+        member = population.member(p.pilot)
+        if not member.is_active:
+            continue
+        rows.append(
+            WarStanding(
+                member.id,
+                member.family,
+                member.founder,
+                p.war,
+                p.ci_low,
+                p.ci_high,
+                p.se,
+                p.matches,
+            )
+        )
+    return tuple(sorted(rows, key=lambda s: (-s.war, s.member)))
+
+
+def _over_cap_culls(
+    survivors: Sequence[WarStanding],
+) -> tuple[list[WarStanding], list[Protected]]:
+    """Lowest WAR first until at ``ACTIVE_CAP``, sparing the last of each family.
+
+    ``survivors`` are best first. The spared are the last-of-family members the cut
+    would otherwise have reached.
+    """
+    remaining = list(survivors)
+    culled: list[WarStanding] = []
+    while len(remaining) > ACTIVE_CAP:
+        families = Counter(s.family for s in remaining)
+        candidates = [s for s in remaining if families[s.family] > 1]
+        if not candidates:
+            break
+        culled.append(candidates[-1])
+        remaining.remove(candidates[-1])
+    still_over = len(remaining) > ACTIVE_CAP
+    bar = max((s.war for s in culled), default=-math.inf)
+    families = Counter(s.family for s in remaining)
+    spared = [
+        Protected(s.member, f"over the cap, but the last of family {s.family}")
+        for s in remaining
+        if families[s.family] == 1 and (still_over or s.war < bar)
+    ]
+    return culled, spared
+
+
+def war_shadow_cull(
+    population: Population,
+    pilots: Sequence[PilotWar],
+    phase: str,
+    date: str,
+    source: str = "",
+) -> WarShadowReport:
+    """Name who would be culled on WAR this phase (module docstring). Changes nothing.
+
+    Args:
+        population: The records and tree.
+        pilots: A WAR fit's pilots; archived members and the script are not judged.
+        phase: Phase name.
+        date: ``YYYY-MM-DD``.
+        source: The WAR JSON, for the report.
+
+    Raises:
+        PopulationError: A pilot is not a member.
+        ValueError: A pilot appears twice.
+    """
+    names = [p.pilot for p in pilots]
+    repeated = sorted(name for name, count in Counter(names).items() if count > 1)
+    if repeated:
+        raise ValueError(f"pilots measured more than once: {repeated}")
+    standings = _war_standings(population, pilots)
+    measured = {s.member for s in standings}
+    protected = [
+        Protected(SCRIPT_ID, "replacement level: its WAR is 0 by definition")
+        for m in population.active()
+        if m.is_script
+    ]
+    below = [s for s in standings if s.ci_high < 0.0]
+    survivors = [s for s in standings if s.ci_high >= 0.0]
+    capped = _founder_cap_culls(survivors)
+    capped_ids = {s.member for s in capped}
+    survivors = [s for s in survivors if s.member not in capped_ids]
+    over, spared = _over_cap_culls(survivors)
+    over_ids = {s.member for s in over}
+    remaining = [s for s in survivors if s.member not in over_ids]
+    spared_ids = {p.member for p in spared}
+    rivals = [s for s in remaining if s.member not in spared_ids]
+    culls = (
+        [
+            WouldCull(
+                s.member,
+                RULE_BELOW_REPLACEMENT,
+                f"WAR {s.war:+.1f} per 100, interval {s.ci_low:+.1f} to "
+                f"{s.ci_high:+.1f}: worse than the script that would replace it.",
+                False,
+            )
+            for s in below
+        ]
+        + [
+            WouldCull(
+                s.member,
+                RULE_FOUNDER_CAP,
+                f"Founder {s.founder} is over its cap of {FOUNDER_CAP}; this is its "
+                f"lowest survivor (WAR {s.war:+.1f}).",
+                _war_close(s, rivals),
+            )
+            for s in capped
+        ]
+        + [
+            WouldCull(
+                s.member,
+                RULE_OVER_CAP,
+                f"More than {ACTIVE_CAP} learned pilots; lowest WAR left "
+                f"({s.war:+.1f}).",
+                _war_close(s, rivals),
+            )
+            for s in over
+        ]
+    )
+    return WarShadowReport(
+        phase=phase,
+        date=date,
+        source=source,
+        standings=standings,
+        culls=tuple(culls),
+        protected=(*protected, *spared),
+        unmeasured=tuple(
+            m.id
+            for m in population.active()
+            if not m.is_script and m.id not in measured
+        ),
+        founder_counts=dict(sorted(Counter(s.founder for s in standings).items())),
+        leaves_no_pilot=bool(standings) and len(culls) == len(standings),
+        constants={"ACTIVE_CAP": ACTIVE_CAP, "FOUNDER_CAP": FOUNDER_CAP},
+    )
+
+
+def write_shadow_report(
+    season_dir: Path, report: ShadowCullReport | WarShadowReport
+) -> Path:
     """Write ``shadow/<phase>.json``. Member records are not touched.
 
     Raises:

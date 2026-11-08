@@ -7,7 +7,7 @@ uploads each checkpoint to the public bucket and records its URL and hash, and `
 reads the training file if it is still there, else a sha256-checked download.
 
     python -m tools.live_pilots publish --season lab/population/2026-11-sim6 \\
-        --entry 2026-11-02-ten-pilots
+        --entry 2026-11-02-ten-pilots [--war lab/population/2026-11-sim6/war/x/war.json]
     python -m tools.live_pilots export --bundle web/public/bundle --wasm-sim-version 6 \\
         --wasm-obs-dim 583 --wasm-pilot-compat 3,4,5,6 \\
         --wasm-pilot-obs-dims '{"3": 385, "4": 385, "5": 403, "6": 583}'
@@ -19,6 +19,11 @@ manifest. A pilot with the champion's weights reuses ``<bundle>/policy/``.
 Viewers read about each pilot on the page, so a pilot cannot go live without a sentence in
 ``lab/live_pilot_notes.json``, and a list cannot go live without the logbook entry that
 introduces it (``--entry``, a directory under ``lab/runs``).
+
+``--war`` picks by wins above replacement (``spacefight.population.war``) instead of the
+combat rating: the highest-WAR members of that measurement who are not the script. Each
+pilot's ``rating`` is then its WAR per 100 matches, and the registry says
+``"rated_by": "war"``.
 """
 
 from __future__ import annotations
@@ -32,6 +37,7 @@ from pathlib import Path
 from typing import Any
 
 from spacefight.population.records import Member, Population, load_population
+from spacefight.population.war import read_war
 from tools.champion import (
     DEFAULT_CACHE,
     ChampionError,
@@ -71,7 +77,8 @@ class LivePilot:
     Attributes:
         id: The population member's id.
         family: Its family.
-        rating: Its combat rating in the phase the list was chosen from.
+        rating: Its combat rating in the phase the list was chosen from, or its WAR
+            per 100 matches when the list was chosen by WAR.
         checkpoint: The training file, relative to the repo root.
         sha256: The checkpoint's hash.
         url: Where the checkpoint can be downloaded.
@@ -118,6 +125,31 @@ def select_members(population: Population, limit: int) -> list[Member]:
     return current[:limit]
 
 
+def select_members_by_war(
+    population: Population, war: Path, limit: int
+) -> list[tuple[Member, float]]:
+    """The highest-WAR members of a WAR measurement who are not the script, best first,
+    with their WAR per 100 matches.
+
+    Archived members count, as with ratings.
+
+    Raises:
+        LivePilotsError: ``limit`` is not positive, a measured pilot is not a member of
+            the season, or nobody but the script was measured.
+    """
+    if limit <= 0:
+        raise LivePilotsError(f"limit must be positive, got {limit}")
+    fit = read_war(war).fit
+    measured = [p for p in fit.pilots if not p.is_script]
+    unknown = [p.pilot for p in measured if p.pilot not in population.members]
+    if unknown:
+        raise LivePilotsError(f"{war}: not members of the season: {', '.join(unknown)}")
+    if not measured:
+        raise LivePilotsError(f"{war}: nobody but the script was measured")
+    measured.sort(key=lambda p: (-p.war, p.pilot))
+    return [(population.members[p.pilot], p.war) for p in measured[:limit]]
+
+
 def publish(
     season: Path,
     registry: Path,
@@ -126,6 +158,7 @@ def publish(
     runs: Path = DEFAULT_RUNS,
     limit: int = MAX_LIVE_PILOTS,
     store: WeightStore | None = None,
+    war: Path | None = None,
 ) -> list[LivePilot]:
     """Upload the chosen members' checkpoints and write the registry.
 
@@ -137,6 +170,8 @@ def publish(
         runs: The logbook's run directories.
         limit: At most this many pilots.
         store: Where the weights go; the public bucket by default.
+        war: A WAR measurement to choose by (``select_members_by_war``) instead of
+            the combat rating; omitted, the rating chooses.
 
     Raises:
         LivePilotsError: The entry does not exist, a pilot has no note, or a checkpoint
@@ -147,12 +182,17 @@ def publish(
         raise LivePilotsError(f"no logbook entry {runs / entry / 'results.md'}")
     weights = store if store is not None else GcsStore(key_prefix=KEY_PREFIX)
     written = json.loads(notes.read_text())
-    members = select_members(load_population(season), limit)
+    population = load_population(season)
+    if war is not None:
+        chosen = select_members_by_war(population, war, limit)
+    else:
+        chosen = [(m, m.ratings[-1].rating) for m in select_members(population, limit)]
+    members = [m for m, _ in chosen]
     unwritten = [m.id for m in members if not written.get(m.id)]
     if unwritten:
         raise LivePilotsError(f"{notes}: no note for {', '.join(unwritten)}")
     pilots = []
-    for member in members:
+    for member, score in chosen:
         path = Path(member.checkpoint)
         if not path.is_file():
             raise LivePilotsError(f"{member.id}: {path} is missing")
@@ -163,7 +203,7 @@ def publish(
             LivePilot(
                 member.id,
                 member.family,
-                member.ratings[-1].rating,
+                score,
                 member.checkpoint,
                 member.sha256,
                 weights.put(path, key),
@@ -171,12 +211,14 @@ def publish(
                 follow_scores(member),
             )
         )
-    data = {
+    data: dict[str, Any] = {
         "schema": SCHEMA,
         "season": str(season),
         "entry": entry,
         "pilots": [asdict(p) for p in pilots],
     }
+    if war is not None:
+        data |= {"rated_by": "war", "war": str(war)}
     registry.write_text(json.dumps(data, indent=1) + "\n")
     return pilots
 
@@ -336,6 +378,9 @@ def _parser() -> argparse.ArgumentParser:
     send.add_argument("--entry", required=True, help="logbook entry (lab/runs/<id>)")
     send.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY)
     send.add_argument("--limit", type=int, default=MAX_LIVE_PILOTS)
+    send.add_argument(
+        "--war", type=Path, help="choose by this WAR JSON instead of the rating"
+    )
 
     grid = commands.add_parser("matchups", help="write the logbook's who-beats-whom")
     grid.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY)
@@ -357,7 +402,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         if args.command == "publish":
-            pilots = publish(args.season, args.registry, args.entry, limit=args.limit)
+            pilots = publish(
+                args.season, args.registry, args.entry, limit=args.limit, war=args.war
+            )
             print(f"{args.registry}: {', '.join(p.id for p in pilots)}")
             return 0
         if args.command == "matchups":

@@ -1,7 +1,8 @@
 # First commander phase
 
 Planned 2026-11-07 with the owner. The design is `docs/COMMANDER.md`; the page is
-`/commander/`. **Nothing starts until the owner says the machine is free.**
+`/commander/`. Launched 2026-11-08 02:08 when the owner said the machine was free until 18:00; training
+stops at 11:00 (nine hours, not the planned five), then `morning.sh`.
 
 ## Why now
 

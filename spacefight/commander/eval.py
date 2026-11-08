@@ -23,6 +23,7 @@ from typing import Any
 import numpy as np
 import rlf_sim
 import torch
+from numpy.typing import NDArray
 
 from spacefight.commander.io import CommanderInputs, check_sim_layout
 from spacefight.commander.pilots import LIVE_PILOTS, PilotStable, live_pilot_checkpoints
@@ -69,11 +70,152 @@ class Commander:
         return cls(f"{path.parent.parent.name}/{path.stem}", LEARNED, actor)
 
 
-def mission_rosters(mission: str, n_drafts: int, seed: int) -> list[Roster]:
+def named_mission_rosters(
+    mission: str, n_drafts: int, seed: int
+) -> list[tuple[str, Roster]]:
+    """``(name, roster)`` of a mission's live rosters; deathmatch: ``n_drafts`` drafts
+    as on the live page, named ``draft <k>``."""
     if mission != DEATHMATCH:
-        return [r for _, r in default_rosters(mission)]
+        return default_rosters(mission)
     sampler = make_sampler(PilotsDistribution(mission_weights=(1.0, 0.0, 0.0)), seed)
-    return [sampler.sample() for _ in range(n_drafts)]
+    return [(f"draft {k}", sampler.sample()) for k in range(n_drafts)]
+
+
+def mission_rosters(mission: str, n_drafts: int, seed: int) -> list[Roster]:
+    """A mission's live rosters (deathmatch: ``n_drafts`` drafts as on the live page)."""
+    return [r for _, r in named_mission_rosters(mission, n_drafts, seed)]
+
+
+@dataclass(frozen=True)
+class MatchesPlayed:
+    """What ``play_matches`` saw, one row per match.
+
+    Attributes:
+        winner: [n] the winning team, or ``WINNER_DRAW``.
+        end_reason: [n] the sim's end reason.
+        assign: [n, S] the stable's pilot index per slot at the start (``script`` for
+            capital ships, padding and strike craft the script was drawn to fly).
+        script: The index ``assign`` uses for the script.
+        strike: [n, S] strike craft, the slots pilots were drawn for.
+        team: [n, S] each slot's team, -1 for padding.
+        hull_id: [n, S] each slot's hull, -1 for padding.
+    """
+
+    winner: NDArray[np.int64]
+    end_reason: NDArray[np.int64]
+    assign: NDArray[np.int64]
+    script: int
+    strike: NDArray[np.bool_]
+    team: NDArray[np.int8]
+    hull_id: NDArray[np.int16]
+
+
+def play_matches(
+    rosters: Sequence[Roster],
+    mission: str,
+    commanders: Sequence[Commander],
+    side_commander: NDArray[np.int64],
+    seed: int,
+    n_threads: int,
+    pilots: Sequence[tuple[str, Path]],
+    include_script: bool = False,
+) -> MatchesPlayed:
+    """Play one match of ``mission`` per roster, as on the live page.
+
+    Every strike craft is flown by a pilot drawn ship by ship from ``pilots`` (and the
+    script, with ``include_script``); capital ships fly the sim's scripts. Orders are
+    shown to both sides.
+
+    Args:
+        rosters: Match ``i``'s teams; its commanders are set from ``side_commander``.
+        mission: The mission every match plays.
+        commanders: The commanders the matches draw on.
+        side_commander: [n, 2] index into ``commanders`` of each match's team 0 and
+            team 1 commander.
+        seed: Env seed; the pilot draw uses ``seed + 1`` and torch ``seed``.
+        n_threads: Sim threads.
+        pilots: The neural pilots.
+        include_script: Put the script pilot in the draw.
+
+    Raises:
+        ValueError: ``side_commander`` does not fit ``rosters`` and ``commanders``.
+        RuntimeError: A match did not end within its clock.
+    """
+    n = len(rosters)
+    side_commander = np.asarray(side_commander, dtype=np.int64)
+    if side_commander.shape != (n, 2):
+        raise ValueError(f"side_commander must be [{n}, 2], got {side_commander.shape}")
+    if n == 0 or side_commander.min() < 0 or side_commander.max() >= len(commanders):
+        raise ValueError(f"{n} matches, commander indices outside 0..{len(commanders)}")
+    time_limit = float(rlf_sim.mission_time_limit_s(mission))
+    env = RustVecEnv(
+        ASSETS,
+        n,
+        rosters[0].fleets(),
+        seed,
+        n_threads=n_threads,
+        reaction_ticks=2,
+        max_ships=20,
+        commanders=(SCRIPTED, SCRIPTED),
+    )
+    for i, r in enumerate(rosters):
+        modes = (
+            commanders[side_commander[i, 0]].mode,
+            commanders[side_commander[i, 1]].mode,
+        )
+        env.set_next_roster(
+            i,
+            Roster(r.teams, mission, modes),
+            time_limit_s=time_limit,
+            hide_orders=(False, False),
+        )
+    env.reset()
+    stable = PilotStable(
+        pilots, n, env.n_ships, seed + 1, ASSETS, include_script=include_script
+    )
+    stable.draw(env, range(n))
+    # The env moves on to a new match when one ends, so the start is kept now.
+    assign = stable.assign.copy()
+    strike = stable.strike_mask(env).copy()
+    team = np.asarray(env.team).copy()
+    hull_id = np.asarray(env.hull_id).copy()
+    learned = [(k, c.actor) for k, c in enumerate(commanders) if c.actor is not None]
+    torch.manual_seed(seed)
+    running = np.ones(n, dtype=bool)
+    winner = np.full(n, WINNER_NONE, dtype=np.int64)
+    end_reason = np.zeros(n, dtype=np.int64)
+    max_steps = int(time_limit * 30) + 4
+    for _ in range(max_steps):
+        for t in (0, 1):
+            due = np.asarray(env.raw.commander_due(t), dtype=bool) & running
+            if not due.any():
+                continue
+            feats = None
+            for k, actor in learned:
+                rows = np.flatnonzero(due & (side_commander[:, t] == k))
+                if rows.size == 0:
+                    continue
+                if feats is None:
+                    feats = env.raw.commander_features(t)
+                x = CommanderInputs.from_numpy(
+                    {key: np.asarray(feats[key])[rows] for key in FEATURE_KEYS}
+                )
+                actions, _ = act(actor, x)
+                env.raw.submit_commander_actions(
+                    t, rows.astype(np.int64), actions.numpy().astype(np.int32)
+                )
+        _, _, dones, info = env.step(stable.actions(env))
+        ending = running & dones
+        winner[ending] = np.asarray(info.winner)[ending]
+        end_reason[ending] = env.end_reason[ending]
+        running &= ~dones
+        if not running.any():
+            break
+    else:
+        raise RuntimeError(f"{mission}: {int(running.sum())} matches did not end")
+    return MatchesPlayed(
+        winner, end_reason, assign, stable.script, strike, team, hull_id
+    )
 
 
 def play_mission(
@@ -93,78 +235,24 @@ def play_mission(
     index = np.arange(n)
     entry = index % len(rosters)
     a_team = (index // len(rosters)) % 2
-    time_limit = float(rlf_sim.mission_time_limit_s(mission))
-    env = RustVecEnv(
-        ASSETS,
-        n,
-        rosters[0].fleets(),
-        seed,
-        n_threads=n_threads,
-        reaction_ticks=2,
-        max_ships=20,
-        commanders=(SCRIPTED, SCRIPTED),
+    # Commander 0 is a, 1 is b: a on its team, b on the other.
+    side = np.stack([a_team != 0, a_team != 1], axis=1).astype(np.int64)
+    played = play_matches(
+        [rosters[e] for e in entry], mission, (a, b), side, seed, n_threads, pilots
     )
-    for i in range(n):
-        modes = [b.mode, b.mode]
-        modes[a_team[i]] = a.mode
-        r = rosters[entry[i]]
-        env.set_next_roster(
-            i,
-            Roster(r.teams, mission, (modes[0], modes[1])),
-            time_limit_s=time_limit,
-            hide_orders=(False, False),
-        )
-    env.reset()
-    stable = PilotStable(pilots, n, env.n_ships, seed + 1, ASSETS)
-    stable.draw(env, range(n))
-    torch.manual_seed(seed)
-    running = np.ones(n, dtype=bool)
-    winner = np.full(n, WINNER_NONE, dtype=np.int64)
-    end_reason = np.zeros(n, dtype=np.int64)
-    max_steps = int(time_limit * 30) + 4
-    for _ in range(max_steps):
-        for team in (0, 1):
-            due = np.asarray(env.raw.commander_due(team), dtype=bool) & running
-            if not due.any():
-                continue
-            feats = None
-            for cmd, is_a in ((a, True), (b, False)):
-                if cmd.actor is None:
-                    continue
-                rows = np.flatnonzero(due & ((a_team == team) == is_a))
-                if rows.size == 0:
-                    continue
-                if feats is None:
-                    feats = env.raw.commander_features(team)
-                x = CommanderInputs.from_numpy(
-                    {k: np.asarray(feats[k])[rows] for k in FEATURE_KEYS}
-                )
-                actions, _ = act(cmd.actor, x)
-                env.raw.submit_commander_actions(
-                    team, rows.astype(np.int64), actions.numpy().astype(np.int32)
-                )
-        _, _, dones, info = env.step(stable.actions(env))
-        ending = running & dones
-        winner[ending] = np.asarray(info.winner)[ending]
-        end_reason[ending] = env.end_reason[ending]
-        running &= ~dones
-        if not running.any():
-            break
-    else:
-        raise RuntimeError(f"{mission}: {int(running.sum())} matches did not end")
+    winner = played.winner
     a_won = winner == a_team
     draws = winner == WINNER_DRAW
     score = (a_won + 0.5 * draws).astype(float)
-    by_side = {
-        f"a_on_team{t}": float(score[a_team == t].mean()) for t in (0, 1)
-    }
+    by_side = {f"a_on_team{t}": float(score[a_team == t].mean()) for t in (0, 1)}
     return {
         "n": n,
         "score_a": float(score.mean()),
         "draw_rate": float(draws.mean()),
         **by_side,
         "end_reasons": {
-            str(int(k)): int(v) for k, v in zip(*np.unique(end_reason, return_counts=True))
+            str(int(k)): int(v)
+            for k, v in zip(*np.unique(played.end_reason, return_counts=True))
         },
     }
 
@@ -191,7 +279,9 @@ def evaluate(
     }
     for k, mission in enumerate(missions):
         t0 = time.time()
-        res = play_mission(ca, cb, mission, n_per_mission, seed + 1000 * k, n_threads, pilots)
+        res = play_mission(
+            ca, cb, mission, n_per_mission, seed + 1000 * k, n_threads, pilots
+        )
         res["secs"] = round(time.time() - t0, 1)
         out["missions"][mission] = res
         print(f"{mission}: a scores {res['score_a']:.3f} over {res['n']}", flush=True)

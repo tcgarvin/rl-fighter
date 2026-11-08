@@ -9,15 +9,23 @@
     python -m spacefight.population record-drills --season lab/population/2026-11-sim6 \
         --id followers_513 --drills drills.json --phase first-night --date 2026-11-02
     python -m spacefight.population archive --season lab/population/2026-11-sim6 \
-        --id x --reason "Failed the drill gate" --date 2026-11-02
+        --id x --reason "Culled: WAR below replacement" --date 2026-11-09
     python -m spacefight.population round-robin --season lab/population/2026-11-sim6 \
         --out lab/population/2026-11-sim6/round_robin/first --members all
     python -m spacefight.population report --season lab/population/2026-11-sim6 \
         --results lab/population/2026-11-sim6/round_robin/first \
         --phase first --date 2026-11-02
 
+    python -m spacefight.population war --season lab/population/2026-11-sim6 \
+        --out lab/population/2026-11-sim6/war/first --n-per-mission 480 --threads 8
+    python -m spacefight.population war-fit --war lab/population/2026-11-sim6/war/first/war.json
+    python -m spacefight.population report --season lab/population/2026-11-sim6 \
+        --war lab/population/2026-11-sim6/war/first/war.json --phase p --date 2026-11-09
+
 ``report`` writes ``report.md`` and a shadow-cull report, and changes no member's status.
-``--record`` also appends the phase's ratings to the members' histories.
+``--record`` also appends the phase's ratings to the members' histories. ``war`` plays
+live-like matches with the script in the pilot draw and fits wins above replacement
+(``war.py``); it resumes from finished chunks. ``war-fit`` refits saved matches.
 """
 
 from __future__ import annotations
@@ -28,7 +36,11 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from spacefight.population.culling import shadow_cull, write_shadow_report
+from spacefight.population.culling import (
+    shadow_cull,
+    war_shadow_cull,
+    write_shadow_report,
+)
 from spacefight.population.rating import Rating
 from spacefight.population.records import (
     FORK,
@@ -49,6 +61,16 @@ from spacefight.population.records import (
     sha256_of,
 )
 from spacefight.population.report import family_tree_lines, render_report
+from spacefight.population.war import (
+    DEFAULT_BOOTSTRAP,
+    DEFAULT_NUISANCE_PRIOR_SD,
+    DEFAULT_PRIOR_SD,
+    WarDocument,
+    fit_war,
+    read_war,
+    render_war_table,
+    write_war,
+)
 
 REPORT_FILENAME = "report.md"
 DEFAULT_ROOT = Path(".")
@@ -162,6 +184,59 @@ def _cmd_round_robin(args: argparse.Namespace) -> int:
     return 0
 
 
+def _war_members(population: Population, spec: str) -> list[str]:
+    """``active`` (active members), or a comma list; the script is always drawn."""
+    if spec == "active":
+        return [m.id for m in population.active() if not m.is_script]
+    return [name.strip() for name in spec.split(",") if name.strip()]
+
+
+def _cmd_war(args: argparse.Namespace) -> int:
+    # Loaded here so the other commands don't need the sim or torch.
+    import torch
+
+    from spacefight.population.war_matches import resolve_commanders, run_war
+
+    torch.set_num_threads(args.threads)
+    population = load_population(args.season)
+    commanders = resolve_commanders(
+        [c.strip() for c in args.commanders.split(",") if c.strip()],
+        args.live_commanders,
+    )
+    document = run_war(
+        population,
+        _war_members(population, args.members),
+        commanders,
+        args.out,
+        args.n_per_mission,
+        args.seed,
+        args.threads,
+        checkpoint_root=args.checkpoint_root,
+        chunk=args.chunk,
+        deathmatch_drafts=args.deathmatch_drafts,
+        prior_sd=args.prior_sd,
+        nuisance_prior_sd=args.nuisance_prior_sd,
+        n_bootstrap=args.bootstrap,
+    )
+    print(render_war_table(document.fit, population.season), end="")
+    return 0
+
+
+def _cmd_war_fit(args: argparse.Namespace) -> int:
+    document = read_war(args.war)
+    fit = fit_war(
+        document.records,
+        args.prior_sd,
+        args.nuisance_prior_sd,
+        args.bootstrap,
+        args.bootstrap_seed,
+    )
+    out = args.out if args.out is not None else args.war
+    write_war(out, WarDocument(document.config, document.records, fit), args.title)
+    print(render_war_table(fit, args.title), end="")
+    return 0
+
+
 def _ratings_entry(rating: Rating, phase: str, date: str) -> RatingEntry:
     return RatingEntry(phase, date, rating.rating, rating.sd, rating.matches)
 
@@ -169,6 +244,24 @@ def _ratings_entry(rating: Rating, phase: str, date: str) -> RatingEntry:
 def _cmd_report(args: argparse.Namespace) -> int:
     population = load_population(args.season)
     path = args.season / REPORT_FILENAME
+    if args.war is not None:
+        fit = read_war(args.war).fit
+        war_shadow = war_shadow_cull(
+            population, fit.pilots, args.phase, args.date, str(args.war)
+        )
+        write_shadow_report(args.season, war_shadow)
+        path.write_text(
+            render_report(
+                population,
+                args.phase,
+                args.date,
+                caveats=args.caveat,
+                war=fit,
+                war_shadow=war_shadow,
+            )
+        )
+        print(f"wrote {path}")
+        return 0
     if args.results is None:
         path.write_text(render_report(population, caveats=args.caveat))
         print(f"wrote {path}")
@@ -202,13 +295,28 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     commands = parser.add_subparsers(dest="command", required=True)
 
-    def command(name: str, handler: object, text: str) -> argparse.ArgumentParser:
+    def command(
+        name: str, handler: object, text: str, season: bool = True
+    ) -> argparse.ArgumentParser:
         sub = commands.add_parser(name, help=text)
-        sub.add_argument(
-            "--season", type=Path, required=True, help="lab/population/<season>"
-        )
+        if season:
+            sub.add_argument(
+                "--season", type=Path, required=True, help="lab/population/<season>"
+            )
         sub.set_defaults(handler=handler)
         return sub
+
+    def fit_options(sub: argparse.ArgumentParser) -> None:
+        sub.add_argument(
+            "--prior-sd",
+            type=float,
+            default=DEFAULT_PRIOR_SD,
+            help="ridge prior per pilot, logits per ship",
+        )
+        sub.add_argument(
+            "--nuisance-prior-sd", type=float, default=DEFAULT_NUISANCE_PRIOR_SD
+        )
+        sub.add_argument("--bootstrap", type=int, default=DEFAULT_BOOTSTRAP)
 
     command("list", _cmd_list, "print the family tree")
 
@@ -272,8 +380,39 @@ def _parser() -> argparse.ArgumentParser:
     robin.add_argument("--seed", type=int, default=400_000)
     robin.add_argument("--n-threads", type=int, default=2)
 
+    war = command("war", _cmd_war, "play live-like matches and fit WAR, resumable")
+    war.add_argument("--out", type=Path, required=True, help="results directory")
+    war.add_argument(
+        "--members",
+        default="active",
+        help="active (learned active members), or a comma list; script always drawn",
+    )
+    war.add_argument(
+        "--commanders",
+        default="live",
+        help="comma list of live (the live stable), scripted, random, checkpoint paths",
+    )
+    war.add_argument(
+        "--live-commanders", type=Path, default=Path("lab/live_commanders.json")
+    )
+    war.add_argument("--n-per-mission", type=int, default=24)
+    war.add_argument("--chunk", type=int, default=96, help="matches per chunk file")
+    war.add_argument("--deathmatch-drafts", type=int, default=24)
+    war.add_argument("--seed", type=int, default=500_000)
+    war.add_argument("--threads", type=int, default=2)
+    war.add_argument("--checkpoint-root", type=Path, default=DEFAULT_ROOT)
+    fit_options(war)
+
+    refit = command("war-fit", _cmd_war_fit, "refit a WAR JSON's matches", False)
+    refit.add_argument("--war", type=Path, required=True, help="rlf.population.war/1")
+    refit.add_argument("--out", type=Path, help="where to write; default: in place")
+    refit.add_argument("--title", default="")
+    refit.add_argument("--bootstrap-seed", type=int, default=0)
+    fit_options(refit)
+
     report = command("report", _cmd_report, "write report.md (changes no status)")
     report.add_argument("--results", type=Path, help="a round-robin directory")
+    report.add_argument("--war", type=Path, help="a WAR JSON (rlf.population.war/1)")
     report.add_argument("--phase", default="")
     report.add_argument("--date", default="")
     report.add_argument(
@@ -286,9 +425,11 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     """Run one command; a bad record or argument ends it with a message."""
     args = _parser().parse_args(argv)
-    if args.command == "report" and args.results is not None:
+    if args.command == "report" and (args.results is not None or args.war is not None):
+        if args.results is not None and args.war is not None:
+            raise SystemExit("report takes --results or --war, not both")
         if not args.phase or not args.date:
-            raise SystemExit("report --results needs --phase and --date")
+            raise SystemExit("report --results or --war needs --phase and --date")
     try:
         return int(args.handler(args))
     except (PopulationError, FileExistsError, FileNotFoundError) as err:

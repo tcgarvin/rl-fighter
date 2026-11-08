@@ -10,10 +10,11 @@ came out.
 
 - Commanders and pilots train in alternating phases, with the other side frozen.
 - About 10 pilots at a time, in families, with the script pilot in the population at first.
-- **What an order means is fixed by a drill.** Orders stay human-intelligible, and a pilot
-  must keep passing the drills to keep its place.
+- **What an order means is fixed by a drill.** Orders stay human-intelligible. Drills are
+  measured and reported; since 2026-11-08 failing them archives nobody.
 - Every other match has a commander on both sides or on neither.
 - Training matches are the same as live matches.
+- A pilot keeps its place by wins above replacement (WAR) in live-like matches.
 - Culling is watched in shadow mode before it is trusted.
 
 ## 1. Scenarios today
@@ -167,9 +168,11 @@ one-hot. This stays the owner's call below.
 
 ### Drill gate
 
-Run on fixed seeds, separately from training. A new pilot must pass to enter the population
-and must keep passing to stay. Failing archives it with the reason. The founders
-`f995_701` and `transit_300` are exempt, but their children are not.
+Run on fixed seeds, separately from training. **Since 2026-11-08 the gate archives
+nobody** (owner's call): `record-drills` still records each pilot's results and verdict,
+and they are reported, but a place is earned by WAR (section 5). Before that, a pilot had
+to pass to enter and keep passing to stay, the founders `f995_701` and `transit_300`
+exempt.
 
 Bars start lenient ("roughly the appropriate way") and tighten as pilots improve. They come
 from the outcome, and the script pilot's result is a reference rather than a target.
@@ -307,19 +310,65 @@ fails, fall back to separate skill networks.
 
 ## 5. What earns a place
 
-1. **Drill gate:** pass or out (section 2).
-2. **Combat rating:** matches with no commander on either side, on live rosters.
+**Wins above replacement (WAR), from 2026-11-08.** The owner prefers performance in real
+scenarios on random teams to the all-pairs round robin, so a pilot is judged by what its
+ships add to whatever team it lands on, in matches like the live page's.
 
-Reported but not rated: following in real matches, and win rate with a commander on both
-sides. The script pilot stays until it is the worst on combat, as long as another pilot
-has matched its drill results.
+Reported but not judged: drills (section 2), following in real matches, and the round
+robin's combat rating (Bradley-Terry, below), which still runs.
+
+### WAR
+
+`spacefight/population/war.py` (fit, pure numpy), `war_matches.py` (matches), JSON
+`rlf.population.war/1` with every match and the fit, and a phone table beside it.
+
+- **Matches** are the live page's, through the commander eval's `play_matches`: live
+  rosters (deathmatch: 24 live drafts), orders shown, capital ships by script. Each
+  strike craft's pilot is drawn uniformly from the candidates **plus the script**, the
+  one difference from live, and each side's commander uniformly from the stable
+  (`lab/live_commanders.json` by default).
+- **Model:** ridge logistic regression, as basketball's RAPM. Team 0 wins (a draw is two
+  half-weight rows) on, per pilot, ships flown for team 0 minus for team 1, plus a side
+  term per roster and a commander term per commander and mission (against `scripted`).
+  The script has no column: it is replacement, 0 by definition.
+- **Ridge:** a fixed prior, 1 logit per ship on pilots and 3 on the nuisance terms.
+  Pilots are drawn at random, so the design is near orthogonal; the prior only keeps a
+  small, separated sample finite. `prior_weight` in the JSON shows how little it moves a
+  real fit (under 1 % at 1,000 matches a mission).
+- **WAR** of a pilot: over the matches it flew in, the model's win probability for its
+  side minus the same with its ships flown by the script, per 100 of those matches. A
+  draw counts half. Also reported: per-ship coefficient, matches and ships flown, WAR
+  per mission.
+- **Interval:** 95 % percentile bootstrap, 500 refits, matches resampled within mission.
+- **Read it within one measurement.** WAR per 100 matches grows with the ships a pilot
+  flies per match, which falls as the pool grows. The per-ship coefficient travels better.
+
+**Size.** Synthetic matches with live ship counts give a 95 % half-width of about ±6.4
+wins at 240 matches a mission, ±4.8 at 480, ±3.8 at 960, ±3.0 at 1,440, nearly the same
+for 10 or 14 pilots. Speed: about 1.2 matches a second over the mix at 8 threads (the
+commander eval's smoke at 48 a mission), so 1,440 a mission is roughly an hour. Each
+chunk prints its rate.
+
+**Combat rating (round robin).** Matches with no commander on either side, on live
+rosters, all pairs. Kept as a report.
 
 ## 6. Culling and the family tree
 
 **Shadow mode first.** For the first few phases nothing is culled. Every phase records who
 would have been, and the owner reviews it before the rule goes live.
 
-Rule to test in shadow mode:
+**WAR rule (from 2026-11-08), `war_shadow_cull`:**
+
+1. Below replacement: a member whose whole WAR interval is below 0 would go. The script
+   never; it is replacement.
+2. Founder cap, kept: over 4 survivors from one founder, its lowest WAR would go.
+3. Over the cap of 10 learned members: the lowest WAR would go, but never the last of a
+   family. That protection replaces the diversity bonus, which would mix made-up points
+   into wins. The script's drill rule goes too: WAR has no use for it.
+
+Close calls are flagged as before: a gap within the two pilots' bootstrap sds.
+
+Round-robin rule, still reported with `report --results`:
 
 - Bottom 2 on combat are candidates.
 - Diversity bonus: rating rises with tree distance to the nearest member of the top 10,
@@ -359,7 +408,9 @@ or the owner waives that.
 pilots, drawn at random for each ship: the highest-rated members who are not the script,
 listed in `lab/live_pilots.json`. Archived members can fly there, and a pilot need not pass
 the drill gate. The list changes only when `tools.live_pilots publish` is run, so a new
-rating alone deploys nothing.
+rating alone deploys nothing. `publish --war <war.json>` picks by WAR instead (not the
+default yet); `rating` then holds WAR per 100, and the page's inspector still says
+"Rated".
 
 ## 8. Still open
 
