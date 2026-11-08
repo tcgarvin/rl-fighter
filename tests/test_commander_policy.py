@@ -29,6 +29,7 @@ from spacefight.commander.policy import (
     evaluate,
     load_commander,
     n_params,
+    sample_actions,
     save_commander,
 )
 
@@ -78,7 +79,25 @@ def test_evaluate_gives_the_log_prob_act_sampled_with() -> None:
     again, entropy, per_head = evaluate(actor, x, actions)
     assert torch.allclose(logp, again, atol=1e-5)
     assert torch.isfinite(entropy).all() and (entropy >= 0).all()
-    assert set(per_head) == {"launch", "waypoint", "squad", "order", "target", "ward", "point"}
+    assert set(per_head) == {
+        "launch",
+        "waypoint",
+        "squad",
+        "order",
+        "target",
+        "ward",
+        "point",
+    }
+
+
+def test_sample_actions_draws_act_s_decisions_under_the_same_seed() -> None:
+    actor = CommanderActor()
+    x = inputs(16, seed=4)
+    for seed in (0, 1, 2):
+        torch.manual_seed(seed)
+        expected, _ = act(actor, x)
+        torch.manual_seed(seed)
+        assert torch.equal(sample_actions(actor, x), expected)
 
 
 def test_a_target_counts_only_when_its_squad_attacks() -> None:

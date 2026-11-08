@@ -134,7 +134,9 @@ class CommanderActor(nn.Module):
         self.launch = nn.Linear(SUMMARY, N_LAUNCH_HULLS * 2)
         self.waypoint = nn.Linear(SUMMARY, N_WAYPOINT_CHOICES)
         self.squad = nn.Sequential(
-            nn.Linear(WIDTH + SUMMARY, WIDTH), nn.Tanh(), nn.Linear(WIDTH, N_SQUAD_CHOICES)
+            nn.Linear(WIDTH + SUMMARY, WIDTH),
+            nn.Tanh(),
+            nn.Linear(WIDTH, N_SQUAD_CHOICES),
         )
         self.squad_embed = nn.Parameter(torch.randn(N_SQUADS, SQUAD_EMBED) * 0.1)
         self.query = nn.Sequential(
@@ -197,9 +199,13 @@ def _split(actions: torch.Tensor) -> dict[str, torch.Tensor]:
     }
 
 
-def _dists(logits: HeadLogits) -> dict[str, Categorical]:
+def _dists(logits: HeadLogits, validate: bool = True) -> dict[str, Categorical]:
+    """Each head's distribution; ``validate=False`` skips torch's argument checks
+    (the same distributions, cheaper to build)."""
     return {
-        name: Categorical(logits=getattr(logits, name))
+        name: Categorical(
+            logits=getattr(logits, name), validate_args=None if validate else False
+        )
         for name in ("launch", "waypoint", "squad", "order", "target", "ward", "point")
     }
 
@@ -245,11 +251,39 @@ def act(
     log-probability.
     """
     dists = _dists(actor(x))
+    acts = _choose(dists, deterministic)
+    actions = _assemble(acts, x.batch_size)
+    logp, _, _ = _log_prob_entropy(dists, acts)
+    return actions, logp
+
+
+@torch.no_grad()
+def sample_actions(actor: CommanderActor, x: CommanderInputs) -> torch.Tensor:
+    """``act``'s sampled decisions without their log-probability, for frozen
+    commanders that only play: ``[B, ACTION_DIM]`` int64. The heads are sampled in
+    ``act``'s order from the same distributions, so under the same torch RNG state
+    the decisions are ``act``'s exactly; skipping the log-probability, entropy and
+    argument checks makes a small batch about twice as fast.
+    """
+    acts = _choose(_dists(actor(x), validate=False), deterministic=False)
+    return _assemble(acts, x.batch_size)
+
+
+def _choose(
+    dists: dict[str, Categorical], deterministic: bool
+) -> dict[str, torch.Tensor]:
+    """Each head's choice: the most likely, or a sample (in ``dists`` order)."""
     if deterministic:
-        acts = {n: d.probs.argmax(dim=-1) for n, d in dists.items()}
-    else:
-        acts = {n: d.sample() for n, d in dists.items()}
-    b = x.batch_size
+        return {n: d.probs.argmax(dim=-1) for n, d in dists.items()}
+    return {n: d.sample() for n, d in dists.items()}
+
+
+def _assemble(acts: dict[str, torch.Tensor], b: int) -> torch.Tensor:
+    """The ``[b, ACTION_DIM]`` decision rows of the heads' choices.
+
+    Raises:
+        RuntimeError: The heads do not fill ``ACTION_DIM`` columns.
+    """
     actions = torch.cat(
         [
             acts["launch"],
@@ -264,8 +298,7 @@ def act(
     )
     if actions.shape != (b, ACTION_DIM):
         raise RuntimeError(f"built actions of shape {tuple(actions.shape)}")
-    logp, _, _ = _log_prob_entropy(dists, acts)
-    return actions, logp
+    return actions
 
 
 def evaluate(
@@ -300,9 +333,7 @@ def n_params(module: nn.Module) -> int:
     return sum(p.numel() for p in module.parameters())
 
 
-def save_commander(
-    path: Path, actor: CommanderActor, meta: dict[str, Any]
-) -> None:
+def save_commander(path: Path, actor: CommanderActor, meta: dict[str, Any]) -> None:
     """Write the actor and ``meta`` (plain types only) for eval, export and opponents."""
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".tmp")

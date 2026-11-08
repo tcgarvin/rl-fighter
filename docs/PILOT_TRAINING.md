@@ -211,7 +211,8 @@ Live rosters only. Both sides have the same condition in every match:
 | Commander, both sides | The commander's orders | Commander |
 | No commander, both sides | No orders (`hide_orders`) | Script |
 
-- **Commander means scripted for now.** Learned commanders join the mix once they exist.
+- **Commander means the scripted one unless the run names a stable.** Since 2026-11-08 a
+  run can draw learned commanders too (`commander_stable`, below).
 - **Carrier and convoy special case.** With no commander, the script still launches and
   moves capital ships, because the mission cannot run otherwise. Agreed with the owner.
 - **Random orders are out of matches.** They add noise for little value now that drills
@@ -264,6 +265,41 @@ Where training still differs from the page:
   certified for fewer than the three strike hulls.
 - **Budget.** The sampler uses the bundle's default budget. A bundle built with
   `RLF_ROSTER_BUDGET` set lower would draft smaller sides than training does.
+
+### Commanders in pilot training: `commander_stable`
+
+Set in the trainer's config (`spacefight/rl/spike_ppo.py`), off by default; unset, every
+match keeps its roster's scripted commanders and the roster draws are unchanged.
+
+```bash
+--set 'commander_stable=[live]'                          # the live stable, evenly
+--set 'commander_stable=[live, random]' --set 'commander_weights=[3, 1]'
+```
+
+- **Specs:** `scripted`, `random`, `live` (every commander in `lab/live_commanders.json`,
+  the learned ones loaded sha-checked through `tools/live_commanders.py`) or a commander
+  checkpoint. A weight per spec, 1 each by default; a `live` weight is split evenly over
+  its commanders.
+- **Who draws:** each side of a match that is not a drill and shows its orders draws its
+  commander per episode, independently per side, as the live page does
+  (`spacefight/commander/stable.py`, `StableSampler`, with its own seed, so the rosters
+  are the ones drawn without a stable). In `pilots_v1` that is the commander half of
+  `commander_p`. A no-commander match keeps the script underneath, which runs the
+  logistics. **Drills are left alone:** their orders come from `external` commanders
+  queued when the drill is built, not from any commander that could be learned.
+- **Decisions:** before every env step the trainer runs the due decisions of the learned
+  ones (`spacefight/commander/decide.py`, `decide_learned`, shared with the commander
+  eval): no gradient, CPU, one batch per network per team, 1 Hz per team. A learned
+  commander also flies its own launches and carrier, and in a deathmatch, unlike the
+  script's, its orders are followed by script pilots, so those rows count as ordered.
+- **Logs:** `commander_decisions`, `commander_share` (share of match sides),
+  `episodes_by_commander`, `win_by_commander` and `win_by_enemy_commander` (the learner's
+  side, draws half), keyed by commander id, `no_commander` for hidden orders. They are
+  logged without a stable too (`scripted`, `no_commander`).
+- **Cost:** at 32 envs and 2 threads (machine shared with a 14-thread eval), rollout time
+  per 128-step update went from 1.71 s to 1.80 s at `commander_p` 0.5 and from 1.67 s to
+  1.94 s at 1.0, about 1.4 ms per decision, mostly network overhead on batches of one or
+  two.
 
 How the plan's words came out in code:
 

@@ -215,6 +215,10 @@ class Roster:
         time_limit_s: The match's clock; 0: the env's or the mission's default.
         drill: Set on a drill match (``spacefight.env.drills``): the sim plays it under
             drill rules (SIM_SPEC §5.10). ``None`` on every other match.
+        commander_ids: Per team, the id of the commander a trainer's commander stable
+            drew for it (``spacefight.commander.stable``), which picks the network of a
+            ``learned`` team and labels the logs; ``""`` where no stable drew one. The
+            sim sees only ``commanders``.
 
     Raises:
         ValueError: An empty team, more than ``MAX_SHIPS`` ships, an unknown mission
@@ -231,6 +235,7 @@ class Roster:
     opening_orders: tuple[OpeningOrder, ...] = ()
     time_limit_s: float = 0.0
     drill: DrillTag | None = None
+    commander_ids: tuple[str, str] = ("", "")
 
     def __post_init__(self) -> None:
         if len(self.teams) != 2 or any(len(t) == 0 for t in self.teams):
@@ -249,6 +254,12 @@ class Roster:
             not isinstance(h, bool) for h in self.hide_orders
         ):
             raise ValueError(f"hide_orders must be two bools, got {self.hide_orders}")
+        if len(self.commander_ids) != 2 or any(
+            not isinstance(c, str) for c in self.commander_ids
+        ):
+            raise ValueError(
+                f"commander_ids must be two strings, got {self.commander_ids}"
+            )
         if self.start_layout:
             if len(self.start_layout) != self.n_ships:
                 raise ValueError(
@@ -345,6 +356,7 @@ class Roster:
             self.mission,
             (self.commanders[1], self.commanders[0]),
             (self.hide_orders[1], self.hide_orders[0]),
+            commander_ids=(self.commander_ids[1], self.commander_ids[0]),
         )
 
     def cost(self, costs: Mapping[str, float]) -> tuple[float, float]:

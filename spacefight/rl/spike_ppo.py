@@ -89,6 +89,19 @@ episode tallies. Drill pay is match pay plus order pay; the sim's drill rules en
 as a draw, so no match result is in it. With ``drill_share`` 0 none of this runs and the
 random draws are unchanged.
 
+Commander stable (``docs/PILOT_TRAINING.md`` §3, ``spacefight.commander.stable``). With
+``commander_stable`` set, each side of every match that is not a drill and shows its
+orders draws its commander per episode from the stable (``scripted``, ``random``, the
+live stable ``live`` or commander checkpoints, by ``commander_weights``), as the live
+page does. Before every env step the trainer runs the due decisions of the learned ones
+(``spacefight.commander.decide.decide_learned``: no gradient, one batch per network per
+team; 1 Hz per team). Hidden-orders matches keep the script underneath, and drills their
+external commanders. Unset, nothing here runs and the draws are unchanged. Logs:
+``commander_share`` (share of match sides per commander), ``episodes_by_commander``,
+``win_by_commander`` and ``win_by_enemy_commander`` (the learner's side, draws ½), keyed
+by ``commander_label`` (``no_commander`` for hidden orders), and
+``commander_decisions``.
+
 Anchor cache. The frozen anchor's per-head log-softmax is computed once per sample
 at rollout time (learner rows, ``[rows, N_LOGITS]`` float32) and read back in every
 minibatch of every epoch, instead of running the anchor net each time; the loss is
@@ -111,10 +124,14 @@ import torch.nn as nn
 import yaml  # type: ignore[import-untyped]
 from numpy.typing import NDArray
 
+from spacefight.commander.decide import NOT_IN_STABLE, decide_learned
+from spacefight.commander.policy import CommanderActor
+from spacefight.commander.stable import StableSampler, commander_label, resolve_stable
 from spacefight.env.drills import DrillLedger
 from spacefight.env.rosters import (
     CONVOY_ESCORT,
     Roster,
+    Sampler,
     capital_hull_ids,
     hull_names_by_id,
     make_sampler,
@@ -284,6 +301,11 @@ LOG_KEYS: tuple[str, ...] = (
     "drill_rows_share",
     "drill_episodes",
     "drill_success",
+    "commander_decisions",
+    "commander_share",
+    "episodes_by_commander",
+    "win_by_commander",
+    "win_by_enemy_commander",
     "hull_samples",
     "hull_hit_rate",
     "hull_damage_dealt",
@@ -416,6 +438,13 @@ class PPOConfig:
     # (actor and critic; ``NewInputAdam``). 1 = no difference; no effect without a
     # widening.
     new_input_lr_mult: float = 1.0
+    # Commander stable of the matches that are not drills (module docstring): specs
+    # ``scripted``, ``random``, ``live`` (lab/live_commanders.json) or commander
+    # checkpoints, and a weight per spec (empty: 1 each; a ``live`` spec's weight is
+    # split evenly over its commanders). Empty: every match keeps its roster's
+    # commanders.
+    commander_stable: list[str] = field(default_factory=list)
+    commander_weights: list[float] = field(default_factory=list)
     # §7 risk responses (all off by default).
     entropy_floor: float = 0.0
     entropy_floor_coeff: float = 0.0
@@ -509,6 +538,42 @@ class PPOConfig:
         if self.beta_heads not in HEAD_SETS:
             raise ValueError(
                 f"beta_heads must be one of {tuple(HEAD_SETS)}, got {self.beta_heads}"
+            )
+        self._check_commander_stable()
+
+    def _check_commander_stable(self) -> None:
+        """The commander stable's specs and weights (their files load in the trainer).
+
+        Raises:
+            ValueError: Not lists, weights without a stable or not one per spec,
+                negative weights or a zero total, a repeated or empty spec, or a
+                stable on fixed fleets (only roster matches carry commanders).
+        """
+        specs, weights = self.commander_stable, self.commander_weights
+        if not isinstance(specs, list) or not isinstance(weights, list):
+            raise ValueError(
+                "commander_stable and commander_weights must be lists, got "
+                f"{specs!r} and {weights!r}"
+            )
+        if not specs:
+            if weights:
+                raise ValueError("commander_weights needs a commander_stable")
+            return
+        if not self.rosters:
+            raise ValueError("commander_stable needs a rosters preset")
+        if any(not isinstance(spec, str) or not spec for spec in specs):
+            raise ValueError(
+                f"commander_stable specs must be non-empty strings: {specs}"
+            )
+        if len(set(specs)) != len(specs):
+            raise ValueError(f"commander_stable repeats a spec: {specs}")
+        if weights and len(weights) != len(specs):
+            raise ValueError(
+                f"commander_weights has {len(weights)} weights for {len(specs)} specs"
+            )
+        if any(w < 0 for w in weights) or (weights and sum(weights) <= 0):
+            raise ValueError(
+                f"commander_weights must be >= 0 with a positive sum: {weights}"
             )
 
     @property
@@ -980,6 +1045,13 @@ class EpisodeTally:
     # Rows on the learner's side, and how many of them were in drills.
     side_rows: int = 0
     drill_rows: int = 0
+    # Commander label (``commander_label``) -> sides of finished matches it commanded;
+    # -> [wins, draws, losses] of the learner with it on its side, and against it.
+    commander_sides: dict[str, int] = field(default_factory=dict)
+    by_commander: dict[str, list[int]] = field(default_factory=dict)
+    by_enemy_commander: dict[str, list[int]] = field(default_factory=dict)
+    # Learned commander decisions submitted during the rollout.
+    commander_decisions: int = 0
 
     def add(
         self,
@@ -988,13 +1060,20 @@ class EpisodeTally:
         length: int,
         size_class: str,
         n_ships: int,
-        learner_team: int = 0,
+        learner_team: int,
+        commanders: tuple[str, str],
     ) -> None:
-        """Record one finished episode; winner is the sim's (0, 1, -1 draw) and
-        ``learner_team`` the learner's side of it."""
+        """Record one finished episode; winner is the sim's (0, 1, -1 draw),
+        ``learner_team`` the learner's side of it and ``commanders`` each team's
+        commander label."""
         name = KIND_NAMES[OpponentKind(kind)]
         slot = 0 if winner == learner_team else (1 if winner == -1 else 2)
         self.outcomes[name][slot] += 1
+        for label in commanders:
+            self.commander_sides[label] = self.commander_sides.get(label, 0) + 1
+        own, enemy = commanders[learner_team], commanders[1 - learner_team]
+        self.by_commander.setdefault(own, [0, 0, 0])[slot] += 1
+        self.by_enemy_commander.setdefault(enemy, [0, 0, 0])[slot] += 1
         self.lengths.append(length)
         self.ships.append(n_ships)
         self.by_class.setdefault(size_class, [0, 0, 0])[slot] += 1
@@ -1046,7 +1125,26 @@ class EpisodeTally:
         out["episodes_by_class"] = {
             klass: sum(counts) for klass, counts in sorted(self.by_class.items())
         }
+        sides = sum(self.commander_sides.values())
+        out["commander_decisions"] = self.commander_decisions
+        out["commander_share"] = {
+            label: count / sides
+            for label, count in sorted(self.commander_sides.items())
+        }
+        out["episodes_by_commander"] = {
+            label: sum(counts) for label, counts in sorted(self.by_commander.items())
+        }
+        out["win_by_commander"] = _score_by(self.by_commander)
+        out["win_by_enemy_commander"] = _score_by(self.by_enemy_commander)
         return out
+
+
+def _score_by(tallies: dict[str, list[int]]) -> dict[str, float]:
+    """``(wins + draws / 2) / episodes`` per key of ``[wins, draws, losses]`` tallies."""
+    return {
+        key: (win + 0.5 * draw) / (win + draw + loss)
+        for key, (win, draw, loss) in sorted(tallies.items())
+    }
 
 
 def episode_class(roster: Roster, learner_team: int) -> str:
@@ -1119,10 +1217,27 @@ class SpikeTrainer:
             self._make_optimisers()
             write_config(config, run_dir / "config.yaml")
         self.env_seed = config.seed + ENV_SEED_STRIDE * self.next_update
-        sampler = None
+        sampler: Sampler | None = None
         if config.rosters:
             sampler = make_sampler(
                 resolve_distribution(config.roster_distribution()), self.env_seed
+            )
+        # Commander stable (module docstring): its ids, and the learned networks.
+        self.commander_ids: tuple[str, ...] = ()
+        self.learned_commanders: list[tuple[int, CommanderActor]] = []
+        if config.commander_stable:
+            if sampler is None:
+                raise ValueError("commander_stable needs a rosters preset")
+            stable = resolve_stable(config.commander_stable, config.commander_weights)
+            sampler = StableSampler(sampler, stable, self.env_seed)
+            self.commander_ids = stable.ids
+            self.learned_commanders = stable.learned()
+            print(
+                "commander stable: "
+                + ", ".join(
+                    f"{label} {w:.3f}" for label, w in zip(stable.ids, stable.weights)
+                ),
+                flush=True,
             )
         self.env = RustVecEnv(
             config.assets_dir,
@@ -1139,6 +1254,10 @@ class SpikeTrainer:
         )
         self.n_envs, self.n_ships = self.env.n_envs, self.env.n_ships
         self.rows = self.n_envs * self.n_ships
+        # Each env's team 0 and team 1 commander, as an index into the stable.
+        self.side_commander = np.full((self.n_envs, 2), NOT_IN_STABLE, dtype=np.int64)
+        self._all_envs = np.ones(self.n_envs, dtype=np.bool_)
+        self._note_commanders(np.arange(self.n_envs))
         self.hull_names = hull_names_by_id(Path(config.assets_dir))
         self.capital_ids = np.asarray(
             capital_hull_ids(Path(config.assets_dir)), dtype=np.int64
@@ -1191,7 +1310,9 @@ class SpikeTrainer:
         self._collected = range(0)
         for _ in range(config.env_warmup_steps):
             self.env.scripted_actions()
-            self.env.step()
+            self._decide_commanders()
+            _, _, dones, _ = self.env.step()
+            self._note_commanders(np.flatnonzero(dones))
 
     @property
     def team(self) -> NDArray[np.int8]:
@@ -1279,6 +1400,27 @@ class SpikeTrainer:
         self._draw_learner_sides(match_envs)
         self.learner_team[drill_envs] = 0
         self._note_new_matches(envs)
+
+    def _note_commanders(self, envs: NDArray[np.integer]) -> None:
+        """Read ``envs``' current matches' stable commanders into
+        ``side_commander`` (no-op without a stable)."""
+        if not self.commander_ids:
+            return
+        index = {label: k for k, label in enumerate(self.commander_ids)}
+        for i in envs:
+            ids = self.env.rosters[int(i)].commander_ids
+            self.side_commander[int(i)] = [
+                index[label] if label else NOT_IN_STABLE for label in ids
+            ]
+
+    def _decide_commanders(self) -> int:
+        """Submit the learned commanders' due decisions before the next env step;
+        returns how many (0 without learned commanders)."""
+        if not self.learned_commanders:
+            return 0
+        return decide_learned(
+            self.env, self.side_commander, self.learned_commanders, self._all_envs
+        )
 
     def _make_optimisers(self) -> None:
         start, mult = self.new_input_start, self.config.new_input_lr_mult
@@ -1580,6 +1722,7 @@ class SpikeTrainer:
             store.log_prob[b, policy_np] = out.log_prob.numpy()
             store.values[b, policy_np] = values.numpy()
             env.actions[...] = actions.reshape(n_envs, n_ships, ACTION_WIDTH)
+            tally.commander_decisions += self._decide_commanders()
             rosters = list(env.rosters)
             _, rewards, dones, info = env.step()
             self.credit.record_step(
@@ -1612,7 +1755,9 @@ class SpikeTrainer:
                         episode_class(roster, learner_team),
                         roster.n_ships,
                         learner_team,
+                        (commander_label(roster, 0), commander_label(roster, 1)),
                     )
+                self._note_commanders(done_envs)
                 self.opponents.record_results(done_envs, info.winner, self.learner_team)
                 if self.drills_on:
                     self._start_new_matches_with_drills(done_envs, update)

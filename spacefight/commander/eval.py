@@ -25,10 +25,11 @@ import rlf_sim
 import torch
 from numpy.typing import NDArray
 
-from spacefight.commander.io import CommanderInputs, check_sim_layout
+from spacefight.commander.decide import decide_learned
+from spacefight.commander.io import check_sim_layout
 from spacefight.commander.pilots import LIVE_PILOTS, PilotStable, live_pilot_checkpoints
-from spacefight.commander.policy import CommanderActor, act, load_commander
-from spacefight.commander.train import FEATURE_KEYS, LEARNED, MISSIONS
+from spacefight.commander.policy import CommanderActor, load_commander
+from spacefight.commander.train import LEARNED, MISSIONS
 from spacefight.env.rosters import (
     DEATHMATCH,
     RANDOM,
@@ -186,24 +187,7 @@ def play_matches(
     end_reason = np.zeros(n, dtype=np.int64)
     max_steps = int(time_limit * 30) + 4
     for _ in range(max_steps):
-        for t in (0, 1):
-            due = np.asarray(env.raw.commander_due(t), dtype=bool) & running
-            if not due.any():
-                continue
-            feats = None
-            for k, actor in learned:
-                rows = np.flatnonzero(due & (side_commander[:, t] == k))
-                if rows.size == 0:
-                    continue
-                if feats is None:
-                    feats = env.raw.commander_features(t)
-                x = CommanderInputs.from_numpy(
-                    {key: np.asarray(feats[key])[rows] for key in FEATURE_KEYS}
-                )
-                actions, _ = act(actor, x)
-                env.raw.submit_commander_actions(
-                    t, rows.astype(np.int64), actions.numpy().astype(np.int32)
-                )
+        decide_learned(env, side_commander, learned, running)
         _, _, dones, info = env.step(stable.actions(env))
         ending = running & dones
         winner[ending] = np.asarray(info.winner)[ending]
