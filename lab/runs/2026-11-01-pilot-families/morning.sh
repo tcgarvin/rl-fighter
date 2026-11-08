@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# The morning after a night of pilot families (plan.md step 5): drill evals on each arm's
-# latest checkpoint, the members' records and drill results, a round robin seeded with the
-# previous phase's pairs (only new pairs are played), and the report with shadow culls.
-# It archives nothing: who is archived for failing the gate is decided when reading the
-# report. Re-running skips finished drill evals, members, drill records and pairs.
+# The morning after a night of pilot families: drill evals on each arm's latest
+# checkpoint (a report; the gate archives nobody since 2026-11-08), the members' records and
+# drill results, then wins above replacement (WAR) in live-like matches for every pilot the
+# live page can pick plus tonight's three, and the report with WAR shadow culls. It
+# archives nothing. Re-running skips finished drill evals, members, drill records and WAR
+# chunks. Nights 1 and 2 played a round robin here instead (see git history).
 #
-#   PHASE=second-night nohup lab/runs/2026-11-01-pilot-families/morning.sh \
+#   PHASE=third-night nohup lab/runs/2026-11-01-pilot-families/morning.sh \
 #       > lab/runs/2026-11-01-pilot-families/morning.out 2>&1 &
 #
-# Env: PHASE (required), PREV (first-night; empty starts the round robin afresh), DATE
-# (today), ARMS (fighters followers fighters_pay1), THREADS (12), N_DRILLS (256 per kind),
-# N_PER_MISSION (240), DEATHMATCH_ROSTERS (24). The sizes must match PREV's config.json for
-# its pairs to count. For a rehearsal: RUN (the run dir, e.g. its smoke/), SEASON (a copy
-# of the season), MEMBERS (PREV's members, which tonight's arms join).
+# Env: PHASE (required), DATE (today), ARMS (fighters followers fighters_pay1), THREADS
+# (14), N_DRILLS (256 per kind), N_PER_MISSION (1440, WAR; about +-3 wins per 100),
+# MEMBERS (the pilots already rated; tonight's arms join them). For a rehearsal: RUN (the
+# run dir, e.g. its smoke/), SEASON (a copy of the season).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
@@ -21,18 +21,16 @@ HERE=${RUN:-lab/runs/2026-11-01-pilot-families}
 PY=.venv/bin/python
 SEASON=${SEASON:-lab/population/2026-11-sim6}
 PHASE=${PHASE:?set PHASE, e.g. PHASE=second-night}
-PREV=${PREV-first-night}
 DATE=${DATE:-$(date +%F)}
 ARMS=${ARMS:-"fighters followers fighters_pay1"}
-THREADS=${THREADS:-12}
+THREADS=${THREADS:-14}
 N_DRILLS=${N_DRILLS:-256}
-N_PER_MISSION=${N_PER_MISSION:-240}
-DEATHMATCH_ROSTERS=${DEATHMATCH_ROSTERS:-24}
+N_PER_MISSION=${N_PER_MISSION:-1440}
 export OMP_NUM_THREADS=$THREADS
-# The members of PREV's round robin; tonight's arms join them.
-FIRST_NIGHT=script,f995_701,f995_400,f99_696,fighters_506,followers_513,hide_644
-FIRST_NIGHT=$FIRST_NIGHT,reward_300,scratch_417,transit_300,v1,w1_400
-MEMBERS=${MEMBERS:-$FIRST_NIGHT}
+# The ten live pilots and transit_300 (WAR 2026-11-08-live-eleven); tonight's arms join them.
+RATED=f995_701,fighters_506,fighters_959,fighters_pay1_462,followers_513,followers_955
+RATED=$RATED,transit_300,f99_696,f995_400,hide_644,reward_300
+MEMBERS=${MEMBERS:-$RATED}
 
 latest_update() {
     local found
@@ -45,26 +43,26 @@ latest_update() {
 # Parent, its update at the fork, and the settings changed from it, per arm.
 arm_parent() {
     case $1 in
-        fighters) echo "fighters_506 506" ;;
-        followers) echo "followers_513 513" ;;
-        fighters_pay1) echo "f995_701 701" ;;
+        fighters) echo "fighters_959 959" ;;
+        followers) echo "followers_955 955" ;;
+        fighters_pay1) echo "fighters_pay1_462 462" ;;
         *) echo "unknown arm $1" >&2; exit 2 ;;
     esac
 }
 arm_settings() {
-    local added='"pool_seed_added":["fighters_506","followers_513"]'
+    local added='"pool_seed_added":["fighters_959","followers_955","fighters_pay1_462","f99_696"],"commander_stable":["live"]'
     case $1 in
-        fighters) echo "{\"drill_share\":0.25,$added}" ;;
-        followers) echo "{$added}" ;;
-        fighters_pay1) echo '{"rosters":"pilots_v1","gamma":0.995,"lr_decay":false,"beta_start":0.0,"beta_end":0.0,"order_reward_weight":1.0,"drill_share":0.1,"commander_p":0.333,"enemy_sampling":"pfsp"}' ;;
+        fighters) echo "{\"drill_share\":0.35,\"drill_weights\":[2,1,1],$added}" ;;
+        followers) echo "{\"drill_share\":0.35,\"drill_weights\":[3,1,1],$added}" ;;
+        fighters_pay1) echo "{\"drill_share\":0.25,\"drill_weights\":[2,1,1],$added}" ;;
         *) echo "unknown arm $1" >&2; exit 2 ;;
     esac
 }
 arm_note() {
     case $1 in
-        fighters) echo "Night 2: fighters_506's line continued with drills 0.25." ;;
-        followers) echo "Night 2: followers_513's line continued, the first night's two in the pool." ;;
-        fighters_pay1) echo "Night 2: night 1's fighters replayed at order pay 1." ;;
+        fighters) echo "Night 3: fighters_959's line under the learned commanders, drills 0.35 weighted to go-to." ;;
+        followers) echo "Night 3: followers_955's line under the learned commanders, drills 0.35, go-to three times the others." ;;
+        fighters_pay1) echo "Night 3: fighters_pay1_462's line under the learned commanders, drills 0.25 weighted to go-to." ;;
     esac
 }
 
@@ -106,23 +104,12 @@ for arm in $ARMS; do
     fi
 done
 
-results=$SEASON/round_robin/$PHASE
-if [[ ! -d $results && -n $PREV ]]; then
-    mkdir -p "$results/pairs"
-    cp "$SEASON/round_robin/$PREV/config.json" "$results/"
-    cp "$SEASON/round_robin/$PREV/pairs/"*.json "$results/pairs/"
-fi
+war=$SEASON/war/$PHASE
 members=$MEMBERS$(printf ',%s' "${new_ids[@]}")
-echo "$(date +%H:%M:%S) round robin: $members"
-"$PY" -m spacefight.population round-robin --season "$SEASON" --out "$results" \
-    --members "$members" --n-per-mission "$N_PER_MISSION" \
-    --deathmatch-rosters "$DEATHMATCH_ROSTERS" --n-threads "$THREADS"
-
-if [[ -f $results/.recorded ]]; then
-    echo "ratings for $PHASE already recorded"
-else
-    "$PY" -m spacefight.population report --season "$SEASON" --results "$results" \
-        --phase "$PHASE" --date "$DATE" --record
-    touch "$results/.recorded"
-fi
+echo "$(date +%H:%M:%S) WAR: $members"
+"$PY" -m spacefight.population war --season "$SEASON" --out "$war" \
+    --members "$members" --commanders live --n-per-mission "$N_PER_MISSION" \
+    --threads "$THREADS"
+"$PY" -m spacefight.population report --season "$SEASON" --war "$war/war.json" \
+    --phase "$PHASE" --date "$DATE"
 echo "$(date +%H:%M:%S) done: morning"

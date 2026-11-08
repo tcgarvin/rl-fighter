@@ -6,6 +6,9 @@
 # Night 1 (2026-11-01): fighters, followers, scratch. Night 2: fighters resumes with drills
 # 0.25, followers resumes unchanged, both with fighters_506 and followers_513 added to the
 # pool; fighters_pay1 replays night 1's fighters at order pay 1. scratch is retired.
+# Night 3 (2026-11-08): all three resume under the live commander stable (the script and
+# the three learned commanders), with more drills weighted to go-to, and night 2's three
+# and f99_696 (top by WAR) added to the pool.
 #
 #   DEADLINE="05:15 tomorrow" nohup lab/runs/2026-11-01-pilot-families/run.sh \
 #       > lab/runs/2026-11-01-pilot-families/run.out 2>&1 &
@@ -29,7 +32,12 @@ W1_400=$MAIN/lab/runs/2026-10-31-order-pilot/w1/checkpoints/ppo_bc_400.pt
 V1=$MAIN/lab/runs/2026-10-30-fleet-pilot/arm_warm/checkpoints/ppo_bc_400.pt
 FIGHTERS_506=$MAIN/$HERE/fighters/checkpoints/ppo_bc_506.pt
 FOLLOWERS_513=$MAIN/$HERE/followers/checkpoints/ppo_bc_513.pt
-for f in "$F995" "$TRANSIT" "$R" "$W1_400" "$V1" "$FIGHTERS_506" "$FOLLOWERS_513"; do
+FIGHTERS_959=$MAIN/$HERE/fighters/checkpoints/ppo_bc_959.pt
+FOLLOWERS_955=$MAIN/$HERE/followers/checkpoints/ppo_bc_955.pt
+PAY1_462=$MAIN/$HERE/fighters_pay1/checkpoints/ppo_bc_462.pt
+F99_696=$MAIN/lab/runs/2026-11-01-fighters-v2/f99/checkpoints/ppo_bc_696.pt
+for f in "$F995" "$TRANSIT" "$R" "$W1_400" "$V1" "$FIGHTERS_506" "$FOLLOWERS_513" \
+    "$FIGHTERS_959" "$FOLLOWERS_955" "$PAY1_462" "$F99_696"; do
     [[ -f $f ]] || { echo "missing checkpoint $f" >&2; exit 2; }
 done
 
@@ -54,6 +62,9 @@ deadline=$(date -d "$DEADLINE" +%s)
 # night 1's so that order pay is the only difference from night 1's fighters.
 POOL1="[$F995,$TRANSIT,$R,$W1_400,$V1]"
 POOL2="[$F995,$TRANSIT,$R,$W1_400,$V1,$FIGHTERS_506,$FOLLOWERS_513]"
+POOL3="[$F995,$TRANSIT,$R,$W1_400,$V1,$FIGHTERS_506,$FOLLOWERS_513,$FIGHTERS_959,$FOLLOWERS_955,$PAY1_462,$F99_696]"
+# Night 3: every match that shows orders draws each side's commander from the live stable.
+LIVE_CMD="--set commander_stable=[live]"
 MIXED_BANDS='[[0,0.2,0.4,0.4]]'
 SCRATCH_BANDS='[[0,0.5,0.5,0.0]]'
 
@@ -68,9 +79,10 @@ arm_init() {
 }
 arm_args() {
     case $1 in
-        fighters) echo "--set order_reward_weight=3.0 --set opponent_bands=$MIXED_BANDS --set enemy_sampling=pfsp --set pool_seed=$POOL2 --set roster_overrides={\"drill_share\":0.25,\"commander_p\":0.333}" ;;
-        followers) echo "--set order_reward_weight=1.0 --set opponent_bands=$MIXED_BANDS --set enemy_sampling=pfsp --set pool_seed=$POOL2 --set roster_overrides={\"drill_share\":0.25,\"commander_p\":0.667}" ;;
-        fighters_pay1) echo "--set order_reward_weight=1.0 --set opponent_bands=$MIXED_BANDS --set enemy_sampling=pfsp --set pool_seed=$POOL1 --set roster_overrides={\"drill_share\":0.1,\"commander_p\":0.333}" ;;
+        # Night 3. Night 2's settings are in plan.md and config_before_<N>.yaml.
+        fighters) echo "--set order_reward_weight=3.0 --set opponent_bands=$MIXED_BANDS --set enemy_sampling=pfsp --set pool_seed=$POOL3 $LIVE_CMD --set roster_overrides={\"drill_share\":0.35,\"drill_weights\":[2,1,1],\"commander_p\":0.333}" ;;
+        followers) echo "--set order_reward_weight=1.0 --set opponent_bands=$MIXED_BANDS --set enemy_sampling=pfsp --set pool_seed=$POOL3 $LIVE_CMD --set roster_overrides={\"drill_share\":0.35,\"drill_weights\":[3,1,1],\"commander_p\":0.667}" ;;
+        fighters_pay1) echo "--set order_reward_weight=1.0 --set opponent_bands=$MIXED_BANDS --set enemy_sampling=pfsp --set pool_seed=$POOL3 $LIVE_CMD --set roster_overrides={\"drill_share\":0.25,\"drill_weights\":[2,1,1],\"commander_p\":0.333}" ;;
         # Night 1 only.
         scratch) echo "--set order_reward_weight=1.0 --set actor_lr=0.0003 --set opponent_bands=$SCRATCH_BANDS --set pool_seed=$POOL1 --set roster_overrides={\"drill_share\":0.1,\"commander_p\":0.333}" ;;
         *) echo "unknown arm $1" >&2; exit 2 ;;

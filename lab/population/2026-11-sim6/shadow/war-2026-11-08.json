@@ -1,0 +1,95 @@
+{
+ "schema": "rlf.population.shadow_war/1",
+ "phase": "war-2026-11-08",
+ "date": "2026-11-08",
+ "source": "lab/population/2026-11-sim6/war/2026-11-08-live-eleven/war.json",
+ "standings": [
+  {
+   "member": "f995_701",
+   "family": "fighters",
+   "founder": "f995_701",
+   "war": 19.339901430994395,
+   "ci_low": 16.369822057339235,
+   "ci_high": 22.218631187604675,
+   "se": 1.587089854579607,
+   "matches": 2446
+  },
+  {
+   "member": "fighters_pay1_462",
+   "family": "fighters",
+   "founder": "f995_701",
+   "war": 18.7380810817453,
+   "ci_low": 15.519918808349269,
+   "ci_high": 22.246323191961793,
+   "se": 1.6394872052543374,
+   "matches": 2415
+  },
+  {
+   "member": "fighters_506",
+   "family": "fighters",
+   "founder": "f995_701",
+   "war": 16.808788556462435,
+   "ci_low": 13.118409245474902,
+   "ci_high": 19.793452489755385,
+   "se": 1.6538262514829025,
+   "matches": 2420
+  },
+  {
+   "member": "fighters_959",
+   "family": "fighters",
+   "founder": "f995_701",
+   "war": 16.788491357701222,
+   "ci_low": 13.517063280328996,
+   "ci_high": 19.752010030615963,
+   "se": 1.5473842850421122,
+   "matches": 2369
+  },
+  {
+   "member": "followers_955",
+   "family": "followers",
+   "founder": "transit_300",
+   "war": 14.813166325294658,
+   "ci_low": 11.423913899243422,
+   "ci_high": 18.002562472147535,
+   "se": 1.6499823336699957,
+   "matches": 2418
+  },
+  {
+   "member": "followers_513",
+   "family": "followers",
+   "founder": "transit_300",
+   "war": 8.52380896737511,
+   "ci_low": 5.338093578300869,
+   "ci_high": 11.533401491682746,
+   "se": 1.654494104055126,
+   "matches": 2464
+  },
+  {
+   "member": "transit_300",
+   "family": "followers",
+   "founder": "transit_300",
+   "war": 0.9102998395797453,
+   "ci_low": -2.4470264631669263,
+   "ci_high": 4.07100745874145,
+   "se": 1.6917335161315346,
+   "matches": 2447
+  }
+ ],
+ "culls": [],
+ "protected": [
+  {
+   "member": "script",
+   "reason": "replacement level: its WAR is 0 by definition"
+  }
+ ],
+ "unmeasured": [],
+ "founder_counts": {
+  "f995_701": 4,
+  "transit_300": 3
+ },
+ "leaves_no_pilot": false,
+ "constants": {
+  "ACTIVE_CAP": 10,
+  "FOUNDER_CAP": 4
+ }
+}

@@ -144,6 +144,49 @@ improved only slowly, so the plan's fallback is separate skill networks
 (`docs/PILOT_TRAINING.md` section 4). For `followers`, go-to falls each night that combat
 rises, so it may need go-to drills weighted up, or a go-to bar it trains against.
 
+## Night 3 (prepared 2026-11-08)
+
+The owner's plan: pilots train under the learned commanders that went live this morning
+(`lab/runs/2026-11-08-commander-1`), with more drills weighted to go-to, and the morning
+judges them by wins above replacement (WAR) in live-like matches instead of the drill
+gate and round robin. All three lines resume.
+
+| Arm | Starts from | Drills | Go-to : attack : defend | Commander | Order pay |
+|---|---|---|---|---|---|
+| `fighters` | its update 959 | **0.35** (0.25) | **2 : 1 : 1** | 0.22 | 3 |
+| `followers` | its update 955 | **0.35** (0.25) | **3 : 1 : 1** | 0.43 | 1 |
+| `fighters_pay1` | its update 462 | **0.25** (0.10) | **2 : 1 : 1** | 0.25 | 1 |
+
+- **Commanders:** every non-drill match that shows orders draws each side's commander from
+  the live stable (the script, `c1_shaped`, `c1_outcome`, `c1_shaped_s1`), as the live page
+  does (`commander_stable=[live]`). Hidden-orders matches and drills are unchanged.
+- **Pool seeds:** night 2's plus `fighters_959`, `followers_955`, `fighters_pay1_462` and
+  `f99_696`, the top pilot by WAR.
+- **Why go-to:** it is every line's weakest order. `followers` lost go-to two nights
+  running as its combat rose, so it gets the heaviest weighting.
+
+**WAR before the night** (`lab/population/2026-11-sim6/war/2026-11-08-live-eleven`, 4,320
+matches, the ten live pilots and `transit_300` under the live commander stable): `f99_696`
++20.6, `f995_701` +19.3, `fighters_pay1_462` +18.7, `f995_400` +18.1, `fighters_506` and
+`fighters_959` +16.8, `followers_955` +14.8, `reward_300` +14.3, `hide_644` +8.7,
+`followers_513` +8.5, `transit_300` +0.9 (about ±3). The live list is already the top ten.
+The WAR shadow cull takes nobody.
+
+**Morning, unattended (`morning.sh`):** drill evals on each arm's latest checkpoint (a
+report; the gate archives nobody), the three as members, WAR at 1,440 matches per mission
+for the eleven above plus the three, and the report with WAR shadow culls. About 1.5 hours.
+
+```bash
+cd ~/code/rl-fighter && DEADLINE="07:00" PHASE=third-night nohup setsid bash -c \
+  'lab/runs/2026-11-01-pilot-families/run.sh >> lab/runs/2026-11-01-pilot-families/run.out 2>&1 &&
+   lab/runs/2026-11-01-pilot-families/morning.sh > lab/runs/2026-11-01-pilot-families/morning.out 2>&1' \
+  > /dev/null 2>&1 &
+```
+
+Checked before launch: `SMOKE=1 N_UPDATES=8 run.sh` (all three resumed with the new
+settings, learned commander decisions reached the sim) and `morning.sh` rehearsed end to
+end on the smoke checkpoints against a copy of the season (WAR at 24 per mission).
+
 ## Arms (night 1)
 
 All arms: preset `pilots_v1`, discount 0.995 with order pay following it, no script pull,
