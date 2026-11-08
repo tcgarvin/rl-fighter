@@ -1,0 +1,15 @@
+11:00:56 eval shaped_s1_v_scripted
+11:00:56 eval shaped_v_scripted
+11:10:53 eval outcome_v_scripted
+11:11:11 eval random_v_scripted
+11:21:24 eval shaped_v_shaped_s1
+11:22:55 eval shaped_v_outcome
+11:30:35 eval shaped_s1_v_outcome
+   outcome/commander_328 v scripted                 0.548  (deathma 0.54 carrier 0.56 convoy_ 0.54)
+                  random v scripted                 0.543  (deathma 0.51 carrier 0.57 convoy_ 0.55)
+ shaped_s1/commander_324 v outcome/commander_328    0.499  (deathma 0.49 carrier 0.49 convoy_ 0.52)
+ shaped_s1/commander_324 v scripted                 0.528  (deathma 0.54 carrier 0.56 convoy_ 0.49)
+    shaped/commander_327 v outcome/commander_328    0.497  (deathma 0.52 carrier 0.52 convoy_ 0.46)
+    shaped/commander_327 v scripted                 0.557  (deathma 0.49 carrier 0.56 convoy_ 0.62)
+    shaped/commander_327 v shaped_s1/commander_324  0.516  (deathma 0.53 carrier 0.49 convoy_ 0.52)
+11:35:05 done: morning

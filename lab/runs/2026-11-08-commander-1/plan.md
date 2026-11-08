@@ -58,3 +58,10 @@ cd ~/code/rl-fighter && DEADLINE="07:30" nohup setsid bash -c \
 
 Checked before launch: `SMOKE=1 run.sh` (all three arms train, snapshot and checkpoint),
 `morning.sh` rehearsed on the smoke checkpoints, full pytest (746 passed), `scripts/check.sh`.
+
+## Outcome (2026-11-08)
+
+About 325 updates each by 11:00. Against the scripted commander (576 matches, ±0.04):
+`shaped` 0.56, `outcome` 0.55, `shaped_s1` 0.53, random orders 0.54; the arms are even
+with each other. All three joined the live stable as `c1_shaped`, `c1_outcome`,
+`c1_shaped_s1` and were deployed at about 12:30. Write-up: `results.md`.

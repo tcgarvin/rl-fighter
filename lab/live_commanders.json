@@ -1,11 +1,38 @@
 {
  "schema": "rlf.live_commanders/1",
- "entry": "",
+ "entry": "2026-11-08-commander-1",
  "commanders": [
   {
    "id": "scripted",
    "kind": "scripted",
    "note": "The sim's own rules, written by hand: hold back a defending squad, send a strike squad at the enemy carrier or the lead freighter, launch to keep a wing in space. It stays in the stable until learned commanders beat it."
+  },
+  {
+   "id": "c1_shaped",
+   "kind": "learned",
+   "note": "Learned overnight on 2026-11-08, rewarded a little whenever the balance of ships swung its way and for winning. It flies its own launches and carrier; about level with the script.",
+   "checkpoint": "lab/runs/2026-11-08-commander-1/shaped/checkpoints/commander_327.pt",
+   "sha256": "e847aff72c668781b58ec0a4ee7d037f03dcf32a036abd28d48ab19a9c943828",
+   "url": "https://storage.tcgarvin.com/rl-fighter/commanders/c1_shaped/e847aff72c668781b58ec0a4ee7d037f03dcf32a036abd28d48ab19a9c943828.pt",
+   "update": 327
+  },
+  {
+   "id": "c1_outcome",
+   "kind": "learned",
+   "note": "Learned overnight on 2026-11-08 from wins and losses alone, with no reward along the way. About level with the script and with c1_shaped.",
+   "checkpoint": "lab/runs/2026-11-08-commander-1/outcome/checkpoints/commander_328.pt",
+   "sha256": "25026a0bc111079191addae08a43ca8dca9a5ef03620993f5e140d2d70481749",
+   "url": "https://storage.tcgarvin.com/rl-fighter/commanders/c1_outcome/25026a0bc111079191addae08a43ca8dca9a5ef03620993f5e140d2d70481749.pt",
+   "update": 328
+  },
+  {
+   "id": "c1_shaped_s1",
+   "kind": "learned",
+   "note": "The same training as c1_shaped from another random start, to show how much two runs differ. About level with the script.",
+   "checkpoint": "lab/runs/2026-11-08-commander-1/shaped_s1/checkpoints/commander_324.pt",
+   "sha256": "4c42860da1090e20083eef91838b36a8bddc11a6020ea90b94f491fecb3f7fec",
+   "url": "https://storage.tcgarvin.com/rl-fighter/commanders/c1_shaped_s1/4c42860da1090e20083eef91838b36a8bddc11a6020ea90b94f491fecb3f7fec.pt",
+   "update": 324
   }
  ]
 }

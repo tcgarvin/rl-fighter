@@ -1,3 +1,6 @@
 {
- "scripted": "The sim's own rules, written by hand: hold back a defending squad, send a strike squad at the enemy carrier or the lead freighter, launch to keep a wing in space. It stays in the stable until learned commanders beat it."
+ "scripted": "The sim's own rules, written by hand: hold back a defending squad, send a strike squad at the enemy carrier or the lead freighter, launch to keep a wing in space. It stays in the stable until learned commanders beat it.",
+ "c1_shaped": "Learned overnight on 2026-11-08, rewarded a little whenever the balance of ships swung its way and for winning. It flies its own launches and carrier; about level with the script.",
+ "c1_shaped_s1": "The same training as c1_shaped from another random start, to show how much two runs differ. About level with the script.",
+ "c1_outcome": "Learned overnight on 2026-11-08 from wins and losses alone, with no reward along the way. About level with the script and with c1_shaped."
 }

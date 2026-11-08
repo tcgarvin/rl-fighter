@@ -19,15 +19,16 @@
       <header class="pilot-head commander-head">
         <p class="kicker">How the commander works</p>
         <h1>A second network gives the orders</h1>
-        <p class="commander-status"><span class="commander-status__dot"></span>In training, not yet on the live page</p>
+        <p class="commander-status"><span class="commander-status__dot"></span>On the live page since 2026-11-08, about level with the script</p>
         <p class="lede">
           Above the pilots sits a commander: a network that runs a whole team and decides, once a
           second, which ships fly together, what each squad should do, where the carrier
           goes and when to launch from it. It never touches a thruster. Its orders reach
           the pilots through their observations, and the pilots do the flying. Unlike the
           pilot, it reads the battle with <strong>attention</strong>, so it can point at
-          one particular ship and say "attack that one" or "guard this one". The
-          commanders on the live page today are still the sim's script.
+          one particular ship and say "attack that one" or "guard this one". On the
+          live page each side draws its commander from four: the sim's script and three
+          learned ones (<a href="/notebook/#2026-11-08-commander-1">their first night</a>).
         </p>
         <dl class="pilot-stats">
           <div><dt>inputs</dt><dd><span data-fact="io.max_entities">20</span> × <span data-fact="io.entity_dim">40</span> + <span data-fact="io.global_dim">53</span></dd></div>
@@ -924,10 +925,12 @@
           <h2>What it isn't (yet)</h2>
           <ul>
             <li>
-              <strong>On the live page.</strong> It is in training. The commanders you see
-              there are the sim's script (<a href="/?commands=1"><code>?commands=1</code></a>
-              draws their orders). Once a learned commander beats the script, it will be
-              exported to the browser like the pilots and run beside them.
+              <strong>Better than the script.</strong> After one night the learned
+              commanders are about level with it, and so is one that gives random orders:
+              most of today's pilots ignore orders, so orders barely change a match. They
+              run on the live page beside the script all the same
+              (<a href="/?commands=1"><code>?commands=1</code></a> draws their orders), and
+              the next pilots are trained to follow.
             </li>
             <li>
               <strong>In charge of the transports.</strong> Convoy transports stay on their

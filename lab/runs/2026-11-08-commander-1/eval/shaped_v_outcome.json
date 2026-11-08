@@ -1,0 +1,57 @@
+{
+ "schema": "rlf.eval.commander/1",
+ "a": "shaped/commander_327",
+ "b": "outcome/commander_328",
+ "seed": 20261107,
+ "pilots": [
+  "fighters_pay1_462",
+  "fighters_506",
+  "fighters_959",
+  "f995_701",
+  "f99_696",
+  "f995_400",
+  "followers_955",
+  "followers_513",
+  "hide_644",
+  "reward_300"
+ ],
+ "missions": {
+  "deathmatch": {
+   "n": 192,
+   "score_a": 0.515625,
+   "draw_rate": 0.0,
+   "a_on_team0": 0.4583333333333333,
+   "a_on_team1": 0.5729166666666666,
+   "end_reasons": {
+    "1": 191,
+    "2": 1
+   },
+   "secs": 118.4
+  },
+  "carrier_battle": {
+   "n": 192,
+   "score_a": 0.515625,
+   "draw_rate": 0.0,
+   "a_on_team0": 0.46875,
+   "a_on_team1": 0.5625,
+   "end_reasons": {
+    "3": 192
+   },
+   "secs": 236.1
+  },
+  "convoy_escort": {
+   "n": 192,
+   "score_a": 0.4583333333333333,
+   "draw_rate": 0.0,
+   "a_on_team0": 0.375,
+   "a_on_team1": 0.5416666666666666,
+   "end_reasons": {
+    "1": 60,
+    "4": 20,
+    "5": 112
+   },
+   "secs": 198.3
+  }
+ },
+ "score_a": 0.49652777777777773
+}
