@@ -62,14 +62,15 @@ def random_actions(rng, shape):
 def test_module_constants():
     assert rlf_sim.OBS_DIM == OBS_DIM
     assert rlf_sim.ACTION_WIDTH == ACTION_WIDTH
-    assert rlf_sim.SIM_VERSION == 6
-    assert list(rlf_sim.PILOT_COMPAT_VERSIONS) == [3, 4, 5, 6]
+    assert rlf_sim.SIM_VERSION == 7
+    assert list(rlf_sim.PILOT_COMPAT_VERSIONS) == [3, 4, 5, 6, 7]
     assert rlf_sim.pilot_compatible(3) and not rlf_sim.pilot_compatible(2)
     assert rlf_sim.PILOT_OBS_DIMS == {
         3: OBS_DIM_V4,
         4: OBS_DIM_V4,
         5: OBS_DIM_V5,
         6: OBS_DIM,
+        7: OBS_DIM,
     }
     assert rlf_sim.OBS_DIM_V4 == OBS_DIM_V4
     assert rlf_sim.OBS_DIM_V5 == OBS_DIM_V5

@@ -136,6 +136,26 @@ pub struct CollisionDamage {
     pub shield: f32,
 }
 
+/// v7: apply `amount` velocity-change crash damage to `ship` at body-frame `bearing` on
+/// `tick` (SIM_SPEC §5.5): straight to the hull whether or not a shield is up, times
+/// the hull's `impact` arc. Returns the hull damage dealt. Sets `last_hit_tick` when
+/// it deals any; records no `HitRecord`, emits no event, never flips `alive`.
+pub fn apply_crash_hull_damage(
+    ship: &mut Ship,
+    hull: &HullDef,
+    amount: f32,
+    bearing: f32,
+    tick: u32,
+) -> f32 {
+    if amount <= 0.0 {
+        return 0.0;
+    }
+    ship.last_hit_tick = tick;
+    let dealt = amount * impact_mult(hull, bearing);
+    ship.hp -= dealt;
+    dealt
+}
+
 /// Apply `amount` collision damage to `ship` at body-frame `bearing` on `tick`
 /// (SIM_SPEC §5.5). The same shield-then-hull rule as `apply_damage` (a raised shield
 /// takes it all, absorption scaled by `1 / (0.7 + 0.3 * P_s)`, no overflow), but the

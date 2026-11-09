@@ -64,6 +64,7 @@ PILOT_OBS_DIMS: dict[int, int] = {
     4: OBS_DIM,
     5: ORDER_OBS_DIM,
     6: V6_OBS_DIM,
+    7: V6_OBS_DIM,  # v7 changed crash damage only
 }
 ACTION_WIDTH = 21
 N_LOGITS = 61

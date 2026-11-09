@@ -8,7 +8,9 @@
 //! Every role shares one tick: pick a target, let the role's pilot choose a
 //! body-frame force and a desired heading, override both near the arena edge, turn
 //! with a PD torque, allocate target thrust levels and turn them into rate heads, aim
-//! and fire each turret, pick a power split.
+//! and fire each turret, pick a power split. v7: between the pilot's plan and the
+//! arena override, every strike craft avoids imminent crashes with any ship
+//! (`avoid.rs`).
 //!
 //! Acting through the reaction delay (v2): the action chosen now applies `d + 1`
 //! ticks later, so geometry is evaluated at the state predicted `(d + 1) * DT` ahead
@@ -16,6 +18,7 @@
 //! levels are projected through the queued actions, and fire readiness is checked
 //! for the application tick.
 
+pub mod avoid;
 pub mod capital;
 pub mod commander;
 pub mod fighter;
@@ -31,7 +34,7 @@ use crate::data::{Catalogue, HullDef, WeaponDef, WeaponKind};
 use crate::math::{Vec2, clamp, wrap_angle};
 use crate::physics::{RAMP_STEP, ramp_level};
 use crate::power;
-use crate::state::{MAX_THRUSTERS, Match, NEVER, Ship, ShipIdx};
+use crate::state::{MAX_THRUSTERS, Match, NEVER, NONE, Ship, ShipIdx};
 use crate::turrets::cooldown_after_ticks;
 
 /// Target thrust levels the allocator picks from.
@@ -191,6 +194,7 @@ pub fn act(m: &Match, cat: &Catalogue, ship: ShipIdx) -> ShipAction {
         }
         let me = &predict(me_now, ahead, true);
         let plan = orders::station_manoeuvre(m, cat, me, hull, order);
+        let plan = avoid::avoid(m, cat, me, ahead, NONE, plan);
         let dist = nearest_enemy(m, cat, me.team, me.pos, f32::INFINITY, |_| true)
             .map_or(f32::INFINITY, |e| (e.pos - me.pos).length());
         return steer_and_fight(m, cat, me_now, me, hull, plan, dist, ahead);
@@ -204,6 +208,12 @@ pub fn act(m: &Match, cat: &Catalogue, ship: ShipIdx) -> ShipAction {
         Role::Anchor => gunship::manoeuvre(&eng),
         Role::Carrier | Role::Transport => unreachable!("capital roles returned above"),
     };
+    // The fighter deconflicts a strike-craft target itself (keeping the gun on it); a
+    // capital ship is too big to sidestep late on the RCS, so it is avoided here.
+    let own_deconflict =
+        role == Role::Fighter && !crate::mission::is_capital_ship(cat.hull(target.hull));
+    let skip = if own_deconflict { target.slot } else { NONE };
+    let plan = avoid::avoid(m, cat, me, ahead, skip, plan);
     steer_and_fight(m, cat, me_now, me, hull, plan, eng.dist, ahead)
 }
 

@@ -284,8 +284,8 @@ class MissionResult:
         lines += [
             "",
             "| mission | side | hull | ships | dmg | shield dmg | survival | hit rate "
-            "| engage | outside | engine | passes | fire |",
-            "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+            "| shots | engage | outside | engine | passes | crashes | crash dmg | fire |",
+            "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
         ]
         for m in self.missions.values():
             for label, side in (("a", m.side_a), ("b", m.side_b)):
@@ -293,9 +293,11 @@ class MissionResult:
                     lines.append(
                         f"| {m.mission} | {label} | {hull} | {s.ships} | "
                         f"{s.damage_dealt:.1f} | {s.shield_damage_dealt:.1f} | "
-                        f"{s.survival:.2f} | {s.hit_rate:.3f} | "
+                        f"{s.survival:.2f} | {s.hit_rate:.3f} | {s.shots:.1f} | "
                         f"{s.engagement_rate:.2f} | {s.outside_share:.4f} | "
-                        f"{s.engine_duty:.2f} | {s.passes:.2f} | {s.fire_rate:.3f} |"
+                        f"{s.engine_duty:.2f} | {s.passes:.2f} | "
+                        f"{s.crash_contacts:.2f} | {s.crash_damage_taken:.1f} | "
+                        f"{s.fire_rate:.3f} |"
                     )
         return "\n".join(lines)
 

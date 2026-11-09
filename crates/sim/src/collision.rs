@@ -7,9 +7,12 @@
 //! take no damage. No torque transfer. A closing contact faster than
 //! `COLLISION_FREE_SPEED` damages both (non-static) ships by the excess kinetic energy
 //! of the normal approach, scaled per ship by its `impact` arcs, and emits
-//! `Collision`. No `HitRecord`: collisions credit no shooter.
+//! `Collision`. v7: each ship also takes hull damage, past any shield, for its own
+//! velocity change above `CRASH_DV_FREE`, so a light ship that hits a heavy one (and so
+//! changes velocity far more) pays far more. No `HitRecord`: collisions credit no
+//! shooter.
 
-use crate::damage::{apply_collision_damage, impact_bearing, same_entity};
+use crate::damage::{apply_collision_damage, apply_crash_hull_damage, impact_bearing, same_entity};
 use crate::data::{Catalogue, HullDef};
 use crate::events::Event;
 use crate::math::Vec2;
@@ -22,6 +25,16 @@ pub const RESTITUTION: f32 = 0.2;
 pub const COLLISION_FREE_SPEED: f32 = 10.0;
 /// v3: hull points per joule of excess normal kinetic energy (before impact arcs).
 pub const COLLISION_DAMAGE_PER_J: f32 = 0.002;
+/// v7: a ship's own velocity change (the normal impulse over its mass) up to this many
+/// m/s does no velocity-change damage. The change of a ship that stops against an
+/// immovable wall at the free speed, so the term never fires without the energy term.
+pub const CRASH_DV_FREE: f32 = (1.0 + RESTITUTION) * COLLISION_FREE_SPEED;
+/// v7: hull points per m/s of a ship's own velocity change above `CRASH_DV_FREE`,
+/// before impact arcs. Bypasses shields. A fighter at its 60 m/s cap into a carrier
+/// changes velocity by about 71 m/s: 74 hull points on top of the energy term's 25,
+/// past its 80 at any bearing. Two fighters closing at 60 m/s nose to nose each keep
+/// about 16 of 80.
+pub const CRASH_HULL_PER_DV: f32 = 1.25;
 
 /// Deepest overlapping circle pair of two ships: unit normal from `a` to `b`,
 /// penetration depth, and the contact point (v3): the midpoint between the two
@@ -74,28 +87,38 @@ pub fn collision_base_damage(vn: f32, wa: f32, wb: f32) -> f32 {
     COLLISION_DAMAGE_PER_J * (0.5 * mu * excess * excess)
 }
 
+/// v7 velocity-change damage before impact arcs for a ship whose velocity changed by
+/// `dv` m/s in a collision: `CRASH_HULL_PER_DV * max(0, dv - CRASH_DV_FREE)`.
+pub fn crash_dv_damage(dv: f32) -> f32 {
+    CRASH_HULL_PER_DV * (dv - CRASH_DV_FREE).max(0.0)
+}
+
 /// Positional correction and restitution impulse for one contact. Operations are
 /// evaluated left to right exactly as written in the spec (f32 determinism).
-/// Returns the pre-impulse relative normal speed `vn` (negative = closing).
-fn resolve(a: &mut Ship, wa: f32, b: &mut Ship, wb: f32, c: Contact) -> f32 {
+/// Returns the pre-impulse relative normal speed `vn` (negative = closing) and the
+/// impulse per unit inverse mass `jimp` (0 unless closing): ship `a`'s velocity changes by
+/// `jimp * wa`, `b`'s by `jimp * wb`.
+fn resolve(a: &mut Ship, wa: f32, b: &mut Ship, wb: f32, c: Contact) -> (f32, f32) {
     let w = wa + wb;
     let n = c.normal;
     a.pos -= n * c.pen * wa / w;
     b.pos += n * c.pen * wb / w;
     let vn = (b.vel - a.vel).dot(n);
+    let mut jimp = 0.0;
     if vn < 0.0 {
-        let jimp = -(1.0 + RESTITUTION) * vn / w;
+        jimp = -(1.0 + RESTITUTION) * vn / w;
         a.vel -= n * jimp * wa;
         b.vel += n * jimp * wb;
     }
-    vn
+    (vn, jimp)
 }
 
 impl Match {
     /// Stage 10 (SIM_SPEC §5): resolve every overlapping pair of active ships.
     /// Not-yet-present and dead ships are skipped, as are parent/child pairs.
     /// Damaging contacts add to `collision_damage` / `collision_shield_damage` and
-    /// emit `Collision` (v3).
+    /// emit `Collision` (v3); v7 adds each ship's velocity-change hull damage to its
+    /// `collision_damage`.
     pub fn resolve_collisions(&mut self, cat: &Catalogue) {
         let n = self.ships.len();
         let tick = self.tick;
@@ -116,18 +139,24 @@ impl Match {
                 };
                 // Bearings from the pre-correction poses the contact was found in.
                 let (bear_a, bear_b) = (impact_bearing(a, c.point), impact_bearing(b, c.point));
-                let vn = resolve(a, wa, b, wb, c);
+                let (vn, jimp) = resolve(a, wa, b, wb, c);
                 let base = collision_base_damage(vn, wa, wb);
+                // A ship's velocity change is at most (1 + e) * |vn|, so it passes
+                // CRASH_DV_FREE only when |vn| passes the free speed: no base, no dv term.
                 if base <= 0.0 {
                     continue;
                 }
-                for (ship, hull, bearing) in [(&mut *a, ha, bear_a), (&mut *b, hb, bear_b)] {
+                for (ship, hull, bearing, w) in
+                    [(&mut *a, ha, bear_a, wa), (&mut *b, hb, bear_b, wb)]
+                {
                     if hull.is_static {
                         continue;
                     }
                     let d = apply_collision_damage(ship, hull, base, bearing, tick);
+                    let dv = crash_dv_damage(jimp * w);
+                    let dv_hull = apply_crash_hull_damage(ship, hull, dv, bearing, tick);
                     let s = ship.slot as usize;
-                    self.collision_damage[s] += d.hull;
+                    self.collision_damage[s] += d.hull + dv_hull;
                     self.collision_shield_damage[s] += d.shield;
                 }
                 self.events.push(Event::Collision {

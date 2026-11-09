@@ -38,6 +38,14 @@
 //! missions by design (defend and go-to replace guard and hold, and the scripted
 //! commander's waves fight on arrival), so the v4 mission scenarios are no longer
 //! replayed (`tests/golden/v4/` keeps their record).
+//!
+//! v7 (SIM_SPEC §0.5): a ship's own velocity change in a crash adds hull damage past
+//! its shield, and every scripted strike craft avoids crashes with any ship, so
+//! trajectories with hard crashes or with scripted strafers and gunships change. Only
+//! the fighter duel (two fighters deconflict each other as in v3) is still replayed
+//! against v3, v4 and v5; the mixed and random-actions scenarios are not
+//! (`tests/golden/v3/`, `v4/` and `v5/` keep their record). Obs and actions, what an
+//! old pilot needs to fly, are unchanged (`tests/obs.rs`).
 
 mod common;
 
@@ -542,30 +550,6 @@ fn v3_compat_duel_fighter_seed7() {
     );
 }
 
-#[test]
-fn v3_compat_2v2_mixed_seed11() {
-    check_v3(
-        include_str!("golden/v3/2v2_mixed_s11.txt"),
-        &mixed_2v2_trace(Flavour::V3),
-    );
-}
-
-#[test]
-fn v3_compat_3v3_mixed_seed13() {
-    check_v3(
-        include_str!("golden/v3/3v3_mixed_s13.txt"),
-        &mixed_3v3_trace(Flavour::V3),
-    );
-}
-
-#[test]
-fn v3_compat_3v3_random_actions_seed17() {
-    check_v3(
-        include_str!("golden/v3/3v3_random_s17.txt"),
-        &random_3v3_trace(Flavour::V3),
-    );
-}
-
 /// Ticks budget of the mission scenarios (both end well before it).
 const MISSION_TICKS: u32 = 9000;
 /// Sample interval of the mission scenarios.
@@ -713,30 +697,6 @@ fn v4_compat_duel_fighter_seed7() {
     );
 }
 
-#[test]
-fn v4_compat_2v2_mixed_seed11() {
-    check_v4(
-        include_str!("golden/v4/2v2_mixed_s11.txt"),
-        &mixed_2v2_trace(Flavour::V4),
-    );
-}
-
-#[test]
-fn v4_compat_3v3_mixed_seed13() {
-    check_v4(
-        include_str!("golden/v4/3v3_mixed_s13.txt"),
-        &mixed_3v3_trace(Flavour::V4),
-    );
-}
-
-#[test]
-fn v4_compat_3v3_random_actions_seed17() {
-    check_v4(
-        include_str!("golden/v4/3v3_random_s17.txt"),
-        &random_3v3_trace(Flavour::V4),
-    );
-}
-
 /// Compare with a v5 golden file, never rewritten (it is the v5 record).
 fn check_v5(embedded: &str, actual: &str) {
     assert_eq!(
@@ -750,30 +710,6 @@ fn v5_compat_duel_fighter_seed7() {
     check_v5(
         include_str!("golden/v5/duel_fighter_s7.txt"),
         &duel_trace(Flavour::V5),
-    );
-}
-
-#[test]
-fn v5_compat_2v2_mixed_seed11() {
-    check_v5(
-        include_str!("golden/v5/2v2_mixed_s11.txt"),
-        &mixed_2v2_trace(Flavour::V5),
-    );
-}
-
-#[test]
-fn v5_compat_3v3_mixed_seed13() {
-    check_v5(
-        include_str!("golden/v5/3v3_mixed_s13.txt"),
-        &mixed_3v3_trace(Flavour::V5),
-    );
-}
-
-#[test]
-fn v5_compat_3v3_random_actions_seed17() {
-    check_v5(
-        include_str!("golden/v5/3v3_random_s17.txt"),
-        &random_3v3_trace(Flavour::V5),
     );
 }
 

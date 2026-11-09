@@ -55,11 +55,11 @@ def run(env: "rlf_sim.VecEnv", steps: int) -> None:
 
 
 def test_v6_constants_and_layout() -> None:
-    assert rlf_sim.SIM_VERSION == 6
+    assert rlf_sim.SIM_VERSION == 7
     assert rlf_sim.OBS_DIM == 583
     assert rlf_sim.OBS_DIM_V5 == 403 and rlf_sim.OBS_DIM_V4 == 385
-    assert rlf_sim.PILOT_OBS_DIMS == {3: 385, 4: 385, 5: 403, 6: 583}
-    assert list(rlf_sim.PILOT_COMPAT_VERSIONS) == [3, 4, 5, 6]
+    assert rlf_sim.PILOT_OBS_DIMS == {3: 385, 4: 385, 5: 403, 6: 583, 7: 583}
+    assert list(rlf_sim.PILOT_COMPAT_VERSIONS) == [3, 4, 5, 6, 7]
     assert rlf_sim.SHIP_EXTRA_W == 10 and rlf_sim.N_ORDER_SHIPS == 5
     assert list(rlf_sim.ORDER_KINDS) == ["attack", "defend", "goto"]
     assert (EXTRAS_OFF, EXTRAS_W) == (403, 7 * 10)

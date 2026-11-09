@@ -224,7 +224,7 @@ measurement.
   `lab/runs/2026-11-09-third-night`.
 - Next by the loop: commander round 2, against these pilots.
 
-## Night 4 (prepared 2026-11-09): the price of a shot
+## Night 4 (prepared 2026-11-09): the price of a shot, and of a crash
 
 The owner's plan: ships fire into empty space a lot, so a shot should cost more. The sim's
 `FIRE_COST` (0.002 per shot fired) makes a gauss shot worth taking at a hit rate of about
@@ -246,10 +246,30 @@ turned down); the trainer adds `extra_fire_cost` per shot fired as shaping.
   quarters of night 3's updates per arm.
 - Pool seeds and commanders as night 3.
 
+**The sim moves to `SIM_VERSION` 7 the same night** (owner, 2026-11-09): a small ship
+that crashes into a big one looked like it paid nothing for it. Crash damage keeps the
+v3 energy term (both ships alike, through shields), and each ship also takes 1.25 hull
+points per m/s of its own velocity change above 12 m/s, past its shield, times its
+impact arc (SIM_SPEC §0.5, §5.5). A fighter at full speed into a capital ship dies at
+any bearing; the capital ship takes what it took before. Obs and actions are v6's, so
+every pilot still flies (`PILOT_COMPAT_VERSIONS` adds 7) and the season goes on: all
+four lines fine-tune under v7 and the morning re-rates the whole field under v7.
+
+- **The script learned to avoid crashes** (`scripted/avoid.rs`): under the new damage
+  it rammed freighters, its own capital ships and passing strike craft and died of it
+  (fighters lost 54 / 71 of 80 hp a match to crashes in carrier battle / convoy). Every
+  scripted strike craft now dodges any ship it would hit hard: fighters 15 / 30,
+  strafers 1 / 2. The script is a fifth of training enemies and the replacement level of
+  WAR, so tonight's WAR is not comparable with night 3's: compare within it.
+- 2x vs 4x stays clean: both copies of `fighters` train under v7.
+- A 2x pilot against its parent is not: the child has had a night of the new crash
+  rules and the parent has not. Read its WAR gain as fire cost plus crash adaptation;
+  the shooting columns (trigger share, shots, hit rate) are barely touched by it.
+
 **Morning, unattended (`morning.sh`):** drills, the four as members, then a **shooting
 eval** of each against its parent (`eval/shooting_<id>.{json,md}`: carrier battle and
-convoy, 516 each, both sides in the same matches; hit rate, shots and trigger share by
-hull), then WAR at 1,440 per mission for the ten live pilots, `transit_300` and the four.
+convoy, 516 each, both sides in the same matches; hit rate, shots, trigger share,
+crash contacts and crash damage taken by hull), then WAR at 1,440 per mission for the ten live pilots, `transit_300` and the four.
 
 **What the morning reads:**
 - Did 2x shoot less into nothing? Each 2x pilot's trigger share and shots down against
@@ -258,6 +278,8 @@ hull), then WAR at 1,440 per mission for the ten live pilots, `transit_300` and 
 - Did it cost combat? WAR of each 2x pilot against its parent (about ±3 each, so a gap
   under about 4 is noise).
 - 4x vs 2x: `fighters_fire4_<N>` against `fighters_<N>` in WAR and in shooting.
+- Did pilots learn to crash less? Crash contacts and crash damage of each child against
+  its parent, both flying v7, in the shooting eval.
 
 ```bash
 cd ~/code/rl-fighter && DEADLINE="07:00" PHASE=fourth-night nohup setsid bash -c \
@@ -266,8 +288,11 @@ cd ~/code/rl-fighter && DEADLINE="07:00" PHASE=fourth-night nohup setsid bash -c
   > /dev/null 2>&1 &
 ```
 
-Checked before launch: `tests/test_spike_ppo.py` (with a test that `extra_fire_cost`
-charges each shot fired), `SMOKE=1 N_UPDATES=10 run.sh` (all four arms, the configs read
+Checked before launch: `scripts/check.sh` and the Python tests under v7 (new
+collision tests: a fighter at full speed into a carrier dies at any bearing, at 25 m/s
+it lives, a raised shield takes the energy term but not the velocity-change one; the
+Python suite, 815 passed), smoke and morning rehearsal rerun under v7,
+`tests/test_spike_ppo.py` (with a test that `extra_fire_cost` charges each shot fired), `SMOKE=1 N_UPDATES=10 run.sh` (all four arms, the configs read
 0.002 / 0.006), and `morning.sh` rehearsed end to end on the smoke checkpoints against a
 copy of the season (shooting at 12, WAR at 24 per mission).
 

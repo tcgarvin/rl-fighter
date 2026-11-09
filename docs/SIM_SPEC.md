@@ -161,6 +161,26 @@ order-following scripts), so the v4 mission traces are no longer replayed. Fleet
 v1 flies the missions exactly as before: it does not read orders, and the mission
 survey's live mode is bit-identical between v5 and v6.
 
+### 0.5 v7 changes (SIM_VERSION 6 → 7, crash damage by velocity change)
+
+The owner's change (2026-11-09): a small ship that crashes into a big one should pay
+for it, since its velocity changes far more. The v3 energy term is unchanged; a second
+term is added.
+
+| # | change | why | sections |
+|---|---|---|---|
+| 1 | Each non-static ship in a damaging contact also takes `CRASH_HULL_PER_DV = 1.25` hull points per m/s of its **own velocity change** `jimp * w_k` above `CRASH_DV_FREE = (1 + e) * COLLISION_FREE_SPEED = 12` m/s, times its impact arc, **past any shield**, into `collision_damage` | the v3 term gave both ships the same damage, so a fighter that hit a carrier lost no more than the carrier; a fighter at full speed into a capital ship now dies at any bearing | §5.5 |
+| 2 | Scripted strike craft **avoid crashes with any ship** (`scripted/avoid.rs`), not only a fighter's target | under row 1 the script rammed freighters, its own capital ships and passing strike craft, and died of it | §11 |
+| 3 | `PILOT_COMPAT_VERSIONS = [3, 4, 5, 6, 7]`, `PILOT_OBS_DIMS` adds `7: 583` | obs and actions are v6's | §10 |
+
+**Compatibility.** Obs and actions are unchanged, which is what an old pilot needs to
+fly. Trajectories change wherever ships crash hard or a scripted strafer or gunship
+flies: only the fighter duel is still bit-identical to v3, v4 and v5
+(`v3_compat_duel_*`, `v4_compat_duel_*`, `v5_compat_duel_*`); the mixed and
+random-actions scenarios are no longer replayed (`tests/golden/v3/`, `v4/`, `v5/` keep
+their record). Pilots of v3 to v6 still fly, but were trained when crashes cost a light
+ship less and against a script that rammed.
+
 ---
 
 ## 1. Conventions
@@ -699,6 +719,8 @@ base   = COLLISION_DAMAGE_PER_J * (0.5 * mu * excess * excess)
 if base > 0:
     for k in (i, j), in that order, skipping static hulls:
         apply_collision_damage(k, base, b_k)
+        dv = CRASH_HULL_PER_DV * max(0, jimp * w_k - CRASH_DV_FREE)   # v7
+        apply_crash_hull_damage(k, dv, b_k)
     emit Collision { a: i, b: j, pos: p, normal: n, closing: -vn }
 
 apply_collision_damage(k, amount, b):
@@ -710,10 +732,25 @@ apply_collision_damage(k, amount, b):
       dealt = amount * impact_mult(hull_k, b)       # impact arcs, never armour (§4.1)
       k.hp -= dealt
       collision_damage[k] += dealt
+
+apply_crash_hull_damage(k, amount, b):              # v7; nothing if amount == 0
+  k.last_hit_tick = tick
+  dealt = amount * impact_mult(hull_k, b)           # past any shield
+  k.hp -= dealt
+  collision_damage[k] += dealt
 ```
 
+**Velocity-change damage (v7).** `jimp * w_k` is ship `k`'s own velocity change from
+the impulse, at most `(1 + e) * |vn|`, so with `CRASH_DV_FREE = (1 + e) *
+COLLISION_FREE_SPEED = 12` m/s the term fires only when `base > 0`. With
+`CRASH_HULL_PER_DV = 1.25` hp per m/s: a fighter at 60 m/s into a carrier at rest
+changes velocity by 70.8 m/s, 73.5 hp before arcs on top of the 24.6 base, past its 80
+at any bearing, while the carrier's 1.2 m/s adds nothing; two fighters closing at
+60 m/s nose to nose each take 1.5 * (12.5 + 30) = 63.75.
+
 So a fighter–fighter crash at 95 m/s closing (mu = 5 kg, 18,062 J excess) deals
-36.1 hp base, 54.2 nose first: two thirds of a fighter. Collision damage records no
+36.1 hp base, 54.2 nose first (v3; v7 adds 1.25 * 45 * 1.5 = 84.4 more, killing
+both). Collision damage records no
 `HitRecord` (hit-rate stats and shooter credit see only weapons) and, like all
 damage, never flips `alive`: a crash that kills both ships is resolved in stage 12
 and is a draw. `collision_damage` and `collision_shield_damage` (`[f32; MAX_SHIPS]`
@@ -1712,6 +1749,23 @@ contact survey n = 128, `d = 2`): contacts closing > 30 m/s 0.02 per match (v2
 script 8.4), crash deaths in 2 % of matches (unchanged script under v3: 61 %),
 draws 0.016, median 1492 ticks, hit rate 0.46, 4.9 passes per match
 (`lab/runs/2026-10-29-collision-damage/`).
+
+**Collision avoidance (v7, `avoid.rs`).** Under v7 crash damage the script flew itself
+to death: script against script, fighters took 54 (carrier battle) and 71 (convoy) of
+their 80 hp from crashes a match, mostly ramming freighters, their own capital ships
+and passing strike craft, which the target-only deconfliction never saw. Now, between
+the role's plan and the arena override, every strike craft (fighter, strafer, gunship;
+on an order's station manoeuvre too) takes the soonest pass, over every other active
+ship of either team but a fighter's strike-craft target (the deconfliction above keeps
+that one), that closes faster than 8 m/s, comes within both bound radii + 3 m, and is
+within `2.5 + 4 d` s (`d` the reaction delay). Early it sidesteps on the RCS away from
+the miss, keeps the role's heading and cuts the mains while the other ship is within
+1 rad of the nose. Inside `0.9 + 0.05 × (both radii) + 2 d` s it breaks: the nose
+swings halfway between the miss direction and straight away, the mains burn once the
+other ship is 1 rad off the nose. Measured (script vs script, 48 matches a mission,
+`d = 2`): fighter crash damage 15 (carrier) and 30 (convoy) a match, strafers 0.8 and
+2.1 (were 20 and 33); hard (> 30 m/s) fighter–freighter contacts in 24 convoys 31
+(were 108).
 
 ## 12. Determinism contract and test
 

@@ -446,6 +446,7 @@ def test_each_ward_really_is_under_attack_even_if_the_pilots_do_nothing() -> Non
         }
         for i, spec in enumerate(specs)
     ]
+    lowest = [dict(f) for f in full]
     threatened = np.zeros((len(specs), 2), dtype=bool)
     team = env.team.copy()
     for _ in range(600):
@@ -454,16 +455,20 @@ def test_each_ward_really_is_under_attack_even_if_the_pilots_do_nothing() -> Non
         actions[team == 0] = 0  # pilots and wards stay idle-ish
         env.step(actions)
         for i, spec in enumerate(specs):
+            ships = env.raw.render_state(i)["ships"]
             for j, ward in enumerate(spec.side_targets):
                 threatened[i, j] |= any(
                     env.ward_threat[i, ward, e] for e in spec.side_groups[j]
                 )
+                left = ships[ward]["hp"] + ships[ward]["shield"]
+                lowest[i][ward] = min(lowest[i][ward], left)
     assert threatened.all(), "each group is in its own ward's threat set"
+    # The lowest point, not the last: shields regenerate once an attack ends (v7: a
+    # group can lose a fighter to a crash and stop landing hits).
     for i, spec in enumerate(specs):
-        ships = env.raw.render_state(i)["ships"]
         for ward in spec.side_targets:
             assert (
-                ships[ward]["hp"] + ships[ward]["shield"] < full[i][ward]
+                lowest[i][ward] < full[i][ward]
             ), f"drill {spec.seed}: ward {ward} took no damage"
 
 
