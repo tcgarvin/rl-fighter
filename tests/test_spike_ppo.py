@@ -155,6 +155,22 @@ def test_batch_holds_only_unmasked_learner_rows(tmp_path):
     assert (store.learner[: config.n_steps] == (~team1 | self_play)).all()
 
 
+@pytest.mark.parametrize("extra", [0.0, 0.004])
+def test_extra_fire_cost_charges_each_shot_fired(tmp_path, extra):
+    """extra_fire_cost adds -extra per shot the sim fired to the shaping term, and
+    nothing at the default of 0."""
+    config = PPOConfig.preset(
+        "scratch", n_updates=1, extra_fire_cost=extra, **{**SMALL, "n_envs": 16}
+    )
+    trainer = SpikeTrainer(config, tmp_path / "run")
+    trainer._collect(0)
+    steps = slice(0, config.n_steps)
+    shots = trainer.storage.shots[steps]
+    shaping = trainer.storage.shaping[steps]
+    assert shots.sum() > 0
+    np.testing.assert_allclose(shaping, -extra * shots, atol=1e-7)
+
+
 # ---------------------------------------------------------------------------
 # Credit through the trainer's buffer, across the rollout boundary
 # ---------------------------------------------------------------------------

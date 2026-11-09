@@ -224,6 +224,53 @@ measurement.
   `lab/runs/2026-11-09-third-night`.
 - Next by the loop: commander round 2, against these pilots.
 
+## Night 4 (prepared 2026-11-09): the price of a shot
+
+The owner's plan: ships fire into empty space a lot, so a shot should cost more. The sim's
+`FIRE_COST` (0.002 per shot fired) makes a gauss shot worth taking at a hit rate of about
+4% on hull, 8% on shields, and recent evals show 5-40% hit rates with triggers held
+35-80% of decisions. The sim is unchanged (a recharging capacitor was considered and
+turned down); the trainer adds `extra_fire_cost` per shot fired as shaping.
+
+| Arm | Starts from | Fire cost per shot | Else |
+|---|---|---|---|
+| `fighters` | its update 1338 | **0.004** (2x) | night 3's |
+| `followers` | its update 1323 | **0.004** (2x) | night 3's |
+| `fighters_pay1` | its update 849 | **0.004** (2x) | night 3's |
+| `fighters_fire4` | a copy of `fighters` at 1338 | **0.008** (4x) | `fighters`' |
+
+- **`fighters_fire4`** is `fighters`' run dir copied by `run.sh` before any arm starts
+  (checkpoints, optimiser and rng state), so it differs from `fighters` only in its fire
+  cost. The owner's question for it: does 4x cost combat rating against 2x?
+- Four arms, so 3 sim + 3 torch threads each (was 4 + 4 for three): expect about three
+  quarters of night 3's updates per arm.
+- Pool seeds and commanders as night 3.
+
+**Morning, unattended (`morning.sh`):** drills, the four as members, then a **shooting
+eval** of each against its parent (`eval/shooting_<id>.{json,md}`: carrier battle and
+convoy, 516 each, both sides in the same matches; hit rate, shots and trigger share by
+hull), then WAR at 1,440 per mission for the ten live pilots, `transit_300` and the four.
+
+**What the morning reads:**
+- Did 2x shoot less into nothing? Each 2x pilot's trigger share and shots down against
+  its parent's, hit rate up, in the same matches. Strafers (hit rate 5-15%) should move
+  most.
+- Did it cost combat? WAR of each 2x pilot against its parent (about ±3 each, so a gap
+  under about 4 is noise).
+- 4x vs 2x: `fighters_fire4_<N>` against `fighters_<N>` in WAR and in shooting.
+
+```bash
+cd ~/code/rl-fighter && DEADLINE="07:00" PHASE=fourth-night nohup setsid bash -c \
+  'lab/runs/2026-11-01-pilot-families/run.sh >> lab/runs/2026-11-01-pilot-families/run.out 2>&1 &&
+   lab/runs/2026-11-01-pilot-families/morning.sh > lab/runs/2026-11-01-pilot-families/morning.out 2>&1' \
+  > /dev/null 2>&1 &
+```
+
+Checked before launch: `tests/test_spike_ppo.py` (with a test that `extra_fire_cost`
+charges each shot fired), `SMOKE=1 N_UPDATES=10 run.sh` (all four arms, the configs read
+0.002 / 0.006), and `morning.sh` rehearsed end to end on the smoke checkpoints against a
+copy of the season (shooting at 12, WAR at 24 per mission).
+
 ## Arms (night 1)
 
 All arms: preset `pilots_v1`, discount 0.995 with order pay following it, no script pull,

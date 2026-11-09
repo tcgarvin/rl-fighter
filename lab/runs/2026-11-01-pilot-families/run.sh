@@ -9,14 +9,18 @@
 # Night 3 (2026-11-08): all three resume under the live commander stable (the script and
 # the three learned commanders), with more drills weighted to go-to, and night 2's three
 # and f99_696 (top by WAR) added to the pool.
+# Night 4 (2026-11-09): the price of a shot. Every line resumes unchanged but for
+# extra_fire_cost 0.002 (twice the sim's FIRE_COST per shot fired), and fighters_fire4, a
+# copy of fighters at update 1338 made before any arm starts, pays 0.006 (four times).
+# Four arms, so 3 sim + 3 torch threads each (was 4 + 4 for three).
 #
 #   DEADLINE="05:15 tomorrow" nohup lab/runs/2026-11-01-pilot-families/run.sh \
 #       > lab/runs/2026-11-01-pilot-families/run.out 2>&1 &
 #   SMOKE=1 lab/runs/2026-11-01-pilot-families/run.sh     # tiny sizes, into smoke/
 #
-# Env: ARMS ("fighters followers fighters_pay1"), N_ENVS (256), N_UPDATES (1500, an upper
-# bound; the deadline ends it), DEADLINE (a `date -d` string, required outside SMOKE),
-# ARM_THREADS (4 sim + 4 torch).
+# Env: ARMS ("fighters followers fighters_pay1 fighters_fire4"), N_ENVS (256), N_UPDATES
+# (1500, an upper bound; the deadline ends it), DEADLINE (a `date -d` string, required
+# outside SMOKE), ARM_THREADS (3 sim + 3 torch).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
@@ -41,7 +45,7 @@ for f in "$F995" "$TRANSIT" "$R" "$W1_400" "$V1" "$FIGHTERS_506" "$FOLLOWERS_513
     [[ -f $f ]] || { echo "missing checkpoint $f" >&2; exit 2; }
 done
 
-ARMS=${ARMS:-"fighters followers fighters_pay1"}
+ARMS=${ARMS:-"fighters followers fighters_pay1 fighters_fire4"}
 if [[ $SMOKE == 1 ]]; then
     RUN=$HERE/smoke
     N_UPDATES=${N_UPDATES:-3}
@@ -53,7 +57,7 @@ else
     [[ -n ${DEADLINE:-} ]] || { echo "set DEADLINE, e.g. DEADLINE=\"06:00 tomorrow\"" >&2; exit 2; }
     RUN=$HERE
     N_UPDATES=${N_UPDATES:-1500}
-    ARM_THREADS=${ARM_THREADS:-4}
+    ARM_THREADS=${ARM_THREADS:-3}
     SIZE=(--n-envs "${N_ENVS:-256}" --set checkpoint_every=50
         --set critic_warmup_updates=20 --set early_clip_updates=50)
 fi
@@ -66,12 +70,17 @@ POOL3="[$F995,$TRANSIT,$R,$W1_400,$V1,$FIGHTERS_506,$FOLLOWERS_513,$FIGHTERS_959
 # Night 3: every match that shows orders draws each side's commander from the live stable.
 LIVE_CMD="--set commander_stable=[live]"
 MIXED_BANDS='[[0,0.2,0.4,0.4]]'
+# Night 4: shaping per shot fired, on top of the sim's FIRE_COST of 0.002.
+FIRE2="--set extra_fire_cost=0.002"
+FIRE4="--set extra_fire_cost=0.006"
+FIGHTERS_ARGS="--set order_reward_weight=3.0 --set opponent_bands=$MIXED_BANDS --set enemy_sampling=pfsp --set pool_seed=$POOL3 $LIVE_CMD --set roster_overrides={\"drill_share\":0.35,\"drill_weights\":[2,1,1],\"commander_p\":0.333}"
 SCRATCH_BANDS='[[0,0.5,0.5,0.0]]'
 
 # Shares of section 4: commander_p splits what is left after drills.
 arm_init() {
     case $1 in
-        fighters | fighters_pay1) echo "$F995" ;;
+        # fighters_fire4 starts from F995 only in SMOKE; for real it is a copy of fighters.
+        fighters | fighters_pay1 | fighters_fire4) echo "$F995" ;;
         followers) echo "$TRANSIT" ;;
         scratch) echo scratch ;;
         *) echo "unknown arm $1" >&2; exit 2 ;;
@@ -79,15 +88,30 @@ arm_init() {
 }
 arm_args() {
     case $1 in
-        # Night 3. Night 2's settings are in plan.md and config_before_<N>.yaml.
-        fighters) echo "--set order_reward_weight=3.0 --set opponent_bands=$MIXED_BANDS --set enemy_sampling=pfsp --set pool_seed=$POOL3 $LIVE_CMD --set roster_overrides={\"drill_share\":0.35,\"drill_weights\":[2,1,1],\"commander_p\":0.333}" ;;
-        followers) echo "--set order_reward_weight=1.0 --set opponent_bands=$MIXED_BANDS --set enemy_sampling=pfsp --set pool_seed=$POOL3 $LIVE_CMD --set roster_overrides={\"drill_share\":0.35,\"drill_weights\":[3,1,1],\"commander_p\":0.667}" ;;
-        fighters_pay1) echo "--set order_reward_weight=1.0 --set opponent_bands=$MIXED_BANDS --set enemy_sampling=pfsp --set pool_seed=$POOL3 $LIVE_CMD --set roster_overrides={\"drill_share\":0.25,\"drill_weights\":[2,1,1],\"commander_p\":0.333}" ;;
+        # Night 4: night 3's settings plus the fire cost. Earlier nights' settings are in
+        # plan.md and config_before_<N>.yaml.
+        fighters) echo "$FIGHTERS_ARGS $FIRE2" ;;
+        fighters_fire4) echo "$FIGHTERS_ARGS $FIRE4" ;;
+        followers) echo "--set order_reward_weight=1.0 --set opponent_bands=$MIXED_BANDS --set enemy_sampling=pfsp --set pool_seed=$POOL3 $LIVE_CMD --set roster_overrides={\"drill_share\":0.35,\"drill_weights\":[3,1,1],\"commander_p\":0.667} $FIRE2" ;;
+        fighters_pay1) echo "--set order_reward_weight=1.0 --set opponent_bands=$MIXED_BANDS --set enemy_sampling=pfsp --set pool_seed=$POOL3 $LIVE_CMD --set roster_overrides={\"drill_share\":0.25,\"drill_weights\":[2,1,1],\"commander_p\":0.333} $FIRE2" ;;
         # Night 1 only.
         scratch) echo "--set order_reward_weight=1.0 --set actor_lr=0.0003 --set opponent_bands=$SCRATCH_BANDS --set pool_seed=$POOL1 --set roster_overrides={\"drill_share\":0.1,\"commander_p\":0.333}" ;;
         *) echo "unknown arm $1" >&2; exit 2 ;;
     esac
 }
+
+# Night 4's fork, before any arm runs (a resumed fighters rewrites its config at once):
+# fighters_fire4 is fighters' run dir as of update 1338, checkpoints, optimiser and rng
+# state included, so it resumes where fighters does and differs only in its fire cost.
+FORK_UPDATE=1338
+if [[ $SMOKE != 1 && " $ARMS " == *" fighters_fire4 "* && ! -d $RUN/fighters_fire4 ]]; then
+    last=$(find "$RUN/fighters/checkpoints" -name 'ppo_bc_*.pt' -printf '%f\n' \
+        | sed 's/ppo_bc_\([0-9]*\)\.pt/\1/' | sort -n | tail -1)
+    [[ $last == "$FORK_UPDATE" ]] || {
+        echo "fighters is at update $last, not $FORK_UPDATE: not forking" >&2; exit 2; }
+    cp -r "$RUN/fighters" "$RUN/fighters_fire4"
+    echo "$(date +%H:%M:%S) fighters_fire4 forked from fighters at $FORK_UPDATE"
+fi
 
 pids=()
 for arm in $ARMS; do
@@ -96,6 +120,7 @@ for arm in $ARMS; do
     if [[ -f $dir/config.yaml ]]; then
         # shellcheck disable=SC2046
         "$PY" -m spacefight.train_spike ppo --run-dir "$dir" --resume --n-updates "$N_UPDATES" \
+            --set sim_threads="$ARM_THREADS" --set torch_threads="$ARM_THREADS" \
             $(arm_args "$arm") >>"$RUN/$arm.out" 2>&1 &
     else
         # shellcheck disable=SC2046

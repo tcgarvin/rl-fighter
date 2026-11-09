@@ -450,6 +450,10 @@ class PPOConfig:
     entropy_floor_coeff: float = 0.0
     tick_cost: float = 0.0
     extra_arena_penalty: float = 0.0
+    # Shaping per shot fired, on top of the sim's FIRE_COST (a positive magnitude,
+    # subtracted like extra_arena_penalty): 0.002 doubles the price of a shot, to
+    # discourage firing into empty space without changing the sim.
+    extra_fire_cost: float = 0.0
 
     @classmethod
     def preset(cls, init: str, **overrides: object) -> PPOConfig:
@@ -1834,6 +1838,8 @@ class SpikeTrainer:
             shaping -= cfg.tick_cost * prev_alive
         if cfg.extra_arena_penalty:
             shaping -= cfg.extra_arena_penalty * outside
+        if cfg.extra_fire_cost:
+            shaping -= cfg.extra_fire_cost * shots
         store.team_reward[b] = raw + shaping
         order = store.order_reward[b]
         order[:] = info.order_rewards.reshape(rows)
