@@ -1,15 +1,18 @@
 {
- "fighters_506": "Forked from f995_701 with order pay and drills. The strongest pilot for five days, now second. It follows orders only a little.",
- "f995_701": "The long-horizon fighter, the champion before this list. Fights hard and ignores orders.",
+ "fighters_506": "Forked from f995_701 with order pay and drills; for five days the strongest pilot. Retired from training on 2026-11-09, as its family had too many members, but still flies here.",
+ "f995_701": "The long-horizon fighter, champion before these lists and founder of the fighters family. Fights hard and ignores orders.",
  "f995_400": "The same training run as f995_701, 301 updates earlier. Beats it in convoy escort.",
- "f99_696": "A sibling of f995_701 with a shorter horizon. Strong in convoy escort, where it beats fighters_959.",
+ "f99_696": "A sibling of f995_701 with a shorter horizon. It adds the most wins of any pilot when it flies in matches like this page's.",
  "followers_513": "The only pilot on this list that passes the order gate, so the one that most reliably flies where its commander sends it. Forked from transit_300.",
  "hide_644": "Trained so that a shot under an order earned only order pay. It did not learn to follow, and it fires far less than the top five.",
  "reward_300": "Paid for following orders, with no script pull. It barely learned to follow.",
  "transit_300": "Pulled toward the script on the way to an order. The best neural follower, and a weak fighter.",
  "w1_400": "An early order pilot with the older, smaller order inputs. reward_300 and transit_300 both descend from it.",
  "v1": "The first fleet pilot: a clone of the script, sharpened by PPO. It predates orders and cannot read them.",
- "fighters_pay1_462": "Strongest in the field. The first night's fighters training run again from f995_701 at a third of the order pay. It fights better than fighters_506 and follows orders less.",
- "fighters_959": "fighters_506 trained a second night with more drills. It follows orders more than any other top fighter, though not enough to pass the order gate, and lost a little combat.",
- "followers_955": "followers_513 trained a second night. It fights better, but arrives less often where it is sent and now fails the order gate."
+ "fighters_pay1_462": "f995_701 retrained at a third of the order pay. It fights better than fighters_506 and follows orders less.",
+ "fighters_959": "fighters_506 trained a second night with more drills. It follows attack and defend orders half the time. Retired from training on 2026-11-09 for fighters_1338, its next night.",
+ "followers_955": "followers_513 trained a second night. It fights better, but arrives less often where it is sent.",
+ "fighters_1338": "fighters_959 trained a third night under the learned commanders, with more go-to drills. It changes target on attack and defend orders more often than any other fighter, but reaches a go-to point only one time in four.",
+ "followers_1323": "followers_955 trained a third night under the learned commanders. The best follower on this page, and now a fighter close to the fighters family.",
+ "fighters_pay1_849": "fighters_pay1_462 trained a second night under the learned commanders. Fights about as well and still mostly ignores orders."
 }

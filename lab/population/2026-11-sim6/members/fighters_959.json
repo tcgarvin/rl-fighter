@@ -15,9 +15,9 @@
  },
  "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters/checkpoints/ppo_bc_959.pt",
  "sha256": "b2cde2a3bf41902f1e582339c48e71ce09f4ec4dfac9ff3498e66d956b1d88ec",
- "status": "active",
- "archived_reason": "",
- "archived_date": "",
+ "status": "archived",
+ "archived_reason": "WAR cull (third-night): founder f995_701 over its cap of 4, its lowest survivor at +14.4 wins per 100 (+11 to +17.5)",
+ "archived_date": "2026-11-09",
  "note": "Night 2: fighters_506's line continued with drills 0.25. Archived 2026-11-07: Drill gate, second-night: fighters_959 failed the drill gate: goto_arrival, goto_lift, attack_target_hit, attack_side, attack_flip, defend_more_on_named, defend_side, defend_flip. Restored 2026-11-07: The order gate was dropped; culls will go by wins above replacement.",
  "ratings": [
   {

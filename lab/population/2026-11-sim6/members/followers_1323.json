@@ -1,0 +1,50 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "followers_1323",
+ "family": "followers",
+ "founder": "transit_300",
+ "parent": "followers_955",
+ "relation": "fork",
+ "fork_update": 955,
+ "settings_changed": {
+  "drill_share": 0.35,
+  "drill_weights": [
+   3,
+   1,
+   1
+  ],
+  "pool_seed_added": [
+   "fighters_959",
+   "followers_955",
+   "fighters_pay1_462",
+   "f99_696"
+  ],
+  "commander_stable": [
+   "live"
+  ]
+ },
+ "checkpoint": "lab/runs/2026-11-01-pilot-families/followers/checkpoints/ppo_bc_1323.pt",
+ "sha256": "1f50f4a24159d2a2b15b57da3b9f7195d22000960ad1561bb398a80a981fdae7",
+ "status": "active",
+ "archived_reason": "",
+ "archived_date": "",
+ "note": "Night 3: followers_955's line under the learned commanders, drills 0.35, go-to three times the others.",
+ "ratings": [],
+ "drills": [
+  {
+   "phase": "third-night",
+   "date": "2026-11-09",
+   "scores": {
+    "goto_arrival": 0.46598639455782315,
+    "goto_lift": 0.28155323042922753,
+    "attack_target_hit": 0.970703125,
+    "attack_side": 0.896484375,
+    "attack_flip": 0.80859375,
+    "defend_more_on_named": 0.84375,
+    "defend_side": 0.921875,
+    "defend_flip": 0.84375
+   },
+   "passed": false
+  }
+ ]
+}

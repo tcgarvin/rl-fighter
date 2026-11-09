@@ -28,7 +28,9 @@ export interface ChampionEval {
 export interface PilotEntry {
   id: string;
   family: string;
+  /** Combat-rating points, or with rated_by "war" wins above the script per 100 matches. */
   rating: number;
+  rated_by?: "rating" | "war";
   dir: string;
   sim_version: number;
   /** A sentence or two for viewers, and the order drill scores 0..1 (empty: never drilled). */

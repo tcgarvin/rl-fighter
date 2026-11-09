@@ -7,7 +7,7 @@ import { TEAM_CLASSES, TEAM_NAMES, TEAM_WORDS, escapeHtml } from "./teams.ts";
 import { JUMP_CHARGING, JUMP_DEPARTED, ROLE_CARRIER, type ShipState } from "./sim.ts";
 import { POWER_NAMES, outputRows, rowOdds, type OutputKind, type OutputRow } from "./inspect.ts";
 import type { LiveMatch } from "./match.ts";
-import { commanderName } from "./bundle.ts";
+import { commanderName, type PilotEntry } from "./bundle.ts";
 
 const REFRESH_SECONDS = 0.12;
 const RAD_TO_DEG = 180 / Math.PI;
@@ -42,6 +42,13 @@ function setText(node: HTMLElement, text: string): void {
 
 const percent = (v: number): string => `${Math.round(v * 100)}%`;
 const plural = (n: number, word: string): string => `${n.toLocaleString("en-GB")} ${word}${n === 1 ? "" : "s"}`;
+const signed = (v: number): string => `${v >= 0 ? "+" : ""}${Math.round(v)}`;
+
+/** The pilot's score as viewers read it: wins over the script, or combat-rating points. */
+function ratingText(info: PilotEntry): string {
+  if (info.rated_by === "war") return `${signed(info.rating)} wins per 100 matches over the script`;
+  return `Rated ${signed(info.rating)}`;
+}
 
 /** The order this ship's squad holds, in words. */
 function orderText(match: LiveMatch, i: number): string {
@@ -138,8 +145,7 @@ export class Inspector {
     if (info?.note) facts.push(el("p", "ins-note", info.note));
     facts.push(el("p", "ins-fact", `Net: ${shape} · ${m.weights_floats.toLocaleString("en-GB")} weights`));
     if (info) {
-      const rating = `${info.rating >= 0 ? "+" : ""}${Math.round(info.rating)}`;
-      facts.push(el("p", "ins-fact", `Rated ${rating} · family ${info.family} · trained in sim ${info.sim_version}`));
+      facts.push(el("p", "ins-fact", `${ratingText(info)} · family ${info.family} · trained in sim ${info.sim_version}`));
     }
     facts.push(el("p", "ins-fact", this.followText(pilot.obsDim, info?.follows)));
     if (entry) {

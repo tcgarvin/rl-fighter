@@ -1,0 +1,138 @@
+{
+ "schema": "rlf.population.shadow_war/1",
+ "phase": "third-night",
+ "date": "2026-11-09",
+ "source": "lab/population/2026-11-sim6/war/third-night/war.json",
+ "standings": [
+  {
+   "member": "f995_701",
+   "family": "fighters",
+   "founder": "f995_701",
+   "war": 19.76830844714273,
+   "ci_low": 16.47243877046255,
+   "ci_high": 22.798645809109757,
+   "se": 1.658229677980361,
+   "matches": 2102
+  },
+  {
+   "member": "fighters_pay1_462",
+   "family": "fighters",
+   "founder": "f995_701",
+   "war": 16.712452808255918,
+   "ci_low": 13.375829813687742,
+   "ci_high": 19.93543562267266,
+   "se": 1.7227409834100877,
+   "matches": 2070
+  },
+  {
+   "member": "fighters_1338",
+   "family": "fighters",
+   "founder": "f995_701",
+   "war": 16.234083189402085,
+   "ci_low": 12.574584647503547,
+   "ci_high": 19.42155748668311,
+   "se": 1.757670849872525,
+   "matches": 2097
+  },
+  {
+   "member": "followers_1323",
+   "family": "followers",
+   "founder": "transit_300",
+   "war": 15.48999454100743,
+   "ci_low": 12.082041291708828,
+   "ci_high": 18.292972376593823,
+   "se": 1.640806539728099,
+   "matches": 2121
+  },
+  {
+   "member": "fighters_pay1_849",
+   "family": "fighters",
+   "founder": "f995_701",
+   "war": 14.872859409757679,
+   "ci_low": 11.730460348297116,
+   "ci_high": 17.936026778857062,
+   "se": 1.6535147215481407,
+   "matches": 2141
+  },
+  {
+   "member": "fighters_506",
+   "family": "fighters",
+   "founder": "f995_701",
+   "war": 14.415885496495903,
+   "ci_low": 11.241898942787223,
+   "ci_high": 17.36581233204596,
+   "se": 1.637408766277158,
+   "matches": 2084
+  },
+  {
+   "member": "fighters_959",
+   "family": "fighters",
+   "founder": "f995_701",
+   "war": 14.386369829082499,
+   "ci_low": 10.874068860287954,
+   "ci_high": 17.48227031318388,
+   "se": 1.7088186378045305,
+   "matches": 2053
+  },
+  {
+   "member": "followers_955",
+   "family": "followers",
+   "founder": "transit_300",
+   "war": 11.441019219484792,
+   "ci_low": 8.113789147228292,
+   "ci_high": 14.620003549977145,
+   "se": 1.7138263543505114,
+   "matches": 2090
+  },
+  {
+   "member": "followers_513",
+   "family": "followers",
+   "founder": "transit_300",
+   "war": 7.530295194309712,
+   "ci_low": 4.468222671014645,
+   "ci_high": 10.653123359078123,
+   "se": 1.6567963618008508,
+   "matches": 2127
+  },
+  {
+   "member": "transit_300",
+   "family": "followers",
+   "founder": "transit_300",
+   "war": 0.1985520843401763,
+   "ci_low": -3.169619559006626,
+   "ci_high": 3.4587225336124128,
+   "se": 1.684916419259388,
+   "matches": 2080
+  }
+ ],
+ "culls": [
+  {
+   "member": "fighters_959",
+   "rule": "founder_cap",
+   "reason": "Founder f995_701 is over its cap of 4; this is its lowest survivor (WAR +14.4).",
+   "close_call": true
+  },
+  {
+   "member": "fighters_506",
+   "rule": "founder_cap",
+   "reason": "Founder f995_701 is over its cap of 4; this is its lowest survivor (WAR +14.4).",
+   "close_call": true
+  }
+ ],
+ "protected": [
+  {
+   "member": "script",
+   "reason": "replacement level: its WAR is 0 by definition"
+  }
+ ],
+ "unmeasured": [],
+ "founder_counts": {
+  "f995_701": 6,
+  "transit_300": 4
+ },
+ "leaves_no_pilot": false,
+ "constants": {
+  "ACTIVE_CAP": 10,
+  "FOUNDER_CAP": 4
+ }
+}

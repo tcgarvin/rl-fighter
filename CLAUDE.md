@@ -76,7 +76,8 @@ uv run python -m tools.champion list | fetch [<id>] | env [<id>]
 # the bundle. A build given a checkpoint, and every past champion, flies one pilot. A pilot
 # needs a sentence in lab/live_pilot_notes.json, which viewers read when they tap its ship,
 # and a list needs a logbook entry introducing it (lab/runs/<id>). matchups writes that
-# entry's who-beats-whom grid, drawn where results.md has <div data-figure="matchups"></div>.
+# entry's who-beats-whom grid, drawn where results.md has <div data-figure="matchups"></div>
+# (a list chosen by --war has no grid; its ratings are WAR, which the inspector names).
 uv run python -m tools.live_pilots publish --season lab/population/2026-11-sim6 \
     --entry 2026-11-02-ten-pilots
 uv run python -m tools.live_pilots matchups \

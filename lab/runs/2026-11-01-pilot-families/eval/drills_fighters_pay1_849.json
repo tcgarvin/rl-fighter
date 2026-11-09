@@ -1,0 +1,258 @@
+{
+ "pilot": "policy:ppo_bc_849.pt",
+ "name": "fighters_pay1_849",
+ "config": {
+  "n_per_kind": 256,
+  "seed": 500000,
+  "hidden_goto": true,
+  "sim_version": 6
+ },
+ "kinds": {
+  "goto": {
+   "n_drills": 256,
+   "shown": {
+    "rate": 0.20889748549323017,
+    "se": 0.017878773278434273,
+    "arrived": 108,
+    "late": 409,
+    "censored": 143,
+    "n": 517
+   },
+   "shown_near": {
+    "rate": 0.3042071197411003,
+    "se": 0.026172513809216067,
+    "arrived": 94,
+    "late": 215,
+    "censored": 46,
+    "n": 309
+   },
+   "shown_far": {
+    "rate": 0.0673076923076923,
+    "se": 0.017372802415522248,
+    "arrived": 14,
+    "late": 194,
+    "censored": 97,
+    "n": 208
+   },
+   "shown_enemies_around": {
+    "rate": 0.28044280442804426,
+    "se": 0.027287903181564047,
+    "arrived": 76,
+    "late": 195,
+    "censored": 75,
+    "n": 271
+   },
+   "hidden": {
+    "rate": 0.16489361702127658,
+    "se": 0.0156254765650397,
+    "arrived": 93,
+    "late": 471,
+    "censored": 96,
+    "n": 564
+   },
+   "lift": 0.04400386847195359
+  },
+  "attack": {
+   "n_drills": 512,
+   "target_hit": {
+    "successes": 433,
+    "n": 512,
+    "rate": 0.845703125,
+    "se": 0.01596439821850399
+   },
+   "target_damage_per_pilot": {
+    "n": 512,
+    "mean": 56.30354817708333,
+    "se": 3.142515926145725
+   },
+   "other_damage_per_pilot": {
+    "n": 512,
+    "mean": 95.72314453125,
+    "se": 4.171995934221789
+   },
+   "enemies_busy": {
+    "n_pairs": 198,
+    "chose_named": {
+     "successes": 250,
+     "n": 396,
+     "rate": 0.6313131313131313,
+     "se": 0.02424396527768731
+    },
+    "chose_other": {
+     "successes": 103,
+     "n": 396,
+     "rate": 0.2601010101010101,
+     "se": 0.022044976674503534
+    },
+    "no_choice": {
+     "successes": 43,
+     "n": 396,
+     "rate": 0.10858585858585859,
+     "se": 0.01563431297417061
+    },
+    "flip": {
+     "successes": 59,
+     "n": 198,
+     "rate": 0.29797979797979796,
+     "se": 0.03250391102929907
+    },
+    "same_side": {
+     "successes": 100,
+     "n": 198,
+     "rate": 0.5050505050505051,
+     "se": 0.03553163993340649
+    }
+   },
+   "enemies_charging": {
+    "n_pairs": 58,
+    "chose_named": {
+     "successes": 74,
+     "n": 116,
+     "rate": 0.6379310344827587,
+     "se": 0.044622461265225136
+    },
+    "chose_other": {
+     "successes": 26,
+     "n": 116,
+     "rate": 0.22413793103448276,
+     "se": 0.038718715837263516
+    },
+    "no_choice": {
+     "successes": 16,
+     "n": 116,
+     "rate": 0.13793103448275862,
+     "se": 0.032016437616733076
+    },
+    "flip": {
+     "successes": 19,
+     "n": 58,
+     "rate": 0.3275862068965517,
+     "se": 0.06162644471939888
+    },
+    "same_side": {
+     "successes": 26,
+     "n": 58,
+     "rate": 0.4482758620689655,
+     "se": 0.06530097606537921
+    }
+   },
+   "n_pairs": 256,
+   "chose_named": {
+    "successes": 324,
+    "n": 512,
+    "rate": 0.6328125,
+    "se": 0.0213032806234116
+   },
+   "chose_other": {
+    "successes": 129,
+    "n": 512,
+    "rate": 0.251953125,
+    "se": 0.019186214727043363
+   },
+   "no_choice": {
+    "successes": 59,
+    "n": 512,
+    "rate": 0.115234375,
+    "se": 0.014111402042815701
+   },
+   "flip": {
+    "successes": 78,
+    "n": 256,
+    "rate": 0.3046875,
+    "se": 0.028767184221983273
+   },
+   "same_side": {
+    "successes": 126,
+    "n": 256,
+    "rate": 0.4921875,
+    "se": 0.031246185069875306
+   }
+  },
+  "defend": {
+   "n_drills": 512,
+   "more_on_named": {
+    "successes": 309,
+    "n": 512,
+    "rate": 0.603515625,
+    "se": 0.021618338722095204
+   },
+   "named_attackers_damage_per_pilot": {
+    "n": 512,
+    "mean": 80.027587890625,
+    "se": 3.590722124399245
+   },
+   "other_attackers_damage_per_pilot": {
+    "n": 512,
+    "mean": 58.18074544270833,
+    "se": 3.512765345063284
+   },
+   "n_pairs": 256,
+   "chose_named": {
+    "successes": 310,
+    "n": 512,
+    "rate": 0.60546875,
+    "se": 0.02159989252240321
+   },
+   "chose_other": {
+    "successes": 146,
+    "n": 512,
+    "rate": 0.28515625,
+    "se": 0.01995317580680383
+   },
+   "no_choice": {
+    "successes": 56,
+    "n": 512,
+    "rate": 0.109375,
+    "se": 0.013793405167798374
+   },
+   "flip": {
+    "successes": 71,
+    "n": 256,
+    "rate": 0.27734375,
+    "se": 0.027980475498546407
+   },
+   "same_side": {
+    "successes": 129,
+    "n": 256,
+    "rate": 0.50390625,
+    "se": 0.031249046311131234
+   }
+  }
+ },
+ "overall": {
+  "core": {
+   "successes": 257,
+   "n": 1029,
+   "rate": 0.24975704567541301,
+   "se": 0.013494355578140558
+  },
+  "core_is": "go-to arrivals (shown) and attack and defend swap-test flips"
+ },
+ "gate": {
+  "verdict": "fail",
+  "statement": "fighters_pay1_849 failed the drill gate: goto_arrival, goto_lift, attack_target_hit, attack_side, attack_flip, defend_more_on_named, defend_side, defend_flip.",
+  "unset": [],
+  "failed": [
+   "goto_arrival",
+   "goto_lift",
+   "attack_target_hit",
+   "attack_side",
+   "attack_flip",
+   "defend_more_on_named",
+   "defend_side",
+   "defend_flip"
+  ],
+  "met": [],
+  "measured": {
+   "goto_arrival": 0.20889748549323017,
+   "goto_lift": 0.04400386847195359,
+   "attack_target_hit": 0.845703125,
+   "attack_side": 0.6328125,
+   "attack_flip": 0.3046875,
+   "defend_more_on_named": 0.603515625,
+   "defend_side": 0.60546875,
+   "defend_flip": 0.27734375
+  }
+ },
+ "schema": "rlf.eval.drills/1"
+}

@@ -58,6 +58,9 @@ DEFAULT_REGISTRY = Path("lab/live_pilots.json")
 DEFAULT_NOTES = Path("lab/live_pilot_notes.json")
 DEFAULT_RUNS = Path("lab/runs")
 CHAMPION_DIR = "policy"
+RATED_BY_RATING = "rating"
+RATED_BY_WAR = "war"
+RATED_BY = (RATED_BY_RATING, RATED_BY_WAR)
 # The drill results a viewer can read: did it go there, did it switch when the order did.
 FOLLOW_SCORES = {
     "goto_arrival": "go_to",
@@ -218,7 +221,7 @@ def publish(
         "pilots": [asdict(p) for p in pilots],
     }
     if war is not None:
-        data |= {"rated_by": "war", "war": str(war)}
+        data |= {"rated_by": RATED_BY_WAR, "war": str(war)}
     registry.write_text(json.dumps(data, indent=1) + "\n")
     return pilots
 
@@ -248,6 +251,19 @@ def registry_entry(registry: Path) -> str:
     """The logbook entry that introduces the list in ``registry``."""
     load_registry(registry)
     return str(json.loads(registry.read_text())["entry"])
+
+
+def registry_rated_by(registry: Path) -> str:
+    """What each pilot's ``rating`` in ``registry`` is: ``war`` or ``rating``.
+
+    Raises:
+        LivePilotsError: The registry names a scale other than those two.
+    """
+    load_registry(registry)
+    rated_by = json.loads(registry.read_text()).get("rated_by", RATED_BY_RATING)
+    if rated_by not in RATED_BY:
+        raise LivePilotsError(f"{registry}: unknown rated_by {rated_by!r}")
+    return str(rated_by)
 
 
 def fetch_checkpoint(
@@ -280,10 +296,13 @@ def export_pilots(
     wasm_pilot_compat: Sequence[int],
     wasm_pilot_obs_dims: dict[int, int],
     entry: str,
+    rated_by: str = RATED_BY_RATING,
 ) -> list[dict[str, Any]]:
     """Export each pilot into the bundle and write ``pilots/index.json``.
 
     ``entry`` is the logbook entry that introduces the list, for the page to link to.
+    ``rated_by`` says what each ``rating`` is (``registry_rated_by``), so the page can
+    name it: combat-rating points, or wins above replacement per 100 matches.
 
     Raises:
         LivePilotsError: A download fails to match its record.
@@ -311,6 +330,7 @@ def export_pilots(
                 "id": pilot.id,
                 "family": pilot.family,
                 "rating": round(pilot.rating, 1),
+                "rated_by": rated_by,
                 "dir": directory,
                 "sim_version": version,
                 "note": pilot.note,
@@ -419,6 +439,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             [int(v) for v in args.wasm_pilot_compat.split(",")],
             {int(k): int(v) for k, v in json.loads(args.wasm_pilot_obs_dims).items()},
             registry_entry(args.registry),
+            registry_rated_by(args.registry),
         )
         print(f"{args.bundle}/pilots: {', '.join(p['id'] for p in index)}")
         return 0

@@ -27,6 +27,7 @@ from tools.live_pilots import (
     matchups,
     publish,
     registry_entry,
+    registry_rated_by,
     select_members,
 )
 
@@ -124,6 +125,18 @@ def test_the_registry_refuses_too_many_pilots_and_duplicates(tmp_path: Path) -> 
     write(["a", "a"])
     with pytest.raises(LivePilotsError, match="twice"):
         load_registry(registry)
+
+
+def test_the_registry_says_whether_its_scores_are_war_or_rating(tmp_path: Path) -> None:
+    registry = tmp_path / "live.json"
+    base = {"schema": "rlf.live_pilots/1", "pilots": [vars(_pilot("a"))]}
+    registry.write_text(json.dumps(base))
+    assert registry_rated_by(registry) == "rating", "an older list is rated"
+    registry.write_text(json.dumps(base | {"rated_by": "war"}))
+    assert registry_rated_by(registry) == "war"
+    registry.write_text(json.dumps(base | {"rated_by": "elo"}))
+    with pytest.raises(LivePilotsError, match="rated_by"):
+        registry_rated_by(registry)
 
 
 def test_a_download_with_the_wrong_hash_is_refused_and_removed(tmp_path: Path) -> None:
@@ -334,10 +347,15 @@ def test_the_grid_keeps_rating_order_and_refuses_a_pilot_who_never_played(
 
 
 def test_the_committed_list_has_notes_and_an_entry_with_its_grid() -> None:
+    """A list chosen by rating draws its round robin's grid; one chosen by WAR has no
+    head-to-head grid (pilots share sides there), only its entry."""
     registry = REPO / "lab/live_pilots.json"
     pilots = load_registry(registry)
     assert all(p.note for p in pilots)
     entry = REPO / "lab/runs" / registry_entry(registry)
+    assert (entry / "results.md").is_file()
+    if registry_rated_by(registry) == "war":
+        return
     grid = json.loads((entry / "matchups.json").read_text())
     assert [p["id"] for p in grid["pilots"]] == [p.id for p in pilots]
     assert 'data-figure="matchups"' in (entry / "results.md").read_text()

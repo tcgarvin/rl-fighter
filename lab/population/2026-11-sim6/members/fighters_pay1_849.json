@@ -1,0 +1,50 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "fighters_pay1_849",
+ "family": "fighters",
+ "founder": "f995_701",
+ "parent": "fighters_pay1_462",
+ "relation": "fork",
+ "fork_update": 462,
+ "settings_changed": {
+  "drill_share": 0.25,
+  "drill_weights": [
+   2,
+   1,
+   1
+  ],
+  "pool_seed_added": [
+   "fighters_959",
+   "followers_955",
+   "fighters_pay1_462",
+   "f99_696"
+  ],
+  "commander_stable": [
+   "live"
+  ]
+ },
+ "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters_pay1/checkpoints/ppo_bc_849.pt",
+ "sha256": "a8f5becf3cf85bf2db87db567f9fe20cd7073168d5c792bddea13f21801f8b13",
+ "status": "active",
+ "archived_reason": "",
+ "archived_date": "",
+ "note": "Night 3: fighters_pay1_462's line under the learned commanders, drills 0.25 weighted to go-to.",
+ "ratings": [],
+ "drills": [
+  {
+   "phase": "third-night",
+   "date": "2026-11-09",
+   "scores": {
+    "goto_arrival": 0.20889748549323017,
+    "goto_lift": 0.04400386847195359,
+    "attack_target_hit": 0.845703125,
+    "attack_side": 0.6328125,
+    "attack_flip": 0.3046875,
+    "defend_more_on_named": 0.603515625,
+    "defend_side": 0.60546875,
+    "defend_flip": 0.27734375
+   },
+   "passed": false
+  }
+ ]
+}

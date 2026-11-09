@@ -187,6 +187,43 @@ Checked before launch: `SMOKE=1 N_UPDATES=8 run.sh` (all three resumed with the 
 settings, learned commander decisions reached the sim) and `morning.sh` rehearsed end to
 end on the smoke checkpoints against a copy of the season (WAR at 24 per mission).
 
+## What the third night found (2026-11-09)
+
+Ran 01:15 to 07:00: `fighters` 960-1338, `followers` 956-1323, `fighters_pay1` 463-849.
+The morning took until 09:17. WAR at 14 threads ran about twice as slowly in carrier battle
+as the day before.
+
+**WAR** (`lab/population/2026-11-sim6/war/third-night`, 4,320 matches, the eleven plus the
+three new, about ±3): `f99_696` +20.8, `f995_701` +19.8, `f995_400` +18.3,
+`fighters_pay1_462` +16.7, **`fighters_1338` +16.2**, **`followers_1323` +15.5**,
+**`fighters_pay1_849` +14.9**, `fighters_506` and `fighters_959` +14.4, `followers_955`
++11.4, `reward_300` +10.0, `followers_513` +7.5, `hide_644` +7.1, `transit_300` +0.2.
+Every pilot measured in both fields dropped 1 to 4 points, so compare within one
+measurement.
+
+- `followers` gained most: +4.1 over its parent, now level with the fighters.
+  `fighters` +1.8, `fighters_pay1` -1.8, both within the noise.
+- **Go-to did not move** (arrival, order shown): `followers` 0.50 to 0.47, `fighters`
+  0.30 to 0.24, `fighters_pay1` 0.20 to 0.21. Attack and defend flips rose for `fighters`
+  (0.50 to 0.59, 0.56 to 0.67) and defend for `followers` (0.77 to 0.84). More of the same
+  drill does not teach go-to. Look at what the go-to drill rewards and what the pilot sees
+  of the point before adding more.
+- **Learned commanders vs the script** in the WAR matches: 0.575 (1,572 matches, ±0.025),
+  up from 0.538 the day before (deathmatch 0.49 to 0.54, convoy 0.52 to 0.58, carrier 0.60
+  both days). Training logs over each line's last 40 updates: own side's win rate 0.64 to
+  0.69 under a learned commander, 0.46 to 0.61 under the script.
+
+**Decisions (2026-11-09):**
+- WAR culls applied, the first real ones: `fighters_959` and `fighters_506` archived on
+  the founder cap (`f995_701`'s six active, cap 4). Nobody below replacement.
+  `transit_300` at +0.2 stays (its CI spans 0). Active: four `fighters`, four
+  `followers`, the script.
+- Live list by WAR (`publish --war`, `"rated_by": "war"`; the inspector now reads
+  "+16 wins per 100 matches over the script"): in `fighters_1338`, `followers_1323`,
+  `fighters_pay1_849`; out `reward_300`, `followers_513`, `hide_644`. Logbook entry
+  `lab/runs/2026-11-09-third-night`.
+- Next by the loop: commander round 2, against these pilots.
+
 ## Arms (night 1)
 
 All arms: preset `pilots_v1`, discount 0.995 with order pay following it, no script pull,

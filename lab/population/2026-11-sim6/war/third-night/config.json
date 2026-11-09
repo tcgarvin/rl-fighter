@@ -1,0 +1,93 @@
+{
+ "schema": "rlf.population.war_config/1",
+ "pilots": [
+  [
+   "f995_400",
+   "c208c3aa979d5fbd10f7bb324194e628e9ba5054e3976865f30362186109b883"
+  ],
+  [
+   "f995_701",
+   "bf3bd0cb3c27889e9be4915f24c9674f375dd8bc815307596068e1f3ef99cf54"
+  ],
+  [
+   "f99_696",
+   "345be910ff548533a41fa5fd1ae65df75c1a0f08e7d50f8494a784d8578ab77f"
+  ],
+  [
+   "fighters_1338",
+   "03f22318b4eebb05e9f99e76a07158c2107097f266994fd95c0cf880036c1b08"
+  ],
+  [
+   "fighters_506",
+   "22d0bd45393e9551518443345591e901dfba9ddbf8efcd35353795478fdd11fa"
+  ],
+  [
+   "fighters_959",
+   "b2cde2a3bf41902f1e582339c48e71ce09f4ec4dfac9ff3498e66d956b1d88ec"
+  ],
+  [
+   "fighters_pay1_462",
+   "638b4394aa6e465c1e9ada826bb10d73ad72cc347bddfad906d497b374d1597c"
+  ],
+  [
+   "fighters_pay1_849",
+   "a8f5becf3cf85bf2db87db567f9fe20cd7073168d5c792bddea13f21801f8b13"
+  ],
+  [
+   "followers_1323",
+   "1f50f4a24159d2a2b15b57da3b9f7195d22000960ad1561bb398a80a981fdae7"
+  ],
+  [
+   "followers_513",
+   "927923563cb12755b0bccb3910b51ca6de3c2636bb5af06eba678580523251ee"
+  ],
+  [
+   "followers_955",
+   "23f05987f7bfad5a5fd2d8307bfee787b0d73f83be070e3535dc10392d9d3237"
+  ],
+  [
+   "hide_644",
+   "7e3620a0056adc0a4ad043dc557ffc78dd842e64f5d8b948d0f2469306d324eb"
+  ],
+  [
+   "reward_300",
+   "2b87e1f70751939e453f7e038c789f0265520b42389c6a64db2ec36f18792400"
+  ],
+  [
+   "transit_300",
+   "523ea086eaffdde5f7b700b06b5c09ed09d74216de40bb16f816d2f02afd7c2b"
+  ]
+ ],
+ "commanders": [
+  [
+   "scripted",
+   "scripted",
+   ""
+  ],
+  [
+   "c1_shaped",
+   "learned",
+   "e847aff72c668781b58ec0a4ee7d037f03dcf32a036abd28d48ab19a9c943828"
+  ],
+  [
+   "c1_outcome",
+   "learned",
+   "25026a0bc111079191addae08a43ca8dca9a5ef03620993f5e140d2d70481749"
+  ],
+  [
+   "c1_shaped_s1",
+   "learned",
+   "4c42860da1090e20083eef91838b36a8bddc11a6020ea90b94f491fecb3f7fec"
+  ]
+ ],
+ "n_per_mission": 1440,
+ "chunk": 96,
+ "deathmatch_drafts": 24,
+ "seed": 500000,
+ "missions": [
+  "deathmatch",
+  "carrier_battle",
+  "convoy_escort"
+ ],
+ "sim_version": 6
+}
