@@ -225,18 +225,20 @@ def test_fleet_ppo_rows_follow_each_steps_roster(tmp_path: Path) -> None:
     store = trainer.storage
     n = config.n_steps
     train = store.train_rows()
-    assert batch.size == int(train.sum()) > 0
+    assert batch.n_acting == int(train.sum()) > 0
+    assert batch.size == int(store.value_rows().sum())
     team = store.team[:n]
     self_play = np.repeat(trainer.opponents.kinds == OpponentKind.SELF, 8)
     # Padding never trains; team 1 only in self-play envs (no resets so far).
     assert not (train & (team < 0)).any()
     assert not (train & (team == 1) & ~self_play).any()
     assert (train & (team == 1) & self_play).any()
-    # Each training row's masks are those of its own hull at its own step.
-    flat = np.flatnonzero(train.reshape(-1))
+    # Each batch row's masks are those of its own hull at its own step.
+    flat = np.flatnonzero(store.value_rows().reshape(-1))
     np.testing.assert_array_equal(
         batch.masks.thruster.numpy(), store.thruster[:n].reshape(-1, 8)[flat]
     )
+    flat = np.flatnonzero(train.reshape(-1))
     hulls = set(np.unique(store.hull[:n].reshape(-1)[flat]).tolist())
     assert len(hulls) >= 2
 

@@ -5,6 +5,7 @@ Plan: lab/runs/2026-10-28-learnability-spike/plan.md §4.2, §4.3 and §8 row E.
 Needs the extension: ``uv run maturin develop -m crates/sim-py/Cargo.toml --release``.
 """
 
+import dataclasses
 import json
 import os
 import re
@@ -142,7 +143,8 @@ def test_batch_holds_only_unmasked_learner_rows(tmp_path):
     batch, _ = trainer._prepare_batch()
     store = trainer.storage
     train = store.train_rows()
-    assert batch.size == int(train.sum()) > 0
+    assert batch.n_acting == int(train.sum()) > 0
+    assert batch.size == int(store.value_rows().sum())
     # Team 1 rows join only from self-play envs; act_mask = 0 rows never do.
     # No env resets inside this short rollout, so kinds are those of every step.
     assert not store.dones[: config.n_steps].any()
@@ -194,6 +196,128 @@ class RecordingTrainer(SpikeTrainer):
         out = super()._prepare_batch()
         self.snapshots.append(self.storage.rewards.astype(np.float64).copy())
         return out
+
+
+# A rollout long enough for the script to kill learner ships: 2v2, so a match goes on
+# after a death, the untrained learner against the script, from the first tick so
+# slots start absent.
+DEATHS = {
+    **SMALL,
+    "fleets": [["fighter", "fighter"], ["fighter", "fighter"]],
+    "n_steps": 2700,
+    "t_tail": 0,
+    "env_warmup_steps": 0,
+    "opponent_bands": [[0, 1.0, 0.0, 0.0]],
+}
+
+
+def _collected_with_deaths(tmp_path: Path, **overrides: object) -> SpikeTrainer:
+    config = PPOConfig.preset("scratch", n_updates=1, **{**DEATHS, **overrides})
+    trainer = SpikeTrainer(config, tmp_path / "run")
+    trainer._collect(0)
+    return trainer
+
+
+def test_value_only_rows_are_the_dead_and_locked_learner_rows(tmp_path):
+    trainer = _collected_with_deaths(tmp_path)
+    store = trainer.storage
+    present = store.obs[..., 0] > 0.5
+    # Each slot's "has been present in this match", rebuilt from the stored obs.
+    seen = np.zeros_like(present)
+    running = np.zeros(present.shape[1], dtype=bool)
+    for step in range(store.length):
+        running |= present[step]
+        seen[step] = running
+        running[store.dones[step]] = False
+    expected = store.learner & ~store.act_mask & seen
+    assert np.array_equal(store.value_only, expected)
+    dead = store.value_only & ~present
+    locked = store.value_only & present
+    assert dead.any(), "the rollout needs a learner ship to die"
+    assert locked.any(), "the rollout needs control-locked learner rows"
+    # A slot that has not been present yet is in neither loss.
+    waiting = store.learner & ~present & ~seen
+    assert waiting.any() and not (store.value_rows() & waiting).any()
+
+    batch, stats = trainer._prepare_batch()
+    assert batch.n_acting == int(store.train_rows().sum()) > 0
+    assert batch.size == batch.n_acting + int(store.value_only.sum())
+    assert stats["value_only_rows"] == int(store.value_only.sum())
+    assert stats["value_dead_mean"] is not None
+
+
+def test_value_only_rows_off_trains_acting_rows_only(tmp_path):
+    trainer = _collected_with_deaths(tmp_path, value_only_rows=False)
+    store = trainer.storage
+    assert not store.value_only.any()
+    batch, stats = trainer._prepare_batch()
+    assert batch.size == batch.n_acting == int(store.train_rows().sum())
+    assert stats["value_only_rows"] == 0 and stats["value_dead_mean"] is None
+
+
+def _one_ppo_pass(trainer: SpikeTrainer, batch: spike_ppo.PPOBatch) -> None:
+    cfg = trainer.config
+    settings = spike_ppo.UpdateSettings(
+        clip_eps=cfg.clip_eps,
+        beta=0.0,
+        actor_frozen=False,
+        ent_coeff=cfg.ent_coeff,
+        vf_coeff=cfg.vf_coeff,
+        max_grad_norm=cfg.max_grad_norm,
+        epochs=2,
+        minibatch=cfg.minibatch,
+        entropy_floor=0.0,
+        entropy_floor_coeff=0.0,
+    )
+    torch.manual_seed(7)
+    spike_ppo.ppo_update(
+        trainer.actor,
+        trainer.critic,
+        trainer.actor_opt,
+        trainer.critic_opt,
+        batch,
+        settings,
+    )
+
+
+def test_value_only_rows_train_the_critic_and_never_the_actor(tmp_path):
+    trainer = _collected_with_deaths(tmp_path, minibatch=2048)
+    batch, _ = trainer._prepare_batch()
+    idle = ~batch.acting_rows
+    assert idle.any()
+    state = {
+        "actor": {k: v.clone() for k, v in trainer.actor.state_dict().items()},
+        "critic": {k: v.clone() for k, v in trainer.critic.state_dict().items()},
+    }
+    idle_rows = batch.rows[idle]
+
+    def idle_error() -> float:
+        with torch.no_grad():
+            values = trainer.critic.forward_set(batch.obs, batch.team, idle_rows)
+        return float(((values - batch.returns[idle]) ** 2).mean())
+
+    before = idle_error()
+    _one_ppo_pass(trainer, batch)
+    assert idle_error() < before
+    trained_actor = actor_vector(trainer.actor)
+
+    # The same pass with wild advantages on the value-only rows: the actor ends up
+    # the same, so those rows are in neither its loss nor the normalisation.
+    trainer.actor.load_state_dict(state["actor"])
+    trainer.critic.load_state_dict(state["critic"])
+    trainer._make_optimisers()
+    advantages = batch.advantages.clone()
+    advantages[idle] = 1e6
+    _one_ppo_pass(trainer, dataclasses.replace(batch, advantages=advantages))
+    assert torch.equal(actor_vector(trainer.actor), trained_actor)
+
+
+def test_actor_frozen_until_freezes_a_resumed_run():
+    config = PPOConfig.preset("scratch", actor_frozen_until=1348)
+    assert config.actor_frozen(1338) and config.actor_frozen(1347)
+    assert not config.actor_frozen(1348)
+    with pytest.raises(ValueError, match="actor_frozen_until"):
+        PPOConfig.preset("scratch", actor_frozen_until=-1)
 
 
 @pytest.mark.parametrize("fleet", [False, True], ids=["duel", "fleet"])

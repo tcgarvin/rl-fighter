@@ -102,6 +102,20 @@ external commanders. Unset, nothing here runs and the draws are unchanged. Logs:
 by ``commander_label`` (``no_commander`` for hidden orders), and
 ``commander_decisions``.
 
+Value-only rows (``value_only_rows``). GAE runs down every learner row, and only a
+match end is a terminal: a ship's last steps bootstrap from the critic's value of its
+row after it died, and the terminal term reaches dead ships too (SIM_SPEC §8). So the
+critic also trains on the learner's rows that cannot act but have been present in
+their match: dead ships (all-zero obs, told apart by the match's other ships in a
+fleet critic) and ships under the control lock. They join the value loss only; the
+actor's loss, the advantage normalisation and ``samples`` are the acting rows'. A slot
+not yet present (a craft still in its carrier's bay) also has a zero obs but is left
+out: nothing bootstraps from it, and its future is not a dead ship's. Without this the
+dead rows' values were never trained, and differed by up to a win's worth between
+checkpoints (``lab/runs/2026-11-01-pilot-families/plan.md``, night 4).
+``actor_frozen_until`` freezes the actor up to an update, so a resumed line's critic
+can settle first.
+
 Anchor cache. The frozen anchor's per-head log-softmax is computed once per sample
 at rollout time (learner rows, ``[rows, N_LOGITS]`` float32) and read back in every
 minibatch of every epoch, instead of running the anchor net each time; the loss is
@@ -205,6 +219,9 @@ ARENA_PENALTY = -0.002
 
 # Obs columns used for logged stats (SIM_SPEC §7.2): self (R - |pos|)/R, and the
 # thrust level of thruster slot 0 (the fighter's main engine, first in hull.yaml).
+# The obs's first float is the observer's own ``present`` flag: a dead or not yet
+# present ship gets the all-zero vector (crates/sim/src/obs.rs).
+_PRESENT_COL = 0
 _ARENA_MARGIN_COL = OBS_LAYOUT["self"][0] + 19
 _MAIN_ENGINE_LEVEL_COL = OBS_LAYOUT["thrusters"][0] + 6
 _FIRE_COL = HEAD_GROUPS["fire"].start
@@ -273,6 +290,8 @@ LOG_KEYS: tuple[str, ...] = (
     "pg_loss",
     "value_loss",
     "explained_variance",
+    "value_only_rows",
+    "value_dead_mean",
     "aux_script_nll",
     "aux_script_nll_pulled",
     "kl_anchor",
@@ -454,6 +473,13 @@ class PPOConfig:
     # subtracted like extra_arena_penalty): 0.002 doubles the price of a shot, to
     # discourage firing into empty space without changing the sim.
     extra_fire_cost: float = 0.0
+    # The critic also trains on the learner's rows that cannot act but have been
+    # present in their match: dead ships and the control lock (module docstring,
+    # "Value-only rows"). False: only acting rows train it, as before night 4.
+    value_only_rows: bool = True
+    # The actor is also frozen while update < this (an absolute update, so a resumed
+    # run can let its critic settle; 0 = no such freeze).
+    actor_frozen_until: int = 0
 
     @classmethod
     def preset(cls, init: str, **overrides: object) -> PPOConfig:
@@ -486,6 +512,10 @@ class PPOConfig:
                 raise ValueError(f"{name} must be positive, got {value}")
         if self.t_tail < 0:
             raise ValueError(f"t_tail must be >= 0, got {self.t_tail}")
+        if self.actor_frozen_until < 0:
+            raise ValueError(
+                f"actor_frozen_until must be >= 0, got {self.actor_frozen_until}"
+            )
         if not 0.0 < self.gamma <= 1.0:
             raise ValueError(f"gamma must be in (0, 1], got {self.gamma}")
         if len(self.fleets) != 2:
@@ -646,8 +676,9 @@ class PPOConfig:
         return max(0.0, 1.0 - update / self.n_updates)
 
     def actor_frozen(self, update: int) -> bool:
-        """Whether the actor is frozen (critic warm-up) at ``update``."""
-        return update < self.critic_warmup_updates
+        """Whether the actor is frozen (critic warm-up, or ``actor_frozen_until``)
+        at ``update``."""
+        return update < max(self.critic_warmup_updates, self.actor_frozen_until)
 
 
 def write_config(config: PPOConfig, path: Path) -> None:
@@ -732,11 +763,26 @@ class PPOBatch:
     # [B, N_LOGITS] the anchor's per-head log-softmax cached at rollout time; None:
     # not cached, ``ppo_update`` runs the anchor net on each minibatch.
     anchor_reference: torch.Tensor | None = None
+    # [B] bool: rows that chose an action and train the actor; the others are
+    # value-only rows (module docstring). None: every row acts.
+    acting: torch.Tensor | None = None
 
     @property
     def size(self) -> int:
-        """Number of training rows B."""
+        """Number of training rows B (acting and value-only)."""
         return int(self.rows.shape[0])
+
+    @property
+    def acting_rows(self) -> torch.Tensor:
+        """[B] bool: the rows that train the actor."""
+        if self.acting is None:
+            return torch.ones(self.size, dtype=torch.bool)
+        return self.acting
+
+    @property
+    def n_acting(self) -> int:
+        """Number of rows that train the actor."""
+        return int(self.acting_rows.sum())
 
     def minibatches(self, minibatch: int) -> list[torch.Tensor]:
         """Row indices of ``ceil(B / minibatch)`` minibatches of whole groups, in a
@@ -797,6 +843,12 @@ def ppo_update(
     ``anchor`` actor, ``settings.kl_anchor_coeff * KL(anchor || actor)`` (mean over
     the minibatch's ``anchor_rows``) joins the actor loss.
 
+    The value loss runs over every row of a minibatch; the actor's terms and the
+    advantage normalisation over its acting rows (``batch.acting_rows``).
+
+    Raises:
+        ValueError: An empty batch, or one without acting rows.
+
     Returns:
         Mean diagnostics: pg_loss, value_loss, approx_kl, clip_fraction,
         aux_script_nll, entropy_mean and entropy_<group>; with an anchor also
@@ -805,8 +857,12 @@ def ppo_update(
     """
     if batch.size == 0:
         raise ValueError("PPO batch is empty (no unmasked learner rows)")
+    acting = batch.acting_rows
+    if not bool(acting.any()):
+        raise ValueError("PPO batch has no acting rows")
     adv = batch.advantages
-    adv = (adv - adv.mean()) / (adv.std(unbiased=False) + 1e-8)
+    acting_adv = adv[acting]
+    adv = (adv - acting_adv.mean()) / (acting_adv.std(unbiased=False) + 1e-8)
     sums: dict[str, float] = {}
     counts: dict[str, int] = {}
 
@@ -817,24 +873,36 @@ def ppo_update(
     for epoch in range(settings.epochs):
         for idx in batch.minibatches(settings.minibatch):
             group_obs, group_team, local_rows = batch.group_view(idx)
-            obs = group_obs[local_rows[:, 0], local_rows[:, 1]]
-            masks = batch.masks.index(idx)
             values = critic.forward_set(group_obs, group_team, local_rows)
             value_loss = nn.functional.mse_loss(values, batch.returns[idx])
             add("value_loss", float(value_loss.detach()))
-            if settings.actor_frozen:
+            # The actor's terms run on the minibatch's acting rows only.
+            acts = acting[idx]
+            idx_act = idx[acts]
+            act_rows = local_rows[acts]
+            obs = group_obs[act_rows[:, 0], act_rows[:, 1]]
+            masks = batch.masks.index(idx_act)
+            if settings.actor_frozen or idx_act.numel() == 0:
                 critic_opt.zero_grad(set_to_none=True)
                 (settings.vf_coeff * value_loss).backward()
                 nn.utils.clip_grad_norm_(critic.parameters(), settings.max_grad_norm)
                 critic_opt.step()
-                if epoch == 0:
+                if epoch == 0 and idx_act.numel():
                     with torch.no_grad():
                         _actor_terms(
-                            actor, obs, masks, batch, idx, adv, settings, add, anchor
+                            actor,
+                            obs,
+                            masks,
+                            batch,
+                            idx_act,
+                            adv,
+                            settings,
+                            add,
+                            anchor,
                         )
                 continue
             actor_loss = _actor_terms(
-                actor, obs, masks, batch, idx, adv, settings, add, anchor
+                actor, obs, masks, batch, idx_act, adv, settings, add, anchor
             )
             loss = actor_loss + settings.vf_coeff * value_loss
             actor_opt.zero_grad(set_to_none=True)
@@ -960,6 +1028,9 @@ class RolloutStorage:
         self.dones = np.zeros((length, rows), dtype=np.bool_)
         self.act_mask = np.zeros((length, rows), dtype=np.bool_)
         self.learner = np.zeros((length, rows), dtype=np.bool_)
+        # Learner rows that cannot act but have been present in their match (dead
+        # ships, the control lock): they train the critic only.
+        self.value_only = np.zeros((length, rows), dtype=np.bool_)
         # The env obs showed an order (has_order; the KL anchor skips these rows).
         self.has_order = np.zeros((length, rows), dtype=np.bool_)
         # ... that the row's script flies (the "ordered" script pull's rows).
@@ -1007,6 +1078,11 @@ class RolloutStorage:
     def train_rows(self) -> NDArray[np.bool_]:
         """[n_steps, R] rows that join the loss: learner rows with ``act_mask``."""
         return self.learner[: self.n_steps] & self.act_mask[: self.n_steps]
+
+    def value_rows(self) -> NDArray[np.bool_]:
+        """[n_steps, R] rows that join the value loss: ``train_rows`` and the
+        value-only rows."""
+        return self.train_rows() | self.value_only[: self.n_steps]
 
     def masks(self, steps: slice, flat: NDArray[np.int64] | None = None) -> HeadMasks:
         """Head masks of buffer rows ``steps`` (flattened), optionally only the
@@ -1300,6 +1376,9 @@ class SpikeTrainer:
         self.opponents.results.load_state(self._resumed_enemy_results)
         # The learner's team in each env's current match (module docstring).
         self.learner_team = np.zeros(self.n_envs, dtype=np.int8)
+        # [R] the slot's ship has been present in its env's current match (a slot
+        # that was and no longer is holds a dead ship).
+        self.seen_present = np.zeros(self.rows, dtype=np.bool_)
         self.drills_on = config.drill_share > 0.0
         self.drill_ledger = DrillLedger(self.n_envs, self.n_ships)
         if self.drills_on:
@@ -1313,10 +1392,12 @@ class SpikeTrainer:
         self.log_path = run_dir / "log.jsonl"
         self._collected = range(0)
         for _ in range(config.env_warmup_steps):
+            self._note_present(self.env.obs.reshape(self.rows, OBS_DIM))
             self.env.scripted_actions()
             self._decide_commanders()
             _, _, dones, _ = self.env.step()
             self._note_commanders(np.flatnonzero(dones))
+            self._forget_present(dones)
 
     @property
     def team(self) -> NDArray[np.int8]:
@@ -1416,6 +1497,15 @@ class SpikeTrainer:
             self.side_commander[int(i)] = [
                 index[label] if label else NOT_IN_STABLE for label in ids
             ]
+
+    def _note_present(self, env_obs: NDArray[np.float32]) -> None:
+        """Mark the slots whose ship is present in ``env_obs`` ([R, OBS_DIM], the
+        obs before a step) as seen in their current match."""
+        self.seen_present |= env_obs[:, _PRESENT_COL] > 0.5
+
+    def _forget_present(self, dones: NDArray[np.bool_]) -> None:
+        """Clear ``seen_present`` for the envs whose match just ended."""
+        self.seen_present[np.repeat(dones, self.n_ships)] = False
 
     def _decide_commanders(self) -> int:
         """Submit the learned commanders' due decisions before the next env step;
@@ -1579,7 +1669,7 @@ class SpikeTrainer:
             beta_heads=cfg.beta_heads,
         )
         metrics: dict[str, float | None] = dict.fromkeys(PPO_METRIC_KEYS)
-        if batch.size:
+        if batch.n_acting:
             metrics.update(
                 ppo_update(
                     self.actor,
@@ -1608,8 +1698,8 @@ class SpikeTrainer:
             "rollout_seconds": t1 - t0,
             "gae_credit_seconds": t2 - t1,
             "ppo_seconds": t3 - t2,
-            "samples": batch.size,
-            "samples_per_s": batch.size / (t3 - t0),
+            "samples": batch.n_acting,
+            "samples_per_s": batch.n_acting / (t3 - t0),
             "sim_steps_per_s": steps * self.n_envs / (t1 - t0),
             "env_seed": self.env_seed,
             "clip_eps": settings.clip_eps,
@@ -1629,7 +1719,7 @@ class SpikeTrainer:
         row.update(reward_stats)
         row.update(tally.log_fields())
         row.update(metrics)
-        if settings.actor_frozen and batch.size:
+        if settings.actor_frozen and batch.n_acting:
             row.update({"pg_loss": 0.0, "approx_kl": 0.0, "clip_fraction": 0.0})
         for name, count in self.opponents.counts().items():
             row[f"opponents_{name}"] = count
@@ -1687,6 +1777,11 @@ class SpikeTrainer:
                 store.transit[b] = transit_rows(env, env_obs)
             store.obs[b] = fit_obs(env_obs, self.obs_dim)
             store.act_mask[b] = env.act_mask.reshape(rows)
+            self._note_present(env_obs)
+            if self.config.value_only_rows:
+                store.value_only[b] = learner & ~store.act_mask[b] & self.seen_present
+            else:
+                store.value_only[b] = False
             # Script labels for every row (each hull's own script); team-1 scripted
             # rows keep them as their actions.
             store.labels[b] = env.scripted_actions().reshape(rows, ACTION_WIDTH)
@@ -1741,6 +1836,7 @@ class SpikeTrainer:
                 ),
             )
             self._record_step(b, rewards, dones, info)
+            self._forget_present(dones)
             if self.drills_on:
                 self.drill_ledger.add_hits(info.hits, info.hit_count)
             done_envs = np.flatnonzero(dones)
@@ -1881,18 +1977,22 @@ class SpikeTrainer:
             cfg.gamma,
             cfg.gae_lambda,
         )
-        train = store.train_rows()
-        flat = np.flatnonzero(train.reshape(-1))
         n = cfg.n_steps
+        flat = np.flatnonzero(store.value_rows().reshape(-1))
+        # Acting rows among the batch rows; the logged stats are theirs.
+        acting = store.train_rows().reshape(-1)[flat]
         values = store.values[:n].reshape(-1)[flat]
         rets = returns[:n].reshape(-1)[flat]
-        var = float(np.var(rets))
+        var = float(np.var(rets[acting])) if acting.any() else 0.0
         stats["explained_variance"] = (
-            float(1.0 - np.var(rets - values) / var) if var > 0 else 0.0
+            float(1.0 - np.var((rets - values)[acting]) / var) if var > 0 else 0.0
         )
+        stats["value_only_rows"] = int(flat.size - acting.sum())
+        dead = ~acting & (store.obs[:n, :, _PRESENT_COL].reshape(-1)[flat] <= 0.5)
+        stats["value_dead_mean"] = float(values[dead].mean()) if dead.any() else None
         anchor_rows = ~store.has_order[:n].reshape(-1)[flat]
         stats["has_order_share"] = (
-            float(1.0 - anchor_rows.mean()) if flat.size else None
+            float(1.0 - anchor_rows[acting].mean()) if acting.any() else None
         )
         if cfg.beta_rows == "ordered":
             pull_rows = store.scripted_order[:n].reshape(-1)[flat]
@@ -1900,7 +2000,9 @@ class SpikeTrainer:
             pull_rows = store.transit[:n].reshape(-1)[flat]
         else:
             pull_rows = np.ones(flat.size, dtype=np.bool_)
-        stats["beta_rows_share"] = float(pull_rows.mean()) if flat.size else None
+        stats["beta_rows_share"] = (
+            float(pull_rows[acting].mean()) if acting.any() else None
+        )
         anchor_reference = None
         if self.anchor is not None:
             anchor_reference = torch.from_numpy(
@@ -1927,6 +2029,7 @@ class SpikeTrainer:
             anchor_rows=torch.from_numpy(anchor_rows),
             pull_rows=torch.from_numpy(pull_rows),
             anchor_reference=anchor_reference,
+            acting=torch.from_numpy(acting),
         )
         return batch, stats
 

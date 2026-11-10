@@ -321,7 +321,10 @@ def test_trainer_pulls_exactly_the_transit_rows(
     row = trainer.run_update()
     batch, expected = batches[0], expected_rows[0]
     assert expected.any() and not expected.all()
-    np.testing.assert_array_equal(batch.pull_rows.numpy(), expected)
+    # The pull reads the acting rows (value-only rows are never in the actor's loss).
+    np.testing.assert_array_equal(
+        batch.pull_rows[batch.acting_rows].numpy(), expected
+    )
     assert row["beta_rows_share"] == pytest.approx(float(expected.mean()))
 
 
