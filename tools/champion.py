@@ -135,7 +135,10 @@ class GcsStore:
         self.configuration = configuration
         self.base_url = base_url.rstrip("/")
 
-    def put(self, local: Path, key: str) -> str:
+    def put(
+        self, local: Path, key: str, content_type: str = "application/octet-stream"
+    ) -> str:
+        """Upload ``local`` to ``key``, served as ``content_type``; return its URL."""
         if not key.startswith(f"{self.key_prefix}/"):
             raise ChampionError(f"refusing to write outside {self.key_prefix}/: {key}")
         cmd = [
@@ -145,7 +148,7 @@ class GcsStore:
             "cp",
             "--no-clobber",
             f"--cache-control={IMMUTABLE_CACHE_CONTROL}",
-            "--content-type=application/octet-stream",
+            f"--content-type={content_type}",
             str(local),
             f"gs://{self.bucket}/{key}",
         ]

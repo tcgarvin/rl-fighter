@@ -18,6 +18,13 @@ Each run directory is read as it is; the formats differ between runs:
 - ``lab/champions/*/champion.json``: promoted pilots (may be absent).
 - ``matchups.json`` beside ``results.md`` (schema ``rlf.notebook.matchups/1``): a
   who-beats-whom grid, drawn where the write-up has ``<div data-figure="matchups"></div>``.
+- ``media.json`` beside ``results.md`` (schema ``rlf.notebook.media/1``, written by
+  ``tools/notebook_media.py publish``): the run's before/after films
+  (``tools/web/film.mjs``: one video, before on its left half and after on its right,
+  and a ``.jpg`` poster of the same name) and where the bucket serves them. A film is
+  drawn with a draggable divider where the write-up has ``<div data-figure="compare"
+  data-src="clip.mp4" data-view="wide" data-caption="..."></div>`` (``data-view`` is
+  the film's ``--view``).
 - ``lab/live_pilots.json``: the pilots flying now, for the index's "Flying now" card.
 
     python -m tools.build_notebook [--runs lab/runs] [--champions lab/champions]
@@ -44,12 +51,14 @@ from tools.lab_markdown import (
     plain_text,
     render_markdown,
 )
+from tools.notebook_media import MediaError, load_media
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 INDEX_SCHEMA = "rlf.notebook.index/1"
 RUN_SCHEMA = "rlf.notebook.run/1"
 MATCHUPS_SCHEMA = "rlf.notebook.matchups/1"
 LIVE_PILOTS_SCHEMA = "rlf.live_pilots/1"
+COMPARE_VIEWS = ("wide", "phone")
 MAX_POINTS = 300
 WIN_SMOOTHING_UPDATES = 50
 TICKS_PER_SECOND = 30.0
@@ -67,6 +76,8 @@ _VERDICT_ROW = re.compile(
 _SHIPPED = re.compile(r"\bshipped\b", re.I)
 _SIM_VERSION_TEXT = re.compile(r"SIM_VERSION\W{0,4}(\d+)|\bsim v(\d+)\b", re.I)
 _SENTENCE_END = re.compile(r"(?<=[.?!])\s+(?=[A-Z0-9*`(])")
+_COMPARE_FIGURE = re.compile(r"<div\b[^>]*\bdata-figure=\"compare\"[^>]*>")
+_DATA_ATTRIBUTE = re.compile(r"\bdata-([a-z]+)=\"([^\"]*)\"")
 
 
 class NotebookError(ValueError):
@@ -537,6 +548,37 @@ class RunEntry:
     sort_key: tuple[Any, ...]
 
 
+def build_media(run_dir: Path, results_md: str) -> dict[str, str]:
+    """The run's published media (name to URL), after checking every compare figure.
+
+    Raises:
+        NotebookError: ``media.json`` is malformed, a ``data-figure="compare"`` block
+            names a film that is not published or has no poster, or its ``data-view``
+            is not a film view.
+    """
+    try:
+        media = load_media(run_dir)
+    except MediaError as err:
+        raise NotebookError(str(err)) from err
+    results_path = run_dir / "results.md"
+    for figure in _COMPARE_FIGURE.findall(results_md):
+        attributes = dict(_DATA_ATTRIBUTE.findall(figure))
+        src = attributes.get("src", "")
+        for name in (src, Path(src).with_suffix(".jpg").name):
+            if name not in media:
+                raise NotebookError(
+                    f"{results_path}: compare figure {src!r} needs {name!r} in "
+                    f"{run_dir / 'media.json'}; film it (tools/web/film.mjs) and run "
+                    "tools.notebook_media publish"
+                )
+        if attributes.get("view") not in COMPARE_VIEWS:
+            raise NotebookError(
+                f"{results_path}: compare figure {src} needs data-view, one of "
+                f"{', '.join(COMPARE_VIEWS)}"
+            )
+    return media
+
+
 def build_run(
     run_dir: Path,
     run_ids: frozenset[str],
@@ -583,6 +625,7 @@ def build_run(
     matchups = _read_json(matchups_path) if matchups_path.is_file() else None
     if matchups is not None and matchups.get("schema") != MATCHUPS_SCHEMA:
         raise NotebookError(f"{matchups_path}: schema is not {MATCHUPS_SCHEMA}")
+    media = build_media(run_dir, results_md)
     meta = {
         "id": run_id,
         "date": match.group(1),
@@ -602,6 +645,7 @@ def build_run(
         "charts": charts,
         "arms": arms,
         "matchups": matchups,
+        "media": media,
         "artefacts": artefacts,
         "source": {
             "dir": _github(run_dir, repo_root),

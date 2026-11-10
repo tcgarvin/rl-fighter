@@ -5,6 +5,7 @@
 import { mountNav } from "../shell/nav";
 import { formatValue, lineChart } from "./chart";
 import { matchupGrid } from "./matchups";
+import { compareFigure } from "./compare";
 import type { Artefact, ArtefactKind, ChampionRef, IndexRun, NotebookIndex, RunPage, Verdict } from "./types";
 import "./notebook.css";
 
@@ -211,6 +212,13 @@ function renderRun(run: RunPage, openPlan: boolean): void {
   }
   placeCharts(article, run);
   if (run.matchups) article.querySelector('[data-figure="matchups"]')?.replaceWith(matchupGrid(run.matchups));
+  // Before/after films: the builder has checked each names a published film and its poster.
+  for (const slot of article.querySelectorAll<HTMLElement>('[data-figure="compare"]')) {
+    const { src = "", view = "", caption = "" } = slot.dataset;
+    const film = run.media[src];
+    const poster = run.media[src.replace(/\.mp4$/, ".jpg")];
+    if (film && poster) slot.replaceWith(compareFigure(film, poster, view, caption));
+  }
 
   const extras = el("section", "nb-extras");
   if (run.artefacts.length) extras.append(artefactsBlock(run.artefacts));

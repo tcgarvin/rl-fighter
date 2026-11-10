@@ -32,5 +32,8 @@ web/public/hulls/data/
 web/shots/
 lab/runs/*/smoke/
 
+# Notebook films: published to the bucket (tools/notebook_media.py); media.json is committed
+lab/runs/*/media/
+
 # WAR chunk files: war.json holds every match, so the chunks are only for resuming
 lab/population/*/war/*/matches/

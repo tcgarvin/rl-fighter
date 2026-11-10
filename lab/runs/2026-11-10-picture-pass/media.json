@@ -1,0 +1,75 @@
+{
+ "schema": "rlf.notebook.media/1",
+ "files": [
+  {
+   "name": "carrier.jpg",
+   "sha256": "8822a3ef27f04c1e0c1ba1f41ba9f200e2cfd005db851b23814117176e3bf5ca",
+   "bytes": 23326,
+   "key": "rl-fighter/notebook/2026-11-10-picture-pass/8822a3ef27f04c1e0c1ba1f41ba9f200e2cfd005db851b23814117176e3bf5ca.jpg",
+   "url": "https://storage.tcgarvin.com/rl-fighter/notebook/2026-11-10-picture-pass/8822a3ef27f04c1e0c1ba1f41ba9f200e2cfd005db851b23814117176e3bf5ca.jpg"
+  },
+  {
+   "name": "carrier.mp4",
+   "sha256": "a4d54dc786ecce78b575220132258fab024e43e448cf20558fa41481afdd97dd",
+   "bytes": 708247,
+   "key": "rl-fighter/notebook/2026-11-10-picture-pass/a4d54dc786ecce78b575220132258fab024e43e448cf20558fa41481afdd97dd.mp4",
+   "url": "https://storage.tcgarvin.com/rl-fighter/notebook/2026-11-10-picture-pass/a4d54dc786ecce78b575220132258fab024e43e448cf20558fa41481afdd97dd.mp4"
+  },
+  {
+   "name": "convoy.jpg",
+   "sha256": "6ed3a2190799bb561a9c69b42b33e8e1a53429c0af5a1f31b9f95f400a790f4a",
+   "bytes": 21088,
+   "key": "rl-fighter/notebook/2026-11-10-picture-pass/6ed3a2190799bb561a9c69b42b33e8e1a53429c0af5a1f31b9f95f400a790f4a.jpg",
+   "url": "https://storage.tcgarvin.com/rl-fighter/notebook/2026-11-10-picture-pass/6ed3a2190799bb561a9c69b42b33e8e1a53429c0af5a1f31b9f95f400a790f4a.jpg"
+  },
+  {
+   "name": "convoy.mp4",
+   "sha256": "3a994e309cb9b42f69126fab7ff9ac5d8866cf1e6a562d046828be5db4940330",
+   "bytes": 1310497,
+   "key": "rl-fighter/notebook/2026-11-10-picture-pass/3a994e309cb9b42f69126fab7ff9ac5d8866cf1e6a562d046828be5db4940330.mp4",
+   "url": "https://storage.tcgarvin.com/rl-fighter/notebook/2026-11-10-picture-pass/3a994e309cb9b42f69126fab7ff9ac5d8866cf1e6a562d046828be5db4940330.mp4"
+  },
+  {
+   "name": "dogfight.jpg",
+   "sha256": "727add5e2407e82a561fd5452cf7b1ffd74e55651f3ad210fb20b8c6a6a12eed",
+   "bytes": 26766,
+   "key": "rl-fighter/notebook/2026-11-10-picture-pass/727add5e2407e82a561fd5452cf7b1ffd74e55651f3ad210fb20b8c6a6a12eed.jpg",
+   "url": "https://storage.tcgarvin.com/rl-fighter/notebook/2026-11-10-picture-pass/727add5e2407e82a561fd5452cf7b1ffd74e55651f3ad210fb20b8c6a6a12eed.jpg"
+  },
+  {
+   "name": "dogfight.mp4",
+   "sha256": "b78d94fec08a7b7b0e28532ff675fb4a900807977632a465ab265b9b2cf6a3bc",
+   "bytes": 2017281,
+   "key": "rl-fighter/notebook/2026-11-10-picture-pass/b78d94fec08a7b7b0e28532ff675fb4a900807977632a465ab265b9b2cf6a3bc.mp4",
+   "url": "https://storage.tcgarvin.com/rl-fighter/notebook/2026-11-10-picture-pass/b78d94fec08a7b7b0e28532ff675fb4a900807977632a465ab265b9b2cf6a3bc.mp4"
+  },
+  {
+   "name": "explosion.jpg",
+   "sha256": "47a2c79d2e5b8cfa27ec3edf48b0aa01109d3324c520e71d07734736df41e9f1",
+   "bytes": 33348,
+   "key": "rl-fighter/notebook/2026-11-10-picture-pass/47a2c79d2e5b8cfa27ec3edf48b0aa01109d3324c520e71d07734736df41e9f1.jpg",
+   "url": "https://storage.tcgarvin.com/rl-fighter/notebook/2026-11-10-picture-pass/47a2c79d2e5b8cfa27ec3edf48b0aa01109d3324c520e71d07734736df41e9f1.jpg"
+  },
+  {
+   "name": "explosion.mp4",
+   "sha256": "0052bb11f4532b1530c33c10f8dc5196b08150919422eba1ffadd3d31a85a5e8",
+   "bytes": 1423740,
+   "key": "rl-fighter/notebook/2026-11-10-picture-pass/0052bb11f4532b1530c33c10f8dc5196b08150919422eba1ffadd3d31a85a5e8.mp4",
+   "url": "https://storage.tcgarvin.com/rl-fighter/notebook/2026-11-10-picture-pass/0052bb11f4532b1530c33c10f8dc5196b08150919422eba1ffadd3d31a85a5e8.mp4"
+  },
+  {
+   "name": "planet.jpg",
+   "sha256": "15fe011533eaceb6551abcdcb1c139afad60e8d120d151e22837ecacd257f224",
+   "bytes": 18610,
+   "key": "rl-fighter/notebook/2026-11-10-picture-pass/15fe011533eaceb6551abcdcb1c139afad60e8d120d151e22837ecacd257f224.jpg",
+   "url": "https://storage.tcgarvin.com/rl-fighter/notebook/2026-11-10-picture-pass/15fe011533eaceb6551abcdcb1c139afad60e8d120d151e22837ecacd257f224.jpg"
+  },
+  {
+   "name": "planet.mp4",
+   "sha256": "0b025e9378f2280aa948daa720646c9882165aacf5c645416be880c196070826",
+   "bytes": 1098761,
+   "key": "rl-fighter/notebook/2026-11-10-picture-pass/0b025e9378f2280aa948daa720646c9882165aacf5c645416be880c196070826.mp4",
+   "url": "https://storage.tcgarvin.com/rl-fighter/notebook/2026-11-10-picture-pass/0b025e9378f2280aa948daa720646c9882165aacf5c645416be880c196070826.mp4"
+  }
+ ]
+}

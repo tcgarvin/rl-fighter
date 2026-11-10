@@ -100,6 +100,8 @@ export interface RunPage extends RunMeta {
   plan_html: string | null;
   charts: ChartData[];
   matchups: Matchups | null;
+  /** The run's published films and posters (media.json): file name to URL. */
+  media: Record<string, string>;
   arms: Arm[];
   artefacts: Artefact[];
   source: { dir: string; results: string | null; plan: string | null };

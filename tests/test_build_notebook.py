@@ -345,6 +345,41 @@ def test_a_run_s_matchups_reach_its_page_and_a_wrong_schema_raises(
         build_notebook(runs, tmp_path / "none", out, tmp_path, _no_git)
 
 
+def test_a_run_s_published_films_reach_its_page_and_a_figure_must_name_one(
+    tmp_path: Path,
+) -> None:
+    runs = tmp_path / "lab" / "runs"
+    figure = '<div data-figure="compare" data-src="{src}" data-view="{view}"></div>'
+    text = "# Films\n\nShipped.\n\n## A\n\n" + figure + "\n"
+    run = _write_run(
+        tmp_path, "2026-01-01-films", text.format(src="a.mp4", view="wide")
+    )
+    out = tmp_path / "out"
+    with pytest.raises(NotebookError, match="notebook_media publish"):
+        build_notebook(runs, tmp_path / "none", out, tmp_path, _no_git)
+
+    film = {"name": "a.mp4", "url": "https://example.test/a.mp4"}
+    poster = {"name": "a.jpg", "url": "https://example.test/a.jpg"}
+    manifest = {"schema": "rlf.notebook.media/1", "files": [film]}
+    (run / "media.json").write_text(json.dumps(manifest))
+    with pytest.raises(NotebookError, match="a.jpg"):
+        build_notebook(runs, tmp_path / "none", out, tmp_path, _no_git)
+
+    manifest["files"].append(poster)
+    (run / "media.json").write_text(json.dumps(manifest))
+    build_notebook(runs, tmp_path / "none", out, tmp_path, _no_git)
+    page = json.loads((out / "2026-01-01-films.json").read_text())
+    assert page["media"] == {"a.mp4": film["url"], "a.jpg": poster["url"]}
+    assert 'data-figure="compare"' in page["results_html"]
+
+    (run / "results.md").write_text(text.format(src="a.mp4", view="tall"))
+    with pytest.raises(NotebookError, match="data-view"):
+        build_notebook(runs, tmp_path / "none", out, tmp_path, _no_git)
+    (run / "media.json").write_text(json.dumps({"schema": "other"}))
+    with pytest.raises(NotebookError, match="schema is not"):
+        build_notebook(runs, tmp_path / "none", out, tmp_path, _no_git)
+
+
 def test_the_index_says_who_is_flying_and_refuses_an_entry_that_is_not_there(
     tmp_path: Path,
 ) -> None:

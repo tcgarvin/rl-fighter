@@ -103,6 +103,21 @@ node --experimental-strip-types tools/web/live_smoke.mjs web/public/bundle 4 [--
 # against a running preview / web/dist; RLF_GPU=1 uses the host GPU instead of SwiftShader
 node tools/web/live_shots.mjs http://localhost:4173    # RLF_SHOTS_COMMANDER=<id>: + scenes with it on
 node tools/web/live_soak.mjs 10 8     # RLF_SOAK_INSPECT=1 keeps the ship inspector open
+# Renderer work: review shots at the phone and Framework-13 sizes on the host GPU, and
+# (RLF_BENCH=1) a frame's cost without vsync, against a running dev server or preview.
+# The live page trades resolution for frame rate (web/src/live/pacing.ts); ?scale=1 pins it.
+RLF_BENCH=1 node tools/web/vfx_shots.mjs <out-dir> http://localhost:5179   # RLF_VIEW, RLF_SHOTS_ONLY, RLF_CROP
+# Before/after films for a notebook entry: one video, the old build on the left half and
+# the new on the right, the same frames of the same match (a virtual clock; needs ffmpeg),
+# with a .jpg poster beside it. Serve the old build from a worktree. Films go in
+# lab/runs/<id>/media/ (gitignored); publish uploads them to rl-fighter/notebook/<id>/
+# <sha256>.mp4 in the bucket and writes lab/runs/<id>/media.json (rlf.notebook.media/1,
+# committed). The write-up places one with
+# <div data-figure="compare" data-src="clip.mp4" data-view="wide" data-caption="..."></div>
+node tools/web/film.mjs lab/runs/<id>/media/clip.mp4 <before-url> <after-url> "seed=11&fleets=3v3&warmup=22" \
+    [--view wide|phone] [--seconds 8] [--crf 28] [--follow <slot> --zoom 2]
+uv run python -m tools.notebook_media publish --run <id>
+uv run python -m pytest tests/test_notebook_media.py tests/test_build_notebook.py -v
 # M3 art preview without the sim (carrier, freighter, bay launch, jump charge/out, orders):
 # dev-only page web/dev/m3-art.html?scene=lineup|detail|convoy|launch|jump|quick|orders[&t=s]
 # on the Vite dev server; screenshots into web/shots/m3-art/
