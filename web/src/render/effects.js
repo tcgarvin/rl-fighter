@@ -1,7 +1,8 @@
 // Shared combat effects. Fixed-capacity CPU pools feed bounded instanced draws, with no
-// per-frame object creation. Smoke, fire and flames are shaded from one small tiling
-// noise texture (render/noise.js); a fixed pool of four point lights is lent to
-// blasts, hits, jumps and launches so they light the hulls near them.
+// per-frame object creation. Smoke, fire clouds and hull-relative vent jets share one
+// small tiling noise texture (render/noise.js); jets have no gravity-defined up.
+// A fixed pool of four point lights is lent to blasts, hits, jumps and launches so
+// they light the hulls near them.
 //
 // Coordinates: every event takes sim metres (x, y; +y is the sim's "up", drawn at
 // three.js z = -y) and headings in radians CCW from +x, as the sim reports them.
@@ -52,6 +53,8 @@
 //       was laid, fading over ~1.25 s. head() each frame, lay() once a sim tick.
 //   fx.beacons(model, team) -> {show(on), dispose()}  running lights at model.strobes
 //   fx.attachDamage(model) -> {update(hpFraction, visible, dt), smoulder(dt, heat), dispose()}
+//       pressure vents ride with breaches so speed cannot pull fire off the hull;
+//       smoke detaches to leave a damage trail.
 //       smoulder: a burnt-out hulk's hot spots instead of smoke and fire, a few glowing
 //       points fixed on the hull where it burned; heat 0..1, call every frame to keep them
 //
@@ -237,7 +240,8 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
   const resources = [];
   // opts (billboards): minPx keeps a sprite at least that many CSS pixels across; fire
   // is a rolling fire cloud; aux adds a second per-instance vec4 (seed, age 0..1, heat, -)
-  // that the smoke, fire and flame looks are shaded from.
+  // that the smoke, fire and vent looks are shaded from (vents use heat for lateral
+  // lag / width). Vents use a world axis with a view-facing width, never an "up".
   function batch(geo, cap, billboard = false, smoke = false, additive = true, flame = false, trace = 0, ringWidth = 0, ringMin = .022, opts = {}) {
     const { minPx = 0, fire = false } = opts;
     const shaded = smoke || fire || flame;
@@ -252,16 +256,21 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
       blending: additive ? T.AdditiveBlending : T.NormalBlending,
       vertexShader: `uniform float viewportHeight; uniform vec3 sunDir; attribute vec4 tint; varying vec4 vTint; varying vec2 vUv; varying float vSeed;
         ${shaded ? 'attribute vec4 aux; varying vec4 vAux; varying vec3 vSun;' : ''}
+        ${flame ? 'varying float vVentSide;' : ''}
         void main(){ vTint=tint; vUv=uv; vSeed=length(instanceMatrix[2].xyz);
         ${shaded ? 'vAux=aux; vSun=normalize(mat3(viewMatrix)*sunDir);' : ''}
-        ${trace ? `vec4 center=modelViewMatrix*instanceMatrix*vec4(0.,0.,0.,1.);
+        ${trace || flame ? `vec4 center=modelViewMatrix*instanceMatrix*vec4(0.,0.,0.,1.);
         vec3 axis=(modelViewMatrix*vec4(instanceMatrix[0].xyz,0.)).xyz;
         vec2 along=axis.xy/max(length(axis.xy),.0001);
         vec2 across=vec2(-along.y,along.x);
+        ${flame ? `// Preserve the hull-side sign through camera rotations: lag must
+        // follow breach motion, not a preferred side of the screen.
+        vec3 side=(modelViewMatrix*vec4(instanceMatrix[2].xyz,0.)).xyz;
+        vVentSide=dot(side.xy,across)/max(length(side.xy),.0001);` : ''}
         float width=length(instanceMatrix[1].xyz);
         float pixelWorld=2.*max(1.,-center.z)/(projectionMatrix[1][1]*viewportHeight);
         width=max(width,pixelWorld*${trace === 1 ? '2.8' : '.95'});
-        center.xy+=axis.xy*position.x+across*position.y*width;
+        ${flame ? 'center.xyz+=axis*position.x; center.xy+=across*position.y*width;' : 'center.xy+=axis.xy*position.x+across*position.y*width;'}
         gl_Position=projectionMatrix*center;` : ringWidth ? `float radius=length(position.xz);
         vec3 rim=position/max(radius,.0001);
         vec4 center=modelViewMatrix*instanceMatrix*vec4(0.,0.,0.,1.);
@@ -276,6 +285,7 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
         'gl_Position=projectionMatrix*modelViewMatrix*instanceMatrix*vec4(position,1.);'} }`,
       fragmentShader: `uniform float time; uniform sampler2D noise; uniform vec3 sunColor, shadeColor; varying vec4 vTint; varying vec2 vUv; varying float vSeed;
         ${shaded ? 'varying vec4 vAux; varying vec3 vSun;' : ''}
+        ${flame ? 'varying float vVentSide;' : ''}
         void main(){float a=vTint.a; vec3 col=vTint.rgb;
         ${trace ? `float crossSection=abs(vUv.y*2.-1.);
           ${trace === 1 ? `float taper=mix(.08,1.,vUv.x);
@@ -311,18 +321,32 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
           col=vTint.rgb*(shadeColor*1.2+mix(sunColor,vec3(1.),.5)*lit*1.05);
           // Heat: a glowing pocket deep inside a fresh, hot puff.
           col+=vec3(2.2,.55,.08)*vAux.z*smoothstep(.5,1.,body)*lump;
-          a*=dens;` : flame ? `vec2 p=vUv*2.-1.; float seed=vAux.x;
-          // Tongues of flame: rising filaments, a wavering taper, hot at the root.
-          float rise=time*(1.1+.3*fract(seed*3.7));
-          float n1=texture2D(noise,vec2(p.x*.16+seed*.61,p.y*.13-rise)).a;
-          float n2=texture2D(noise,vec2(p.x*.31-seed*.37,p.y*.2-rise*1.7)).r;
-          float lift=(p.y+1.)*.5;
-          float x=(p.x+(n2-.5)*.75*lift)/max(.14,.62-p.y*.42);
-          float shape=(1.-smoothstep(.15,1.,abs(x)))*smoothstep(-1.,-.6,p.y)*(1.-smoothstep(-.1,1.,p.y+(.5-n1)*1.3));
-          shape*=(1.-smoothstep(.72,1.,abs(p.x)))*(1.-smoothstep(.8,1.,p.y));
+          a*=dens;` : flame ? `float u=vUv.x, crossJet=vUv.y*2.-1., seed=vAux.x;
+          // Two flowing noise reads do all the breakup: billows scallop a broad
+          // envelope, finer filaments open holes and tear its end into separate licks.
+          // A finite tip width avoids the clean needle silhouette of engine exhaust.
+          float flow=time*(.62+.22*fract(seed*3.7));
+          vec2 q=vec2(u*.48-flow,crossJet*.24+seed*.61);
+          vec4 billow=texture2D(noise,q);
+          vec4 tear=texture2D(noise,q*2.15+vec2(-flow*.37,seed*.37));
+          float bend=vVentSide*((billow.r-.5)*1.6*u+((tear.r-.5)*.45+vAux.z)*u*u);
+          float edge=abs(crossJet-bend);
+          float radius=(.57+.24*sin(u*3.14159))*(1.-.65*u);
+          radius+=(billow.b-.5)*(.16+.4*u)+(tear.g-.5)*(.12+.3*u);
+          float reach=.58+.2*fract(seed*5.3)+.12*billow.r;
+          float tip=1.-smoothstep(reach-.13,reach+.15,u+(tear.r-.5)*.42);
+          float fuel=billow.b*.62+tear.a*.38, erode=.25+.21*u+.06*vAux.y;
+          float shreds=smoothstep(erode,erode+.13,fuel);
+          float shape=(1.-smoothstep(radius-.1,radius+.08,edge))*tip;
+          shape*=mix(1.,shreds,smoothstep(.05,.3,u))*smoothstep(0.,.035,u);
+          shape*=1.-smoothstep(.88,1.,u);
           if(shape<.004) discard;
-          a*=shape*(.55+1.1*n1);
-          col=mix(col,vec3(2.,1.15,.38),shape*shape*(1.-lift)*.7);` : billboard ? `vec2 p=vUv*2.-1.; float r=dot(p,p);
+          a*=shape*(.65+.55*billow.b);
+          col=mix(vec3(.55,.018,.003),vec3(1.65,.26,.012),1.-smoothstep(.12,.85,u));
+          // Only a pin of pale heat at the metal; overlapping envelopes must not
+          // become a white blob that competes with engines and muzzle flashes.
+          float core=(1.-smoothstep(.025,.13,u))*(1.-smoothstep(.04,.25,edge));
+          col=mix(col,vec3(1.7,1.05,.35),core);` : billboard ? `vec2 p=vUv*2.-1.; float r=dot(p,p);
           a*=max(0.,exp(-r*5.)-0.0067);
           if(r>1.) discard;` : ''}
         gl_FragColor=vec4(col,a);
@@ -337,7 +361,7 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
     resources.push(b); return b;
   }
   const glow = batch(new T.PlaneGeometry(1, 1), 1400, true);
-  const flames = batch(new T.PlaneGeometry(1, 1), 512, true, false, true, true);
+  const flames = batch(new T.PlaneGeometry(1, 1), 512, false, false, true, true);
   const smoke = batch(new T.PlaneGeometry(1, 1), 1200, true, true, false);
   const chips = batch(new T.IcosahedronGeometry(1, 0), 256, false, false, false);
   const ringGeo = new T.RingGeometry(.89, 1, 48, 1, 0, Math.PI * 1.86);
@@ -399,7 +423,7 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
       Math.atan2(-dz,dx), c, opacity);
   }
   const particles = Array.from({ length: 3200 }, () => ({ life: 0, max: 1, x: 0, y: 0, z: 0,
-    vx: 0, vy: 0, vz: 0, size: 1, kind: 0, color: white, angle: 0, wait: 0, hot: false, gain: 1 }));
+    vx: 0, vy: 0, vz: 0, size: 1, kind: 0, color: white, angle: 0, wait: 0, hot: false, gain: 1, vent: null }));
   const waves = Array.from({ length: 160 }, () => ({ life: 0, max: 1, x: 0, z: 0,
     radius: 1, angle: 0, color: white, kind: 0 }));
   // Arrivals and departures share one pool (`out` marks a departure).
@@ -412,15 +436,16 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
     phase: 0, sparkClock: 0, gen: 0 }));
   const shields = Array.from({ length: SHIELD_CAP }, () => ({ age: 0, max: 0, object: null,
     x: 0, z: 0, dx: 1, dz: 0, radius: 1, color: white, depleted: false, seed: 0, strength: 1, born: 0 }));
-  let pc = 0, wc = 0, jc = 0, lc = 0, cc = 0, sc = 0, clock = 0, orders = [];
-  // kind: 0 glow, 1 smoke, 2 shell fragment, 3 spark, 4 tapered flame, 5 damage smoke,
+  let pc = 0, wc = 0, jc = 0, lc = 0, cc = 0, sc = 0, clock = 0, drawFrame = 0, orders = [];
+  // kind: 0 glow, 1 smoke, 2 shell fragment, 3 spark, 4 vent jet (hull pressure, no up),
+  // 5 damage smoke,
   // 6 ember (a flickering hot point), 7 explosion smoke (`hot`: with a glowing pocket),
   // 8 fire cloud (yellow, red, then soot), 9 shield fragment. `wait` delays the
   // particle (s): it is invisible and still until then.
   function particle(x, y, z, size, life, color, kind = 0, vx = 0, vy = 0, vz = 0, wait = 0) {
     const p = particles[pc++]; if (pc === particles.length) pc = 0;
     p.x=x; p.y=y; p.z=z; p.size=size; p.life=p.max=life; p.color=color; p.kind=kind;
-    p.vx=vx; p.vy=vy; p.vz=vz; p.angle=Math.random()*6.283; p.wait=wait; p.hot=false; p.gain=1;
+    p.vx=vx; p.vy=vy; p.vz=vz; p.angle=Math.random()*6.283; p.wait=wait; p.hot=false; p.gain=1; p.vent=null;
     return p;
   }
   const scratch = new T.Color();
@@ -935,7 +960,7 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
     jumpOutQuick(e) { depart(e,true); },
     drawOrders(list) { orders=list || []; },
     attachDamage(model) {
-      let smokeClock=0, fireClock=0, arcClock=0, index=0, disposed=false, hot=null;
+      let smokeClock=0, fireClock=0, arcClock=0, index=0, fireIndex=0, disposed=false, hot=null;
       // The hull's speed, from where it was drawn last frame: a slow ship's smoke stays
       // over it, so it is laid thinner (it never hides the hull it comes from).
       let lastX=NaN, lastZ=NaN, thin=1;
@@ -948,9 +973,20 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
       const scale=Math.max(.85,Math.min(1.8,extent/3));
       const freight=model.object.name==='hull.freighter' || model.object.name==='hull.transport';
       const fireScale=scale*(freight?.7:1);
+      // A breach keeps its bearing for the hull's lifetime. Centreline mounts have
+      // no useful side normal, so give them a seeded bearing instead of a shared up.
+      const vents=points.slice(0,3).map((local,i)=>{
+        const seed=Math.sin(model.object.id*12.9898+(i+1)*78.233)*43758.5453;
+        const jitter=seed-Math.floor(seed);
+        const bearing=Math.abs(local.z)<.05*scale ? jitter*Math.PI*2 : Math.atan2(local.z,local.x)+(jitter-.5)*.5;
+        return {object:model.object,local,dx:Math.cos(bearing),dz:Math.sin(bearing),
+          x:0,y:0,z:0,wx:1,wz:0,lag:0,limit:fireScale*.38,
+          strength:.8+jitter*.4,phase:jitter*Math.PI*2,frame:-1,active:false};
+      });
       const electric=new T.Color(0x99ddff);
       return {
         update(hp, alive, dt) {
+          for(const v of vents) v.active=!disposed && alive && hp<.4;
           if(disposed || !alive || hp>=.7 || !points.length) {
             smokeClock=fireClock=arcClock=0; lastX=NaN; return;
           }
@@ -962,7 +998,7 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
             lastX=point.x; lastZ=point.z;
           }
           smokeClock+=dt*(hp<.4?14:9);
-          // The matrix is read at emission only. Detached particles never follow the hull.
+          // Smoke detaches at emission; vent roots are resolved from the drawn hull.
           while(smokeClock>=1) {
             smokeClock--; point.copy(points[index++%points.length]).applyMatrix4(model.object.matrixWorld);
             particle(point.x,point.y+.3,point.z,(3.2+Math.random()*1.6)*scale,1.8+Math.random()*.8,smokeColor,5,
@@ -971,10 +1007,26 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
           if(hp<.4) {
             fireClock+=dt*(freight?20:30);
             while(fireClock>=1) {
-              fireClock--; point.copy(points[index++%Math.min(3,points.length)]).applyMatrix4(model.object.matrixWorld);
-              particle(point.x,point.y+.4,point.z,(5+Math.random()*4)*fireScale,.3+Math.random()*.25,fireColor,4,
-                (Math.random()-.5)*3,9*scale,(Math.random()-.5)*3);
-              particle(point.x,point.y+.5,point.z,(freight?1.8:3)*scale,freight?.12:.16,white);
+              fireClock--; const vent=vents[fireIndex++%vents.length];
+              // Fewer overlapping envelopes expose the holes/licks instead of
+              // averaging the noise back into three solid cones. Roots still ride
+              // the breach; shorter, broader puffs leave the hull readable.
+              particle(0,0,0,(4.2+Math.random()*2.8)*fireScale*vent.strength,
+                .2+Math.random()*.16,fireColor,4).vent=vent;
+              if(fireIndex%7===0) {
+                // A rare detached cinder replaces a root-glow slot, keeping the
+                // emission budget unchanged. Its direction is entirely hull-local.
+                point.copy(vent.local).applyMatrix4(model.object.matrixWorld);
+                const m=model.object.matrixWorld.elements;
+                let dx=m[0]*vent.dx+m[8]*vent.dz, dz=m[2]*vent.dx+m[10]*vent.dz;
+                const norm=Math.hypot(dx,dz) || 1; dx/=norm; dz/=norm;
+                const speed=(7+Math.random()*10)*fireScale, side=(Math.random()-.5)*5*fireScale;
+                particle(point.x,point.y+.4,point.z,.45*fireScale,.16+Math.random()*.14,fireColor,3,
+                  dx*speed-dz*side,0,dz*speed+dx*side);
+              } else {
+                const root=particle(0,0,0,1.05*fireScale,.08+Math.random()*.025,fireColor);
+                root.vent=vent; root.gain=.35;
+              }
             }
           }
           if(hp<.2) {
@@ -1005,7 +1057,7 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
           }
           hot.heat=Math.max(0,Math.min(1,heat));
         },
-        dispose() { disposed=true; if(hot) hulks.delete(hot); },
+        dispose() { disposed=true; for(const v of vents) v.active=false; if(hot) hulks.delete(hot); },
       };
     },
     /**
@@ -1050,11 +1102,13 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
       dt=Math.max(0,Math.min(dt,.1));
       fires.n=embers.n=emberHalos.n=shards.n=glow.n=flames.n=smoke.n=chips.n=rings.n=bolts.n=trails.n=lines.n=streaks.n=thin.n=chargeRings.n=shocks.n=shieldFx.n=0;
       clock+=dt;
+      drawFrame++;
       updateFlashes(dt);
       const height=Math.max(1,renderer.domElement.clientHeight || renderer.domElement.height);
       trails.mesh.material.uniforms.viewportHeight.value=height;
       lines.mesh.material.uniforms.viewportHeight.value=height;
       streaks.mesh.material.uniforms.viewportHeight.value=height;
+      flames.mesh.material.uniforms.viewportHeight.value=height;
       trailMat.uniforms.viewportHeight.value=height;
       flames.mesh.material.uniforms.time.value=clock;
       chargeRings.mesh.material.uniforms.viewportHeight.value=height;
@@ -1078,10 +1132,34 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
       // Charges run before the particle pass so their sparks are drawn this frame.
       updateCharges(dt);
       for(const p of particles) {
-        if(p.life<=0)continue;
+        if(p.life<=0) { p.vent=null; continue; }
+        // A recycled or future unbound kind-4 spawn must never dereference a vent.
+        if(p.kind===4 && !p.vent) { p.life=0; continue; }
         if(p.wait>0) { p.wait-=dt; continue; }
-        p.life-=dt; if(p.life<=0)continue;
+        p.life-=dt; if(p.life<=0) { p.vent=null; continue; }
         const t=1-p.life/p.max, fade=1-t;
+        if(p.vent) {
+          const v=p.vent;
+          if(!v.active || !v.object.visible) { p.life=0; p.vent=null; continue; }
+          // Cache once per breach per draw, shared by the gas and its root glow.
+          // Reading the current matrix also handles jump offsets and rolling wrecks.
+          if(v.frame!==drawFrame) {
+            point.copy(v.local).applyMatrix4(v.object.matrixWorld);
+            const m=v.object.matrixWorld.elements;
+            const dx=m[0]*v.dx+m[8]*v.dz, dz=m[2]*v.dx+m[10]*v.dz, len=Math.hypot(dx,dz) || 1;
+            v.wx=dx/len; v.wz=dz/len;
+            const stepX=point.x-v.x, stepZ=point.z-v.z;
+            // Only the body lags sideways, by a capped few milliseconds of breach
+            // motion. Ignore discontinuities (jump offsets/reactivation), and use
+            // exponential smoothing so turns bend alike at different frame rates.
+            if(v.frame===drawFrame-1 && dt>0 && Math.hypot(stepX,stepZ)<v.limit*80) {
+              const lag=Math.max(-v.limit,Math.min(v.limit,-(-stepX*v.wz+stepZ*v.wx)/dt*.012));
+              v.lag+=(lag-v.lag)*(1-Math.exp(-dt*14));
+            } else v.lag=0;
+            v.x=point.x; v.y=point.y+.4; v.z=point.z; v.frame=drawFrame;
+          }
+          p.x=v.x; p.y=v.y; p.z=v.z;
+        }
         p.x+=p.vx*dt;p.y+=p.vy*dt;p.z+=p.vz*dt;
         if(p.kind===1) {
           const size=p.size*(1.15+t*2.5);
@@ -1121,11 +1199,16 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
           const speed=Math.hypot(p.vx,p.vz) || 1, len=Math.max(.8,speed*.065);
           segment(streaks,p.x-p.vx/speed*len,p.y,p.z-p.vz/speed*len,p.x,p.y,p.z,Math.max(.1,p.size*.14),p.color,fade*1.5);
         } else if(p.kind===4) {
-          const size=p.size*(.85-t*.4);
-          put(flames,p.x,p.y+size*.45,p.z,size,size*1.9,1,0,p.color,fade*.6,0,p.angle,t,0);
+          const v=p.vent, surge=.78+.22*Math.sin(clock*(12+v.strength*3)+v.phase);
+          const len=p.size*(.7+.3*Math.sin(t*Math.PI))*surge;
+          const width=p.size*(.62+.18*p.angle/6.283)*(1+t*.15);
+          // Shift the quad along its world axis by half its length: UV x=0 is
+          // always the breach. Surge and puff age change reach, never root position.
+          put(flames,p.x+v.wx*len*.5,p.y,p.z+v.wz*len*.5,len,width,1,
+            Math.atan2(-v.wz,v.wx),p.color,Math.min(1,t*18)*fade*.46,0,p.angle,t,2*v.lag/width);
         } else {
           const size=p.size*(1+t*.7);
-          put(glow,p.x,p.y,p.z,size,size,1,0,p.color,fade*fade*.9);
+          put(glow,p.x,p.y,p.z,size,size,1,0,p.color,fade*fade*.9*p.gain);
         }
       }
       for(const w of waves) {
@@ -1133,7 +1216,7 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
         w.life-=dt;if(w.life<=0)continue;
         const t=1-w.life/w.max, fade=1-t;
         if(w.kind===3) {
-          // Keep the crawling filament on a moving hull; only smoke/fire detach.
+          // Keep the crawling filament on a moving hull, alongside the vent roots.
           point.copy(w.model.damagePoints[w.from]).applyMatrix4(w.model.object.matrixWorld);
           end.copy(w.model.damagePoints[w.to]).applyMatrix4(w.model.object.matrixWorld);
           w.x=point.x;w.y=point.y+.6;w.z=point.z;

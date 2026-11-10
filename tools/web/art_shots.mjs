@@ -40,6 +40,10 @@ const SHOTS = {
   "deplete&close=90": [0.52, 0.82],
   // Fighter major at 0.5, carrier major at 0.7, gunship death 1.6 / major 2.2.
   explode: [0.56, 0.8, 1.2, 2.0, 3.5],
+  // Hull fires: steady from the first half second; two times show how they flicker.
+  burn: [1.5],
+  "burnpair&close=80": [1.5, 1.62],
+  "burnfast&close=50": [1.5, 1.62],
 };
 const only = process.env.RLF_ART_SCENES?.split(",").filter(Boolean);
 

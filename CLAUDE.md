@@ -119,7 +119,7 @@ node tools/web/film.mjs lab/runs/<id>/media/clip.mp4 <before-url> <after-url> "s
 uv run python -m tools.notebook_media publish --run <id>
 uv run python -m pytest tests/test_notebook_media.py tests/test_build_notebook.py -v
 # M3 art preview without the sim (carrier, freighter, bay launch, jump charge/out, orders):
-# dev-only page web/dev/m3-art.html?scene=lineup|detail|convoy|launch|jump|quick|orders[&t=s]
+# dev-only page web/dev/m3-art.html?scene=lineup|detail|convoy|launch|jump|quick|orders|burn|burnpair|burnfast[&t=s]
 # on the Vite dev server; screenshots into web/shots/m3-art/
 cd web && npx vite --port 5179 --strictPort   # then, from the repo root:
 node tools/web/art_shots.mjs http://localhost:5179

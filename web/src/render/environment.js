@@ -13,6 +13,10 @@ const RING_INNER = 1.14, RING_OUTER = 1.78;
 // Spin of the main body and the moons, rad/s, and the cloud deck's extra drift, turns/s.
 const SPIN = [.0035, .0022, .0018], CLOUD_DRIFT = .0007;
 const STARS = 26000, HERO_STARS = 36, DUST = 260;
+// How strongly the faint star field is drawn (1 = as sown). Below 1 it sits back behind
+// the fight: at full strength its sparkle competed with tracers and small hulls for the eye.
+// The few bright stars with spikes are left alone; they are landmarks, not texture.
+const STAR_FIELD_GAIN = .62;
 // The low-res copy of the sky's density that the star field is sown from.
 const DENSITY_W = 96, DENSITY_H = 48;
 
@@ -263,7 +267,7 @@ export function createEnvironment({ THREE: T, scene, camera, renderer }) {
   const starMat = new T.ShaderMaterial({ transparent: true, depthWrite: false, depthTest: true, vertexColors: true,
     uniforms: { pixelScale: { value: 1 } },
     vertexShader: `attribute float size;uniform float pixelScale;varying vec3 tint;void main(){tint=color;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);gl_PointSize=size*pixelScale;}`,
-    fragmentShader: `varying vec3 tint;void main(){float d=length(gl_PointCoord-.5)*2.;float a=exp(-d*d*3.5)*(1.-smoothstep(.65,1.,d));gl_FragColor=vec4(tint,a);
+    fragmentShader: `varying vec3 tint;void main(){float d=length(gl_PointCoord-.5)*2.;float a=exp(-d*d*3.5)*(1.-smoothstep(.65,1.,d))*${STAR_FIELD_GAIN.toFixed(2)};gl_FragColor=vec4(tint,a);
       #include <tonemapping_fragment>
       #include <colorspace_fragment>
     }` });

@@ -4,7 +4,7 @@
 // shield impacts and collapse, the major explosion) from small scripted scenes, with no
 // sim. tools/web/art_shots.mjs screenshots it.
 //
-// URL: ?scene=lineup|convoy|launch|jump|quick|orders|shield|deplete|explode
+// URL: ?scene=lineup|convoy|launch|jump|quick|orders|shield|deplete|explode|burn|burnpair|burnfast
 //   &t=<s> fast-forwards to that time
 // in fixed 1/60 s steps and then holds still (window.artReady turns true), for shots.
 
@@ -190,6 +190,13 @@ function shieldShot(ship: Ship, bearing: number, r: number, depleted = false): v
   fx.shieldHit({ x: ship.x + nx * r, y: ship.y + ny * r, nx, ny, team: shooter, depleted, radius: r, object: ship.model.object });
 }
 
+/** Set `ship` on fire at `hp` (0..1 of its hull; fire below 0.4, arcs below 0.2). */
+function burning(ship: Ship, hp: number): Ship {
+  ship.hp = hp;
+  ship.damage = fx.attachDamage(ship.model);
+  return ship;
+}
+
 function centroid(ships: Ship[]): [number, number] {
   return [ships.reduce((a, s) => a + s.x, 0) / ships.length, ships.reduce((a, s) => a + s.y, 0) / ships.length];
 }
@@ -355,6 +362,31 @@ const SCENES: Record<string, () => Scene> = {
     ];
     return { ships, events, caption: "deplete: shields collapse (gunship, carrier, strafer)" };
   },
+  // Hull fires: damaged ships at every speed and heading, one of them turning, one adrift.
+  burn: () => {
+    const ships = [
+      burning(new Ship("fighter", 0, -40, 30, 0.2, 50), 0.3),
+      burning(new Ship("fighter", 1, 40, -10, -2.2, 45), 0.15),
+      burning(new Ship("strafer", 0, 0, -40, 1.0, 40), 0.3),
+      burning(new Ship("gunship", 1, 10, 25, Math.PI, 12), 0.3),
+      burning(new Ship("freighter", 0, -30, -10, 0.1, 10), 0.3),
+      burning(new Ship("bomber", 1, 50, 40, 2, 0), 0.15),
+    ];
+    ships[2]!.goal = 4;
+    return { ships, events: [], caption: "burn: hull fires on fast, slow, turning (strafer) and drifting (bomber) ships" };
+  },
+  // Two burning hulls close together for a close look (?close=80): one crawling, one turning.
+  burnpair: () => {
+    const gunship = burning(new Ship("gunship", 0, 0, 6, 0.3, 8), 0.15);
+    const fighter = burning(new Ship("fighter", 1, 8, -16, 2.6, 14), 0.3);
+    fighter.goal = 5.1;
+    return { ships: [gunship, fighter], events: [], caption: "burnpair: a gunship close to death and a turning fighter, both on fire" };
+  },
+  // One burning fighter at full speed, flying down the screen (?close=50).
+  burnfast: () => {
+    const fighter = burning(new Ship("fighter", 0, 0, 0, -2.2, 50), 0.15);
+    return { ships: [fighter], events: [], caption: "burnfast: a fighter close to death at full speed" };
+  },
   // A kill: the immediate 'death' burst, then the hulk blows up big ('major').
   explode: () => {
     const fighter = new Ship("fighter", 0, -10, -30, 0.4, 0);
@@ -412,6 +444,10 @@ function closeUp(b: ReturnType<typeof emptyBounds>): void {
   else camera.position.set(cx, Math.sin(pitch) * dist, -cy + back);
   camera.lookAt(cx, 0, -cy);
   camera.updateMatrixWorld();
+  // The fitted camera's near plane and digital crop are for its own distance: this close
+  // they would clip the hulls away, so the close shot takes a plain projection of its own.
+  camera.near = Math.max(1, dist * 0.3);
+  camera.updateProjectionMatrix();
 }
 
 function advance(dt: number): void {
