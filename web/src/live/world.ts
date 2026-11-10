@@ -335,8 +335,12 @@ export class World {
   private readonly calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   private readonly pace: RenderScale;
 
-  /** `pinScale` holds the render scale (0.5..1) instead of letting it follow the frame's cost. */
-  constructor(parent: HTMLElement, pinScale: number | null = null) {
+  /**
+   * `pinScale` holds the render scale (0.5..1) instead of letting it follow the frame's
+   * cost. `lights` and `shadows` false leave out the blasts' point lights and the key
+   * light's shadows: switches for telling apart a fault seen on one device.
+   */
+  constructor(parent: HTMLElement, pinScale: number | null = null, { lights = true, shadows = true } = {}) {
     // The scene is drawn into the treatment's own multisampled target, so the canvas needs none.
     this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
     const ratio = fullPixelRatio();
@@ -347,9 +351,9 @@ export class World {
     this.cam = new FitCamera(window.innerWidth / window.innerHeight);
     const ctx = { THREE, scene: this.scene, renderer: this.renderer, camera: this.cam.camera };
     treatment.init(ctx);
-    treatment.enableShadows(this.renderer);
+    if (shadows) treatment.enableShadows(this.renderer);
     this.environment = createEnvironment(ctx) as unknown as Environment;
-    this.effects = createEffects({ ...ctx, palette: treatment.palette, sun: treatment.sun, lens: this.calm ? null : treatment }) as unknown as Effects;
+    this.effects = createEffects({ ...ctx, palette: treatment.palette, sun: treatment.sun, lens: this.calm ? null : treatment, flashLights: lights }) as unknown as Effects;
   }
 
   /** Take the bundle's hull numbers (call before the first thumbnails or match). */

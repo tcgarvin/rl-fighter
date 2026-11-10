@@ -81,10 +81,22 @@ A laptop chip slows its own clock when it has spare time, so a frame took 8 to 1
 every size we gave it, and the rule kept shrinking the picture for nothing. The rule now
 counts dropped frames and nothing else.
 
+## After a first look on an iPhone
+
+The first look on a phone found black bands across the big ships, flickering as they
+moved. They were not new. The old page had them too and nobody had caught it.
+
+On a phone held upright the camera sits about two and a half times as far from the fight
+as it does on a laptop, to fit the arena across the narrow screen. From that far it could
+only tell depths apart to about a metre, and a hull is built of plates stacked closer
+than that. So the dark layer under the paint showed through in stripes. The camera now
+measures depth only across the stretch where the ships are, which makes it about a
+thousand times finer. The bands are gone in our phone-size test.
+
 ## What we don't know yet
 
-- **It hasn't been seen on an iPhone.** Everything was checked in Chrome on the laptop,
-  at laptop and phone sizes.
+- **The fix hasn't been seen on an iPhone yet.** It was checked in Chrome on the laptop
+  at a phone's size, where the bands also showed before the fix.
 - **The shrink-to-keep-up rule hasn't had to work.** No machine we ran it on dropped
   enough frames to set it off.
 

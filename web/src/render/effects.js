@@ -217,12 +217,13 @@ const FLASH_LIGHTS = 4;
 const TRAIL_CAP = 48, TRAIL_NODES = 40, TRAIL_LIFE = 1.25;
 
 /**
- * @param {{ THREE: any, scene: any, renderer: any, palette: any, sun?: any, lens?: any }} options
+ * @param {{ THREE: any, scene: any, renderer: any, palette: any, sun?: any, lens?: any, flashLights?: boolean }} options
  * `sun` is the key light smoke is lit by ({direction, color, shade}, read live) and `lens`
  * an object with ripple({x, z, radius, life, strength, width, wait}) for shockwave
- * refraction; both are the cinematic treatment's, and both are optional.
+ * refraction; both are the cinematic treatment's, and both are optional. `flashLights`
+ * false leaves the point lights dark (a switch for telling a lighting fault apart).
  */
-export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, lens = null }) {
+export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, lens = null, flashLights = true }) {
   // The key light the smoke is lit by (the treatment's, live: it turns with the scenery).
   const sun = sunIn ?? { direction: new T.Vector3(-.657, .555, .511), color: new T.Color(0xffc58a), shade: new T.Color(0x2b4f63) };
   const team = palette.team.map(c => new T.Color(c));
@@ -430,6 +431,7 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
   });
   /** Lend a light to a flash of `intensity` (candela) unless brighter ones hold them all. */
   function flash(x, y, z, color, intensity, range, life, wait = 0) {
+    if (!flashLights) return;
     let free = null, least = Infinity;
     for (const f of flashes) {
       const level = f.life > 0 ? f.peak * (f.life / f.max) ** 2 : 0;
@@ -632,7 +634,7 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
     wave(e.x,-e.y,r,death?1.1:.38,death?c:white);
     if (death) { flash(e.x,6,-e.y,scratch.copy(c).lerp(white,.45),55*r*r,r*9,.5); ripple(e.x,-e.y,r*3.4,.6,.2,.28); }
     else if (e.kind==='collision') { flash(e.x,5,-e.y,white,500*r,40,.2); ripple(e.x,-e.y,r*4,.32,.1,.3); }
-    else flash(e.x,5,-e.y,c,22*r*r,r*7,.16);
+    else flash(e.x,5,-e.y,c,6*r*r,r*7,.16);
     if (death) {
       // Abyssal's five dark shell shards, golden-angle spread and rising tumble.
       for(let j=0;j<5;j++) {

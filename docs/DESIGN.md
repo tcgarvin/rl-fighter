@@ -336,6 +336,9 @@ the next run.
   rendered image is scaled and cropped (after the projection), and the camera never
   moves. Perspective and parallax never change, so a ship by a planet stays by it as
   the view zooms in, and the planet grows with it. A director camera is future work.
+  Its near plane is set at a share of its distance to the stage, not at a metre: a
+  portrait phone's camera is some 4 km out, where a 1 m near plane resolves depth to
+  about a metre and the hulls' stacked plates fight through each other.
 - **Visuals:** per-thruster exhaust driven by the throttle actions; turret meshes
   follow the sim's turret angles; projectiles, hits and explosions. Optionally, the
   commander's orders as lines and markers.

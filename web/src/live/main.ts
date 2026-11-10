@@ -19,7 +19,8 @@
 // first match is on; screenshots), outputs (1/0: open or close the inspector's details,
 // overriding the viewer's remembered choice), speed (run time N× faster, for soak tests),
 // scale (hold the render scale at 0.5..1 instead of letting it follow the frame's cost;
-// screenshots), debug (expose window.rlfLive stats).
+// screenshots), lights and shadows (0 leaves out the blasts' point lights or the hulls'
+// shadows, to tell apart a fault seen on one device), debug (expose window.rlfLive stats).
 
 import { mountNav } from "../shell/nav";
 import "./live.css";
@@ -86,7 +87,7 @@ const nav = mountNav("live", true);
 const hud = new Hud();
 const muster = new Muster(document.getElementById("muster")!);
 const pinnedScale = params.has("scale") ? Math.min(1, Math.max(0.5, Number(params.get("scale")) || 1)) : null;
-const world = new World(document.body, pinnedScale);
+const world = new World(document.body, pinnedScale, { lights: params.get("lights") !== "0", shadows: params.get("shadows") !== "0" });
 const inspector = new Inspector(document.getElementById("inspect")!);
 const reticle = document.getElementById("reticle")!;
 const cmdlog = new CommandLog(document.getElementById("cmdlog")!, (hull) => (world.spec(hull)?.bays ?? []).map((b) => b.id.replace(/^bay\./, "")));

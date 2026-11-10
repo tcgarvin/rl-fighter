@@ -25,6 +25,12 @@ const EASE_RATE = 1.5;
 // though the zoom still eases. The pan's rate glides between the two at PAN_GLIDE, 1/s.
 const FOLLOW_PAN_RATE = 8;
 const PAN_GLIDE = 2.5;
+// The near plane, as a share of the camera's distance to the stage centre. Everything
+// drawn lies in a thin slab about the battle plane, far from the camera, and depth
+// precision goes with the near plane: at 1 m a portrait phone's camera (some 4 km out)
+// resolved about a metre, and the hulls' stacked plates fought through each other in
+// flickering dark bands. At this share it resolves millimetres.
+const NEAR_SHARE = 0.3;
 // Digital zoom limits (1 = the whole stage in view).
 const MIN_ZOOM = 0.6;
 const MAX_ZOOM = 60;
@@ -146,6 +152,7 @@ export class FitCamera {
     const ux = portrait ? this.ax : -this.ay;
     const uy = portrait ? this.ay : this.ax;
     this.camera.position.set(x - ux * back, Math.sin(PITCH) * dist, -(y - uy * back));
+    this.camera.near = Math.max(1, dist * NEAR_SHARE);
     this.camera.lookAt(x, 0, -y);
     this.camera.updateMatrixWorld();
     this.camera.updateProjectionMatrix();

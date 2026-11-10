@@ -91,6 +91,22 @@ function updateRipples(camera, dt) {
 // from far off only the broad variation is left. Where the key light is shadowed the
 // sky's fill is cut back too, so a turret's shadow reads on any paint.
 // style = (plate length m, plate width m, seam darkness, tone range).
+//
+// Every hull material also caps what it writes (BOUNDED). A flat plate under a flash
+// light can reflect it into the camera all at once, and a smooth plate's highlight can
+// then run past what a half-float target holds. Some GPUs saturate there; one that
+// stores infinity instead would hand the lens pass a pixel it can only turn black (the
+// iOS failure this file already guards its reads against). It has not been seen to
+// happen; the plating's roughness floor and this cap (well past white) rule it out.
+const HULL_MAX = 24, PLATE_ROUGHNESS_MIN = .18;
+const BOUNDED = `#include <opaque_fragment>\n\tgl_FragColor.rgb=clamp(gl_FragColor.rgb,0.,${HULL_MAX.toFixed(1)});`;
+/** A hull material without plating (markings, lit trim): only the cap on its output. */
+function bounded(material) {
+  material.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', BOUNDED);
+  };
+  return material;
+}
 const SHADOWED = THREE.ShaderChunk.lights_fragment_begin.replace(
   /directLight\.color \*= (\( directLight\.visible && receiveShadow \) \? getShadow\( directionalShadowMap\[ i \][^;]*);/,
   'float hullLit = $1; directLight.color *= hullLit; hullShade = min( hullShade, hullLit );');
@@ -129,8 +145,9 @@ function detailed(material, style) {
           diffuseColor.rgb*=1.-(seam+fine*.45)*hullStyle.z*top;
           diffuseColor.rgb*=mix(1.,1.-hullStyle.w*.5+hullStyle.w*tone,top*(.35+.65*near));
           diffuseColor.rgb*=mix(.76+.36*streak,.93+.14*wear,top);
-          roughnessFactor=clamp(roughnessFactor+(wear-.5)*.34+(tone-.5)*.12*top+(grit-.5)*.16*close,.06,1.);
+          roughnessFactor=clamp(roughnessFactor+(wear-.5)*.34+(tone-.5)*.12*top+(grit-.5)*.16*close,${PLATE_ROUGHNESS_MIN},1.);
         }`)
+      .replace('#include <opaque_fragment>', BOUNDED)
       .replace('#include <lights_fragment_begin>', `float hullShade=1.;\n${SHADOWED}`)
       .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
         reflectedLight.indirectDiffuse*=mix(.42,1.,hullShade);
@@ -289,8 +306,8 @@ export default {
       paint: detailed(new THREE.MeshPhysicalMaterial({ color: TEAM[team], metalness: .48, roughness: .32, clearcoat: .65, clearcoatRoughness: .27 }), [4.2, 2.1, .3, .1]),
       trim: detailed(new THREE.MeshStandardMaterial({ color: team === 0 ? 0xbacbd2 : 0xe0c7a6, metalness: .72, roughness: .29 }), [3.4, 1.7, .2, .07]),
       machinery: detailed(new THREE.MeshStandardMaterial({ color: 0x26313f, metalness: .8, roughness: .42 }), [1.1, .7, .45, .26]),
-      marking: new THREE.MeshStandardMaterial({ color: 0xf1ede0, metalness: .2, roughness: .43 }),
-      glow: new THREE.MeshStandardMaterial({ color: 0xa4dfff, emissive: team === 0 ? 0x6bc6ff : 0xffa15a, emissiveIntensity: 3.2, roughness: .3 }),
+      marking: bounded(new THREE.MeshStandardMaterial({ color: 0xf1ede0, metalness: .2, roughness: .43 })),
+      glow: bounded(new THREE.MeshStandardMaterial({ color: 0xa4dfff, emissive: team === 0 ? 0x6bc6ff : 0xffa15a, emissiveIntensity: 3.2, roughness: .3 })),
       exhaust: plume ??= plumeMaterial(),
     });
     return cache.get(team);
