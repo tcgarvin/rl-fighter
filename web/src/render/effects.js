@@ -1,12 +1,18 @@
-// Shared combat effects. Fixed-capacity CPU pools feed bounded instanced draws;
-// no textures, lights, post-processing dependencies, or per-frame object creation.
+// Shared combat effects. Fixed-capacity CPU pools feed bounded instanced draws, with no
+// per-frame object creation. Smoke, fire and flames are shaded from one small tiling
+// noise texture (render/noise.js); a fixed pool of four point lights is lent to
+// blasts, hits, jumps and launches so they light the hulls near them.
 //
 // Coordinates: every event takes sim metres (x, y; +y is the sim's "up", drawn at
 // three.js z = -y) and headings in radians CCW from +x, as the sim reports them.
 // Teams are 0 / 1; -1 is neutral (white) where noted. Pools are fixed: past capacity
 // the oldest entry is reused, so nothing grows and nothing throws.
 //
-// const fx = createEffects({ THREE, scene, renderer, palette });
+// const fx = createEffects({ THREE, scene, renderer, palette, sun?, lens? });
+//   sun: {direction, color, shade}, the key light that smoke is lit by (read live);
+//   lens: {ripple({x, z, radius, life, strength, width, wait})} for shockwave refraction.
+//   Both are the cinematic treatment's; without them smoke takes a default light and
+//   nothing refracts.
 // Per frame:
 //   fx.updateProjectiles(projectiles, beams, alpha)  shots in flight (current tick)
 //   fx.update(dt)                                     ages and draws everything else
@@ -41,6 +47,10 @@
 //       hull model with jumpOutOffset() (below) and hide it after JUMP_OUT_DURATION.
 //   fx.jumpOutQuick({x, y, heading, team, size})  the cheap variant (no charge, no ring,
 //       thinner streak) for a whole wing leaving at the end of a match; stagger the calls.
+//   fx.trail({team, width}) -> {head(x, y, z, level), lay(), cut(), dispose()}  an engine
+//       trail: a ribbon in the team's colour, as bright as the throttle when each point
+//       was laid, fading over ~1.25 s. head() each frame, lay() once a sim tick.
+//   fx.beacons(model, team) -> {show(on), dispose()}  running lights at model.strobes
 //   fx.attachDamage(model) -> {update(hpFraction, visible, dt), smoulder(dt, heat), dispose()}
 //       smoulder: a burnt-out hulk's hot spots instead of smoke and fire, a few glowing
 //       points fixed on the hull where it burned; heat 0..1, call every frame to keep them
@@ -51,6 +61,8 @@
 //   attack = four corner brackets, defend = a thin ring round the ward, goto = a ring
 //   with inward ticks, jump = a slowly turning dashed ring with a brighter arc for
 //   `progress` (0..1, e.g. the jump charge). radius is the marker's (metres).
+import { noiseTexture } from './noise.js';
+
 export const JUMP_OUT_DISTANCE = 900;
 export const JUMP_OUT_DURATION = 0.09;
 const JUMP_OUT_TAIL = 0.16, QUICK_OUT_TAIL = 0.10;
@@ -197,28 +209,50 @@ function shieldBatch(T, scene, cap) {
   return { mesh, rgba, hit, mode, n: 0, cap };
 }
 
-export function createEffects({ THREE: T, scene, renderer, palette }) {
+// Lights thrown by blasts, flashes and jumps: a fixed pool of point lights (the hull
+// shaders are compiled for exactly this many), each lent to the brightest events.
+const FLASH_LIGHTS = 4;
+// Engine trails: ribbons of TRAIL_NODES points laid one a sim tick behind each main
+// engine, fading over TRAIL_LIFE seconds.
+const TRAIL_CAP = 48, TRAIL_NODES = 40, TRAIL_LIFE = 1.25;
+
+/**
+ * @param {{ THREE: any, scene: any, renderer: any, palette: any, sun?: any, lens?: any }} options
+ * `sun` is the key light smoke is lit by ({direction, color, shade}, read live) and `lens`
+ * an object with ripple({x, z, radius, life, strength, width, wait}) for shockwave
+ * refraction; both are the cinematic treatment's, and both are optional.
+ */
+export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, lens = null }) {
+  // The key light the smoke is lit by (the treatment's, live: it turns with the scenery).
+  const sun = sunIn ?? { direction: new T.Vector3(-.657, .555, .511), color: new T.Color(0xffc58a), shade: new T.Color(0x2b4f63) };
   const team = palette.team.map(c => new T.Color(c));
   const shot = palette.projectile.map(c => new T.Color(c));
   const pellet = shot.map(c => c.clone().lerp(new T.Color(0xffad63), .48));
   const shield = palette.shield.map(c => new T.Color(c));
   const white = new T.Color(0xfff5df), warmWhite = new T.Color(0xffd9a8), amber = new T.Color(palette.exhaust);
   const fireColor = new T.Color(0xff6514);
-  const smokeColor = new T.Color(0x887b6b), shell = new T.Color(0x26333c);
+  const smokeColor = new T.Color(0x77726c), shell = new T.Color(0x26333c);
   const transform = new T.Object3D(), point = new T.Vector3(), end = new T.Vector3();
   const resources = [];
   // opts (billboards): minPx keeps a sprite at least that many CSS pixels across; fire
-  // gives it a turbulent, animated edge (the instance's z scale carries a seed).
+  // is a rolling fire cloud; aux adds a second per-instance vec4 (seed, age 0..1, heat, -)
+  // that the smoke, fire and flame looks are shaded from.
   function batch(geo, cap, billboard = false, smoke = false, additive = true, flame = false, trace = 0, ringWidth = 0, ringMin = .022, opts = {}) {
     const { minPx = 0, fire = false } = opts;
+    const shaded = smoke || fire || flame;
     const rgba = new T.InstancedBufferAttribute(new Float32Array(cap * 4), 4).setUsage(T.DynamicDrawUsage);
     geo.setAttribute('tint', rgba);
+    const aux = shaded ? new T.InstancedBufferAttribute(new Float32Array(cap * 4), 4).setUsage(T.DynamicDrawUsage) : null;
+    if (aux) geo.setAttribute('aux', aux);
     const mat = new T.ShaderMaterial({
-      uniforms: { viewportHeight: { value: 720 }, time: { value: 0 } },
+      uniforms: { viewportHeight: { value: 720 }, time: { value: 0 }, noise: { value: noiseTexture() },
+        sunDir: { value: sun.direction }, sunColor: { value: sun.color }, shadeColor: { value: sun.shade } },
       transparent: true, depthWrite: false, side: T.DoubleSide,
       blending: additive ? T.AdditiveBlending : T.NormalBlending,
-      vertexShader: `uniform float viewportHeight; attribute vec4 tint; varying vec4 vTint; varying vec2 vUv; varying float vSeed;
+      vertexShader: `uniform float viewportHeight; uniform vec3 sunDir; attribute vec4 tint; varying vec4 vTint; varying vec2 vUv; varying float vSeed;
+        ${shaded ? 'attribute vec4 aux; varying vec4 vAux; varying vec3 vSun;' : ''}
         void main(){ vTint=tint; vUv=uv; vSeed=length(instanceMatrix[2].xyz);
+        ${shaded ? 'vAux=aux; vSun=normalize(mat3(viewMatrix)*sunDir);' : ''}
         ${trace ? `vec4 center=modelViewMatrix*instanceMatrix*vec4(0.,0.,0.,1.);
         vec3 axis=(modelViewMatrix*vec4(instanceMatrix[0].xyz,0.)).xyz;
         vec2 along=axis.xy/max(length(axis.xy),.0001);
@@ -239,28 +273,56 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
         ${minPx ? `size=max(size,vec2(2.*max(1.,-center.z)/(projectionMatrix[1][1]*viewportHeight)*${minPx.toFixed(2)}));` : ''}
         center.xy+=position.xy*size; gl_Position=projectionMatrix*center;` :
         'gl_Position=projectionMatrix*modelViewMatrix*instanceMatrix*vec4(position,1.);'} }`,
-      fragmentShader: `uniform float time; varying vec4 vTint; varying vec2 vUv; varying float vSeed;
-        ${fire ? `float h2(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
-        float n2(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
-          return mix(mix(h2(i),h2(i+vec2(1,0)),f.x),mix(h2(i+vec2(0,1)),h2(i+vec2(1,1)),f.x),f.y); }` : ''}
+      fragmentShader: `uniform float time; uniform sampler2D noise; uniform vec3 sunColor, shadeColor; varying vec4 vTint; varying vec2 vUv; varying float vSeed;
+        ${shaded ? 'varying vec4 vAux; varying vec3 vSun;' : ''}
         void main(){float a=vTint.a; vec3 col=vTint.rgb;
         ${trace ? `float crossSection=abs(vUv.y*2.-1.);
           ${trace === 1 ? `float taper=mix(.08,1.,vUv.x);
           a*=exp(-4.*crossSection*crossSection/(taper*taper))*pow(vUv.x,.7);
           a*=smoothstep(0.,.12,vUv.x)*smoothstep(1.,.83,vUv.x);` :
           `a*=exp(-5.*crossSection*crossSection)*smoothstep(0.,.14,vUv.x)*smoothstep(1.,.86,vUv.x);`}` : ''}
-        ${fire ? `vec2 p=vUv*2.-1.; float t=time*1.5+vSeed*7.;
-          // Two noise octaves push the edge in and out by about 18%, and roll slowly.
-          float n=n2(p*3.+vec2(vSeed*3.1,t))*.65+n2(p*8.+vec2(-t*1.3,vSeed))*.35;
-          float rd=length(p)*(1.+(n-.5)*.36);
+        ${fire ? `vec2 p=vUv*2.-1.; float seed=vAux.x, age=vAux.y;
+          // A fire cloud: billows shape its edge and roll outward as it ages; it burns
+          // yellow-white at the heart, through orange and red, and dies to soot from
+          // the outside in. Filaments keep a few veins alight.
+          vec2 q=p*.19*(1.-age*.25)+vec2(seed*.371,seed*.613);
+          float lump=texture2D(noise,q).b, vein=texture2D(noise,q*2.3+vec2(seed,-time*.07)).a;
+          float rd=length(p)*(1.32-.62*lump);
           if(rd>1.) discard;
-          a*=smoothstep(1.,.5,rd)*(.65+.5*n);
-          col*=1.+.6*smoothstep(.65,0.,rd)*n;` : billboard ? `vec2 p=vUv*2.-1.; float r=dot(p,p);
-          ${smoke ? `float cloud=0.78+0.12*sin(p.x*13.+sin(p.y*9.))+0.10*cos(p.y*17.+p.x*6.);
-          a*=smoothstep(1.,0.1,r)*cloud;` : 'a*=max(0.,exp(-r*5.)-0.0067);'}
-          ${flame ? `float taper=max(.16,.62-p.y*.40);
-          a*=smoothstep(1.,.05,abs(p.x)/taper);
-          a*=smoothstep(-1.,-.5,p.y)*smoothstep(1.,.35,p.y);` : ''}
+          float core=1.-rd;
+          float temp=(core*1.25+vein*.55-.2)*(1.+vAux.z*.5)*(1.-smoothstep(.2,1.,age*(1.25-vAux.z*.45)));
+          vec3 ember=mix(vec3(.035,.028,.024),vec3(.85,.1,.012),smoothstep(.05,.38,temp));
+          ember=mix(ember,vec3(2.6,.78,.1),smoothstep(.32,.62,temp));
+          ember=mix(ember,vec3(4.4,3.,1.5),smoothstep(.6,.98,temp));
+          col=ember;
+          a*=smoothstep(0.,.22,core)*(.55+.6*lump);` : smoke ? `vec2 p=vUv*2.-1.; float r2=dot(p,p);
+          if(r2>1.) discard;
+          float seed=vAux.x, age=vAux.y;
+          // A puff: rounded billows with finer breakup, eroding into wisps as it ages,
+          // lit as a soft ball by the key light with the shadows going teal.
+          vec2 q=p*.2+vec2(seed*.731,seed*.419);
+          float lump=texture2D(noise,q+vec2(0.,age*.04)).b, wisp=texture2D(noise,q*2.6+vec2(seed,-age*.1)).r;
+          float body=(1.-r2)*(.45+.8*lump)*(.6+.7*wisp);
+          float erode=mix(.03,.33,age);
+          float dens=smoothstep(erode,erode+.62,body);
+          vec3 nrm=normalize(vec3(p+(vec2(lump,wisp)-.5)*1.2,.7*sqrt(1.-r2)+.12));
+          float lit=dot(nrm,vSun)*.5+.5; lit*=lit;
+          col=vTint.rgb*(shadeColor*1.2+mix(sunColor,vec3(1.),.5)*lit*1.05);
+          // Heat: a glowing pocket deep inside a fresh, hot puff.
+          col+=vec3(2.2,.55,.08)*vAux.z*smoothstep(.5,1.,body)*lump;
+          a*=dens;` : flame ? `vec2 p=vUv*2.-1.; float seed=vAux.x;
+          // Tongues of flame: rising filaments, a wavering taper, hot at the root.
+          float rise=time*(1.1+.3*fract(seed*3.7));
+          float n1=texture2D(noise,vec2(p.x*.16+seed*.61,p.y*.13-rise)).a;
+          float n2=texture2D(noise,vec2(p.x*.31-seed*.37,p.y*.2-rise*1.7)).r;
+          float lift=(p.y+1.)*.5;
+          float x=(p.x+(n2-.5)*.75*lift)/max(.14,.62-p.y*.42);
+          float shape=(1.-smoothstep(.15,1.,abs(x)))*smoothstep(-1.,-.6,p.y)*(1.-smoothstep(-.1,1.,p.y+(.5-n1)*1.3));
+          shape*=(1.-smoothstep(.72,1.,abs(p.x)))*(1.-smoothstep(.8,1.,p.y));
+          if(shape<.004) discard;
+          a*=shape*(.55+1.1*n1);
+          col=mix(col,vec3(2.,1.15,.38),shape*shape*(1.-lift)*.7);` : billboard ? `vec2 p=vUv*2.-1.; float r=dot(p,p);
+          a*=max(0.,exp(-r*5.)-0.0067);
           if(r>1.) discard;` : ''}
         gl_FragColor=vec4(col,a);
         ${trace ? '' : '#include <tonemapping_fragment>'}
@@ -270,7 +332,7 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
     const mesh = new T.InstancedMesh(geo, mat, cap);
     mesh.instanceMatrix.setUsage(T.DynamicDrawUsage); mesh.frustumCulled = false; mesh.count = 0;
     mesh.renderOrder = smoke || fire ? 1 : 2; scene.add(mesh);
-    const b = { mesh, rgba, n: 0, cap };
+    const b = { mesh, rgba, aux, n: 0, cap };
     resources.push(b); return b;
   }
   const glow = batch(new T.PlaneGeometry(1, 1), 1400, true);
@@ -295,6 +357,8 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
   // keep a minimum pixel width, so they read on a phone at any zoom.
   const trails = batch(new T.PlaneGeometry(1, 1), 256, false, false, true, false, 1);
   const lines = batch(new T.PlaneGeometry(1, 1), 1024, false, false, true, false, 2);
+  // Sparks: short streaks along their own velocity.
+  const streaks = batch(new T.PlaneGeometry(1, 1), 1024, false, false, true, false, 2);
   // Major explosions' shockwave: a closed ring with a CSS-pixel floor on its width.
   const shockGeo = new T.RingGeometry(.9, 1, 96, 1);
   shockGeo.rotateX(-Math.PI / 2);
@@ -310,17 +374,22 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
   const shieldFx = shieldBatch(T, scene, SHIELD_CAP);
   resources.push(shieldFx);
 
-  function put(b, x, y, z, sx, sy, sz, angle, c, opacity, tumble = 0) {
+  function put(b, x, y, z, sx, sy, sz, angle, c, opacity, tumble = 0, seed = 0, age = 0, heat = 0) {
     if (b.n >= b.cap) return;
     const i = b.n++;
     transform.position.set(x, y, z); transform.rotation.set(tumble, angle, tumble * .73);
     transform.scale.set(sx, sy, sz); transform.updateMatrix(); b.mesh.setMatrixAt(i, transform.matrix);
     const j = i * 4, a = b.rgba.array;
     a[j] = c.r; a[j+1] = c.g; a[j+2] = c.b; a[j+3] = opacity;
+    if (b.aux) { const x4 = b.aux.array; x4[j] = seed; x4[j+1] = age; x4[j+2] = heat; }
+  }
+  // Send the GPU only the part of an attribute that is in use this frame.
+  function upload(attribute, count) {
+    attribute.clearUpdateRanges(); attribute.addUpdateRange(0, count * attribute.itemSize); attribute.needsUpdate = true;
   }
   function finish(b) {
     b.mesh.count = b.n;
-    if (b.n) { b.mesh.instanceMatrix.needsUpdate = true; b.rgba.needsUpdate = true; }
+    if (b.n) { upload(b.mesh.instanceMatrix, b.n); upload(b.rgba, b.n); if (b.aux) upload(b.aux, b.n); }
   }
   function segment(b, x, y, z, ex, ey, ez, width, c, opacity) {
     // All weapon traces lie in the battle plane; electric bolts use slight height offsets.
@@ -329,7 +398,7 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
       Math.atan2(-dz,dx), c, opacity);
   }
   const particles = Array.from({ length: 3200 }, () => ({ life: 0, max: 1, x: 0, y: 0, z: 0,
-    vx: 0, vy: 0, vz: 0, size: 1, kind: 0, color: white, angle: 0, wait: 0, hot: false }));
+    vx: 0, vy: 0, vz: 0, size: 1, kind: 0, color: white, angle: 0, wait: 0, hot: false, gain: 1 }));
   const waves = Array.from({ length: 160 }, () => ({ life: 0, max: 1, x: 0, z: 0,
     radius: 1, angle: 0, color: white, kind: 0 }));
   // Arrivals and departures share one pool (`out` marks a departure).
@@ -350,17 +419,121 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
   function particle(x, y, z, size, life, color, kind = 0, vx = 0, vy = 0, vz = 0, wait = 0) {
     const p = particles[pc++]; if (pc === particles.length) pc = 0;
     p.x=x; p.y=y; p.z=z; p.size=size; p.life=p.max=life; p.color=color; p.kind=kind;
-    p.vx=vx; p.vy=vy; p.vz=vz; p.angle=Math.random()*6.283; p.wait=wait; p.hot=false;
+    p.vx=vx; p.vy=vy; p.vz=vz; p.angle=Math.random()*6.283; p.wait=wait; p.hot=false; p.gain=1;
+    return p;
   }
   const scratch = new T.Color();
+  // ---- Flash lights ----
+  const flashes = Array.from({ length: FLASH_LIGHTS }, () => {
+    const light = new T.PointLight(0xffffff, 0, 60, 2); scene.add(light);
+    return { light, life: 0, max: 1, wait: 0, peak: 0 };
+  });
+  /** Lend a light to a flash of `intensity` (candela) unless brighter ones hold them all. */
+  function flash(x, y, z, color, intensity, range, life, wait = 0) {
+    let free = null, least = Infinity;
+    for (const f of flashes) {
+      const level = f.life > 0 ? f.peak * (f.life / f.max) ** 2 : 0;
+      if (level < least) { least = level; free = f; }
+    }
+    if (least >= intensity) return;
+    free.light.position.set(x, y, z); free.light.color.copy(color); free.light.distance = range;
+    free.light.intensity = 0; free.peak = intensity; free.life = free.max = life; free.wait = wait;
+  }
+  function updateFlashes(dt) {
+    for (const f of flashes) {
+      if (f.life <= 0) continue;
+      if (f.wait > 0) { f.wait -= dt; continue; }
+      f.life -= dt;
+      f.light.intensity = f.life > 0 ? f.peak * (f.life / f.max) ** 2 : 0;
+    }
+  }
+  const ripple = lens ? (x, z, radius, life, strength, width = .25, wait = 0) => lens.ripple({ x, z, radius, life, strength, width, wait }) : () => {};
+  // ---- Engine trails ----
+  // One mesh for every ribbon: two vertices a node, widened to face the view in the
+  // vertex shader (never thinner than a pixel), brightest down the middle.
+  const trailGeo = new T.BufferGeometry();
+  const trailPos = new Float32Array(TRAIL_CAP * TRAIL_NODES * 2 * 3), trailSide = new Float32Array(TRAIL_CAP * TRAIL_NODES * 2 * 3), trailTint = new Float32Array(TRAIL_CAP * TRAIL_NODES * 2 * 4);
+  {
+    const index = new Uint16Array(TRAIL_CAP * (TRAIL_NODES - 1) * 6);
+    for (let r = 0, k = 0; r < TRAIL_CAP; r++) for (let n = 0; n < TRAIL_NODES - 1; n++) {
+      const v = (r * TRAIL_NODES + n) * 2;
+      index[k++] = v; index[k++] = v + 1; index[k++] = v + 2; index[k++] = v + 1; index[k++] = v + 3; index[k++] = v + 2;
+    }
+    trailGeo.setIndex(new T.BufferAttribute(index, 1));
+    trailGeo.setAttribute('position', new T.BufferAttribute(trailPos, 3).setUsage(T.DynamicDrawUsage));
+    trailGeo.setAttribute('side', new T.BufferAttribute(trailSide, 3).setUsage(T.DynamicDrawUsage));
+    trailGeo.setAttribute('tint', new T.BufferAttribute(trailTint, 4).setUsage(T.DynamicDrawUsage));
+  }
+  const trailMat = new T.ShaderMaterial({
+    uniforms: { viewportHeight: { value: 720 } },
+    transparent: true, depthWrite: false, side: T.DoubleSide, blending: T.AdditiveBlending,
+    vertexShader: `uniform float viewportHeight; attribute vec3 side; attribute vec4 tint; varying vec4 vTint; varying float vAcross;
+      void main(){ vTint=tint; vAcross=sign(side.z);
+        vec4 center=modelViewMatrix*vec4(position,1.);
+        float pixelWorld=2.*max(1.,-center.z)/(projectionMatrix[1][1]*viewportHeight);
+        float reach=max(abs(side.z),pixelWorld*.9);
+        gl_Position=projectionMatrix*modelViewMatrix*vec4(position+vec3(side.x,0.,side.y)*reach*vAcross,1.); }`,
+    fragmentShader: `varying vec4 vTint; varying float vAcross;
+      void main(){ gl_FragColor=vec4(vTint.rgb,vTint.a*exp(-3.6*vAcross*vAcross));
+        #include <colorspace_fragment>
+      }`,
+  });
+  const trailMesh = new T.Mesh(trailGeo, trailMat);
+  trailMesh.frustumCulled = false; trailMesh.renderOrder = 1.5; trailGeo.setDrawRange(0, 0); scene.add(trailMesh);
+  const ribbons = Array.from({ length: TRAIL_CAP }, (_, slot) => ({ slot, used: false, color: white, width: .5, n: 0, start: 0,
+    x: new Float32Array(TRAIL_NODES), z: new Float32Array(TRAIL_NODES), level: new Float32Array(TRAIL_NODES), born: new Float64Array(TRAIL_NODES),
+    hx: 0, hz: 0, hy: 1, hlevel: 0, live: false, fresh: false, drawn: false }));
+  const trailColor = team.map(c => c.clone().lerp(new T.Color(palette.exhaust), .22).multiplyScalar(1.25));
+  function updateTrails() {
+    let top = 0;
+    for (const r of ribbons) {
+      const base = r.slot * TRAIL_NODES * 2;
+      if (!r.used || (!r.live && r.n === 0)) {
+        // Collapse an idle ribbon to nothing (once is enough; it stays that way).
+        if (r.drawn) { trailTint.fill(0, base * 4, (base + TRAIL_NODES * 2) * 4); trailSide.fill(0, base * 3, (base + TRAIL_NODES * 2) * 3); r.drawn = false; top = r.slot + 1; }
+        continue;
+      }
+      // Drop nodes that have faded out.
+      while (r.n > 0 && clock - r.born[r.start] > TRAIL_LIFE) { r.start = (r.start + 1) % TRAIL_NODES; r.n--; }
+      // Newest first: the live head at the nozzle, then the laid nodes back in time.
+      const count = Math.min(TRAIL_NODES, r.n + (r.live ? 1 : 0));
+      let px = 0, pz = 0, lastX = 0, lastZ = 0, sideX = 0, sideZ = 1;
+      for (let k = 0; k < TRAIL_NODES; k++) {
+        let x, z, level, age;
+        if (k < count) {
+          if (r.live && k === 0) { x = r.hx; z = r.hz; level = r.hlevel; age = 0; }
+          else { const i = (r.start + r.n - 1 - (k - (r.live ? 1 : 0)) + TRAIL_NODES * 2) % TRAIL_NODES; x = r.x[i]; z = r.z[i]; level = r.level[i]; age = clock - r.born[i]; }
+          if (k > 0) { const dx = px - x, dz = pz - z, d = Math.hypot(dx, dz); if (d > 1e-4) { sideX = -dz / d; sideZ = dx / d; } }
+          px = x; pz = z; lastX = x; lastZ = z;
+        } else { x = lastX; z = lastZ; level = 0; age = TRAIL_LIFE; }
+        const t = Math.min(1, age / TRAIL_LIFE), fade = (1 - t) ** 1.7;
+        // The plume owns the first metres; the trail comes up behind it.
+        const alpha = level * fade * Math.min(1, .25 + age * 9) * .7, half = r.width * (.55 + 1.5 * t);
+        for (let e = 0; e < 2; e++) {
+          const v = base + k * 2 + e, s3 = v * 3, s4 = v * 4;
+          trailPos[s3] = x; trailPos[s3 + 1] = r.hy; trailPos[s3 + 2] = z;
+          trailSide[s3] = sideX; trailSide[s3 + 1] = sideZ; trailSide[s3 + 2] = e ? half : -half;
+          trailTint[s4] = r.color.r; trailTint[s4 + 1] = r.color.g; trailTint[s4 + 2] = r.color.b; trailTint[s4 + 3] = alpha;
+        }
+        // The first segment takes its direction from the second node.
+        if (k === 1) for (let e = 0; e < 2; e++) { const s3 = (base + e) * 3; trailSide[s3] = sideX; trailSide[s3 + 1] = sideZ; }
+      }
+      r.drawn = true; r.live = false; top = r.slot + 1;
+    }
+    trailGeo.setDrawRange(0, top * (TRAIL_NODES - 1) * 6);
+    if (top) for (const name of ['position', 'side', 'tint']) upload(trailGeo.attributes[name], top * TRAIL_NODES * 2);
+  }
+  // Capital ships' running lights (see beacons()).
+  const beaconSets = new Set();
+  const beaconColor = team.map(c => c.clone().lerp(white, .7).multiplyScalar(1.6));
   // Hulks' hot spots, drawn each frame from their hull's transform (see smoulder).
   const hulks = new Set();
   const goldWhite = new T.Color(0xfff3cf), orange = new T.Color(0xff952f), deepFire = new T.Color(0xff5218);
-  const emberColor = new T.Color(0xffab4a), emberDim = new T.Color(0xff6a24), emberHot = new T.Color(0xffab4a).multiplyScalar(2), soot = new T.Color(0x3a3029), hotSmoke = new T.Color(0xb4501e);
+  const emberColor = new T.Color(0xffab4a), emberDim = new T.Color(0xff6a24), emberHot = new T.Color(0xffab4a).multiplyScalar(2), soot = new T.Color(0x3a3029);
   const fireLight = new T.Color(0xff7a2a).multiplyScalar(.2), shockColor = new T.Color(0xffd9a0);
   // Fireball puffs are additive and overlap: dimmed so their sum stays fire, not white.
   const puffA = orange.clone().multiplyScalar(.3), puffB = deepFire.clone().multiplyScalar(.35);
-  const flameCore = new T.Color(0xffc561);
+  const hitLight = new T.Color(0xffc48a);
   const shocksLive = Array.from({ length: 32 }, () => ({ life: 0, max: 1, wait: 0, x: 0, z: 0, radius: 1, color: white, alpha: 1 }));
   let shc = 0;
   function shock(x, z, radius, life, color, alpha, wait) {
@@ -375,6 +548,8 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
     particle(x,2.4,z,R*1.4,.16,goldWhite);
     particle(x,2.3,z,R*2.6,.4,puffA);
     particle(x,2.2,z,R*.9,.12,white);
+    flash(x,7+R*.3,z,warmWhite,Math.min(60*R*R,70000),Math.min(R*9,420),.95);
+    ripple(x,z,R*3.1,.85,.34,.2);
     // Light thrown on the surroundings, and a faint team-coloured breath of the reactor.
     particle(x,.6,z,R*4.5,.7,fireLight);
     particle(x,.8,z,R*2.4,.35,c);
@@ -455,6 +630,9 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
     particle(e.x,1.5,-e.y,r*(death?4:1.8),death?1.05:.3,c);
     particle(e.x,2,-e.y,r*1.5,death?.28:.14,white);
     wave(e.x,-e.y,r,death?1.1:.38,death?c:white);
+    if (death) { flash(e.x,6,-e.y,scratch.copy(c).lerp(white,.45),55*r*r,r*9,.5); ripple(e.x,-e.y,r*3.4,.6,.2,.28); }
+    else if (e.kind==='collision') { flash(e.x,5,-e.y,white,500*r,40,.2); ripple(e.x,-e.y,r*4,.32,.1,.3); }
+    else flash(e.x,5,-e.y,c,22*r*r,r*7,.16);
     if (death) {
       // Abyssal's five dark shell shards, golden-angle spread and rising tumble.
       for(let j=0;j<5;j++) {
@@ -478,7 +656,10 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
     // The drive lets go: a hot flash where the ship was, and (full jump) a collapse ring.
     particle(p.x,2,p.z,size*(quick?.5:1.45),quick?.12:.24,c);
     particle(p.x,2.2,p.z,size*(quick?.24:.6),quick?.055:.11,quick?warmWhite:white);
-    if(!quick) { wave(p.x,p.z,size*.72,.26,c,4); sparks(p.x,p.z,8,size*.5,c); }
+    if(!quick) {
+      wave(p.x,p.z,size*.72,.26,c,4); sparks(p.x,p.z,8,size*.5,c);
+      flash(p.x,6,p.z,c,20*size*size,size*7,.25); ripple(p.x,p.z,size*1.8,.4,.28,.3);
+    }
   }
   // Hairline arc of `radius` round (x, z) from angle a0 to a1 (radians, three.js plane).
   function arc(x, z, radius, a0, a1, c, opacity, steps) {
@@ -649,12 +830,15 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
       const c=shot[e.team] || white, dx=Math.cos(e.angle), dz=-Math.sin(e.angle);
       particle(e.x,1.5,-e.y,e.weapon==='flak'?5:3.8,.085,c);
       particle(e.x+dx,1.5,-e.y+dz,2,.055,white);
+      // A lick of flame out of the barrel.
+      particle(e.x+dx*.5,1.5,-e.y+dz*.5,1.3,.07,c,3,dx*70,0,dz*70);
     },
     hit(e) {
       particle(e.x,1.5,-e.y,6,.18,shot[e.team] || white);
       particle(e.x,1.8,-e.y,2.5,.08,white);
       sparks(e.x,-e.y,5,12,amber);
       particle(e.x,1.2,-e.y,2,.7,smokeColor,1,0,2,0);
+      flash(e.x,5,-e.y,hitLight,70,24,.12);
     },
     shieldHit(e) {
       // The event team is the shooter; the defending shield belongs to the other team.
@@ -701,6 +885,7 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
       particle(e.x,1.8,-e.y,Math.max(3,r*.3),.09,white);
       if(e.depleted) {
         particle(cx,1.2,cz,r*2.6,.3,c);
+        flash(cx,5,cz,c,2600,r*6,.3); ripple(cx,cz,r*2.2,.45,.2,.3);
         // The field breaks into flat glowing fragments that fly off the bubble's
         // surface, mostly from the struck side, plus a few sparks.
         for(let j=0;j<18;j++) {
@@ -728,6 +913,7 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
       particle(p.x,2.4,p.z,size*2,.28,c);
       particle(p.x,2.5,p.z,size*.85,.18,white);
       particle(p.x-dx*size*.55,.6,p.z-dz*size*.55,size*1.1,.32,c);
+      flash(p.x,5,p.z,c,1400,40,.25);
       for(let j=0;j<4;j++) {
         const a=e.heading+(Math.random()-.5)*.5, v=p.speed*(.6+Math.random()*.25);
         particle(p.x,1.4,p.z,.8+Math.random()*.6,.12+Math.random()*.12,j%2?white:c,3,
@@ -748,6 +934,9 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
     drawOrders(list) { orders=list || []; },
     attachDamage(model) {
       let smokeClock=0, fireClock=0, arcClock=0, index=0, disposed=false, hot=null;
+      // The hull's speed, from where it was drawn last frame: a slow ship's smoke stays
+      // over it, so it is laid thinner (it never hides the hull it comes from).
+      let lastX=NaN, lastZ=NaN, thin=1;
       const points=model.damagePoints || [];
       // Damage mounts span the hull: derive a scale once, without geometry traversal.
       let extent=0;
@@ -761,15 +950,21 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
       return {
         update(hp, alive, dt) {
           if(disposed || !alive || hp>=.7 || !points.length) {
-            smokeClock=fireClock=arcClock=0; return;
+            smokeClock=fireClock=arcClock=0; lastX=NaN; return;
           }
           dt=Math.min(dt,.1);
+          point.setFromMatrixPosition(model.object.matrixWorld);
+          if(dt>0) {
+            const speed=Number.isNaN(lastX)?40:Math.hypot(point.x-lastX,point.z-lastZ)/dt;
+            thin+=(Math.max(.34,Math.min(1,speed/38))-thin)*Math.min(1,dt*4);
+            lastX=point.x; lastZ=point.z;
+          }
           smokeClock+=dt*(hp<.4?14:9);
           // The matrix is read at emission only. Detached particles never follow the hull.
           while(smokeClock>=1) {
             smokeClock--; point.copy(points[index++%points.length]).applyMatrix4(model.object.matrixWorld);
             particle(point.x,point.y+.3,point.z,(3.2+Math.random()*1.6)*scale,1.8+Math.random()*.8,smokeColor,5,
-              (Math.random()-.5)*2,2.2,(Math.random()-.5)*2);
+              (Math.random()-.5)*2,2.2,(Math.random()-.5)*2).gain=thin;
           }
           if(hp<.4) {
             fireClock+=dt*(freight?20:30);
@@ -811,13 +1006,55 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
         dispose() { disposed=true; if(hot) hulks.delete(hot); },
       };
     },
+    /**
+     * An engine trail in `team`'s colour, `width` metres across at the nozzle. head()
+     * every frame the engine is drawn (three.js world position, throttle 0..1); lay()
+     * once a sim tick to leave a point behind; cut() when the ship jumps; dispose()
+     * frees the ribbon. With every ribbon in use the handle does nothing.
+     */
+    trail(e) {
+      const r=ribbons.find(q=>!q.used);
+      if(!r) return { head() {}, lay() {}, cut() {}, dispose() {} };
+      r.used=true; r.n=0; r.start=0; r.live=false; r.fresh=false; r.color=trailColor[e.team] || white; r.width=e.width ?? .5;
+      return {
+        head(x,y,z,level) { r.hx=x; r.hy=y; r.hz=z; r.hlevel=level; r.live=true; r.fresh=true; },
+        lay() {
+          if(!r.fresh) return;
+          r.fresh=false;
+          if(r.n>0) {
+            const last=(r.start+r.n-1)%TRAIL_NODES, d=Math.hypot(r.hx-r.x[last],r.hz-r.z[last]);
+            // Hardly moved: nothing to add. A leap (a jump, a fast-forward): start afresh.
+            if(d<.35) return;
+            if(d>90) r.n=0;
+          }
+          if(r.n>=TRAIL_NODES-1) { r.start=(r.start+1)%TRAIL_NODES; r.n--; }
+          const i=(r.start+r.n)%TRAIL_NODES;
+          r.x[i]=r.hx; r.z[i]=r.hz; r.level[i]=r.hlevel; r.born[i]=clock; r.n++;
+        },
+        cut() { r.n=0; r.live=false; r.fresh=false; },
+        dispose() { r.used=false; r.n=0; r.live=false; r.fresh=false; },
+      };
+    },
+    /**
+     * Running lights at the hull model's `strobes`: show(true) every frame the hull is
+     * on the field keeps them flashing.
+     */
+    beacons(model, teamIndex) {
+      const set={ model, color: beaconColor[teamIndex] || white, phase: Math.random()*2.4, on: false };
+      if(model.strobes && model.strobes.length) beaconSets.add(set);
+      return { show(on) { set.on=on; }, dispose() { beaconSets.delete(set); } };
+    },
     update(dt) {
       dt=Math.max(0,Math.min(dt,.1));
-      fires.n=embers.n=emberHalos.n=shards.n=glow.n=flames.n=smoke.n=chips.n=rings.n=bolts.n=trails.n=lines.n=thin.n=chargeRings.n=shocks.n=shieldFx.n=0;
+      fires.n=embers.n=emberHalos.n=shards.n=glow.n=flames.n=smoke.n=chips.n=rings.n=bolts.n=trails.n=lines.n=streaks.n=thin.n=chargeRings.n=shocks.n=shieldFx.n=0;
       clock+=dt;
+      updateFlashes(dt);
       const height=Math.max(1,renderer.domElement.clientHeight || renderer.domElement.height);
       trails.mesh.material.uniforms.viewportHeight.value=height;
       lines.mesh.material.uniforms.viewportHeight.value=height;
+      streaks.mesh.material.uniforms.viewportHeight.value=height;
+      trailMat.uniforms.viewportHeight.value=height;
+      flames.mesh.material.uniforms.time.value=clock;
       chargeRings.mesh.material.uniforms.viewportHeight.value=height;
       shocks.mesh.material.uniforms.viewportHeight.value=height;
       embers.mesh.material.uniforms.viewportHeight.value=height;
@@ -845,27 +1082,22 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
         const t=1-p.life/p.max, fade=1-t;
         p.x+=p.vx*dt;p.y+=p.vy*dt;p.z+=p.vz*dt;
         if(p.kind===1) {
-          const size=p.size*(1+t*2.3);
-          put(smoke,p.x,p.y,p.z,size,size,1,0,p.color,.7*Math.min(1,(1-t)*4));
+          const size=p.size*(1.15+t*2.5);
+          put(smoke,p.x,p.y,p.z,size,size,1,0,p.color,.82*Math.min(1,(1-t)*3),0,p.angle,t,0);
         } else if(p.kind===5) {
           // Damage trail: faint over the hull so a slow ship stays visible, fuller once it has drifted off.
-          const size=p.size*(1+t*2.6);
-          put(smoke,p.x,p.y,p.z,size,size,1,0,p.color,.38*(.25+.75*Math.min(1,t*4))*Math.min(1,(1-t)*3));
+          const size=p.size*(1.15+t*2.8);
+          put(smoke,p.x,p.y,p.z,size,size,1,0,p.color,.5*p.gain*(.25+.75*Math.min(1,t*4))*Math.min(1,(1-t)*3),0,p.angle,t,0);
         } else if(p.kind===7) {
           // Hot smoke: lit orange from within, cooling to soot as it rises and spreads.
-          const size=p.size*(1+t*1.6), heat=Math.max(0,1-t*1.8);
+          const size=p.size*(1.1+t*1.8), heat=Math.max(0,1-t*1.8);
           p.vx*=1-dt*.6; p.vz*=1-dt*.6;
-          scratch.copy(p.color).lerp(hotSmoke,p.hot?heat*heat:heat*heat*.4);
-          put(smoke,p.x,p.y,p.z,size,size,1,0,scratch,.28*Math.min(1,t*8)*(1-t)**1.3);
-          // A hot pocket: a smaller glow inside some puffs, off-centre.
-          if(p.hot && heat>0) put(glow,p.x+Math.cos(p.angle)*size*.15,p.y+.5,p.z+Math.sin(p.angle)*size*.15,size*.55,size*.55,1,0,emberColor,heat*(.12+.1*Math.sin(clock*5+p.angle)**2));
+          put(smoke,p.x,p.y,p.z,size,size,1,0,p.color,.5*Math.min(1,t*8)*(1-t)**1.3,0,p.angle,t,p.hot?heat*heat:heat*heat*.3);
         } else if(p.kind===8) {
-          // Fire cloud: yellow-orange, reddening, then soot; it billows out and slows.
+          // Fire cloud (shaded from its age): it billows out and slows.
           p.vx*=1-dt*1.5; p.vz*=1-dt*1.5;
-          const size=p.size*(.55+1.5*(1-(1-t)**2)), aspect=.7+.6*p.angle/6.283;
-          const cool=p.hot?(t-.65)*2.8:(t-.3)*2.2;
-          scratch.copy(flameCore).lerp(deepFire,Math.min(1,t*(p.hot?2:3.5))).lerp(p.color,Math.max(0,Math.min(1,cool)));
-          put(fires,p.x,p.y,p.z,size*aspect,size/aspect,1+p.angle,0,scratch,.7*Math.min(1,t*14)*(1-t)**.7);
+          const size=p.size*(.62+1.6*(1-(1-t)**2)), aspect=.8+.4*p.angle/6.283;
+          put(fires,p.x,p.y,p.z,size*aspect,size/aspect,1,0,p.color,.92*Math.min(1,t*14)*(1-t)**.6,0,p.angle,t,p.hot?1:0);
         } else if(p.kind===6) {
           // Ember: a hot point that slows, flickers and dims.
           p.vx*=1-dt*.9; p.vz*=1-dt*.9;
@@ -881,9 +1113,17 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
           p.vy-=dt*7;
           const size=p.size*(1-t*.65);
           put(chips,p.x,p.y,p.z,size,size*.4,size*.7,p.angle+t*3,p.color,fade,t*4+p.angle);
+        } else if(p.kind===3) {
+          // Spark: a streak along its own velocity, slowing and shortening.
+          p.vx*=1-dt*2.4; p.vz*=1-dt*2.4;
+          const speed=Math.hypot(p.vx,p.vz) || 1, len=Math.max(.8,speed*.065);
+          segment(streaks,p.x-p.vx/speed*len,p.y,p.z-p.vz/speed*len,p.x,p.y,p.z,Math.max(.1,p.size*.14),p.color,fade*1.5);
+        } else if(p.kind===4) {
+          const size=p.size*(.85-t*.4);
+          put(flames,p.x,p.y+size*.45,p.z,size,size*1.9,1,0,p.color,fade*.6,0,p.angle,t,0);
         } else {
-          const size=p.size*(p.kind===4?(1-t*.65)*(1+.18*Math.sin(t*35+p.angle)):p.kind===3?1-t*.65:1+t*.7);
-          put(p.kind===4?flames:glow,p.x,p.y,p.z,size,size*(p.kind===4?1.8:1),1,0,p.color,fade*fade*(p.kind===3?1:.9));
+          const size=p.size*(1+t*.7);
+          put(glow,p.x,p.y,p.z,size,size,1,0,p.color,fade*fade*.9);
         }
       }
       for(const w of waves) {
@@ -921,15 +1161,30 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
         const back=900*(1-travel)**3;
         const tail=travel<1?Math.min(900-back,430):350*Math.max(0,1-(age-p.max)/.38);
         const x=p.x-dx*back,z=p.z-dz*back, fade=travel<1?1:Math.max(0,1-(age-p.max)/.38);
-        segment(bolts,x-dx*tail,1.4,z-dz*tail,x,1.4,z,p.size*.65,p.color,.42*fade);
-        segment(bolts,x-dx*tail*.85,1.5,z-dz*tail*.85,x,1.5,z,Math.max(1.8,p.size*.1),white,fade);
+        // The mirror of the departure: a soft sheath and a hot core, wide at the ship.
+        segment(trails,x-dx*tail,1.4,z-dz*tail,x,1.4,z,p.size*.5,p.color,.9*fade);
+        segment(lines,x-dx*tail*.85,1.5,z-dz*tail*.85,x,1.5,z,Math.max(.9,p.size*.07),white,fade);
         if(travel===1 && !p.landed) {
           p.landed=true;particle(p.x,2,p.z,p.size*5,.38,p.color);
           particle(p.x,2,p.z,p.size*2,.18,white);
+          flash(p.x,6,p.z,p.color,26*p.size*p.size,p.size*8,.35); ripple(p.x,p.z,p.size*2.4,.45,.24,.3);
         }
       }
       finish(glow);finish(flames);finish(smoke);finish(chips);finish(rings);finish(bolts);
-      finish(trails);finish(lines);finish(thin);finish(chargeRings);finish(shocks);
+      finish(trails);finish(lines);finish(streaks);finish(thin);finish(chargeRings);finish(shocks);
+      updateTrails();
+      // Running lights: a double flash every 2.4 s, each hull on its own beat.
+      for(const set of beaconSets) {
+        if(!set.on || !set.model.object.visible) { set.on=false; continue; }
+        set.on=false;
+        const beat=(clock+set.phase)%2.4;
+        if(!(beat<.07 || (beat>.2 && beat<.27))) continue;
+        for(const s of set.model.strobes) {
+          point.copy(s).applyMatrix4(set.model.object.matrixWorld);
+          put(embers,point.x,point.y+.3,point.z,.45,.45,1,0,set.color,1);
+          put(emberHalos,point.x,point.y+.3,point.z,2.2,2.2,1,0,set.color,.4);
+        }
+      }
       for(const h of hulks) {
         if(h.heat<=0 || !h.model.object.visible) continue;
         for(const s of h.spots) {
@@ -942,11 +1197,13 @@ export function createEffects({ THREE: T, scene, renderer, palette }) {
       }
       finish(fires);finish(embers);finish(emberHalos);finish(shards);
       finish(shieldFx);
-      if(shieldFx.n) { shieldFx.hit.needsUpdate=true; shieldFx.mode.needsUpdate=true; }
+      if(shieldFx.n) { upload(shieldFx.hit,shieldFx.n); upload(shieldFx.mode,shieldFx.n); }
     },
     // Optional lifecycle hook for embeds; normal harness keeps one Effects for its lifetime.
     dispose() {
       for(const b of resources) { scene.remove(b.mesh);b.mesh.geometry.dispose();b.mesh.material.dispose(); }
+      for(const f of flashes) scene.remove(f.light);
+      scene.remove(trailMesh);trailGeo.dispose();trailMat.dispose();
     },
   };
 }

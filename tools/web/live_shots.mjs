@@ -72,7 +72,8 @@ for (const vp of VIEWPORTS) {
   for (const scene of scenes) {
     const page = await context.newPage();
     const pageErrors = watchErrors(page, `${vp.name}/${scene.name}`);
-    await page.goto(`${base}/?${scene.query}&debug`, { waitUntil: "load" });
+    // scale=1: full resolution, whatever a software renderer's frame rate would ask for.
+    await page.goto(`${base}/?${scene.query}&scale=1&debug`, { waitUntil: "load" });
     await page.waitForFunction(
       ({ phase, after }) => {
         const s = window.rlfLive?.stats();

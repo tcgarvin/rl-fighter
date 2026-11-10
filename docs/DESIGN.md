@@ -339,6 +339,16 @@ the next run.
 - **Visuals:** per-thruster exhaust driven by the throttle actions; turret meshes
   follow the sim's turret angles; projectiles, hits and explosions. Optionally, the
   commander's orders as lines and markers.
+- **Engine trails:** each strike craft's main engines lay a thin ribbon in the team's
+  colour that fades in about a second, as bright as the throttle was when it was laid.
+  A trail is a record of thrust, so a coasting ship leaves none: the pilot's pulses and
+  turns can be read off the picture.
+- **Light and shadow:** the key light casts shadows between and across the hulls (the
+  shadow map follows the part of the battle plane on screen, and is faded out and
+  not drawn once a texel grows past 0.3 m, where shadows would say nothing). Blasts, hits, jumps and bay launches lend one of
+  four point lights to the hulls near them. Shockwaves refract the picture behind
+  them, and a major explosion jolts it; both are off for viewers who ask for reduced
+  motion.
 - **No health bars.** Damage shows on the ship itself: smoke, then flame, then
   electrical arcing as HP falls. Smoke stays thin over the hull and thickens as it
   trails, so it never hides a slow-moving ship. A "technical details" toggle shows HP, shields,
@@ -354,8 +364,13 @@ the next run.
   coast on, tumbling, sunk a little below the battle plane so the living fly over
   them; visible, but nothing that pulls the eye. They stay until the match ends.
 - **Scenery** has two layers. (1) A rigid **backdrop**: the starfield, nebulae and
-  large painted bodies (planets, rings, moons). Its parts never move relative to each
-  other. It is fixed to the camera's whole-arena frame, so the digital zoom and pan
+  large bodies (planets, rings, moons). Its parts never move relative to each
+  other, though each body turns slowly on its own axis. A body's surface is painted
+  once per match (colour, height, cloud, night lights) and lit every frame as a
+  sphere, so it stays sharp at any zoom: terminator, relief, air at the limb, cloud
+  shadows, rings that shadow the planet and are shadowed by it. The key light on the
+  ships comes from the same side as the sun on the main body, and their rim light
+  leans toward that body's colour. It is fixed to the camera's whole-arena frame, so the digital zoom and pan
   scale and crop it with the ships; per-object parallax between planets and stars
   looked wrong. Bodies are composed for a typical fight's zoom (about 2.5×): at the
   edges of that crop, preferring the viewport's long axis. (2) World-space **foreground dust** that the ships and
@@ -368,7 +383,12 @@ the next run.
   - `/story/` is the scripted story demo: where the match structure is going.
   - `/hulls` is the hull catalogue.
 - **Performance target:** 60 fps on Intel Iris Xe-class integrated graphics, with
-  hours of uptime and no memory growth. A soak test is part of CI.
+  hours of uptime and no memory growth. A soak test is part of CI. The page holds the
+  rate by trading resolution for time (`web/src/live/pacing.ts`): when many frames
+  run long it draws the scene at a lower scale (down to half), and tries a step back
+  up after a quiet spell. Only dropped frames count: the GPU's own frame time is no
+  guide on an integrated GPU, whose governor stretches it to fill the interval.
+  `?scale=` pins the scale; "technical details" shows it.
 - **Hosting:** a separate Netlify site (`rl-fighter`, id
   `fc4f1b89-61db-4eab-89b8-f3c4bfdf6080`) on `rl-fighter.tcgarvin.com`; DNS is a
   Cloudflare CNAME to `rl-fighter.netlify.app`. Deploys run from this machine with
@@ -425,6 +445,14 @@ shadow grade, a soft vignette and fine grain. Every HDR read in post is made fin
 because iOS half-float targets otherwise smear NaN/Inf into black blocks. The shared
 hull models, the two-layer backdrop and the effects carry over to the real client
 unchanged.
+
+Second pass (2026-11-10), inside the same look: the halation is a five-level pyramid
+(a tight warm halo with a long soft tail) and the streak three sideways squeezes of
+it; hulls carry plating (seams, per-plate tone, scuffed roughness) that fades out
+with distance; engine plumes are soft cones with a white-hot root and shock diamonds;
+smoke is lit by the key light and erodes as it ages, fire clouds burn from yellow
+through red to soot, and hull fires are tongues of flame; sparks are streaks. The
+death burst (flash, ring, shards) keeps its round-1 shape.
 
 Feedback from round 1 (2026-10-27):
 

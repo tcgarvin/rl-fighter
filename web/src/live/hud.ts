@@ -151,7 +151,7 @@ export class Hud {
 
 
   /** Smooth the frame rate and, a few times a second, refresh the perf readout. */
-  updatePerf(dt: number, realDt: number, match: LiveMatch | null, details: boolean): void {
+  updatePerf(dt: number, realDt: number, match: LiveMatch | null, details: boolean, renderScale: number): void {
     this.clock += dt;
     if (realDt > 0) this.fps += (1 / realDt - this.fps) * Math.min(1, realDt * 2);
     if (this.clock < this.nextPerf) return;
@@ -160,7 +160,8 @@ export class Hud {
     const nn = match?.timing.nn ?? 0;
     const tick = sim + nn;
     const free = Math.max(0, 100 * (1 - tick / TICK_BUDGET_MS));
-    const split = details ? `\nsim ${sim.toFixed(2)} · nn ${nn.toFixed(2)}` : "";
+    // With details: the share of full resolution the picture is drawn at to hold the frame rate.
+    const split = details ? `\nsim ${sim.toFixed(2)} · nn ${nn.toFixed(2)}\nres ${(renderScale * 100).toFixed(0)}%` : "";
     this.perfEl.textContent = `tick ${tick.toFixed(1)} / ${TICK_BUDGET_MS.toFixed(0)} ms\n${free.toFixed(0)}% free · ${this.fps.toFixed(0)} fps${split}`;
   }
 

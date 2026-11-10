@@ -18,7 +18,8 @@
 // seconds into the first match, for screenshots), inspect (a ship slot to inspect once the
 // first match is on; screenshots), outputs (1/0: open or close the inspector's details,
 // overriding the viewer's remembered choice), speed (run time N× faster, for soak tests),
-// debug (expose window.rlfLive stats).
+// scale (hold the render scale at 0.5..1 instead of letting it follow the frame's cost;
+// screenshots), debug (expose window.rlfLive stats).
 
 import { mountNav } from "../shell/nav";
 import "./live.css";
@@ -84,7 +85,8 @@ let bundleBase = replay ? `/champions/${replay}/` : CURRENT_BUNDLE;
 const nav = mountNav("live", true);
 const hud = new Hud();
 const muster = new Muster(document.getElementById("muster")!);
-const world = new World(document.body);
+const pinnedScale = params.has("scale") ? Math.min(1, Math.max(0.5, Number(params.get("scale")) || 1)) : null;
+const world = new World(document.body, pinnedScale);
 const inspector = new Inspector(document.getElementById("inspect")!);
 const reticle = document.getElementById("reticle")!;
 const cmdlog = new CommandLog(document.getElementById("cmdlog")!, (hull) => (world.spec(hull)?.bays ?? []).map((b) => b.id.replace(/^bay\./, "")));
@@ -288,7 +290,8 @@ function placeJumpLabel(): void {
 }
 
 function frame(now: number): void {
-  const realDt = Math.min(0.1, (now - lastTime) / 1000);
+  // A frame's timestamp can predate the end of a long boot (a warm-up): never step time backwards.
+  const realDt = Math.max(0, Math.min(0.1, (now - lastTime) / 1000));
   frameMs += (realDt * 1000 - frameMs) * 0.05;
   worstFrameMs = Math.max(worstFrameMs, realDt * 1000);
   lastTime = now;
@@ -316,7 +319,7 @@ function frame(now: number): void {
     framesSinceLayout = 0;
     layout();
   }
-  world.frame(dt, alpha, phase === "result");
+  world.frame(dt, alpha, phase === "result", realDt);
   placeJumpLabel();
   updateInspected(realDt);
   if (match) {
@@ -325,7 +328,7 @@ function frame(now: number): void {
     const who = bundle.pilots.length > 1 ? `${bundle.pilots.length} pilots` : bundle.manifest.champion.name;
     hud.setMeta(statusLine(match), `seed ${match.seed} · ${who} · ${bundle.manifest.bundle_id.slice(0, 8)}`);
   }
-  hud.updatePerf(dt, realDt, match, showDetails);
+  hud.updatePerf(dt, realDt, match, showDetails, world.renderScale);
   requestAnimationFrame(frame);
 }
 
@@ -484,12 +487,15 @@ if (params.has("debug")) {
       commanderStats: match ? match.commanderStats.map((st) => ({ ...st })) : [],
       selected,
       gpu: world.gpuStats(),
+      renderScale: world.renderScale,
       zoom: world.cam.zoomLevel,
     }),
     pause: (on = true) => {
       paused = on;
     },
     select,
+    /** Ms to draw the current instant once, without vsync (World.bench). */
+    bench: (frames = 40) => world.bench(frames),
     /** Where a ship is drawn, CSS px, for a test to tap it. */
     shipOnScreen: (i: number) => world.shipOnScreen(i, window.innerWidth, window.innerHeight),
     /** The active ship slots, for a test to choose from. */

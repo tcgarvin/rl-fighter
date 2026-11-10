@@ -7,6 +7,8 @@
 // tumbling, charred dark with a few embers (no smoke or fire, so it doesn't pull the
 // eye), sunk below the battle plane so the living fly over it. Behind "show commands" the
 // commanders' squad orders, carrier waypoints and the jump point are drawn faintly.
+// Strike craft lay engine trails (a record of their thrust), the key light casts
+// shadows, and the scene is drawn at a scale that holds the frame rate (pacing.ts).
 
 import * as THREE from "three";
 import treatmentModule from "../render/treatments/cinematic.js";
@@ -17,6 +19,7 @@ import { renderHullThumbnails } from "../render/thumbs.js";
 import { HULLS } from "../render/hulls.js";
 import { FitCamera, TYPICAL_ZOOM, emptyBounds, growBounds, type Bounds } from "./camera.ts";
 import type { LiveMatch } from "./match.ts";
+import { RenderScale } from "./pacing.ts";
 import { JUMP_DEPARTED, SIM_HZ, type HullInfo, type ShipState, type SimEvent } from "./sim.ts";
 
 // Jump-in streak, as in the story and the duel.
@@ -68,6 +71,14 @@ const CONVOY_SHOW_JUMP = 230;
 const MARK_PAD = 6;
 const WAYPOINT_MARK = 14;
 const WAYPOINT_MIN_DIST = 30;
+// Engine trails: at most this many per strike craft, this wide at the nozzle against the plume's size.
+const TRAILS_PER_SHIP = 2;
+const TRAIL_WIDTH = 0.7;
+// Camera shake from a major explosion of radius r seen at framing half-span e: r * this / e (1 = the most).
+const SHAKE_PER_RADIUS = 2.4;
+// The frame-cost benchmark (bench): frames drawn first to wake the GPU, and blocks timed.
+const BENCH_WARMUP = 40;
+const BENCH_BLOCKS = 6;
 // Inspecting a ship: the box framed around it, at least FOCUS_MIN_SPAN metres across and
 // FOCUS_HULLS of its lengths: about three times a fight's usual zoom, with room around it.
 const FOCUS_MIN_SPAN = 90;
@@ -92,6 +103,8 @@ export interface HullSpec {
 interface HullModel {
   object: THREE.Group;
   turrets: THREE.Object3D[];
+  /** One per thruster, in the spec's order: its mount, plume size, smoothed throttle, and whether it is a main engine. */
+  thrusters: Array<{ node: THREE.Object3D; size: number; level: number; main: boolean }>;
   setThrottles(throttles: ArrayLike<number>, dt: number): void;
   dispose(): void;
 }
@@ -117,6 +130,19 @@ interface Charge {
   cancel(): void;
 }
 
+/** An engine trail (render/effects.js `trail`). */
+interface Trail {
+  head(x: number, y: number, z: number, level: number): void;
+  lay(): void;
+  cut(): void;
+  dispose(): void;
+}
+
+interface Beacons {
+  show(on: boolean): void;
+  dispose(): void;
+}
+
 interface Departure {
   x: number;
   y: number;
@@ -138,20 +164,41 @@ interface Effects {
   jumpOutQuick(e: Departure): void;
   drawOrders(orders: Order[]): void;
   attachDamage(model: HullModel): DamageFx;
+  trail(e: { team: number; width: number }): Trail;
+  beacons(model: HullModel, team: number): Beacons;
   update(dt: number): void;
 }
 
 interface Environment {
-  newMatch(seed: number): void;
+  /** Paints the match's scenery; says which screen side its main body hangs on and its air's colour. */
+  newMatch(seed: number): { side: number; tint: THREE.Color };
   update(dt: number, view: { centerX: number; centerY: number; extent: number; projection?: THREE.Matrix4; layoutZoom?: number }): void;
+}
+
+/** A ring of refraction on the battle plane (three.js world metres). */
+export interface Ripple {
+  x: number;
+  z: number;
+  y?: number;
+  radius: number;
+  life?: number;
+  strength?: number;
+  width?: number;
+  wait?: number;
+  inward?: boolean;
 }
 
 interface Treatment {
   palette: unknown;
+  sun: { direction: THREE.Vector3; color: THREE.Color; shade: THREE.Color };
   init(o: { THREE: typeof THREE; scene: THREE.Scene; renderer: THREE.WebGLRenderer; camera: THREE.Camera }): void;
   materials(team: number): unknown;
   render(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera, dt: number): void;
   onResize(width: number, height: number): void;
+  setSun(side: number, rimTint: THREE.Color | null): void;
+  ripple(e: Ripple): void;
+  enableShadows(renderer: THREE.WebGLRenderer): void;
+  fitShadows(camera: THREE.Camera): void;
 }
 
 interface Beam {
@@ -196,6 +243,9 @@ interface ShipView {
   model: HullModel;
   hull: HullSpec;
   damage: DamageFx;
+  /** A strike craft's main engines and the trail each lays; empty for the big ships. */
+  engines: Array<{ thruster: HullModel["thrusters"][number]; trail: Trail }>;
+  beacons: Beacons;
   jumpStart: number;
   wreck: Wreck | null;
   /** A hulk's own darkening copies of its materials, with the originals' colours. */
@@ -241,6 +291,11 @@ export function mergeSpec(base: HullSpec, info: HullInfo | undefined): HullSpec 
   return { ...base, hp: info.hp, speedCap: g.speed_cap, radius: bound, thrusters, turrets, bays: g.bays, collision: g.collision, shield };
 }
 
+/** The pixel ratio the canvas has at full render scale. */
+function fullPixelRatio(): number {
+  return Math.min(window.devicePixelRatio, 2);
+}
+
 function drift(w: Wreck, dt: number): void {
   w.age += dt;
   const drag = Math.exp(-(w.blowAt === Infinity ? HULK_DRAG : WRECK_DRAG) * dt);
@@ -276,17 +331,25 @@ export class World {
   private focus = -1;
   private readonly orders: Order[] = [];
   private readonly orderPool: Order[] = [];
+  /** The viewer asked for less motion: no camera shake, no shockwave refraction. */
+  private readonly calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  private readonly pace: RenderScale;
 
-  constructor(parent: HTMLElement) {
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  /** `pinScale` holds the render scale (0.5..1) instead of letting it follow the frame's cost. */
+  constructor(parent: HTMLElement, pinScale: number | null = null) {
+    // The scene is drawn into the treatment's own multisampled target, so the canvas needs none.
+    this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
+    const ratio = fullPixelRatio();
+    this.pace = new RenderScale(window.innerWidth * window.innerHeight * ratio * ratio, pinScale);
+    this.renderer.setPixelRatio(ratio * this.pace.scale);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     parent.prepend(this.renderer.domElement);
     this.cam = new FitCamera(window.innerWidth / window.innerHeight);
     const ctx = { THREE, scene: this.scene, renderer: this.renderer, camera: this.cam.camera };
     treatment.init(ctx);
+    treatment.enableShadows(this.renderer);
     this.environment = createEnvironment(ctx) as unknown as Environment;
-    this.effects = createEffects({ ...ctx, palette: treatment.palette }) as unknown as Effects;
+    this.effects = createEffects({ ...ctx, palette: treatment.palette, sun: treatment.sun, lens: this.calm ? null : treatment }) as unknown as Effects;
   }
 
   /** Take the bundle's hull numbers (call before the first thumbnails or match). */
@@ -307,8 +370,10 @@ export class World {
 
   /** Fit the viewport and the HUD's free band; the GPU buffers resize only on a real change. */
   resize(width: number, height: number, safeTopPx: number, safeBottomPx: number): void {
-    if (width !== this.size.width || height !== this.size.height) {
+    const ratio = fullPixelRatio() * this.pace.scale;
+    if (width !== this.size.width || height !== this.size.height || ratio !== this.renderer.getPixelRatio()) {
       this.size = { width, height };
+      this.renderer.setPixelRatio(ratio);
       this.renderer.setSize(width, height);
       treatment.onResize(width, height);
     }
@@ -368,6 +433,8 @@ export class World {
     for (const v of this.views) {
       v.charge?.cancel();
       v.damage.dispose();
+      v.beacons.dispose();
+      for (const e of v.engines) e.trail.dispose();
       // The pooled model gets its treatment materials back when it is next built.
       for (const c of v.char) c.material.dispose();
       v.model.dispose();
@@ -385,10 +452,14 @@ export class World {
       const model = hullgeo.buildHull(hull, ship.team, treatment.materials(ship.team)) as unknown as HullModel;
       model.object.visible = false;
       this.scene.add(model.object);
+      // The two largest main engines of a strike craft lay trails.
+      const mains = ship.role === "strike" ? model.thrusters.filter((t) => t.main).sort((a, b) => b.size - a.size).slice(0, TRAILS_PER_SHIP) : [];
       this.views.push({
         model,
         hull,
         damage: this.effects.attachDamage(model),
+        engines: mains.map((thruster) => ({ thruster, trail: this.effects.trail({ team: ship.team, width: thruster.size * TRAIL_WIDTH }) })),
+        beacons: this.effects.beacons(model, ship.team),
         jumpStart: -Infinity,
         wreck: null,
         char: [],
@@ -413,7 +484,8 @@ export class World {
       this.cam.grow(stage, c.jumpX, c.jumpY);
     }
     this.cam.setStage(stage);
-    this.environment.newMatch(match.seed);
+    const scenery = this.environment.newMatch(match.seed);
+    treatment.setSun(scenery.side, scenery.tint);
     this.cam.snap();
   }
 
@@ -426,6 +498,7 @@ export class World {
       v.prev.x = s.x;
       v.prev.y = s.y;
       v.prev.heading = s.heading;
+      for (const e of v.engines) e.trail.lay();
     }
   }
 
@@ -549,7 +622,12 @@ export class World {
    * Draw one frame. `alpha` is the fraction of a tick since the last step; `frameAll`
    * keeps burning wrecks in the shot (the result hold) as well as live ships.
    */
-  frame(dt: number, alpha: number, frameAll: boolean): void {
+  frame(dt: number, alpha: number, frameAll: boolean, realDt = 0): void {
+    // The last frame's cost may have moved the render scale: resize before drawing.
+    if (this.pace.update(realDt)) {
+      this.renderer.setPixelRatio(fullPixelRatio() * this.pace.scale);
+      treatment.onResize(this.size.width, this.size.height);
+    }
     this.elapsed += dt;
     const m = this.match;
     const bounds = emptyBounds();
@@ -568,7 +646,13 @@ export class World {
     this.cam.update(focus ?? bounds, dt, focus !== null);
     this.environment.update(dt, { centerX: this.cam.x, centerY: this.cam.y, extent: this.cam.extent, projection: this.cam.baseProjection, layoutZoom: TYPICAL_ZOOM });
     this.effects.update(dt);
+    treatment.fitShadows(this.cam.camera);
     treatment.render(this.renderer, this.scene, this.cam.camera, dt);
+  }
+
+  /** The share of full resolution the scene is being drawn at. */
+  get renderScale(): number {
+    return this.pace.scale;
   }
 
   private runQuickJumps(m: LiveMatch): void {
@@ -707,6 +791,16 @@ export class World {
     v.drawn.visible = visible;
     v.model.setThrottles(ship.throttles, dt);
     v.model.turrets.forEach((pivot, k) => (pivot.rotation.y = ship.turretAngles[k] ?? 0));
+    for (const e of v.engines) {
+      // No trail across the jump-in streak, or from a ship that isn't on the field.
+      if (!visible || jumpT < 1) {
+        e.trail.cut();
+        continue;
+      }
+      this.tagPos.setFromMatrixPosition(e.thruster.node.matrixWorld);
+      e.trail.head(this.tagPos.x, this.tagPos.y, this.tagPos.z, Math.min(1, e.thruster.level));
+    }
+    v.beacons.show(visible);
     v.damage.update(Math.max(0, ship.hp) / (m.maxHp[i] ?? 1), visible, dt);
     // Ships yet to jump in count too, so the empty field is framed where they'll
     // appear; ships in a hangar or gone through the jump point do not.
@@ -743,7 +837,10 @@ export class World {
       w.gone = true;
       obj.visible = false;
       v.damage.update(1, false, dt);
-      this.effects.explosion({ x: w.x, y: w.y, radius: Math.min(v.hull.radius * MAJOR_RADIUS_SCALE, v.hull.radius * MAJOR_RADIUS_LARGE + MAJOR_RADIUS_PAD), team, kind: "major" });
+      const radius = Math.min(v.hull.radius * MAJOR_RADIUS_SCALE, v.hull.radius * MAJOR_RADIUS_LARGE + MAJOR_RADIUS_PAD);
+      this.effects.explosion({ x: w.x, y: w.y, radius, team, kind: "major" });
+      // The blast jolts the picture by how much of the view it fills.
+      if (!this.calm) this.cam.shake((radius * SHAKE_PER_RADIUS) / Math.max(1, this.cam.extent));
       return;
     }
     const hulk = w.blowAt === Infinity;
@@ -777,6 +874,9 @@ export class World {
         let copy = copies.get(m);
         if (!copy) {
           copy = m.clone();
+          // The clone keeps the treatment's surface shader, and so shares its program.
+          copy.onBeforeCompile = m.onBeforeCompile;
+          copy.customProgramCacheKey = m.customProgramCacheKey;
           copies.set(m, copy);
           v.char.push({ material: copy, color: m.color.clone(), emissiveIntensity: m.emissiveIntensity });
         }
@@ -816,6 +916,29 @@ export class World {
     const pxPerMetre = (height * cam.projectionMatrix.elements[5]!) / (2 * depth);
     this.tagPos.project(cam);
     return { x: ((this.tagPos.x + 1) / 2) * width, y: ((1 - this.tagPos.y) / 2) * height, sizePx: length * pxPerMetre };
+  }
+
+  /**
+   * Ms to draw the current instant once (time stopped), reading a pixel back after each
+   * frame so the GPU has finished: a frame's cost without vsync in the way. The GPU's
+   * clock takes a while to come up, so this is the best mean of several blocks of
+   * `frames` frames, after a warm-up.
+   */
+  bench(frames: number): number {
+    const gl = this.renderer.getContext();
+    const pixel = new Uint8Array(4);
+    const block = (n: number): number => {
+      const start = performance.now();
+      for (let i = 0; i < n; i++) {
+        this.frame(0, 1, false);
+        gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+      }
+      return (performance.now() - start) / n;
+    };
+    block(BENCH_WARMUP);
+    let best = Infinity;
+    for (let i = 0; i < BENCH_BLOCKS; i++) best = Math.min(best, block(frames));
+    return best;
   }
 
   /** GPU resource counts, for the soak test. */

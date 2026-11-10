@@ -28,6 +28,10 @@ const PAN_GLIDE = 2.5;
 // Digital zoom limits (1 = the whole stage in view).
 const MIN_ZOOM = 0.6;
 const MAX_ZOOM = 60;
+// Camera shake: the most the crop is jolted (a fraction of the half-screen), and how
+// fast a jolt dies away, 1/s.
+const SHAKE_MAX = 0.02;
+const SHAKE_DECAY = 5;
 /** About how far in the framing usually sits during a fight; the backdrop is composed for it. */
 export const TYPICAL_ZOOM = 2.5;
 
@@ -64,6 +68,8 @@ export class FitCamera {
   private v = 0;
   private zoom = 1;
   private panRate = EASE_RATE;
+  private shakeAmount = 0;
+  private shakeTime = 0;
   private initialized = false;
   private placed = false;
   /** NDC rows the HUD leaves clear (top > bottom). */
@@ -84,6 +90,11 @@ export class FitCamera {
   /** The digital zoom now (1 = the whole stage). */
   get zoomLevel(): number {
     return this.zoom;
+  }
+
+  /** Jolt the picture: `amount` 0..1 of the most, dying away in a fraction of a second. */
+  shake(amount: number): void {
+    this.shakeAmount = Math.min(1, Math.max(this.shakeAmount, amount));
   }
 
   /** Jump straight to the next framing instead of easing (a new match). */
@@ -206,6 +217,8 @@ export class FitCamera {
     this.x += (cx - this.x) * pan;
     this.y += (cy - this.y) * pan;
     this.extent = Math.max(box[1] - box[0], box[3] - box[2]) / 2;
+    this.shakeTime += dt;
+    this.shakeAmount *= Math.exp(-dt * SHAKE_DECAY);
     this.applyCrop();
   }
 
@@ -213,9 +226,14 @@ export class FitCamera {
   private applyCrop(): void {
     const z = this.zoom;
     const bandCenter = (this.band.top + this.band.bottom) / 2;
+    // The jolt moves the whole picture (the crop), ships and backdrop alike.
+    const t = this.shakeTime;
+    const jolt = this.shakeAmount > 0.002 ? this.shakeAmount * SHAKE_MAX : 0;
+    const dx = jolt * (0.6 * Math.sin(t * 47) + 0.4 * Math.sin(t * 71 + 1.3));
+    const dy = jolt * (0.6 * Math.sin(t * 53 + 0.7) + 0.4 * Math.sin(t * 83));
     this.crop.set(
-      z, 0, 0, -z * this.u,
-      0, z, 0, bandCenter - z * this.v,
+      z, 0, 0, dx - z * this.u,
+      0, z, 0, dy + bandCenter - z * this.v,
       0, 0, 1, 0,
       0, 0, 0, 1,
     );

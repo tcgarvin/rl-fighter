@@ -346,9 +346,20 @@ function createKit(h,team) {
   return {body:b.finish(),turret:tb.finish(),tip:h.role==='bomber'?1.33:len+.46,
     muzzleHeight:h.role==='bomber'?.345:capital?.19+.125*r:.315,damagePoints};
 }
-// Unit plume, broad at the nozzle and tapering to +X. No textures or shaders.
-const plume=new THREE.ConeGeometry(.55,1,8,1);
-plume.rotateZ(-Math.PI/2); plume.translate(.5,0,0);
+// Unit plume: a soft body of revolution from the nozzle (x = 0) to its tip (x = 1),
+// swelling a little before it tapers. The treatment's exhaust material shades it.
+const plume=new THREE.LatheGeometry(Array.from({length:13},(_,i)=>{
+  const x=i/12;
+  return new THREE.Vector2(.55*(1-x)**.7*(1+.2*Math.sin(Math.PI*Math.min(1,x*1.7))),x);
+}),14);
+plume.rotateZ(-Math.PI/2);
+// Running lights on the big hulls, by look: hull-local points (metres) that strobe.
+const STROBES={
+  carrier:[[19.3,1.6,4.6],[19.3,1.6,-4.6],[-18.9,1.6,6.6],[-18.9,1.6,-6.6],[-10.6,3.2,0]],
+  freighter:[[12.2,2.2,0],[-12.8,1.6,4.2],[-12.8,1.6,-4.2]],
+  station:[[21.4,2.2,0],[-21.4,2.2,0],[0,2.2,21.4],[0,2.2,-21.4]],
+};
+STROBES.transport=STROBES.freighter;
 
 export function buildHull(hull,team,mats) {
   const key=`${look(hull)}:${team?1:0}`;
@@ -369,20 +380,30 @@ export function buildHull(hull,team,mats) {
   const object=new THREE.Group();object.name=`hull.${look(hull)}`;
   function meshes(parent,entries) {
     for (const [slot,g] of entries) {
-      const m=new THREE.Mesh(g,mats[slot]);m.userData.slot=slot;parent.add(m);
+      const m=new THREE.Mesh(g,mats[slot]);m.userData.slot=slot;
+      // Lit trim (glow) throws no shadow; everything takes them (where the page casts any).
+      m.castShadow=slot!=='glow';m.receiveShadow=true;parent.add(m);
     }
   }
   meshes(object,kit.body);
-  const thrusters=hull.thrusters.map(t=>{
+  const thrusters=hull.thrusters.map((t,i)=>{
     const node=new THREE.Group();node.name=t.id;
     node.position.set(...mountToLocal(t.pos));
     node.rotation.y=Math.atan2(-t.dir[1],-t.dir[0]);
-    const shell=new THREE.Mesh(plume,mats.exhaust);
-    const core=new THREE.Mesh(plume,mats.exhaust);
-    shell.userData.slot=core.userData.slot='exhaust';
-    shell.position.x=core.position.x=.055*t.size;
-    node.add(shell,core);object.add(node);node.visible=false;
-    return {node,size:t.size,shell,core,level:0};
+    const flame=new THREE.Mesh(plume,mats.exhaust);
+    flame.userData.slot='exhaust';
+    flame.position.x=.055*t.size;
+    // A thruster whose force pushes the ship forward is a main engine.
+    const state={node,size:t.size,flame,level:0,main:t.dir[0]>.5};
+    // The shared exhaust material takes this plume's throttle just before it is drawn.
+    const seed=(i*7.31+hull.thrusters.length*1.7)%10;
+    flame.onBeforeRender=(_renderer,_scene,_camera,_geometry,material)=>{
+      const u=material.uniforms;
+      if (!u || !u.level) return;
+      u.level.value=state.level;u.seed.value=seed;material.uniformsNeedUpdate=true;
+    };
+    node.add(flame);object.add(node);node.visible=false;
+    return state;
   });
   const muzzles=[];
   const turrets=hull.turrets.map(t=>{
@@ -394,7 +415,8 @@ export function buildHull(hull,team,mats) {
     object.add(pivot);return pivot;
   });
   model={object,thrusters,turrets,muzzles,
-    damagePoints:kit.damagePoints.map(p=>p.clone()),_released:false,
+    damagePoints:kit.damagePoints.map(p=>p.clone()),
+    strobes:(STROBES[look(hull)] ?? []).map(p=>new THREE.Vector3(...p)),_released:false,
     setThrottles(throttles,dt) {
       const k=1-Math.exp(-Math.max(0,dt)*24);
       for (let i=0;i<thrusters.length;i++) {
@@ -404,8 +426,7 @@ export function buildHull(hull,team,mats) {
         t.node.visible=t.level>.01;
         const s=t.size, v=t.level;
         // Half throttle is a short, narrow jet; full is over twice as long.
-        t.shell.scale.set(s*(.2+6.8*v),s*(.5+.5*v),s*(.5+.5*v));
-        t.core.scale.set(s*(.15+3.3*v),s*(.22+.2*v),s*(.22+.2*v));
+        t.flame.scale.set(s*(.3+7*v),s*(.55+.5*v),s*(.55+.5*v));
       }
     },
     dispose() {
