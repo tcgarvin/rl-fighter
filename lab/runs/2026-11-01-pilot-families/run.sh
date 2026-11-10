@@ -13,14 +13,19 @@
 # extra_fire_cost 0.002 (twice the sim's FIRE_COST per shot fired), and fighters_fire4, a
 # copy of fighters at update 1338 made before any arm starts, pays 0.006 (four times).
 # Four arms, so 3 sim + 3 torch threads each (was 4 + 4 for three).
+# Also from night 4: the critic trains on dead ships' rows (value_only_rows; plan.md),
+# and a resumed arm freezes its actor for its first SETTLE_UPDATES while it does.
+# After night 4: every line stays at 2x. fighters_fire4 (4x) cost combat and is retired;
+# it runs only if named in ARMS.
 #
 #   DEADLINE="05:15 tomorrow" nohup lab/runs/2026-11-01-pilot-families/run.sh \
 #       > lab/runs/2026-11-01-pilot-families/run.out 2>&1 &
 #   SMOKE=1 lab/runs/2026-11-01-pilot-families/run.sh     # tiny sizes, into smoke/
 #
-# Env: ARMS ("fighters followers fighters_pay1 fighters_fire4"), N_ENVS (256), N_UPDATES
-# (1500, an upper bound; the deadline ends it), DEADLINE (a `date -d` string, required
-# outside SMOKE), ARM_THREADS (3 sim + 3 torch).
+# Env: ARMS ("fighters followers fighters_pay1"), N_ENVS (256), N_UPDATES (6000, an
+# upper bound on the arm's total update count, not this night's; the deadline ends
+# it), DEADLINE (a `date -d` string, required
+# outside SMOKE), ARM_THREADS (3 sim + 3 torch), SETTLE_UPDATES (10; 0 in SMOKE).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
@@ -45,19 +50,21 @@ for f in "$F995" "$TRANSIT" "$R" "$W1_400" "$V1" "$FIGHTERS_506" "$FOLLOWERS_513
     [[ -f $f ]] || { echo "missing checkpoint $f" >&2; exit 2; }
 done
 
-ARMS=${ARMS:-"fighters followers fighters_pay1 fighters_fire4"}
+ARMS=${ARMS:-"fighters followers fighters_pay1"}
 if [[ $SMOKE == 1 ]]; then
     RUN=$HERE/smoke
     N_UPDATES=${N_UPDATES:-3}
     ARM_THREADS=${ARM_THREADS:-2}
+    SETTLE_UPDATES=${SETTLE_UPDATES:-0}
     DEADLINE=${DEADLINE:-"+20 minutes"}
     SIZE=(--n-envs 16 --n-steps 32 --set checkpoint_every=1 --set minibatch=256
         --set critic_warmup_updates=1 --set early_clip_updates=1)
 else
     [[ -n ${DEADLINE:-} ]] || { echo "set DEADLINE, e.g. DEADLINE=\"06:00 tomorrow\"" >&2; exit 2; }
     RUN=$HERE
-    N_UPDATES=${N_UPDATES:-1500}
+    N_UPDATES=${N_UPDATES:-6000}
     ARM_THREADS=${ARM_THREADS:-3}
+    SETTLE_UPDATES=${SETTLE_UPDATES:-10}
     SIZE=(--n-envs "${N_ENVS:-256}" --set checkpoint_every=50
         --set critic_warmup_updates=20 --set early_clip_updates=50)
 fi
@@ -71,6 +78,8 @@ POOL3="[$F995,$TRANSIT,$R,$W1_400,$V1,$FIGHTERS_506,$FOLLOWERS_513,$FIGHTERS_959
 LIVE_CMD="--set commander_stable=[live]"
 MIXED_BANDS='[[0,0.2,0.4,0.4]]'
 # Night 4: shaping per shot fired, on top of the sim's FIRE_COST of 0.002.
+# Night 4: the critic also trains on the learner's dead and control-locked rows.
+VALUE_ROWS="--set value_only_rows=true"
 FIRE2="--set extra_fire_cost=0.002"
 FIRE4="--set extra_fire_cost=0.006"
 FIGHTERS_ARGS="--set order_reward_weight=3.0 --set opponent_bands=$MIXED_BANDS --set enemy_sampling=pfsp --set pool_seed=$POOL3 $LIVE_CMD --set roster_overrides={\"drill_share\":0.35,\"drill_weights\":[2,1,1],\"commander_p\":0.333}"
@@ -113,14 +122,25 @@ if [[ $SMOKE != 1 && " $ARMS " == *" fighters_fire4 "* && ! -d $RUN/fighters_fir
     echo "$(date +%H:%M:%S) fighters_fire4 forked from fighters at $FORK_UPDATE"
 fi
 
+# The update of an arm's latest checkpoint (where a resume starts).
+last_update() {
+    find "$1/checkpoints" -name 'ppo_*.pt' -printf '%f\n' \
+        | sed 's/.*_\([0-9]*\)\.pt/\1/' | sort -n | tail -1
+}
+
 pids=()
 for arm in $ARMS; do
     dir=$RUN/$arm
     mkdir -p "$dir"
     if [[ -f $dir/config.yaml ]]; then
+        # The critic's values of ships about to die were fitted to dead-row values that
+        # were never trained: the actor waits SETTLE_UPDATES while they are relearned.
+        # A restart the same night waits again, from where it resumes.
+        frozen_until=$(( $(last_update "$dir") + SETTLE_UPDATES ))
         # shellcheck disable=SC2046
         "$PY" -m spacefight.train_spike ppo --run-dir "$dir" --resume --n-updates "$N_UPDATES" \
             --set sim_threads="$ARM_THREADS" --set torch_threads="$ARM_THREADS" \
+            $VALUE_ROWS --set actor_frozen_until="$frozen_until" \
             $(arm_args "$arm") >>"$RUN/$arm.out" 2>&1 &
     else
         # shellcheck disable=SC2046
@@ -130,7 +150,7 @@ for arm in $ARMS; do
             --set rosters=pilots_v1 --set critic=fleet --set learner_side=random \
             --set obs_dim=583 --set gamma=0.995 --set lr_decay=false \
             --set beta_start=0.0 --set beta_end=0.0 \
-            --set pool_seed_p=0.5 \
+            --set pool_seed_p=0.5 $VALUE_ROWS \
             $(arm_args "$arm") "${SIZE[@]}" >>"$RUN/$arm.out" 2>&1 &
     fi
     pids+=($!)

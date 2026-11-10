@@ -1,0 +1,88 @@
+init: /home/timg/code/rl-fighter/lab/runs/2026-11-01-order-pilot-b3/transit/checkpoints/ppo_bc_300.pt
+tag: bc
+seed: 21
+assets_dir: assets
+fleets:
+- - fighter
+- - fighter
+n_envs: 256
+reaction_ticks: 2
+arena_radius: 450.0
+time_limit_s: 90.0
+sim_threads: 3
+torch_threads: 3
+n_steps: 128
+t_tail: 40
+n_updates: 1500
+gamma: 0.995
+gae_lambda: 0.95
+credit_dead_shooters: false
+epochs: 4
+minibatch: 4096
+clip_eps: 0.2
+early_clip_eps: 0.1
+early_clip_updates: 50
+actor_lr: 0.0001
+critic_lr: 0.0003
+lr_decay: false
+ent_coeff: 0.005
+vf_coeff: 0.5
+max_grad_norm: 0.5
+critic_warmup_updates: 20
+beta_start: 0.0
+beta_end: 0.0
+beta_decay_start: 30
+beta_decay_end: 700
+beta_floor: 0.0
+beta_rows: all
+beta_heads: all
+opponent_bands:
+- - 0
+  - 0.2
+  - 0.4
+  - 0.4
+checkpoint_every: 50
+rosters: pilots_v1
+roster_overrides:
+  drill_share: 0.35
+  drill_weights:
+  - 3
+  - 1
+  - 1
+  commander_p: 0.667
+max_ships: 0
+critic: fleet
+pool_seed:
+- /home/timg/code/rl-fighter/lab/runs/2026-11-01-fighters-v2/f995/checkpoints/ppo_bc_701.pt
+- /home/timg/code/rl-fighter/lab/runs/2026-11-01-order-pilot-b3/transit/checkpoints/ppo_bc_300.pt
+- /home/timg/code/rl-fighter/lab/runs/2026-11-01-order-pilot-b3/reward/checkpoints/ppo_bc_300.pt
+- /home/timg/code/rl-fighter/lab/runs/2026-10-31-order-pilot/w1/checkpoints/ppo_bc_400.pt
+- /home/timg/code/rl-fighter/lab/runs/2026-10-30-fleet-pilot/arm_warm/checkpoints/ppo_bc_400.pt
+- /home/timg/code/rl-fighter/lab/runs/2026-11-01-pilot-families/fighters/checkpoints/ppo_bc_506.pt
+- /home/timg/code/rl-fighter/lab/runs/2026-11-01-pilot-families/followers/checkpoints/ppo_bc_513.pt
+- /home/timg/code/rl-fighter/lab/runs/2026-11-01-pilot-families/fighters/checkpoints/ppo_bc_959.pt
+- /home/timg/code/rl-fighter/lab/runs/2026-11-01-pilot-families/followers/checkpoints/ppo_bc_955.pt
+- /home/timg/code/rl-fighter/lab/runs/2026-11-01-pilot-families/fighters_pay1/checkpoints/ppo_bc_462.pt
+- /home/timg/code/rl-fighter/lab/runs/2026-11-01-fighters-v2/f99/checkpoints/ppo_bc_696.pt
+env_warmup_steps: 0
+learner_side: random
+pool_seed_p: 0.5
+enemy_sampling: pfsp
+enemy_pfsp_power: 2.0
+enemy_pfsp_floor: 0.2
+order_reward_weight: 1.0
+hide_damage_when_ordered: false
+kl_anchor: ''
+kl_anchor_coeff: 0.0
+obs_dim: 583
+new_input_lr_mult: 1.0
+commander_stable:
+- live
+commander_weights: []
+entropy_floor: 0.0
+entropy_floor_coeff: 0.0
+tick_cost: 0.0
+extra_arena_penalty: 0.0
+extra_fire_cost: 0.002
+value_only_rows: true
+actor_frozen_until: 1333

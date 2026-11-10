@@ -25,9 +25,9 @@
  },
  "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters_pay1/checkpoints/ppo_bc_849.pt",
  "sha256": "a8f5becf3cf85bf2db87db567f9fe20cd7073168d5c792bddea13f21801f8b13",
- "status": "active",
- "archived_reason": "",
- "archived_date": "",
+ "status": "archived",
+ "archived_reason": "WAR cull (fourth-night): founder f995_701 over its cap of 4, its lowest survivor at +12.5 wins per 100 (+9.3 to +15.6)",
+ "archived_date": "2026-11-10",
  "note": "Night 3: fighters_pay1_462's line under the learned commanders, drills 0.25 weighted to go-to.",
  "ratings": [],
  "drills": [

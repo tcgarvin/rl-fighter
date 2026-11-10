@@ -1,0 +1,36 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "fighters_fire4_1827",
+ "family": "fighters",
+ "founder": "f995_701",
+ "parent": "fighters_1338",
+ "relation": "fork",
+ "fork_update": 1338,
+ "settings_changed": {
+  "extra_fire_cost": 0.006
+ },
+ "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters_fire4/checkpoints/ppo_bc_1827.pt",
+ "sha256": "fb036dedb77b59020c9701de6872671f3e20f13187100f649a3856a834fde01f",
+ "status": "archived",
+ "archived_reason": "The 4x fire cost line ends: +10.5 wins per 100 (+7.1 to +13.6), 3.8 below its 2x twin fighters_1832; every line stays at 2x. Also the founder cap's first cull (fourth-night).",
+ "archived_date": "2026-11-10",
+ "note": "Night 4: a copy of fighters_1338's line with each shot costing four times as much.",
+ "ratings": [],
+ "drills": [
+  {
+   "phase": "fourth-night",
+   "date": "2026-11-10",
+   "scores": {
+    "goto_arrival": 0.22300884955752212,
+    "goto_lift": 0.0510555941318126,
+    "attack_target_hit": 0.90625,
+    "attack_side": 0.75,
+    "attack_flip": 0.56640625,
+    "defend_more_on_named": 0.7890625,
+    "defend_side": 0.78515625,
+    "defend_flip": 0.60546875
+   },
+   "passed": false
+  }
+ ]
+}

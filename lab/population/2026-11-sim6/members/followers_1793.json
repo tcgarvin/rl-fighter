@@ -1,0 +1,36 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "followers_1793",
+ "family": "followers",
+ "founder": "transit_300",
+ "parent": "followers_1323",
+ "relation": "fork",
+ "fork_update": 1323,
+ "settings_changed": {
+  "extra_fire_cost": 0.002
+ },
+ "checkpoint": "lab/runs/2026-11-01-pilot-families/followers/checkpoints/ppo_bc_1793.pt",
+ "sha256": "b92300c57e6806bade7cf85e7067e226de5633f15b0a5a1d8c81728f72a065e4",
+ "status": "active",
+ "archived_reason": "",
+ "archived_date": "",
+ "note": "Night 4: followers_1323's line with each shot costing twice as much.",
+ "ratings": [],
+ "drills": [
+  {
+   "phase": "fourth-night",
+   "date": "2026-11-10",
+   "scores": {
+    "goto_arrival": 0.387434554973822,
+    "goto_lift": 0.25995111126521275,
+    "attack_target_hit": 0.9375,
+    "attack_side": 0.849609375,
+    "attack_flip": 0.72265625,
+    "defend_more_on_named": 0.837890625,
+    "defend_side": 0.85546875,
+    "defend_flip": 0.73828125
+   },
+   "passed": false
+  }
+ ]
+}

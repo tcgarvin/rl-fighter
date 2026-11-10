@@ -9,11 +9,11 @@ n_envs: 256
 reaction_ticks: 2
 arena_radius: 450.0
 time_limit_s: 90.0
-sim_threads: 4
-torch_threads: 4
+sim_threads: 3
+torch_threads: 3
 n_steps: 128
 t_tail: 40
-n_updates: 1500
+n_updates: 3000
 gamma: 0.995
 gae_lambda: 0.95
 credit_dead_shooters: false
@@ -83,3 +83,6 @@ entropy_floor: 0.0
 entropy_floor_coeff: 0.0
 tick_cost: 0.0
 extra_arena_penalty: 0.0
+extra_fire_cost: 0.002
+value_only_rows: true
+actor_frozen_until: 1335

@@ -12,7 +12,10 @@
  "fighters_pay1_462": "f995_701 retrained at a third of the order pay. It fights better than fighters_506 and follows orders less.",
  "fighters_959": "fighters_506 trained a second night with more drills. It follows attack and defend orders half the time. Retired from training on 2026-11-09 for fighters_1338, its next night.",
  "followers_955": "followers_513 trained a second night. It fights better, but arrives less often where it is sent.",
- "fighters_1338": "fighters_959 trained a third night under the learned commanders, with more go-to drills. It changes target on attack and defend orders more often than any other fighter, but reaches a go-to point only one time in four.",
+ "fighters_1338": "fighters_959 trained a third night under the learned commanders. It changes target on attack and defend orders more often than most fighters. Retired from training on 2026-11-10 for fighters_1832, its next night, but still flies here.",
  "followers_1323": "followers_955 trained a third night under the learned commanders. The best follower on this page, and now a fighter close to the fighters family.",
- "fighters_pay1_849": "fighters_pay1_462 trained a second night under the learned commanders. Fights about as well and still mostly ignores orders."
+ "fighters_pay1_849": "fighters_pay1_462 trained a second night under the learned commanders. Retired from training on 2026-11-10 for fighters_pay1_1317, its next night, but still flies here.",
+ "fighters_1832": "fighters_1338 trained a fourth night with each shot costing twice as much, under the new crash rules. It holds the trigger less than its parent and takes far less crash damage.",
+ "followers_1793": "followers_1323 trained a fourth night with each shot costing twice as much. It fires less and crashes less than its parent, and follows orders a little less well.",
+ "fighters_pay1_1317": "fighters_pay1_849 trained a third night with each shot costing twice as much. The night's biggest gain: it fires a quarter fewer shots than its parent, beats it head to head, and mostly ignores orders."
 }

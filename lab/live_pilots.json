@@ -1,12 +1,12 @@
 {
  "schema": "rlf.live_pilots/1",
  "season": "lab/population/2026-11-sim6",
- "entry": "2026-11-09-third-night",
+ "entry": "2026-11-10-fourth-night",
  "pilots": [
   {
    "id": "f99_696",
    "family": "history",
-   "rating": 20.800388863735776,
+   "rating": 17.736255512516852,
    "checkpoint": "lab/runs/2026-11-01-fighters-v2/f99/checkpoints/ppo_bc_696.pt",
    "sha256": "345be910ff548533a41fa5fd1ae65df75c1a0f08e7d50f8494a784d8578ab77f",
    "url": "https://storage.tcgarvin.com/rl-fighter/pilots/f99_696/345be910ff548533a41fa5fd1ae65df75c1a0f08e7d50f8494a784d8578ab77f.pt",
@@ -14,9 +14,51 @@
    "follows": {}
   },
   {
+   "id": "fighters_pay1_1317",
+   "family": "fighters",
+   "rating": 16.030538714331957,
+   "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters_pay1/checkpoints/ppo_bc_1317.pt",
+   "sha256": "420dc5c042ba31c1d24ace7333ff33c14c6e54db74cf3b67a9b098c6cdf6012d",
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/fighters_pay1_1317/420dc5c042ba31c1d24ace7333ff33c14c6e54db74cf3b67a9b098c6cdf6012d.pt",
+   "note": "fighters_pay1_849 trained a third night with each shot costing twice as much. The night's biggest gain: it fires a quarter fewer shots than its parent, beats it head to head, and mostly ignores orders.",
+   "follows": {
+    "go_to": 0.16,
+    "attack": 0.21,
+    "defend": 0.23
+   }
+  },
+  {
+   "id": "fighters_1832",
+   "family": "fighters",
+   "rating": 14.326594067524965,
+   "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters/checkpoints/ppo_bc_1832.pt",
+   "sha256": "8fcdbfb7b0718700d45503c1f5cc6c5234654a1ed40001da97375776da88a790",
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/fighters_1832/8fcdbfb7b0718700d45503c1f5cc6c5234654a1ed40001da97375776da88a790.pt",
+   "note": "fighters_1338 trained a fourth night with each shot costing twice as much, under the new crash rules. It holds the trigger less than its parent and takes far less crash damage.",
+   "follows": {
+    "go_to": 0.26,
+    "attack": 0.65,
+    "defend": 0.67
+   }
+  },
+  {
+   "id": "fighters_pay1_462",
+   "family": "fighters",
+   "rating": 14.07118399957853,
+   "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters_pay1/checkpoints/ppo_bc_462.pt",
+   "sha256": "638b4394aa6e465c1e9ada826bb10d73ad72cc347bddfad906d497b374d1597c",
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/fighters_pay1_462/638b4394aa6e465c1e9ada826bb10d73ad72cc347bddfad906d497b374d1597c.pt",
+   "note": "f995_701 retrained at a third of the order pay. It fights better than fighters_506 and follows orders less.",
+   "follows": {
+    "go_to": 0.2,
+    "attack": 0.25,
+    "defend": 0.21
+   }
+  },
+  {
    "id": "f995_701",
    "family": "fighters",
-   "rating": 19.76830844714273,
+   "rating": 13.44548542734223,
    "checkpoint": "lab/runs/2026-11-01-fighters-v2/f995/checkpoints/ppo_bc_701.pt",
    "sha256": "bf3bd0cb3c27889e9be4915f24c9674f375dd8bc815307596068e1f3ef99cf54",
    "url": "https://storage.tcgarvin.com/rl-fighter/pilots/f995_701/bf3bd0cb3c27889e9be4915f24c9674f375dd8bc815307596068e1f3ef99cf54.pt",
@@ -30,7 +72,7 @@
   {
    "id": "f995_400",
    "family": "history",
-   "rating": 18.314451522580285,
+   "rating": 13.436664107971598,
    "checkpoint": "lab/runs/2026-11-01-fighters-v2/f995/checkpoints/ppo_bc_400.pt",
    "sha256": "c208c3aa979d5fbd10f7bb324194e628e9ba5054e3976865f30362186109b883",
    "url": "https://storage.tcgarvin.com/rl-fighter/pilots/f995_400/c208c3aa979d5fbd10f7bb324194e628e9ba5054e3976865f30362186109b883.pt",
@@ -38,27 +80,27 @@
    "follows": {}
   },
   {
-   "id": "fighters_pay1_462",
-   "family": "fighters",
-   "rating": 16.712452808255918,
-   "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters_pay1/checkpoints/ppo_bc_462.pt",
-   "sha256": "638b4394aa6e465c1e9ada826bb10d73ad72cc347bddfad906d497b374d1597c",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/fighters_pay1_462/638b4394aa6e465c1e9ada826bb10d73ad72cc347bddfad906d497b374d1597c.pt",
-   "note": "f995_701 retrained at a third of the order pay. It fights better than fighters_506 and follows orders less.",
+   "id": "followers_1793",
+   "family": "followers",
+   "rating": 13.157004643401502,
+   "checkpoint": "lab/runs/2026-11-01-pilot-families/followers/checkpoints/ppo_bc_1793.pt",
+   "sha256": "b92300c57e6806bade7cf85e7067e226de5633f15b0a5a1d8c81728f72a065e4",
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/followers_1793/b92300c57e6806bade7cf85e7067e226de5633f15b0a5a1d8c81728f72a065e4.pt",
+   "note": "followers_1323 trained a fourth night with each shot costing twice as much. It fires less and crashes less than its parent, and follows orders a little less well.",
    "follows": {
-    "go_to": 0.2,
-    "attack": 0.25,
-    "defend": 0.21
+    "go_to": 0.39,
+    "attack": 0.72,
+    "defend": 0.74
    }
   },
   {
    "id": "fighters_1338",
    "family": "fighters",
-   "rating": 16.234083189402085,
+   "rating": 13.089872984524744,
    "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters/checkpoints/ppo_bc_1338.pt",
    "sha256": "03f22318b4eebb05e9f99e76a07158c2107097f266994fd95c0cf880036c1b08",
    "url": "https://storage.tcgarvin.com/rl-fighter/pilots/fighters_1338/03f22318b4eebb05e9f99e76a07158c2107097f266994fd95c0cf880036c1b08.pt",
-   "note": "fighters_959 trained a third night under the learned commanders, with more go-to drills. It changes target on attack and defend orders more often than any other fighter, but reaches a go-to point only one time in four.",
+   "note": "fighters_959 trained a third night under the learned commanders. It changes target on attack and defend orders more often than most fighters. Retired from training on 2026-11-10 for fighters_1832, its next night, but still flies here.",
    "follows": {
     "go_to": 0.24,
     "attack": 0.59,
@@ -66,9 +108,23 @@
    }
   },
   {
+   "id": "fighters_pay1_849",
+   "family": "fighters",
+   "rating": 12.516719257733891,
+   "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters_pay1/checkpoints/ppo_bc_849.pt",
+   "sha256": "a8f5becf3cf85bf2db87db567f9fe20cd7073168d5c792bddea13f21801f8b13",
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/fighters_pay1_849/a8f5becf3cf85bf2db87db567f9fe20cd7073168d5c792bddea13f21801f8b13.pt",
+   "note": "fighters_pay1_462 trained a second night under the learned commanders. Retired from training on 2026-11-10 for fighters_pay1_1317, its next night, but still flies here.",
+   "follows": {
+    "go_to": 0.21,
+    "attack": 0.3,
+    "defend": 0.28
+   }
+  },
+  {
    "id": "followers_1323",
    "family": "followers",
-   "rating": 15.48999454100743,
+   "rating": 11.760965759667988,
    "checkpoint": "lab/runs/2026-11-01-pilot-families/followers/checkpoints/ppo_bc_1323.pt",
    "sha256": "1f50f4a24159d2a2b15b57da3b9f7195d22000960ad1561bb398a80a981fdae7",
    "url": "https://storage.tcgarvin.com/rl-fighter/pilots/followers_1323/1f50f4a24159d2a2b15b57da3b9f7195d22000960ad1561bb398a80a981fdae7.pt",
@@ -78,64 +134,8 @@
     "attack": 0.81,
     "defend": 0.84
    }
-  },
-  {
-   "id": "fighters_pay1_849",
-   "family": "fighters",
-   "rating": 14.872859409757679,
-   "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters_pay1/checkpoints/ppo_bc_849.pt",
-   "sha256": "a8f5becf3cf85bf2db87db567f9fe20cd7073168d5c792bddea13f21801f8b13",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/fighters_pay1_849/a8f5becf3cf85bf2db87db567f9fe20cd7073168d5c792bddea13f21801f8b13.pt",
-   "note": "fighters_pay1_462 trained a second night under the learned commanders. Fights about as well and still mostly ignores orders.",
-   "follows": {
-    "go_to": 0.21,
-    "attack": 0.3,
-    "defend": 0.28
-   }
-  },
-  {
-   "id": "fighters_506",
-   "family": "fighters",
-   "rating": 14.415885496495903,
-   "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters/checkpoints/ppo_bc_506.pt",
-   "sha256": "22d0bd45393e9551518443345591e901dfba9ddbf8efcd35353795478fdd11fa",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/fighters_506/22d0bd45393e9551518443345591e901dfba9ddbf8efcd35353795478fdd11fa.pt",
-   "note": "Forked from f995_701 with order pay and drills; for five days the strongest pilot. Retired from training on 2026-11-09, as its family had too many members, but still flies here.",
-   "follows": {
-    "go_to": 0.21,
-    "attack": 0.32,
-    "defend": 0.36
-   }
-  },
-  {
-   "id": "fighters_959",
-   "family": "fighters",
-   "rating": 14.386369829082499,
-   "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters/checkpoints/ppo_bc_959.pt",
-   "sha256": "b2cde2a3bf41902f1e582339c48e71ce09f4ec4dfac9ff3498e66d956b1d88ec",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/fighters_959/b2cde2a3bf41902f1e582339c48e71ce09f4ec4dfac9ff3498e66d956b1d88ec.pt",
-   "note": "fighters_506 trained a second night with more drills. It follows attack and defend orders half the time. Retired from training on 2026-11-09 for fighters_1338, its next night.",
-   "follows": {
-    "go_to": 0.3,
-    "attack": 0.5,
-    "defend": 0.56
-   }
-  },
-  {
-   "id": "followers_955",
-   "family": "followers",
-   "rating": 11.441019219484792,
-   "checkpoint": "lab/runs/2026-11-01-pilot-families/followers/checkpoints/ppo_bc_955.pt",
-   "sha256": "23f05987f7bfad5a5fd2d8307bfee787b0d73f83be070e3535dc10392d9d3237",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/followers_955/23f05987f7bfad5a5fd2d8307bfee787b0d73f83be070e3535dc10392d9d3237.pt",
-   "note": "followers_513 trained a second night. It fights better, but arrives less often where it is sent.",
-   "follows": {
-    "go_to": 0.5,
-    "attack": 0.81,
-    "defend": 0.77
-   }
   }
  ],
  "rated_by": "war",
- "war": "lab/population/2026-11-sim6/war/third-night/war.json"
+ "war": "lab/population/2026-11-sim6/war/fourth-night/war.json"
 }

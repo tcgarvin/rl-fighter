@@ -266,6 +266,41 @@ four lines fine-tune under v7 and the morning re-rates the whole field under v7.
   rules and the parent has not. Read its WAR gain as fire cost plus crash adaptation;
   the shooting columns (trigger share, shots, hit rate) are barely touched by it.
 
+**The critic learns what a dead ship is worth the same night** (found and decided
+2026-11-09, that evening). A ship's last steps bootstrap from the critic's value of its row after it
+died, since only a match end is a terminal. Those rows were never in the value loss, so
+that value was whatever the critic happened to output for an all-zero obs. On the same
+dead rows of one rollout (the right answer is near 0: only the discounted win or loss is
+left):
+
+| Critic | Value of a dead ship | Value of a live one |
+|---|---|---|
+| `fighters_506` | +0.91 | +0.47 |
+| `fighters_959` | 0.00 | +0.37 |
+| `fighters_1338` | −0.78 | +0.27 |
+| `followers_1323` | +0.28 | +0.25 |
+| `fighters_pay1_849` | +0.64 | +0.28 |
+| `f995_701` | +0.58 | +0.28 |
+
+A win pays 1 and 80 hull points of damage 0.8, so every line carried its own accidental
+bonus or penalty for dying, and it drifted from night to night. From tonight
+(`value_only_rows`, on by default) the critic also trains on the learner's rows that
+cannot act but have been present in their match: dead ships and the control lock. They
+are in the value loss only. Craft still in a carrier's bay are left out (nothing
+bootstraps from them).
+
+- Each resumed arm freezes its actor for its first 10 updates (`actor_frozen_until`,
+  `SETTLE_UPDATES` in `run.sh`) while the critic relearns the values near a death.
+- Rehearsed at full size on a copy of `fighters` (1338 to 1356, alone on the machine):
+  the value loss settled inside the freeze (0.020 to 0.005, under night 3's 0.006) and
+  KL and clip fraction came back a little higher (0.014 and 0.17, from 0.011 and 0.14). The logged `value_dead_mean`
+  went from −0.55 to −0.17 and was still rising.
+- The cost: dead rows are up to a third more rows in the value loss, so an update takes
+  about a quarter longer. Expect nearer 60% of night 3's updates per arm than 75%.
+- 2x vs 4x stays clean: both copies get it. A pilot against its parent now differs by
+  fire cost, the crash rules and this; the morning cannot tell the three apart.
+- `samples` in the log is still the acting rows; `value_only_rows` counts the others.
+
 **Morning, unattended (`morning.sh`):** drills, the four as members, then a **shooting
 eval** of each against its parent (`eval/shooting_<id>.{json,md}`: carrier battle and
 convoy, 516 each, both sides in the same matches; hit rate, shots, trigger share,
@@ -281,8 +316,16 @@ crash contacts and crash damage taken by hull), then WAR at 1,440 per mission fo
 - Did pilots learn to crash less? Crash contacts and crash damage of each child against
   its parent, both flying v7, in the shooting eval.
 
+**Launched 22:30 on 2026-11-09, deadline 08:30** (the owner gave the machine until noon;
+the plan had been midnight to 07:00). Ten hours of training, not six, which more than
+makes up for the longer updates; the morning, about 2.5 to 3 hours with four arms, should
+end by 11:30. `N_UPDATES=3000`: the cap is an absolute update count and `run.sh`'s
+default of 1500 would have ended the three older lines after about 160 updates (a first
+launch at 22:26 with the default was stopped at 22:28, two updates in, and relaunched).
+Raise the default in `run.sh` before the next night; it was not edited while running.
+
 ```bash
-cd ~/code/rl-fighter && DEADLINE="07:00" PHASE=fourth-night nohup setsid bash -c \
+cd ~/code/rl-fighter && N_UPDATES=3000 DEADLINE="tomorrow 08:30" PHASE=fourth-night nohup setsid bash -c \
   'lab/runs/2026-11-01-pilot-families/run.sh >> lab/runs/2026-11-01-pilot-families/run.out 2>&1 &&
    lab/runs/2026-11-01-pilot-families/morning.sh > lab/runs/2026-11-01-pilot-families/morning.out 2>&1' \
   > /dev/null 2>&1 &
@@ -295,6 +338,51 @@ Python suite, 815 passed), smoke and morning rehearsal rerun under v7,
 `tests/test_spike_ppo.py` (with a test that `extra_fire_cost` charges each shot fired), `SMOKE=1 N_UPDATES=10 run.sh` (all four arms, the configs read
 0.002 / 0.006), and `morning.sh` rehearsed end to end on the smoke checkpoints against a
 copy of the season (shooting at 12, WAR at 24 per mission).
+
+After the value change: the Python suite again (819 passed, with tests that the
+value-only rows are exactly the dead and locked learner rows, that they train the critic
+and never reach the actor's loss or the advantage normalisation, and of the freeze),
+`SMOKE=1 N_UPDATES=14 SETTLE_UPDATES=2 run.sh` (all four arms resume frozen with
+`value_only_rows` true), and the full-size rehearsal above.
+
+### Night 4 results (2026-11-10)
+
+Ran 22:30 to 08:31: `fighters` 1340-1832, `fighters_fire4` 1340-1827, `followers`
+1325-1793, `fighters_pay1` 851-1317 (about 58 s an update with four arms). Morning
+08:31 to 09:46. Logbook entry `lab/runs/2026-11-10-fourth-night`.
+
+- **The freeze worked.** Ten updates in, value loss was at or under night 3's on every
+  arm; KL after unfreezing 0.014 to 0.015 (0.011 before), 0.013 by the end.
+  `value_dead_mean` ended at −0.02 to 0.00 on all four (it started between −0.78 and
+  +0.64).
+- **WAR (4,320 matches, v7, ±3):** `fighters_pay1_1317` +16.0 (parent +12.5),
+  `fighters_1832` +14.3 (+13.1), `followers_1793` +13.2 (+11.8), `fighters_fire4_1827`
+  +10.5. 2x did not cost combat; 4x did (3.8 under its 2x twin).
+- **Shooting, child vs parent:** trigger share down on every line (convoy: 0.93 to 0.83
+  `fighters`, 0.89 to 0.72 `followers`, 0.87 to 0.66 `fighters_pay1`, 0.91 to 0.76
+  `fire4`), shots down 10 to 30%, hit rate up 1 to 8 points.
+- **Crashes:** crash damage per ship in convoys 38 to 14 (`fighters`), 23 to 6
+  (`followers`), 36 to 22 (`fighters_pay1`). Gunships no better.
+- **Drills (children under v7, parents measured under v6):** `followers` go-to 0.47 to
+  0.39, attack flip 0.81 to 0.72, defend flip 0.84 to 0.74. `fighters` flat (go-to 0.26,
+  attack flip 0.65). `fighters_pay1` follows less still (attack flip 0.21).
+- **Learned commanders vs the script** in the WAR matches: 0.572 (1,572, ±0.024).
+- **Not explained:** head to head (one pilot a side, scripted commanders, 516 a mission)
+  three children lose to their parents: mean win 0.44 to 0.46, `fighters_1832` 0.285 in
+  carrier battles. Only `fighters_pay1_1317` wins (0.53). WAR says the opposite. Look
+  at this before planning night 5.
+- Parent comparisons mix the fire cost, v7 and the value change. 2x vs 4x is clean.
+
+**Decisions (2026-11-10):**
+- **2x is the standing fire cost** (owner). `fighters_fire4` is retired; `run.sh` and
+  `morning.sh` default to the three 2x arms.
+- WAR culls: `fighters_fire4_1827`, `fighters_pay1_849` and `fighters_1338` archived
+  (founder cap; `f995_701` had seven active). Active: four `fighters`, five `followers`,
+  the script.
+- Live list by WAR: in `fighters_pay1_1317`, `fighters_1832`, `followers_1793`; out
+  `fighters_506`, `followers_955`, `fighters_959`. The live page moves to `SIM_VERSION` 7.
+- `run.sh`'s `N_UPDATES` default is 6000: it caps an arm's total updates, and 1500 would
+  have ended this night after about 160.
 
 ## Arms (night 1)
 

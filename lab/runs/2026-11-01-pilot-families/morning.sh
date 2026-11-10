@@ -12,8 +12,7 @@
 #   PHASE=third-night nohup lab/runs/2026-11-01-pilot-families/morning.sh \
 #       > lab/runs/2026-11-01-pilot-families/morning.out 2>&1 &
 #
-# Env: PHASE (required), DATE (today), ARMS (fighters followers fighters_pay1
-# fighters_fire4), THREADS (14), N_DRILLS (256 per kind), N_SHOOTING (516 per mission),
+# Env: PHASE (required), DATE (today), ARMS (fighters followers fighters_pay1), THREADS (14), N_DRILLS (256 per kind), N_SHOOTING (516 per mission),
 # N_PER_MISSION (1440, WAR; about +-3 wins per 100),
 # MEMBERS (the pilots already rated; tonight's arms join them). For a rehearsal: RUN (the
 # run dir, e.g. its smoke/), SEASON (a copy of the season).
@@ -26,7 +25,7 @@ PY=.venv/bin/python
 SEASON=${SEASON:-lab/population/2026-11-sim6}
 PHASE=${PHASE:?set PHASE, e.g. PHASE=second-night}
 DATE=${DATE:-$(date +%F)}
-ARMS=${ARMS:-"fighters followers fighters_pay1 fighters_fire4"}
+ARMS=${ARMS:-"fighters followers fighters_pay1"}
 THREADS=${THREADS:-14}
 N_DRILLS=${N_DRILLS:-256}
 N_SHOOTING=${N_SHOOTING:-516}  # carrier battles come in blocks of 6

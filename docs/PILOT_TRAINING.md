@@ -42,7 +42,7 @@ Pay per ship (`crates/sim/src/reward.rs`):
 |---|---|
 | Hull damage dealt / taken | +/- 0.01 per point |
 | Shield damage dealt / taken | +/- 0.005 per point |
-| Each shot fired | -0.002 |
+| Each shot fired | -0.002, and -0.002 more in training (below) |
 | Outside the arena | -0.002 |
 | Match result | +/- 1 |
 | Order pay, times `order_reward_weight` (0 in `f995`, 1 in `transit`) | below |
@@ -50,6 +50,19 @@ Pay per ship (`crates/sim/src/reward.rs`):
 Order pay: attack pays damage to the target. Defend pays damage to the ward's threats, with
 penalties for ward damage and death. Go-to pays potential shaping (fixed at discount 0.99
 when this was written; it now follows the training discount, section 3) and 0.2 on arrival.
+
+The price of a shot: since night 4 (2026-11-09) every training line pays `extra_fire_cost`
+0.002 per shot on top of the sim's 0.002, twice the sim's price, charged by the trainer so
+the sim and the browser are unchanged. At 2x, pilots held the trigger less and hit a little
+more often at no cost in WAR; a 4x line (`fighters_fire4`) scored 3.8 wins per 100 below
+its 2x twin and was retired. **2x is the standing setting** (owner's decision, 2026-11-10;
+`lab/runs/2026-11-10-fourth-night`).
+
+Dead ships: since the same night the critic also trains on the learner's rows for ships
+that have died or are control-locked (`value_only_rows`, `spacefight/rl/spike_ppo.py`).
+Death does not end a ship's episode, so advantages near a death bootstrap from the value
+of a dead ship, which the critic had never been trained on (it read from -0.78 to +0.91
+across checkpoints; it now reads about 0).
 
 What changes under this plan: training rosters stop at 12 ships and are smaller than live;
 teams draw commanders independently; random orders go; there are no drills.

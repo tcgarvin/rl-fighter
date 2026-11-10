@@ -1,0 +1,36 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "fighters_pay1_1317",
+ "family": "fighters",
+ "founder": "f995_701",
+ "parent": "fighters_pay1_849",
+ "relation": "fork",
+ "fork_update": 849,
+ "settings_changed": {
+  "extra_fire_cost": 0.002
+ },
+ "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters_pay1/checkpoints/ppo_bc_1317.pt",
+ "sha256": "420dc5c042ba31c1d24ace7333ff33c14c6e54db74cf3b67a9b098c6cdf6012d",
+ "status": "active",
+ "archived_reason": "",
+ "archived_date": "",
+ "note": "Night 4: fighters_pay1_849's line with each shot costing twice as much.",
+ "ratings": [],
+ "drills": [
+  {
+   "phase": "fourth-night",
+   "date": "2026-11-10",
+   "scores": {
+    "goto_arrival": 0.1631578947368421,
+    "goto_lift": -0.010311493018259926,
+    "attack_target_hit": 0.837890625,
+    "attack_side": 0.564453125,
+    "attack_flip": 0.21484375,
+    "defend_more_on_named": 0.619140625,
+    "defend_side": 0.5703125,
+    "defend_flip": 0.2265625
+   },
+   "passed": false
+  }
+ ]
+}
