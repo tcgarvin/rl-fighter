@@ -9,8 +9,8 @@ use sim::command::{
 };
 use sim::commander_io::{
     ACTION_DIM, CommanderFeatures, CommanderLocks, DecodeError, ENTITY_DIM, FLAT_DIM, FLAT_LAYOUT,
-    GLOBAL_DIM, GOTO_RADIUS, LOCK_DECISIONS, N_ENTITIES, N_POINTS, act, decode, ent, features,
-    glob, map_point, masks, submit,
+    GLOBAL_DIM, GOTO_RADIUS, HOLD_DECISIONS, N_ENTITIES, N_POINTS, act, decode, ent, features,
+    glob, map_point, masks, ship_hold_left, squad_hold_left, submit,
 };
 use sim::data::{Catalogue, HullId};
 use sim::math::{PI, Vec2};
@@ -414,8 +414,10 @@ fn decode_moves_ships_sets_orders_and_keeps() {
             },
         ]
     );
-    assert_eq!(locks.squad_lock_end, [5, 5, 0, 0]);
-    assert_eq!(&locks.ship_lock_end[..4], &[5, 5, 5, 0]);
+    let end = 1 + HOLD_DECISIONS;
+    assert_eq!(&locks.ship_hold_end[..4], &[end, end, end, 0]);
+    assert_eq!(&locks.ship_hold_kind[..3], &[1, 1, 3]);
+    assert_eq!(locks.changed_ships, 3);
 
     // Team 1 decodes the same go-to in its own frame.
     let mut l1 = CommanderLocks::default();
@@ -455,7 +457,8 @@ fn decode_moves_ships_sets_orders_and_keeps() {
     c[act::LAUNCH] = 1;
     c[act::WAYPOINT] = 3;
     assert!(decode(&m, &cat, 0, &mut locks, &c).unwrap().is_empty());
-    assert_eq!(locks.squad_lock_end, [0; 4]);
+    assert_eq!(locks.ship_hold_end, [0; MAX_SHIPS]);
+    assert_eq!(locks.changed_ships, 0);
     assert_eq!(locks.last_launch_tick, None);
 }
 
@@ -481,11 +484,13 @@ fn moving_every_member_out_empties_the_squad() {
             order: Order::Attack { target: 3 },
         }]
     );
-    assert_eq!(locks.squad_lock_end[2], 0);
+    assert_eq!(locks.changed_ships, 1, "slot 0 lost its attack order");
+    assert_eq!(locks.ship_hold_kind[0], 0);
+    assert_eq!(squad_hold_left(&m, &cat, 0, &locks, 2), HOLD_DECISIONS - 1);
 }
 
 #[test]
-fn locks_last_three_decisions_and_reissues_are_not_changes() {
+fn a_changed_order_holds_five_decisions_and_reissues_are_not_changes() {
     let cat = asset_catalogue();
     let mut m = present_deathmatch(&cat);
     let mut locks = CommanderLocks::default();
@@ -493,41 +498,167 @@ fn locks_last_three_decisions_and_reissues_are_not_changes() {
     a[act::SQUAD] = 2;
     a[act::SQUAD + 1] = 2;
     a[act::ORDER] = 4;
-    a[act::POINT] = 7;
+    a[act::POINT] = 17; // far: nobody arrives during the test
     assert_eq!(decide(&mut m, &cat, 0, &mut locks, &a), 1);
     assert_eq!(m.command.squads[0][0].members, 0b11);
     let goto = m.command.squads[0][0].order;
     assert_eq!(goto.kind(), 3);
+    assert_eq!(locks.changed_ships, 2);
 
-    // The same decision again is no change: no commands, no new lock.
+    // The same decision again is no change: no commands, no new hold.
     assert_eq!(decide(&mut m, &cat, 0, &mut locks, &a), 0);
-    assert_eq!(locks.squad_lock_end[0], 4);
-    assert_eq!(locks.ship_lock_end[0], 4);
+    assert_eq!(locks.ship_hold_end[0], HOLD_DECISIONS);
+    assert_eq!(locks.changed_ships, 0);
 
-    // A different order or move is refused (read as keep) while locked.
+    // A different order or move is refused (read as keep) while the hold lasts:
+    // decisions 2, 3 and 4 after the change at decision 0.
     let mut b = keep();
     b[act::ORDER] = 1;
     b[act::SQUAD] = 1;
-    for left in [2, 1] {
+    for left in [3, 2, 1] {
         let f = features(&m, &cat, 0, &locks);
         assert_eq!(f.masks.order[0], [true, false, false, false, false]);
         assert_eq!(f.masks.squad[0], [true, false, false, false, false, false]);
         assert!(f.masks.squad[2][1], "slot 2 never moved");
         assert!(f.masks.order[1][1], "squad 2 never changed");
-        let want = left as f32 / LOCK_DECISIONS as f32;
-        assert_eq!(f.entities[0][ent::SHIP_LOCK], want);
+        let want = left as f32 / HOLD_DECISIONS as f32;
+        assert_eq!(f.entities[0][ent::SHIP_HOLD], want);
         assert_eq!(f.globals[glob::SQUADS + 5], want);
         assert_eq!(decide(&mut m, &cat, 0, &mut locks, &b), 0, "{left} left");
         assert_eq!(m.command.squads[0][0].order, goto);
     }
-    // Decision 4: free again.
+    // Decision 5, five seconds after the change: free again.
+    assert_eq!(locks.decisions, HOLD_DECISIONS);
     let f = features(&m, &cat, 0, &locks);
     assert_eq!(f.masks.order[0], [true; 5]);
-    assert_eq!(f.entities[0][ent::SHIP_LOCK], 0.0);
+    assert_eq!(f.entities[0][ent::SHIP_HOLD], 0.0);
     assert_eq!(decide(&mut m, &cat, 0, &mut locks, &b), 1);
     assert_eq!(m.command.squads[0][0].members, 0b10);
     assert_eq!(m.command.squads[0][0].order, Order::None);
-    assert_eq!(locks.squad_lock_end[0], 4 + 1 + LOCK_DECISIONS);
+    assert_eq!(locks.changed_ships, 2, "both ships lost the go-to");
+    assert_eq!(locks.ship_hold_end[1], 2 * HOLD_DECISIONS);
+}
+
+/// The gap the first rules left: a ship could take a new order through its squad one
+/// second, move squad the next, and have that squad's order change the second after.
+#[test]
+fn a_ship_cannot_be_re_ordered_through_another_squad() {
+    let cat = asset_catalogue();
+    let mut m = present_deathmatch(&cat);
+    let mut locks = CommanderLocks::default();
+    let mut a = keep();
+    a[act::SQUAD] = 2; // slot 0 -> squad 1, which attacks
+    a[act::ORDER] = 2;
+    a[act::TARGET] = 4;
+    a[act::SQUAD + 1] = 3; // slot 1 -> squad 2, which defends
+    a[act::ORDER + 1] = 3;
+    a[act::WARD + 1] = 2;
+    assert_eq!(decide(&mut m, &cat, 0, &mut locks, &a), 2);
+
+    // Slot 0 may not follow its new order into squad 2.
+    let mut b = keep();
+    b[act::SQUAD] = 3;
+    assert_eq!(decide(&mut m, &cat, 0, &mut locks, &b), 0);
+    assert_eq!(m.command.squads[0][0].members, 0b1);
+
+    // Slot 2, never ordered, joins squad 1: its order changes, so it is held, and
+    // squad 1 cannot take a new order until that hold ends too.
+    let mut c = keep();
+    c[act::SQUAD + 2] = 2;
+    assert_eq!(decide(&mut m, &cat, 0, &mut locks, &c), 1);
+    assert_eq!(locks.changed_ships, 1);
+    assert_eq!(ship_hold_left(&m, &locks, 0), HOLD_DECISIONS - 3);
+    assert_eq!(ship_hold_left(&m, &locks, 2), HOLD_DECISIONS - 1);
+    assert_eq!(squad_hold_left(&m, &cat, 0, &locks, 0), HOLD_DECISIONS - 1);
+    let mut d = keep();
+    d[act::ORDER] = 1;
+    for _ in 0..HOLD_DECISIONS - 1 {
+        assert!(!masks(&m, &cat, 0, &locks).order[0][1]);
+        assert_eq!(decide(&mut m, &cat, 0, &mut locks, &d), 0);
+    }
+    assert!(masks(&m, &cat, 0, &locks).order[0][1]);
+    assert_eq!(decide(&mut m, &cat, 0, &mut locks, &d), 1);
+    assert_eq!(locks.changed_ships, 2);
+}
+
+#[test]
+fn moving_between_squads_with_the_same_order_is_not_a_change() {
+    let cat = asset_catalogue();
+    let mut m = present_deathmatch(&cat);
+    let mut locks = CommanderLocks::default();
+    // Slot 0 from no squad into squad 1, which has no order: still no order.
+    let mut a = keep();
+    a[act::SQUAD] = 2;
+    assert_eq!(decide(&mut m, &cat, 0, &mut locks, &a), 1);
+    assert_eq!(locks.changed_ships, 0);
+    assert_eq!(ship_hold_left(&m, &locks, 0), 0);
+    // So the squad can be ordered on the very next decision.
+    let mut b = keep();
+    b[act::ORDER] = 2;
+    b[act::TARGET] = 3;
+    assert_eq!(decide(&mut m, &cat, 0, &mut locks, &b), 1);
+    assert_eq!(locks.changed_ships, 1);
+    assert_eq!(ship_hold_left(&m, &locks, 0), HOLD_DECISIONS - 1);
+}
+
+#[test]
+fn a_spent_order_ends_its_hold_at_once() {
+    let cat = asset_catalogue();
+    let mut m = present_deathmatch(&cat);
+    let mut locks = CommanderLocks::default();
+    let mut a = keep();
+    a[act::SQUAD] = 2; // slot 0 attacks slot 4
+    a[act::ORDER] = 2;
+    a[act::TARGET] = 4;
+    a[act::SQUAD + 1] = 3; // slot 1 goes to point 5
+    a[act::ORDER + 1] = 4;
+    a[act::POINT + 1] = 5;
+    assert_eq!(decide(&mut m, &cat, 0, &mut locks, &a), 2);
+    assert_eq!(ship_hold_left(&m, &locks, 0), HOLD_DECISIONS - 1);
+    assert_eq!(ship_hold_left(&m, &locks, 1), HOLD_DECISIONS - 1);
+
+    // The target dies: the attack cannot be followed, so the squad is free before
+    // the slow tick has even cleared the order.
+    m.ships[4].hp = 0.0;
+    scripted_step(&mut m, &cat);
+    assert_eq!(m.command.squads[0][0].order, Order::Attack { target: 4 });
+    assert_eq!(ship_hold_left(&m, &locks, 0), 0);
+    let f = features(&m, &cat, 0, &locks);
+    assert_eq!(f.entities[0][ent::SHIP_HOLD], 0.0);
+    assert!(f.masks.order[0][2] && f.masks.squad[0][3]);
+    assert!(!f.masks.order[1][1], "squad 2's go-to still holds");
+
+    // The go-to ship arrives: its order is done, so it is free too.
+    let Order::GoTo { point, .. } = m.command.squads[0][1].order else {
+        panic!("squad 2 has a go-to");
+    };
+    m.ships[1].pos = point;
+    scripted_step(&mut m, &cat);
+    assert_eq!(ship_hold_left(&m, &locks, 1), 0);
+    assert!(masks(&m, &cat, 0, &locks).order[1][1]);
+
+    // A new order starts a new hold.
+    let mut b = keep();
+    b[act::ORDER] = 2;
+    b[act::TARGET] = 3;
+    assert_eq!(decide(&mut m, &cat, 0, &mut locks, &b), 1);
+    assert_eq!(ship_hold_left(&m, &locks, 0), HOLD_DECISIONS - 1);
+}
+
+/// A hold reads its order's state only once the decision has applied: straight after
+/// decoding, the ship still shows the order it had before.
+#[test]
+fn a_hold_is_not_spent_before_its_decision_applies() {
+    let cat = asset_catalogue();
+    let mut m = present_deathmatch(&cat);
+    let mut locks = CommanderLocks::default();
+    let mut a = keep();
+    a[act::SQUAD] = 2;
+    a[act::ORDER] = 2;
+    a[act::TARGET] = 4;
+    until_due(&mut m, &cat, 0);
+    submit(&mut m, &cat, 0, &mut locks, &a).unwrap();
+    assert_eq!(ship_hold_left(&m, &locks, 0), HOLD_DECISIONS - 1);
 }
 
 #[test]

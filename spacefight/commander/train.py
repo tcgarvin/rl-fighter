@@ -44,6 +44,7 @@ from spacefight.commander.policy import (
     CommanderCritic,
     act,
     evaluate,
+    lean_to_keep,
     load_commander,
     n_params,
     save_commander,
@@ -66,6 +67,7 @@ ASSETS = REPO_ROOT / "assets"
 LEARNED: Final = "learned"
 MISSIONS: Final = (DEATHMATCH, CARRIER_BATTLE, CONVOY_ESCORT)
 WINNER_DRAW: Final = -1
+TICK_HZ: Final = 30
 
 # Enemy commander kinds.
 OPP_SCRIPTED, OPP_RANDOM, OPP_SELF, OPP_SNAPSHOT = range(4)
@@ -94,6 +96,11 @@ class TrainConfig:
     gamma: float = 0.99
     lam: float = 0.95
     shaping: float = 0.5
+    # The price of an order: each decision's reward drops by this for every ship whose
+    # order it changed. Not potential-based; it is meant to change what is best.
+    order_price: float = 0.0
+    # A fresh actor's odds of "keep" on its order and squad heads (policy.lean_to_keep).
+    keep_prior: float = 0.8
     # Enemy commander shares: scripted, random, self, snapshots (snapshots' share goes to
     # self until the first snapshot exists).
     opponent_shares: tuple[float, float, float, float] = (0.35, 0.1, 0.3, 0.25)
@@ -111,6 +118,10 @@ class TrainConfig:
             raise ValueError("opponent_shares needs four non-negative shares")
         if self.decisions_per_update < self.minibatch:
             raise ValueError("decisions_per_update must be at least one minibatch")
+        if self.order_price < 0:
+            raise ValueError(
+                f"order_price must not be negative, got {self.order_price}"
+            )
 
 
 @dataclass
@@ -153,6 +164,8 @@ class Transition:
     logp: float
     value: float
     phi: float
+    # What this decision's order changes cost (``order_price`` a ship).
+    cost: float = 0.0
     reward: float = 0.0
     done: bool = False
     next_value: float = 0.0
@@ -181,8 +194,17 @@ class Trainer:
         torch.set_num_threads(cfg.torch_threads)
         torch.manual_seed(cfg.seed)
         self.rng = np.random.default_rng(cfg.seed)
-        check_sim_layout(rlf_sim.commander_io())
+        sim_io = rlf_sim.commander_io()
+        check_sim_layout(sim_io)
+        self.decision_s = float(sim_io["command_ticks"]) / TICK_HZ
+        entity = sim_io["entity_layout"]
+        own, cls, order = entity["own"][0], entity["class"][0], entity["order"][0]
+        # Entity columns: own team, the three strike hull classes, an order other than none.
+        self.own_col = int(own)
+        self.strike_cols = slice(int(cls), int(cls) + 3)
+        self.ordered_cols = slice(int(order) + 1, int(order) + 4)
         self.actor = CommanderActor()
+        lean_to_keep(self.actor, cfg.keep_prior)
         pilots = live_pilot_checkpoints(Path(cfg.live_pilots))
         self.critic = CommanderCritic(n_pilots=len(pilots))
         self.opt = torch.optim.Adam(
@@ -241,7 +263,9 @@ class Trainer:
         opp = int(self.rng.choice(4, p=shares / shares.sum()))
         snap = -1
         if opp == OPP_SNAPSHOT:
-            rates = np.array([self.results.rate(self._snap_name(k)) for k in range(len(self.pool))])
+            rates = np.array(
+                [self.results.rate(self._snap_name(k)) for k in range(len(self.pool))]
+            )
             w = (1.0 - rates) ** cfg.pfsp_power + cfg.pfsp_floor
             snap = int(self.rng.choice(len(self.pool), p=w / w.sum()))
         mw = np.asarray(cfg.mission_weights, dtype=np.float64)
@@ -306,8 +330,10 @@ class Trainer:
                 x = CommanderInputs.from_numpy(sub)
                 model = self.actor if c == LEARNER else self.pool_actors[int(c) - 2]
                 actions, logp = act(model, x)
-                self.env.raw.submit_commander_actions(
-                    team, rows.astype(np.int64), actions.numpy().astype(np.int32)
+                changed = np.asarray(
+                    self.env.raw.submit_commander_actions(
+                        team, rows.astype(np.int64), actions.numpy().astype(np.int32)
+                    )
                 )
                 if c != LEARNER:
                     continue
@@ -319,7 +345,7 @@ class Trainer:
                     phi = self._phi(i, team, values)
                     prev = self.pending.pop((i, team), None)
                     if prev is not None:
-                        prev.reward = self.cfg.gamma * phi - prev.phi
+                        prev.reward = self.cfg.gamma * phi - prev.phi - prev.cost
                         prev.next_value = float(v[j])
                         self.completed.append(prev)
                     self.pending[(i, team)] = Transition(
@@ -330,12 +356,24 @@ class Trainer:
                         logp=float(logp[j]),
                         value=float(v[j]),
                         phi=phi,
+                        cost=self.cfg.order_price * float(changed[j]),
                     )
-                self._behaviour(actions)
+                self._behaviour(actions, sub["entities"], changed)
 
-    def _behaviour(self, actions: torch.Tensor) -> None:
+    def _behaviour(
+        self, actions: torch.Tensor, entities: NDArray, changed: NDArray
+    ) -> None:
+        """Count what the learner's decisions did. ``entities`` [K, E, ENTITY_DIM] are
+        the inputs they were made from, ``changed`` [K] the ships each re-ordered."""
         a = actions.numpy()
         s = self.match_stats
+        strike = (entities[:, :, self.own_col] > 0) & (
+            entities[:, :, self.strike_cols].sum(axis=-1) > 0
+        )
+        ordered = strike & (entities[:, :, self.ordered_cols].sum(axis=-1) > 0)
+        s["ship_decisions"] += float(strike.sum())
+        s["ships_ordered"] += float(ordered.sum())
+        s["ships_changed"] += float(changed.sum())
         s["decisions"] += a.shape[0]
         s["launch_orders"] += float((a[:, LAUNCH] == 1).sum())
         order = a[:, ORDER]
@@ -358,7 +396,7 @@ class Trainer:
                 outcome = 0.0 if w == WINNER_DRAW else (1.0 if w == team else -1.0)
                 prev = self.pending.pop((i, team), None)
                 if prev is not None:
-                    prev.reward = outcome - prev.phi
+                    prev.reward = outcome - prev.phi - prev.cost
                     prev.done = True
                     self.completed.append(prev)
                 if team == a.learner_team and a.opponent != OPP_SELF:
@@ -493,7 +531,9 @@ class Trainer:
         tmp.replace(self.run_dir / "state.pt")
 
     def _load_state(self) -> None:
-        state = torch.load(self.run_dir / "state.pt", map_location="cpu", weights_only=False)
+        state = torch.load(
+            self.run_dir / "state.pt", map_location="cpu", weights_only=False
+        )
         self.actor.load_state_dict(state["actor"])
         self.critic.load_state_dict(state["critic"])
         self.opt.load_state_dict(state["opt"])
@@ -558,6 +598,14 @@ class Trainer:
             out["order_change_rate"] = round(s["order_changes"] / s["order_heads"], 3)
             for name in ("none", "attack", "defend", "goto"):
                 out[f"order_{name}"] = round(s[f"order_{name}"] / s["order_heads"], 3)
+        if s["ship_decisions"]:
+            # Mean seconds a strike craft goes between changes of its order (absent if
+            # no order changed), and the share of its time it has an order.
+            if s["ships_changed"]:
+                out["order_seconds"] = round(
+                    self.decision_s * s["ship_decisions"] / s["ships_changed"], 2
+                )
+            out["ordered_share"] = round(s["ships_ordered"] / s["ship_decisions"], 3)
         return out
 
 
@@ -582,8 +630,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     else:
         base = {}
     if args.smoke:
-        base |= {"n_envs": 8, "decisions_per_update": 512, "minibatch": 128,
-                 "snapshot_every": 2, "checkpoint_every": 2}
+        base |= {
+            "n_envs": 8,
+            "decisions_per_update": 512,
+            "minibatch": 128,
+            "snapshot_every": 2,
+            "checkpoint_every": 2,
+        }
     known = {f.name for f in fields(TrainConfig)}
     for item in args.set:
         key, _, value = item.partition("=")

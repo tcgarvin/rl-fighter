@@ -696,18 +696,20 @@ impl VecEnv {
     /// The learned commander: decode team `team`'s decisions, `actions` int32 `[K,
     /// 40]` (`docs/COMMANDER.md` "Outputs"), for the envs `env_ids` int64 `[K]`, and
     /// queue their commands for each env's coming slow tick (`sim::commander_io::
-    /// decode`: a choice its masks forbid reads as keep). Each env keeps per-team lock
-    /// state, reset whenever its match is rebuilt. Raises ValueError, before any env
+    /// decode`: a choice its masks forbid reads as keep). Each env keeps per-team hold
+    /// state, reset whenever its match is rebuilt. Returns int32 `[K]`: the ships whose
+    /// order each decision changed. Raises ValueError, before any env
     /// is changed, for a wrong dtype or shape, a repeated env id, an env whose team
     /// commander is not `"learned"` (or `"external"`), an env where
     /// `commander_due(team)` is false, or a value outside its head's choices; IndexError
     /// for an env id out of range.
-    fn submit_commander_actions(
+    fn submit_commander_actions<'py>(
         &mut self,
+        py: Python<'py>,
         team: i64,
-        env_ids: &Bound<'_, PyAny>,
-        actions: &Bound<'_, PyAny>,
-    ) -> PyResult<()> {
+        env_ids: &Bound<'py, PyAny>,
+        actions: &Bound<'py, PyAny>,
+    ) -> PyResult<Bound<'py, PyArray1<i32>>> {
         use sim::commander_io::ACTION_DIM;
         let team = check_team(team)?;
         let dtype_of = |a: &Bound<'_, PyAny>| {
@@ -755,17 +757,20 @@ impl VecEnv {
                 .map_err(|e| PyValueError::new_err(e.to_string()))?;
             checked.push((i, row));
         }
+        let mut changed = Vec::with_capacity(checked.len());
         for (i, row) in checked {
             self.batch
                 .submit_commander_action(i, team, &row)
                 .map_err(|e| PyValueError::new_err(e.to_string()))?;
+            changed.push(self.batch.commander_locks(i, team).changed_ships as i32);
         }
-        Ok(())
+        Ok(changed.into_pyarray(py))
     }
 
-    /// The learned commander: team `team`'s lock state in match `i` (a dict:
-    /// `decisions` decoded this match, `squad_lock_left` per squad and
-    /// `ship_lock_left` per slot (decisions still locked, counting the next one), and
+    /// The learned commander: team `team`'s hold state in match `i` (a dict:
+    /// `decisions` decoded this match, `squad_hold_left` per squad and
+    /// `ship_hold_left` per slot (decisions until its order may change, 0 free now),
+    /// `changed_ships` (ships whose order the last decision changed), and
     /// `last_launch_tick`, `None` before the first launch decision).
     fn commander_locks<'py>(
         &self,
@@ -774,15 +779,14 @@ impl VecEnv {
         team: i64,
     ) -> PyResult<Bound<'py, PyDict>> {
         let i = self.check_index(i)?;
-        let locks = self.batch.commander_locks(i, check_team(team)?);
+        let team = check_team(team)?;
+        let locks = self.batch.commander_locks(i, team);
+        let (squads, ships) = self.batch.commander_holds(i, team);
         let out = PyDict::new(py);
         out.set_item("decisions", locks.decisions)?;
-        let squads: Vec<u32> = (0..sim::command::MAX_SQUADS)
-            .map(|k| locks.squad_lock_left(k))
-            .collect();
-        let ships: Vec<u32> = (0..MAX_SHIPS).map(|s| locks.ship_lock_left(s)).collect();
-        out.set_item("squad_lock_left", squads)?;
-        out.set_item("ship_lock_left", ships)?;
+        out.set_item("squad_hold_left", squads.to_vec())?;
+        out.set_item("ship_hold_left", ships.to_vec())?;
+        out.set_item("changed_ships", locks.changed_ships)?;
         out.set_item("last_launch_tick", locks.last_launch_tick)?;
         Ok(out)
     }

@@ -178,7 +178,7 @@
             </ul>
             <svg class="diagram" viewBox="0 0 360 376" role="img" aria-labelledby="ent-fig-title ent-fig-desc">
             <title id="ent-fig-title">One ship's 40 numbers</title>
-            <desc id="ent-fig-desc">Each ship slot is 40 numbers: valid 1, own team 1, hull class 6, position 2, velocity 2, heading 2, hull and shield 2, on the field, arriving and charging 3, its squad 5, its order 4, an attack target of squad 1 to 4, the defend ward of squad 1 to 4, threatens my capital ship 1, distances to the carriers 2, squad-move lock 1.</desc>
+            <desc id="ent-fig-desc">Each ship slot is 40 numbers: valid 1, own team 1, hull class 6, position 2, velocity 2, heading 2, hull and shield 2, on the field, arriving and charging 3, its squad 5, its order 4, an attack target of squad 1 to 4, the defend ward of squad 1 to 4, threatens my capital ship 1, distances to the carriers 2, order hold 1.</desc>
             <rect class="seg c-own" data-block="valid" data-width="1" x="4.0" y="4" width="7.8" height="14" />
             <rect class="seg c-own" data-block="own" data-width="1" x="12.8" y="4" width="7.8" height="14" />
             <rect class="seg c-own" data-block="class" data-width="6" x="21.6" y="4" width="51.8" height="14" />
@@ -193,7 +193,7 @@
             <rect class="seg c-other" data-block="ward" data-width="4" x="285.6" y="4" width="34.2" height="14" />
             <rect class="seg c-other" data-block="threat" data-width="1" x="320.8" y="4" width="7.8" height="14" />
             <rect class="seg c-other" data-block="dist" data-width="2" x="329.6" y="4" width="16.6" height="14" />
-            <rect class="seg c-order" data-block="lock" data-width="1" x="347.2" y="4" width="7.8" height="14" />
+            <rect class="seg c-order" data-block="hold" data-width="1" x="347.2" y="4" width="7.8" height="14" />
             <text class="dg-small" x="4" y="31">0</text>
             <text class="dg-small" x="356" y="31" text-anchor="end"><tspan data-fact="io.entity_dim">40</tspan></text>
             <text class="dg-label" x="112" y="54" text-anchor="end">valid</text>
@@ -263,7 +263,7 @@
             <rect class="bar c-other" x="118" y="330" width="28.0" height="12" rx="1" />
             <line class="tick" x1="132.0" x2="132.0" y1="330" y2="342" />
             <text class="dg-num" x="152.0" y="340">2</text>
-            <text class="dg-label" x="112" y="362" text-anchor="end">move lock</text>
+            <text class="dg-label" x="112" y="362" text-anchor="end">order hold</text>
             <rect class="bar c-order" x="118" y="352" width="14.0" height="12" rx="1" />
             <text class="dg-num" x="138.0" y="362">1</text>
             </svg>
@@ -290,7 +290,7 @@
               <strong>Its squad and order</strong> (10, own strike craft only): which squad
               it is in (none, or 1 to <span data-fact="io.n_squads">4</span>), what kind of
               order that squad is following (none, attack, defend, go to), and how long
-              until it may be moved to another squad.
+              until its order may change again.
             </li>
             <li>
               <strong>Its part in the plan</strong> (11): for each squad, whether this ship
@@ -391,7 +391,7 @@
             <li>
               <strong>My squads</strong> (<span data-fact="io.n_squads">4</span> ×
               <span data-fact="io.squad_global_dim">8</span>): each squad's size, its order
-              kind, how long its order stays locked, and its go-to point if it has one.
+              kind, how long its order is still held, and its go-to point if it has one.
             </li>
             <li>
               <strong>The field</strong> (2): how many strike craft each side has out.
@@ -684,11 +684,11 @@
             <li><strong>Waypoint</strong>: a map point only while my carrier is alive.</li>
             <li>
               <strong>Squad</strong>: only for my own strike craft on the field or jumping
-              in, and not while that ship's move lock lasts.
+              in, and not while that ship is held (see below).
             </li>
             <li>
-              <strong>Order</strong>: only while my team has strike craft out and the
-              squad's order lock has run out. Attack also needs an enemy on the field,
+              <strong>Order</strong>: only while my team has strike craft out and no
+              ship in the squad is held. Attack also needs an enemy on the field,
               defend an own ship on the field.
             </li>
             <li>
@@ -698,57 +698,70 @@
             </li>
           </ul>
 
-          <h3>Locks: no dithering</h3>
+          <h3>Holds: no dithering</h3>
           <p>
             A network that decides every second could change its mind every second, and
-            pilots chasing a new order each second get nowhere. So when a squad's order
-            changes (a new kind, target, ward or point), that squad's order head is locked
-            to keep for the next <span data-fact="io.lock_decisions">3</span> decisions.
-            When a ship moves to another squad, its squad head is locked for
-            <span data-fact="io.lock_decisions">3</span> too. Repeating the same order is
-            not a change, and launches are never locked. The time left on each lock is in
-            the inputs, so the commander can see when it may act again.
+            pilots chasing a new order each second get nowhere. So a ship that gets a new
+            order keeps it for <span data-fact="io.hold_decisions">5</span> seconds. While
+            it is held it cannot be moved to another squad, and its squad's order cannot
+            change.
+          </p>
+          <p>
+            A ship can get a new order two ways: its squad is given one, or the ship is
+            moved to a squad that has a different one. The hold covers both, so shuffling
+            ships between squads cannot get round it. And a squad's order cannot change
+            while any ship in it is held.
+          </p>
+          <p>
+            If the order is spent, the ship is free at once: its target or its ward is
+            gone, or it has arrived at its go-to point. Repeating the same order is not a
+            change. Launches are never held. The time left on each hold is in the inputs,
+            so the commander can see when it may act again.
           </p>
           <figure class="figure wide pilot-figure">
-            <p class="figure__title">One squad's order lock</p>
+            <p class="figure__title">One ship's order hold</p>
             <ul class="legend">
               <li><span class="legend__key legend__key--lock lk--set"></span>order changed</li>
-              <li><span class="legend__key legend__key--lock lk--locked"></span>locked to keep</li>
+              <li><span class="legend__key legend__key--lock lk--locked"></span>held: keep only</li>
               <li><span class="legend__key legend__key--lock lk--free"></span>free to change</li>
             </ul>
-            <svg class="diagram" viewBox="0 0 360 92" role="img" aria-labelledby="lock-fig-title lock-fig-desc">
-            <title id="lock-fig-title">An order lock</title>
-            <desc id="lock-fig-desc">At decision 1 the commander changes squad 2's order. For decisions 2, 3 and 4 its order head can only keep. At decision 5 it is free again.</desc>
+            <svg class="diagram" viewBox="0 0 360 92" role="img" aria-labelledby="hold-fig-title hold-fig-desc">
+            <title id="hold-fig-title">An order hold</title>
+            <desc id="hold-fig-desc">At decision 1 the commander changes a ship's order. For decisions 2, 3, 4 and 5 the ship cannot move squad and its squad's order can only keep. At decision 6 it is free again.</desc>
             <text class="dg-kicker" x="4" y="12">DECISION, ONE A SECOND</text>
-            <rect class="lk lk--set" x="30" y="22" width="46" height="26" rx="3" />
-            <text class="dg-num" x="53.0" y="39" text-anchor="middle">1</text>
-            <text class="dg-small" x="53.0" y="64" text-anchor="middle">change</text>
-            <rect class="lk lk--locked" x="82" y="22" width="46" height="26" rx="3" />
-            <text class="dg-num" x="105.0" y="39" text-anchor="middle">2</text>
-            <text class="dg-small" x="105.0" y="64" text-anchor="middle">keep</text>
-            <rect class="lk lk--locked" x="134" y="22" width="46" height="26" rx="3" />
-            <text class="dg-num" x="157.0" y="39" text-anchor="middle">3</text>
-            <text class="dg-small" x="157.0" y="64" text-anchor="middle">keep</text>
-            <rect class="lk lk--locked" x="186" y="22" width="46" height="26" rx="3" />
-            <text class="dg-num" x="209.0" y="39" text-anchor="middle">4</text>
-            <text class="dg-small" x="209.0" y="64" text-anchor="middle">keep</text>
-            <rect class="lk lk--free" x="238" y="22" width="46" height="26" rx="3" />
-            <text class="dg-num" x="261.0" y="39" text-anchor="middle">5</text>
-            <text class="dg-small" x="261.0" y="64" text-anchor="middle">free</text>
-            <rect class="lk lk--free" x="290" y="22" width="46" height="26" rx="3" />
-            <text class="dg-num" x="313.0" y="39" text-anchor="middle">6</text>
-            <text class="dg-small" x="313.0" y="64" text-anchor="middle">free</text>
-            <line class="dg-line" x1="82" x2="232" y1="78" y2="78" />
-            <line class="dg-line" x1="82" x2="82" y1="74" y2="82" />
-            <line class="dg-line" x1="232" x2="232" y1="74" y2="82" />
-            <text class="dg-small" x="157.0" y="90" text-anchor="middle">locked for 3 decisions</text>
+            <rect class="lk lk--set" x="8" y="22" width="44" height="26" rx="3" />
+            <text class="dg-num" x="30.0" y="39" text-anchor="middle">1</text>
+            <text class="dg-small" x="30.0" y="64" text-anchor="middle">change</text>
+            <rect class="lk lk--locked" x="58" y="22" width="44" height="26" rx="3" />
+            <text class="dg-num" x="80.0" y="39" text-anchor="middle">2</text>
+            <text class="dg-small" x="80.0" y="64" text-anchor="middle">keep</text>
+            <rect class="lk lk--locked" x="108" y="22" width="44" height="26" rx="3" />
+            <text class="dg-num" x="130.0" y="39" text-anchor="middle">3</text>
+            <text class="dg-small" x="130.0" y="64" text-anchor="middle">keep</text>
+            <rect class="lk lk--locked" x="158" y="22" width="44" height="26" rx="3" />
+            <text class="dg-num" x="180.0" y="39" text-anchor="middle">4</text>
+            <text class="dg-small" x="180.0" y="64" text-anchor="middle">keep</text>
+            <rect class="lk lk--locked" x="208" y="22" width="44" height="26" rx="3" />
+            <text class="dg-num" x="230.0" y="39" text-anchor="middle">5</text>
+            <text class="dg-small" x="230.0" y="64" text-anchor="middle">keep</text>
+            <rect class="lk lk--free" x="258" y="22" width="44" height="26" rx="3" />
+            <text class="dg-num" x="280.0" y="39" text-anchor="middle">6</text>
+            <text class="dg-small" x="280.0" y="64" text-anchor="middle">free</text>
+            <rect class="lk lk--free" x="308" y="22" width="44" height="26" rx="3" />
+            <text class="dg-num" x="330.0" y="39" text-anchor="middle">7</text>
+            <text class="dg-small" x="330.0" y="64" text-anchor="middle">free</text>
+            <line class="dg-line" x1="58" x2="252" y1="78" y2="78" />
+            <line class="dg-line" x1="58" x2="58" y1="74" y2="82" />
+            <line class="dg-line" x1="252" x2="252" y1="74" y2="82" />
+            <text class="dg-small" x="155.0" y="90" text-anchor="middle">held for <tspan data-fact="io.hold_keep">4</tspan> more decisions</text>
             </svg>
             <figcaption class="figure__caption">
-              So a squad's order changes at most once every
-              <span data-fact="io.lock_period">4</span> seconds. The scripted commander
-              issues its orders every <span data-fact="cadence.scripted_ticks">60</span>
-              ticks (<span data-fact="cadence.scripted_s">2</span> s); the learned one
-              decides every <span data-fact="cadence.ticks">30</span>.
+              So a ship's order changes at most once every
+              <span data-fact="io.hold_decisions">5</span> seconds, unless the order is
+              spent first. The scripted commander issues its orders every
+              <span data-fact="cadence.scripted_ticks">60</span> ticks
+              (<span data-fact="cadence.scripted_s">2</span> s); the learned one decides
+              every <span data-fact="cadence.ticks">30</span>.
             </figcaption>
           </figure>
         </section>
@@ -865,8 +878,8 @@
             By reinforcement learning with PPO
             (<a class="code-link" href="https://github.com/tcgarvin/rl-fighter/blob/main/spacefight/commander/train.py"><code>spacefight/commander/train.py</code></a>),
             where one step is one decision: one second of a match. There is no copying
-            stage. The commander starts from random weights, under pilots that already know
-            how to fight.
+            stage. The commander starts from random weights, leaning toward keeping the
+            orders it has given, under pilots that already know how to fight.
           </p>
           <ol>
             <li>
@@ -899,7 +912,9 @@
               in that lead. Because it is paid as a change in a score (a
               <em>potential-based</em> shaping), the payments cancel over a match: they
               cannot change which plan is best, only how soon the commander hears that a
-              decision went well.
+              decision went well. A run can also charge a small price for every ship
+              whose order a decision changes. That one is meant to change which plan is
+              best: toward orders that last.
             </li>
             <li>
               <strong>The update.</strong> <span data-fact="train.decisions_per_update">4,096</span>
@@ -942,7 +957,7 @@
               not which pilot is in it. Only the critic knows, and only in training.
             </li>
             <li>
-              <strong>A memory.</strong> It decides from what it sees now. The lock timers
+              <strong>A memory.</strong> It decides from what it sees now. The hold timers
               and the time since its last launch are its only sense of what it did before.
             </li>
             <li>

@@ -121,7 +121,7 @@ def design_facts(doc: str) -> dict[str, str]:
         "GLOBAL_DIM": io.GLOBAL_DIM,
         "ACTION_DIM": io.ACTION_DIM,
         "N_POINTS": io.N_POINTS,
-        "LOCK_DECISIONS": io.LOCK_DECISIONS,
+        "HOLD_DECISIONS": io.HOLD_DECISIONS,
         "MAX_SHIPS": io.MAX_ENTITIES,
     }
     problems = [
@@ -155,13 +155,13 @@ def design_facts(doc: str) -> dict[str, str]:
             io.check_sim_layout(constants)
         except ValueError as e:
             problems.append(str(e))
-        if (
-            "LEARNED_COMMAND_TICKS" in constants
-            and int(constants["LEARNED_COMMAND_TICKS"]) != learned_ticks
-        ):
+        # commander_io() gives the learned cadence as ``command_ticks``.
+        if "command_ticks" not in constants:
+            problems.append("the sim's commander_io() has no 'command_ticks'")
+        elif int(constants["command_ticks"]) != learned_ticks:
             problems.append(
                 f"LEARNED_COMMAND_TICKS: doc {learned_ticks}, "
-                f"sim {constants['LEARNED_COMMAND_TICKS']}"
+                f"sim commander_io() command_ticks {constants['command_ticks']}"
             )
     sim_ticks = getattr(rlf_sim, "LEARNED_COMMAND_TICKS", None)
     if sim_ticks is not None and int(sim_ticks) != learned_ticks:
@@ -198,9 +198,10 @@ def io_facts() -> dict[str, str]:
         "io.global_dim": str(io.GLOBAL_DIM),
         "io.action_dim": str(io.ACTION_DIM),
         "io.n_points": str(io.N_POINTS),
-        "io.lock_decisions": str(io.LOCK_DECISIONS),
-        # A change at decision n locks decisions n+1 .. n+LOCK_DECISIONS.
-        "io.lock_period": str(io.LOCK_DECISIONS + 1),
+        "io.hold_decisions": str(io.HOLD_DECISIONS),
+        # A change at decision n leaves decisions n+1 .. n+HOLD_DECISIONS-1 able only
+        # to keep; the ship is free again at decision n+HOLD_DECISIONS.
+        "io.hold_keep": str(io.HOLD_DECISIONS - 1),
         "io.max_entities": str(io.MAX_ENTITIES),
         "io.inputs": _n(io.MAX_ENTITIES * io.ENTITY_DIM + io.GLOBAL_DIM),
         "io.n_squads": str(io.N_SQUADS),

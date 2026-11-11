@@ -16,7 +16,7 @@ import json
 import sys
 import time
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -45,6 +45,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 ASSETS = REPO_ROOT / "assets"
 WINNER_DRAW = -1
 WINNER_NONE = -2
+TICK_HZ = 30
+# An order that lasted less than this was cut short (the commander's hold is 5 s).
+SHORT_ORDER_S = 5.0
 
 
 @dataclass
@@ -87,6 +90,88 @@ def mission_rosters(mission: str, n_drafts: int, seed: int) -> list[Roster]:
     return [r for _, r in named_mission_rosters(mission, n_drafts, seed)]
 
 
+@dataclass
+class OrderStats:
+    """What one commander's strike craft were ordered to do, over some matches.
+
+    An order here is a ship's order instance as the sim tracks it (``order_tracks``):
+    it starts when the ship's standing order changes kind or target, or its go-to point
+    moves, whoever commands. Only instances that ended inside a match have a length.
+
+    Attributes:
+        flying_s: Seconds its strike craft spent flying (taking actions).
+        ordered_s: Of those, seconds under a standing order.
+        given: Orders given (instances of a kind other than none that started).
+        lengths: Seconds each ended order lasted.
+    """
+
+    flying_s: float = 0.0
+    ordered_s: float = 0.0
+    given: int = 0
+    lengths: list[float] = field(default_factory=list)
+
+    def summary(self) -> dict[str, float | int | None]:
+        """Plain numbers for a report: orders per ship-minute, how long orders last
+        (``None`` when none ended) and the share cut short of ``SHORT_ORDER_S``."""
+        lengths = np.asarray(self.lengths, dtype=np.float64)
+        ended = int(lengths.size)
+        return {
+            "orders_given": self.given,
+            "orders_ended": ended,
+            "orders_per_ship_min": (
+                60.0 * self.given / self.flying_s if self.flying_s else None
+            ),
+            "ordered_share": self.ordered_s / self.flying_s if self.flying_s else None,
+            "order_seconds_median": float(np.median(lengths)) if ended else None,
+            "order_seconds_mean": float(lengths.mean()) if ended else None,
+            "orders_under_5s": (
+                float((lengths < SHORT_ORDER_S).mean()) if ended else None
+            ),
+        }
+
+
+class OrderClock:
+    """Times every strike craft's orders while matches play (``OrderStats`` per
+    commander). Call ``observe`` after each step with the envs still in their match."""
+
+    def __init__(
+        self,
+        strike: NDArray[np.bool_],
+        team: NDArray[np.int8],
+        side_commander: NDArray[np.int64],
+        n_commanders: int,
+    ) -> None:
+        self.strike = strike
+        # [N, S] the commander of each slot's team (padding slots: commander 0, never
+        # counted because they are not strike craft).
+        self.commander = np.take_along_axis(
+            side_commander, np.clip(team, 0, 1).astype(np.int64), axis=1
+        )
+        self.stats = [OrderStats() for _ in range(n_commanders)]
+        self._kind: NDArray[np.int8] | None = None
+        self._start: NDArray[np.uint32] | None = None
+        self._seen = np.zeros(strike.shape, dtype=bool)
+
+    def observe(self, env: RustVecEnv, running: NDArray[np.bool_]) -> None:
+        tracks = env.order_tracks()
+        kind = np.asarray(tracks["standing_kind"])
+        start = np.asarray(tracks["instance_start"])
+        live = running[:, None] & self.strike & np.asarray(env.raw.alive)
+        flying = live & np.asarray(env.act_mask)
+        if self._kind is not None and self._start is not None:
+            began = live & self._seen & (start != self._start)
+            for c, stats in enumerate(self.stats):
+                mine = self.commander == c
+                stats.flying_s += float((flying & mine).sum()) / TICK_HZ
+                stats.ordered_s += float((flying & mine & (kind != 0)).sum()) / TICK_HZ
+                new = began & mine
+                stats.given += int((new & (kind != 0)).sum())
+                ended = new & (self._kind != 0)
+                ticks = start[ended].astype(np.int64) - self._start[ended]
+                stats.lengths.extend((ticks / TICK_HZ).tolist())
+        self._kind, self._start, self._seen = kind, start, live
+
+
 @dataclass(frozen=True)
 class MatchesPlayed:
     """What ``play_matches`` saw, one row per match.
@@ -100,6 +185,7 @@ class MatchesPlayed:
         strike: [n, S] strike craft, the slots pilots were drawn for.
         team: [n, S] each slot's team, -1 for padding.
         hull_id: [n, S] each slot's hull, -1 for padding.
+        orders: Per commander (the ``commanders`` index): its ships' orders.
     """
 
     winner: NDArray[np.int64]
@@ -109,6 +195,7 @@ class MatchesPlayed:
     strike: NDArray[np.bool_]
     team: NDArray[np.int8]
     hull_id: NDArray[np.int16]
+    orders: list[OrderStats]
 
 
 def play_matches(
@@ -185,7 +272,9 @@ def play_matches(
     running = np.ones(n, dtype=bool)
     winner = np.full(n, WINNER_NONE, dtype=np.int64)
     end_reason = np.zeros(n, dtype=np.int64)
-    max_steps = int(time_limit * 30) + 4
+    max_steps = int(time_limit * TICK_HZ) + 4
+    clock = OrderClock(strike, team, side_commander, len(commanders))
+    clock.observe(env, running)
     for _ in range(max_steps):
         decide_learned(env, side_commander, learned, running)
         _, _, dones, info = env.step(stable.actions(env))
@@ -193,12 +282,13 @@ def play_matches(
         winner[ending] = np.asarray(info.winner)[ending]
         end_reason[ending] = env.end_reason[ending]
         running &= ~dones
+        clock.observe(env, running)
         if not running.any():
             break
     else:
         raise RuntimeError(f"{mission}: {int(running.sum())} matches did not end")
     return MatchesPlayed(
-        winner, end_reason, assign, stable.script, strike, team, hull_id
+        winner, end_reason, assign, stable.script, strike, team, hull_id, clock.stats
     )
 
 
@@ -210,8 +300,9 @@ def play_mission(
     seed: int,
     n_threads: int,
     pilots: list[tuple[str, Path]],
-) -> dict[str, Any]:
-    """Play ``n`` matches of ``mission``; ``a``'s score and how they ended."""
+) -> tuple[dict[str, Any], list[OrderStats]]:
+    """Play ``n`` matches of ``mission``: ``a``'s score, how they ended and what each
+    side's ships were ordered; and the two sides' ``OrderStats`` (a, then b)."""
     rosters = mission_rosters(mission, 24, seed)
     block = 2 * len(rosters)
     if n % block:
@@ -229,7 +320,7 @@ def play_mission(
     draws = winner == WINNER_DRAW
     score = (a_won + 0.5 * draws).astype(float)
     by_side = {f"a_on_team{t}": float(score[a_team == t].mean()) for t in (0, 1)}
-    return {
+    result = {
         "n": n,
         "score_a": float(score.mean()),
         "draw_rate": float(draws.mean()),
@@ -238,7 +329,10 @@ def play_mission(
             str(int(k)): int(v)
             for k, v in zip(*np.unique(played.end_reason, return_counts=True))
         },
+        "orders_a": played.orders[0].summary(),
+        "orders_b": played.orders[1].summary(),
     }
+    return result, played.orders
 
 
 def evaluate(
@@ -261,16 +355,24 @@ def evaluate(
         "pilots": [p for p, _ in pilots],
         "missions": {},
     }
+    pooled = [OrderStats(), OrderStats()]
     for k, mission in enumerate(missions):
         t0 = time.time()
-        res = play_mission(
+        res, orders = play_mission(
             ca, cb, mission, n_per_mission, seed + 1000 * k, n_threads, pilots
         )
         res["secs"] = round(time.time() - t0, 1)
         out["missions"][mission] = res
+        for total, part in zip(pooled, orders):
+            total.flying_s += part.flying_s
+            total.ordered_s += part.ordered_s
+            total.given += part.given
+            total.lengths.extend(part.lengths)
         print(f"{mission}: a scores {res['score_a']:.3f} over {res['n']}", flush=True)
     scores = [m["score_a"] for m in out["missions"].values()]
     out["score_a"] = float(np.mean(scores))
+    out["orders_a"] = pooled[0].summary()
+    out["orders_b"] = pooled[1].summary()
     return out
 
 
@@ -288,6 +390,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(res, indent=1) + "\n")
     print(f"a {res['a']} v b {res['b']}: {res['score_a']:.3f}", flush=True)
+    for side in ("a", "b"):
+        o = res[f"orders_{side}"]
+        if o["orders_ended"]:
+            print(
+                f"{side} orders: {o['orders_per_ship_min']:.1f} a ship-minute, median "
+                f"{o['order_seconds_median']:.1f} s, {o['orders_under_5s']:.0%} under "
+                f"{SHORT_ORDER_S:.0f} s, ordered {o['ordered_share']:.0%} of the time",
+                flush=True,
+            )
     return 0
 
 

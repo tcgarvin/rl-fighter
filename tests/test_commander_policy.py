@@ -27,6 +27,7 @@ from spacefight.commander.policy import (
     CommanderCritic,
     act,
     evaluate,
+    lean_to_keep,
     load_commander,
     n_params,
     sample_actions,
@@ -149,3 +150,30 @@ def test_inputs_reject_a_wrong_shape() -> None:
     } | {k: getattr(x, k).numpy() for k in MASK_SHAPES}
     with pytest.raises(ValueError, match="globals"):
         CommanderInputs.from_numpy(arrays)
+
+
+def test_a_fresh_actor_leans_to_keep_on_its_order_and_squad_heads() -> None:
+    torch.manual_seed(0)
+    actor = CommanderActor()
+    lean_to_keep(actor, 0.8)
+    x = inputs(256)
+    x.valid[:] = True
+    x.order_mask[:] = True
+    x.squad_mask[:] = True
+    actions = sample_actions(actor, x)
+    # Head weights start near zero, so the odds are the bias's: 1,024 order draws and
+    # 5,120 squad draws at 0.8.
+    assert (actions[:, ORDER] == ORDER_KEEP).float().mean() == pytest.approx(
+        0.8, abs=0.05
+    )
+    assert (actions[:, SQUAD_OF_SLOT] == 0).float().mean() == pytest.approx(
+        0.8, abs=0.03
+    )
+    # The choices other than keep stay even with each other.
+    assert actor.order.bias[1:].abs().max() == 0
+
+
+@pytest.mark.parametrize("prior", [0.0, 1.0, -0.2])
+def test_lean_to_keep_refuses_odds_outside_zero_to_one(prior: float) -> None:
+    with pytest.raises(ValueError, match="keep_prior"):
+        lean_to_keep(CommanderActor(), prior)

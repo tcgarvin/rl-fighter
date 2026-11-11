@@ -1,6 +1,6 @@
 """The learned commander's interface from Python (``docs/COMMANDER.md``): the
 ``"learned"`` commander mode and its cadence, ``commander_features``,
-``submit_commander_actions`` with per-env lock state, ``team_values`` and the
+``submit_commander_actions`` with per-env hold state, ``team_values`` and the
 ``rlf_sim.commander_io()`` constants."""
 
 from __future__ import annotations
@@ -70,7 +70,7 @@ def _keep(k: int) -> np.ndarray:
 def test_constants() -> None:
     assert IO["version"] == 1
     assert (IO["entity_dim"], IO["global_dim"], IO["action_dim"]) == (40, 53, 40)
-    assert (IO["n_points"], IO["lock_decisions"]) == (25, 3)
+    assert (IO["n_points"], IO["hold_decisions"]) == (25, 5)
     assert (IO["goto_radius"], IO["vel_scale"]) == (60.0, 100.0)
     assert IO["command_ticks"] == rlf_sim.LEARNED_COMMAND_TICKS == 30
     assert E == rlf_sim.MAX_SHIPS == 20
@@ -164,7 +164,8 @@ def test_submitted_decisions_move_squads_and_lock_them() -> None:
     a[0, ACT["squad"][0] + 1] = 2  # slot 1 -> squad 1
     a[0, ACT["order"][0]] = 4  # squad 1: go to map point 5 (toward home)
     a[0, ACT["point"][0]] = 5
-    env.submit_commander_actions(0, np.array([1], dtype=np.int64), a)
+    changed = env.submit_commander_actions(0, np.array([1], dtype=np.int64), a)
+    assert changed.dtype == np.int32 and changed.tolist() == [2]
     env.scripted_actions()
     env.step()
     squads = env.mission_state(1)["squads"][0]
@@ -177,15 +178,16 @@ def test_submitted_decisions_move_squads_and_lock_them() -> None:
     assert env.mission_state(0)["squads"][0][0]["members"] == []
     locks = env.commander_locks(1, 0)
     assert locks["decisions"] == 1
-    assert locks["squad_lock_left"] == [3, 0, 0, 0]
-    assert locks["ship_lock_left"][:3] == [3, 3, 0]
+    assert locks["squad_hold_left"] == [4, 0, 0, 0]
+    assert locks["ship_hold_left"][:3] == [4, 4, 0]
+    assert locks["changed_ships"] == 2
     f = env.commander_features(0)
     assert not f["order_mask"][1, 0, 1:].any()
     # Env 0 never decided; its pilots are still jumping in, so attack and defend wait.
     assert (f["order_mask"][0, 0] == [True, True, False, False, True]).all()
     assert not f["squad_mask"][1, 0, 1:].any()
-    lock = IO["entity_layout"]["ship_lock"][0]
-    assert f["entities"][1, 0, lock] == pytest.approx(1.0)
+    hold = IO["entity_layout"]["ship_hold"][0]
+    assert f["entities"][1, 0, hold] == pytest.approx(4 / 5)
     assert env.commander_locks(0, 0)["decisions"] == 0
 
 
@@ -224,8 +226,10 @@ def test_locks_reset_when_the_match_is_rebuilt() -> None:
     _step_until_due(env, 0)
     a = _keep(2)
     a[:, ACT["squad"][0]] = 2
+    a[:, ACT["order"][0]] = 4
+    a[:, ACT["point"][0]] = 17
     env.submit_commander_actions(0, np.array([0, 1], dtype=np.int64), a)
-    assert env.commander_locks(0, 0)["ship_lock_left"][0] == 3
+    assert env.commander_locks(0, 0)["ship_hold_left"][0] == 4
     for _ in range(31):
         env.scripted_actions()
         env.step()
@@ -233,7 +237,8 @@ def test_locks_reset_when_the_match_is_rebuilt() -> None:
     for i in range(2):
         locks = env.commander_locks(i, 0)
         assert locks["decisions"] == 0
-        assert locks["ship_lock_left"] == [0] * E
+        assert locks["ship_hold_left"] == [0] * E
+        assert locks["changed_ships"] == 0
         assert locks["last_launch_tick"] is None
 
 

@@ -329,6 +329,28 @@ class CommanderCritic(nn.Module):
         return self.value(s).squeeze(-1)
 
 
+def lean_to_keep(actor: CommanderActor, keep_prior: float) -> None:
+    """Start a fresh actor's order and squad heads at ``keep_prior`` odds of "keep".
+
+    Both heads start near even odds over their choices (keep is one in five, one in
+    six), so an untrained commander re-orders whenever it is allowed to. This sets the
+    bias of choice 0 so that, with every choice allowed, keep has probability
+    ``keep_prior``. It mutates ``actor`` in place and is meant for a new network only.
+
+    Raises:
+        ValueError: ``keep_prior`` is not in (0, 1).
+    """
+    if not 0.0 < keep_prior < 1.0:
+        raise ValueError(f"keep_prior must be in (0, 1), got {keep_prior}")
+    with torch.no_grad():
+        for head, choices in (
+            (actor.order, N_ORDER_CHOICES),
+            (actor.squad[-1], N_SQUAD_CHOICES),
+        ):
+            head.bias.zero_()
+            head.bias[0] = math.log(keep_prior * (choices - 1) / (1.0 - keep_prior))
+
+
 def n_params(module: nn.Module) -> int:
     return sum(p.numel() for p in module.parameters())
 

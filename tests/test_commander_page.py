@@ -47,7 +47,7 @@ def test_every_number_on_the_page_matches_the_code(
         "io.global_dim",
         "io.action_dim",
         "io.n_points",
-        "io.lock_decisions",
+        "io.hold_decisions",
         "cadence.ticks",
         "cadence.per_s",
         "actor.params",
@@ -79,7 +79,7 @@ def test_the_layout_constants_are_the_codes(facts: dict[str, str]) -> None:
         facts["io.global_dim"],
         facts["io.action_dim"],
         facts["io.n_points"],
-        facts["io.lock_decisions"],
+        facts["io.hold_decisions"],
     ) == tuple(
         str(v)
         for v in (
@@ -87,7 +87,7 @@ def test_the_layout_constants_are_the_codes(facts: dict[str, str]) -> None:
             io.GLOBAL_DIM,
             io.ACTION_DIM,
             io.N_POINTS,
-            io.LOCK_DECISIONS,
+            io.HOLD_DECISIONS,
         )
     )
     # One decision a second at 30 ticks a second.

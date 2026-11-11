@@ -9,9 +9,12 @@
 //!   arena radius, velocities by `VEL_SCALE`.
 //! - **Entities** are indexed by ship slot (`MAX_SHIPS`); a slot is valid when its ship
 //!   is alive and on the field or arriving (not docked, not jumped out).
-//! - **Locks** ([`CommanderLocks`]) live beside the match, not in its hashed state, and
-//!   reset with the match. A squad whose order changed, or a ship that moved squad, is
-//!   locked to "keep" for `LOCK_DECISIONS` decisions.
+//! - **Holds** ([`CommanderLocks`]) live beside the match, not in its hashed state, and
+//!   reset with the match. A ship whose order a decision changed (through its squad's
+//!   order or by moving squad) keeps that order for `HOLD_DECISIONS` decisions: it
+//!   cannot move squad, and its squad's order cannot change, until the hold ends. A
+//!   hold ends early when its order is spent ([`ship_hold_left`]): the attack target
+//!   or the ward is gone, or the ship has arrived at its go-to point.
 //! - **Masks** are computed from the state before the decision. [`decode`] applies them
 //!   itself: a choice its mask forbids reads as "keep" (or "hold"), so a decision can
 //!   never do what its masks do not allow. A value outside its head's range is an
@@ -40,8 +43,10 @@ pub const GLOBAL_DIM: usize = 53;
 pub const ACTION_DIM: usize = 40;
 /// Map points (go-to points and carrier waypoints).
 pub const N_POINTS: usize = 25;
-/// Decisions a changed squad order or a moved ship stays locked to "keep".
-pub const LOCK_DECISIONS: u32 = 3;
+/// Decisions from one change of a ship's order to the next one allowed: a ship keeps
+/// an order for at least this many decisions (5 s at the learned cadence) unless the
+/// order is spent first.
+pub const HOLD_DECISIONS: u32 = 5;
 /// Radius of a go-to order (m).
 pub const GOTO_RADIUS: f32 = 60.0;
 /// Velocities are divided by this (m/s).
@@ -117,9 +122,9 @@ pub mod ent {
     pub const THREAT: usize = 36;
     pub const DIST_OWN: usize = 37;
     pub const DIST_ENEMY: usize = 38;
-    pub const SHIP_LOCK: usize = 39;
+    pub const SHIP_HOLD: usize = 39;
 }
-const _: () = assert!(ent::SHIP_LOCK + 1 == ENTITY_DIM);
+const _: () = assert!(ent::SHIP_HOLD + 1 == ENTITY_DIM);
 
 /// Offsets within the globals (`docs/COMMANDER.md` "Globals").
 pub mod glob {
@@ -135,7 +140,7 @@ pub mod glob {
     pub const ENEMY_CARRIER: usize = 12;
     /// Convoy: escaped, destroyed, needed to escape, needed to destroy, charging.
     pub const CONVOY: usize = 13;
-    /// Per squad, `SQUAD_GLOBALS` each: size, order kind one-hot (4), lock left,
+    /// Per squad, `SQUAD_GLOBALS` each: size, order kind one-hot (4), hold left,
     /// go-to point x, y.
     pub const SQUADS: usize = 18;
     pub const OWN_STRIKE: usize = 50;
@@ -173,31 +178,65 @@ const FLAT_ORDER: usize = FLAT_SQUAD + N_ENTITIES * N_SQUAD_CHOICES;
 pub const FLAT_DIM: usize = FLAT_ORDER + MAX_SQUADS * N_ORDER_CHOICES + 2 * N_ENTITIES;
 const _: () = assert!(FLAT_DIM == 1082);
 
-/// One team's lock state (module docs): kept beside the match, not hashed, reset with
-/// the match. Lock ends count decisions: a lock set while decoding decision `n` lasts
-/// through decisions `n + 1 ..= n + LOCK_DECISIONS`.
+/// One team's hold state (module docs): kept beside the match, not hashed, reset with
+/// the match. Hold ends count decisions: a hold set while decoding decision `n` lasts
+/// through decisions `n + 1 ..= n + HOLD_DECISIONS - 1`, so the ship's order may change
+/// again at decision `n + HOLD_DECISIONS`.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CommanderLocks {
     /// Decisions decoded so far this match.
     pub decisions: u32,
-    /// Per squad: the first decision its order is free again.
-    pub squad_lock_end: [u32; MAX_SQUADS],
-    /// Per slot: the first decision the ship may move squad again.
-    pub ship_lock_end: [u32; MAX_SHIPS],
+    /// Per slot: the first decision the ship's order may change again.
+    pub ship_hold_end: [u32; MAX_SHIPS],
+    /// Per slot: `Order::kind` of the order the hold was set with (0 none).
+    pub ship_hold_kind: [u8; MAX_SHIPS],
+    /// Per slot: the match tick the hold was set at (the decision's, one before the
+    /// slow tick that applies it).
+    pub ship_hold_tick: [u32; MAX_SHIPS],
+    /// Ships whose order the last decoded decision changed.
+    pub changed_ships: u32,
     /// The slow tick of the team's last launch decision, `None` before the first.
     pub last_launch_tick: Option<u32>,
 }
 
-impl CommanderLocks {
-    /// Decisions squad `k`'s order stays locked, counting the next one.
-    pub fn squad_lock_left(&self, k: usize) -> u32 {
-        self.squad_lock_end[k].saturating_sub(self.decisions)
+/// Decisions until slot `s`'s order may change again (0: it may now), counting the
+/// next one. A hold whose order is spent is over: once the decision that set it has
+/// applied, a ship given an attack, defend or go-to order whose effective order is
+/// none (the target or ward is gone, or it has arrived) is free at once.
+pub fn ship_hold_left(m: &Match, locks: &CommanderLocks, s: usize) -> u32 {
+    let left = locks.ship_hold_end[s].saturating_sub(locks.decisions);
+    if left == 0 || s >= m.ships.len() {
+        return 0;
     }
+    let spent = locks.ship_hold_kind[s] != 0
+        && m.tick > locks.ship_hold_tick[s]
+        && effective_order(m, s).kind() == 0;
+    if spent { 0 } else { left }
+}
 
-    /// Decisions slot `s` stays in its squad, counting the next one.
-    pub fn ship_lock_left(&self, s: usize) -> u32 {
-        self.ship_lock_end[s].saturating_sub(self.decisions)
-    }
+/// `team`'s strike craft in the match, as a slot mask: the ships a squad can hold.
+fn strike_mask(m: &Match, cat: &Catalogue, team: u8) -> u32 {
+    (0..m.ships.len())
+        .filter(|&s| m.ships[s].team == team && m.in_match(s) && is_strike(m, cat, s))
+        .fold(0u32, |acc, s| acc | 1 << s)
+}
+
+/// Decisions until squad `k` of `team` may take a new order (0: it may now): the
+/// longest hold left among its members.
+pub fn squad_hold_left(
+    m: &Match,
+    cat: &Catalogue,
+    team: u8,
+    locks: &CommanderLocks,
+    k: usize,
+) -> u32 {
+    let team = team & 1;
+    let members = m.command.squads[usize::from(team)][k].members & strike_mask(m, cat, team);
+    (0..m.ships.len())
+        .filter(|&s| members & (1 << s) != 0)
+        .map(|s| ship_hold_left(m, locks, s))
+        .max()
+        .unwrap_or(0)
 }
 
 /// Which choice of each head is allowed (`docs/COMMANDER.md` "Masks"). "Keep" and
@@ -419,7 +458,7 @@ pub fn masks(m: &Match, cat: &Catalogue, team: u8, locks: &CommanderLocks) -> Co
         let ship = &m.ships[s];
         if ship.team == team && is_entity(m, s) && is_strike(m, cat, s) {
             any_strike = true;
-            if locks.ship_lock_left(s) == 0 {
+            if ship_hold_left(m, locks, s) == 0 {
                 out.squad[s] = [true; N_SQUAD_CHOICES];
             }
         }
@@ -432,7 +471,7 @@ pub fn masks(m: &Match, cat: &Catalogue, team: u8, locks: &CommanderLocks) -> Co
     let own_on_field = out.ward.iter().any(|&w| w);
     for (k, row) in out.order.iter_mut().enumerate() {
         row[0] = true;
-        if any_strike && locks.squad_lock_left(k) == 0 {
+        if any_strike && squad_hold_left(m, cat, team, locks, k) == 0 {
             row[1] = true;
             row[2] = enemy_on_field;
             row[3] = own_on_field;
@@ -510,7 +549,7 @@ pub fn features(m: &Match, cat: &Catalogue, team: u8, locks: &CommanderLocks) ->
                 .map_or(0, |k| k + 1);
             e[ent::SQUAD + squad] = 1.0;
             e[ent::ORDER + usize::from(effective_order(m, s).kind())] = 1.0;
-            e[ent::SHIP_LOCK] = locks.ship_lock_left(s) as f32 / LOCK_DECISIONS as f32;
+            e[ent::SHIP_HOLD] = ship_hold_left(m, locks, s) as f32 / HOLD_DECISIONS as f32;
         }
         for (k, q) in squads.iter().enumerate() {
             match q.order {
@@ -574,7 +613,7 @@ pub fn features(m: &Match, cat: &Catalogue, team: u8, locks: &CommanderLocks) ->
         let size = (0..n).filter(|&s| q.contains(s) && is_entity(m, s)).count();
         g[base] = size as f32 / SQUAD_SIZE_SCALE;
         g[base + 1 + usize::from(q.order.kind())] = 1.0;
-        g[base + 5] = locks.squad_lock_left(k) as f32 / LOCK_DECISIONS as f32;
+        g[base + 5] = squad_hold_left(m, cat, team, locks, k) as f32 / HOLD_DECISIONS as f32;
         if let Order::GoTo { point, .. } = q.order {
             let p = point * (sign / radius);
             g[base + 6] = p.x;
@@ -612,10 +651,13 @@ fn reserve_hull(m: &Match, team: u8, class: usize) -> Option<HullId> {
 /// members or order changed (in squad order), then the carrier waypoint, then the
 /// launches (fighter, strafer, gunship). The masks are those of the state now: a choice
 /// they forbid reads as keep or hold. A squad that ends the decision empty takes no new
-/// order. Re-issuing a squad's current order, or moving a ship to the squad it is in, is
-/// not a change and sets no lock. A decision with any launch sets
-/// `locks.last_launch_tick` to the coming slow tick (`tick + 1`). The commands apply
-/// when submitted (`Match::submit_command`) before the team's slow tick.
+/// order. Every ship whose order the decision changed (its squad's order before against
+/// after, none without a squad) starts a hold of `HOLD_DECISIONS`, and
+/// `locks.changed_ships` counts them. Re-issuing a squad's current order, or moving a
+/// ship between squads with the same order, changes no ship's order and sets no hold.
+/// A decision with any launch sets `locks.last_launch_tick` to the coming slow tick
+/// (`tick + 1`). The commands apply when submitted (`Match::submit_command`) before the
+/// team's slow tick.
 pub fn decode(
     m: &Match,
     cat: &Catalogue,
@@ -628,13 +670,10 @@ pub fn decode(
     let t = usize::from(team);
     let n = m.ships.len();
     let allowed = masks(m, cat, team, locks);
-    let lock_end = locks.decisions + 1 + LOCK_DECISIONS;
     let choice = |i: usize| action[i] as usize;
 
     // Squad members now, without the ships the slow tick will drop anyway.
-    let eligible = (0..n)
-        .filter(|&s| m.ships[s].team == team && m.in_match(s) && is_strike(m, cat, s))
-        .fold(0u32, |acc, s| acc | 1 << s);
+    let eligible = strike_mask(m, cat, team);
     let squads = &m.command.squads[t];
     let before: [u32; MAX_SQUADS] = std::array::from_fn(|k| squads[k].members & eligible);
     let mut members = before;
@@ -654,7 +693,6 @@ pub fn decode(
         if let Some(k) = next {
             members[k] |= 1 << s;
         }
-        locks.ship_lock_end[s] = lock_end;
     }
 
     let radius = m.cfg.arena_radius;
@@ -695,7 +733,25 @@ pub fn decode(
         }
         orders[k] = order;
         order_changed[k] = true;
-        locks.squad_lock_end[k] = lock_end;
+    }
+
+    // Hold every ship whose own order this decision changed.
+    let order_of = |sets: &[u32; MAX_SQUADS], of: &dyn Fn(usize) -> Order, s: usize| {
+        sets.iter()
+            .position(|&q| q & (1 << s) != 0)
+            .map_or(Order::None, of)
+    };
+    locks.changed_ships = 0;
+    for s in (0..n).filter(|&s| eligible & (1 << s) != 0) {
+        let old = order_of(&before, &|k| squads[k].order, s);
+        let new = order_of(&members, &|k| orders[k], s);
+        if old == new {
+            continue;
+        }
+        locks.ship_hold_end[s] = locks.decisions + HOLD_DECISIONS;
+        locks.ship_hold_kind[s] = new.kind();
+        locks.ship_hold_tick[s] = m.tick;
+        locks.changed_ships += 1;
     }
 
     let mut out = Vec::new();

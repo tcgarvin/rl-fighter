@@ -63,7 +63,7 @@ jumped in). Docked reserves are not entities; the globals count them.
 | 36 | enemy that threatens one of my capital ships (in its threat set) |
 | 37 | distance to my carrier, or to my lead transport, / R (0 if neither) |
 | 38 | distance to the enemy carrier, or the enemy lead transport, / R (0 if neither) |
-| 39 | own strike craft: squad-move lock left, decisions / `LOCK_DECISIONS` |
+| 39 | own strike craft: order hold left, decisions / `HOLD_DECISIONS` |
 
 **Globals, `GLOBAL_DIM = 53`:**
 
@@ -78,7 +78,7 @@ jumped in). Docked reserves are not entities; the globals count them.
 | 11 | my carrier alive (0 if none) |
 | 12 | enemy carrier alive (0 if none) |
 | 13-17 | convoy: escaped, destroyed, needed to escape, needed to destroy, charging, each / convoy size (0 outside a convoy) |
-| 18-49 | per squad k = 1..4, 8 each: size / 8, order kind one-hot (4), lock left / `LOCK_DECISIONS`, go-to point x, y (team frame, / R; 0 unless go-to) |
+| 18-49 | per squad k = 1..4, 8 each: size / 8, order kind one-hot (4), hold left / `HOLD_DECISIONS` (the longest among its members), go-to point x, y (team frame, / R; 0 unless go-to) |
 | 50 | own strike craft on the field / 10 |
 | 51 | enemy strike craft on the field / 10 |
 | 52 | seconds since my last launch / 20, capped at 1 (1 if never) |
@@ -111,24 +111,48 @@ is the point itself.
   fighter, strafer, gunship in that order; the sim picks the bay; one refused for a busy
   bay is reported, not an error.
 - Carrier waypoint: points only while my carrier is alive.
-- Squad of slot s: only for my strike craft on the field or arriving, and not while its
-  squad-move lock lasts.
+- Squad of slot s: only for my strike craft on the field or arriving, and not while the
+  ship is held.
 - Order of squad k: none, attack, defend and go-to only while my team has strike craft
-  (on the field or arriving) and not while the squad's order lock lasts. Attack also needs
-  an enemy on the field, defend an own ship on the field. Masks are computed before the
-  decision, so a squad that ends the decision empty gets no command; its order is moot.
+  (on the field or arriving) and not while any of the squad's members is held. Attack
+  also needs an enemy on the field, defend an own ship on the field. Masks are computed
+  before the decision, so a squad that ends the decision empty gets no command; its order
+  is moot.
 - Attack target: enemy ships on the field. Defend ward: own ships on the field (strike
   craft or capital).
 
-**Locks:** when a squad's order changes (kind, target or ward, or point), its order is
-locked to "keep" for `LOCK_DECISIONS = 3` decisions. When a ship moves squad, it is locked
-for 3 decisions. Re-issuing the same order is not a change. Launches are never locked.
+**Holds:** a ship whose own order a decision changed keeps that order: it cannot move
+squad, and its squad's order cannot change, until `HOLD_DECISIONS = 5` decisions (5
+seconds) after the change. A change at decision n leaves decisions n+1 to n+4 able only to
+keep; the ship is free again at decision n+5. So a ship's order changes at most once every
+5 seconds.
+
+- A ship's order is its squad's order (kind, target or ward, or point), or none without a
+  squad. It changes when its squad's order changes, when the ship moves to a squad with a
+  different order, or when it joins or leaves a squad and that changes its order.
+- A squad's order is held while any of its members is held: its hold left is the longest
+  among them.
+- A hold ends early when the order is spent: the attack target or the defend ward is gone
+  (dead, or jumped out), or the ship has arrived at its go-to point. The ship can then be
+  re-ordered at once.
+- Moving a ship between squads that have the same order, or from no squad into a squad
+  with no order, changes nobody's order and sets no hold. Re-issuing the same order is not
+  a change.
+- Launches and the carrier waypoint are never held.
+
+The first rule (to 2026-11-10) locked a squad's order for 3 decisions after it changed
+and, separately, a ship for 3 decisions after it moved squad; the two did not see each
+other, so a ship could be re-ordered every second through squad moves. The `c1_*`
+commanders were trained under it. The layouts did not change, so `COMMANDER_IO_VERSION`
+stays 1. The owner's reason for the change: commanders "change orders far too often,
+sometimes giving ships changing orders every second".
 
 **Decoding** (Rust, shared by training and the browser): apply the squad moves to get each
 squad's members, then each squad's order, then send a `Command::Squad` for every squad whose
-members or order changed, then the waypoint, then the launches. The lock state (per team:
-decision count, squad lock ends, ship lock ends, last launch tick) lives beside the match,
-not in its hashed state, and resets with the match.
+members or order changed, then the waypoint, then the launches. Every ship whose order
+the decision changed starts a hold. The hold state (per team: decision count, each ship's
+hold, the number of ships the last decision changed, last launch tick) lives beside the
+match, not in its hashed state, and resets with the match.
 
 ## Rust implementation
 
@@ -150,19 +174,35 @@ it reads it so:
   the team has a carrier, alive or not (0 without). 13-17 use `convoy_status`
   (`to_escape`, `to_destroy`). A squad's size (18 + 8k) counts its members that are
   entities; its order kind is its standing order's. A drill reads as a deathmatch.
-- **Locks.** `CommanderLocks` keeps a decision count and, per squad and per slot, the
-  first decision that is free again: a change decoded at decision `n` locks decisions
-  `n + 1 ..= n + 3`. "Lock left" is the locked decisions still to come, counting the next
-  one (3, 2, 1, then 0). Python keeps one per env and team and resets it whenever that
-  env's match is rebuilt; the browser keeps one per team per `WasmMatch`.
+- **Holds.** `CommanderLocks` (the name is from the first rule) keeps a decision count
+  and, per slot, the first decision at which the ship's order may change again, the kind
+  of the order the hold was set with, and the tick it was set at: a change decoded at
+  decision `n` holds decisions `n + 1 ..= n + 4`, and the ship is free at `n + 5`. "Hold
+  left" (`ship_hold_left`) is the held decisions still to come, counting the next one (4,
+  3, 2, 1, then 0), so feature 39 is at most 0.8. A squad's hold left
+  (`squad_hold_left`) is the longest among its members, read from the match's squads
+  now; a ship that joins a squad with a different order is held, and so holds that
+  squad's order too. Python keeps one `CommanderLocks` per env and team and resets it
+  whenever that env's match is rebuilt; the browser keeps one per team per `WasmMatch`.
+- **Whose order changed.** For each of the team's strike craft, decoding compares the
+  whole order of its squad before the decision with that of its squad after (none
+  without a squad). Every ship for which they differ starts a hold, and the count is kept
+  as `changed_ships`. That covers a ship that loses its order (moved to no squad, or its
+  squad's order set to none): it is held too.
+- **A spent order.** A hold set with an attack, defend or go-to order is over as soon as
+  the ship's effective order (`order::effective_order`) is none: the target or ward is
+  not on the field, or the ship has arrived at the go-to point. This is read only once the
+  decision that set the hold has applied (a later tick), so the ship's old order cannot
+  end the new hold. A hold set with no order runs its full length. When one member of a
+  squad arrives, that ship can be moved at once, but the squad's order stays held while
+  another member is.
 - **Decoding applies the masks itself**, computed from the state before the decision: a
   choice its mask forbids reads as keep (or hold), including an attack or defend whose
   target or ward head names a slot its mask forbids. A value outside its head's choices,
   or a decision that is not 40 values, is an error and changes nothing.
-- **A squad that ends the decision empty** takes no new order (and no order lock). If its
-  members changed (every member moved out, or to no squad), it still gets a
-  `Command::Squad` with no members and its current order, so a move to "no squad" takes
-  effect.
+- **A squad that ends the decision empty** takes no new order. If its members changed
+  (every member moved out, or to no squad), it still gets a `Command::Squad` with no
+  members and its current order, so a move to "no squad" takes effect.
 - **Waypoints and launches.** A chosen waypoint is always sent (re-sending the same point
   is harmless). A decision with any allowed launch sets the last launch tick to the coming
   slow tick, even if the sim then refuses a second launch for a busy bay. Each launch
@@ -180,13 +220,18 @@ Python (`rlf_sim.VecEnv`; thin wrappers of the same names on `RustVecEnv`), `N` 
   `[N, E, 40]`, `valid` bool `[N, E]`, `launch_mask` bool `[N, 3]`, `waypoint_mask` bool
   `[N, 26]`, `squad_mask` bool `[N, E, 6]`, `order_mask` bool `[N, 4, 5]`, `target_mask`
   bool `[N, E]`, `ward_mask` bool `[N, E]`
-- `submit_commander_actions(team, env_ids: int64[K], actions: int32[K, 40])` (ValueError
-  before any env changes for a wrong dtype or shape, a repeated env, a team that takes no
-  decisions, an env not due, or a value out of range; IndexError for a bad env id)
-- `commander_locks(i, team) -> dict` (`decisions`, `squad_lock_left`, `ship_lock_left`,
-  `last_launch_tick`), `team_values() -> f32 [N, 2]`
-- module level: `rlf_sim.commander_io()` (version, dims, scales, action heads as
-  `name -> (offset, width, choices)`, entity, global and flat layouts),
+- `submit_commander_actions(team, env_ids: int64[K], actions: int32[K, 40]) -> int32[K]`:
+  the number of ships whose order each decision changed (ValueError before any env
+  changes for a wrong dtype or shape, a repeated env, a team that takes no decisions, an
+  env not due, or a value out of range; IndexError for a bad env id)
+- `commander_locks(i, team) -> dict`: `decisions`, `squad_hold_left` (per squad) and
+  `ship_hold_left` (per slot) as the next decision would see them (0 is free now),
+  `changed_ships` (by the last decision), `last_launch_tick`
+- `team_values() -> f32 [N, 2]`
+- module level: `rlf_sim.commander_io()` (lowercase keys: `version`, dims, scales,
+  `hold_decisions`, `command_ticks` (the learned cadence), action heads as
+  `name -> (offset, width, choices)`, entity, global and flat layouts; entity feature 39
+  is `ship_hold`),
   `LEARNED_COMMAND_TICKS`; `"learned"` in `COMMANDER_MODES` (and `spacefight.env.
   rosters.COMMANDER_MODES`), accepted by the constructor and `set_next_roster`.
 
@@ -207,6 +252,12 @@ not change which policy is best) with `phi = SHAPING_WEIGHT * (v_own - v_enemy) 
 (team values as the sim computes them, `v_total0` both teams' value at the start), plus
 +1 for a win and -1 for a loss at the end (a draw 0), by each mission's own rules.
 `SHAPING_WEIGHT` starts at 0.5.
+
+**The price of an order** (`TrainConfig.order_price`, default 0.0): each decision's reward
+is reduced by `order_price` times the number of ships whose order that decision changed
+(what `submit_commander_actions` returns). It is not potential-based: it is meant to
+change which policy is best, as the price of a shot does for the pilots. At the default
+it does nothing.
 
 ## Network (Python, exported for the browser)
 
@@ -229,3 +280,12 @@ PPO over decisions with GAE (`gamma` 0.99 per decision, `lambda` 0.95). Each mat
 the learner's team at random, the enemy commander from the stable (scripted, random, the
 learner itself, its past snapshots; weighted toward the ones it beats least), and every
 strike craft's pilot from the live list. Missions and rosters as on the live page.
+
+**Keep prior** (`TrainConfig.keep_prior`, default 0.8): a fresh actor's order and squad
+heads start with a bias toward "keep", so an untrained commander keeps with about that
+probability when every choice is allowed, not 1 time in 5 (order) or 1 in 6 (squad). It
+applies to a new network only.
+
+The training log (`log.jsonl` in the run directory) also records, per update,
+`order_seconds` (the mean seconds a ship goes between changes of its order) and
+`ordered_share` (the share of ship-seconds spent with an order).

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
+import torch
 
 from spacefight.commander.train import (
     LEARNER,
@@ -86,3 +88,49 @@ def test_an_assignment_names_each_side(opponent, modes, controllers) -> None:
     flipped = Assignment(learner_team=1, opponent=opponent, snapshot=3)
     assert flipped.modes() == modes[::-1]
     assert flipped.controllers() == controllers[::-1]
+
+
+def behaviour_trainer() -> SimpleNamespace:
+    """The trainer's counting state, with entity columns laid out as: own, three strike
+    classes, then none / attack / defend / go-to."""
+    return SimpleNamespace(
+        match_stats=defaultdict(float),
+        own_col=0,
+        strike_cols=slice(1, 4),
+        ordered_cols=slice(5, 8),
+        decision_s=1.0,
+    )
+
+
+def test_the_log_says_how_long_a_ship_keeps_an_order() -> None:
+    fake = behaviour_trainer()
+    # Two decisions, each seeing four entities: an own fighter attacking, an own
+    # gunship with no order, an own carrier (no strike class) and an enemy fighter.
+    entity = np.zeros((2, 4, 8), dtype=np.float32)
+    entity[:, 0, [0, 1, 5]] = 1.0
+    entity[:, 1, [0, 3, 4]] = 1.0
+    entity[:, 2, 0] = 1.0
+    entity[:, 3, 1] = 1.0
+    actions = torch.zeros((2, 40), dtype=torch.int64)
+    Trainer._behaviour(fake, actions, entity, np.array([1, 0], dtype=np.int32))  # type: ignore[arg-type]
+    out = Trainer._summarise_matches(fake)  # type: ignore[arg-type]
+    # Four strike-craft decisions, one order change: a change every 4 seconds a ship.
+    assert out["order_seconds"] == 4.0
+    assert out["ordered_share"] == 0.5
+
+
+def test_a_run_with_no_order_changes_logs_no_order_seconds() -> None:
+    fake = behaviour_trainer()
+    entity = np.zeros((1, 2, 8), dtype=np.float32)
+    entity[:, 0, [0, 1, 4]] = 1.0
+    Trainer._behaviour(  # type: ignore[arg-type]
+        fake, torch.zeros((1, 40), dtype=torch.int64), entity, np.array([0])
+    )
+    out = Trainer._summarise_matches(fake)  # type: ignore[arg-type]
+    assert "order_seconds" not in out
+    assert out["ordered_share"] == 0.0
+
+
+def test_the_price_of_an_order_must_not_be_negative() -> None:
+    with pytest.raises(ValueError, match="order_price"):
+        TrainConfig(order_price=-0.001)

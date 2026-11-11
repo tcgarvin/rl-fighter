@@ -1,0 +1,6 @@
+deathmatch: a scores 0.589 over 192
+carrier_battle: a scores 0.557 over 192
+convoy_escort: a scores 0.609 over 192
+a price2/commander_413 v b scripted: 0.585
+a orders: 6.3 a ship-minute, median 5.0 s, 7% under 5 s, ordered 48% of the time
+b orders: 5.1 a ship-minute, median 8.0 s, 31% under 5 s, ordered 99% of the time

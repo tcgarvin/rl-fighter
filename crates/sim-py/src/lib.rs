@@ -127,7 +127,7 @@ fn rlf_sim(m: &Bound<'_, PyModule>) -> PyResult<()> {
 }
 
 /// The learned commander's interface constants (`sim::commander_io`,
-/// `docs/COMMANDER.md`), a new dict: `version`, the dims and scales, `lock_decisions`,
+/// `docs/COMMANDER.md`), a new dict: `version`, the dims and scales, `hold_decisions`,
 /// `goto_radius`, `vel_scale`, `point_radii`, `command_ticks` (the learned cadence),
 /// the action heads as `actions` (`name -> (offset, width, choices)`), the entity and
 /// global blocks as `entity_layout` / `global_layout` (`name -> (offset, width)`), and
@@ -148,7 +148,7 @@ fn commander_io<'py>(py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
     d.set_item("n_squad_choices", io::N_SQUAD_CHOICES)?;
     d.set_item("n_order_choices", io::N_ORDER_CHOICES)?;
     d.set_item("squad_globals", io::SQUAD_GLOBALS)?;
-    d.set_item("lock_decisions", io::LOCK_DECISIONS)?;
+    d.set_item("hold_decisions", io::HOLD_DECISIONS)?;
     d.set_item("goto_radius", io::GOTO_RADIUS)?;
     d.set_item("vel_scale", io::VEL_SCALE)?;
     d.set_item("point_radii", io::POINT_RADII.to_vec())?;
@@ -188,7 +188,7 @@ fn commander_io<'py>(py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         ("threat", io::ent::THREAT, 1),
         ("dist_own", io::ent::DIST_OWN, 1),
         ("dist_enemy", io::ent::DIST_ENEMY, 1),
-        ("ship_lock", io::ent::SHIP_LOCK, 1),
+        ("ship_hold", io::ent::SHIP_HOLD, 1),
     ] {
         entity.set_item(name, (off, width))?;
     }

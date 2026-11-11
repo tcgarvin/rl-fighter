@@ -1,0 +1,33 @@
+10:45:21 eval price2_v_scripted
+10:45:21 eval hold_v_scripted
+11:01:01 eval price5_v_scripted
+11:02:18 eval random_v_scripted
+11:14:05 eval c1_shaped_v_scripted
+11:17:18 eval hold_v_price2
+11:26:28 eval hold_v_price5
+11:28:40 eval price2_v_price5
+    shaped/commander_327 v scripted                 0.531  (deathma 0.54 carrier 0.52 convoy_ 0.54)
+                           a orders: 6.8/ship-min, median 5.0 s, 7% under 5 s, ordered 53%
+                           b orders: 4.9/ship-min, median 8.0 s, 28% under 5 s, ordered 99%
+      hold/commander_412 v price2/commander_413     0.551  (deathma 0.62 carrier 0.49 convoy_ 0.54)
+                           a orders: 5.3/ship-min, median 5.0 s, 5% under 5 s, ordered 41%
+                           b orders: 6.3/ship-min, median 5.0 s, 7% under 5 s, ordered 48%
+      hold/commander_412 v price5/commander_417     0.509  (deathma 0.55 carrier 0.46 convoy_ 0.52)
+                           a orders: 5.3/ship-min, median 5.0 s, 6% under 5 s, ordered 41%
+                           b orders: 5.8/ship-min, median 5.0 s, 7% under 5 s, ordered 45%
+      hold/commander_412 v scripted                 0.589  (deathma 0.64 carrier 0.49 convoy_ 0.64)
+                           a orders: 5.3/ship-min, median 5.0 s, 7% under 5 s, ordered 41%
+                           b orders: 5.0/ship-min, median 8.0 s, 29% under 5 s, ordered 99%
+    price2/commander_413 v price5/commander_417     0.488  (deathma 0.49 carrier 0.50 convoy_ 0.47)
+                           a orders: 6.4/ship-min, median 5.0 s, 7% under 5 s, ordered 48%
+                           b orders: 5.8/ship-min, median 5.0 s, 7% under 5 s, ordered 44%
+    price2/commander_413 v scripted                 0.585  (deathma 0.59 carrier 0.56 convoy_ 0.61)
+                           a orders: 6.3/ship-min, median 5.0 s, 7% under 5 s, ordered 48%
+                           b orders: 5.1/ship-min, median 8.0 s, 31% under 5 s, ordered 99%
+    price5/commander_417 v scripted                 0.624  (deathma 0.64 carrier 0.65 convoy_ 0.58)
+                           a orders: 5.7/ship-min, median 5.0 s, 7% under 5 s, ordered 45%
+                           b orders: 5.1/ship-min, median 8.0 s, 29% under 5 s, ordered 99%
+                  random v scripted                 0.600  (deathma 0.58 carrier 0.61 convoy_ 0.61)
+                           a orders: 4.2/ship-min, median 10.0 s, 8% under 5 s, ordered 62%
+                           b orders: 4.7/ship-min, median 8.0 s, 31% under 5 s, ordered 99%
+11:37:33 done: morning (status 0)

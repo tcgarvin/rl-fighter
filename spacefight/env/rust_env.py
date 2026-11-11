@@ -41,7 +41,7 @@ The learned commander (``docs/COMMANDER.md``): a team whose commander is
 ``"learned"`` decides every ``LEARNED_COMMAND_TICKS``. ``commander_due(team)`` says
 which envs decide before the next step, ``commander_features(team)`` gives every env's
 inputs and masks, ``submit_commander_actions(team, env_ids, actions)`` decodes the
-decisions in the sim (per env and team lock state, reset with the match) and
+decisions in the sim (per env and team hold state, reset with the match) and
 ``team_values()`` is the shaping potential.
 
 A ``Roster`` can also place its ships (``start_layout``), carry the orders an external
@@ -527,7 +527,7 @@ class RustVecEnv:
         team: int,
         env_ids: Sequence[int] | NDArray[np.integer],
         actions: NDArray[np.integer],
-    ) -> None:
+    ) -> NDArray[np.int32]:
         """Decode and queue team ``team``'s decisions for the envs ``env_ids``.
 
         Args:
@@ -535,6 +535,9 @@ class RustVecEnv:
             env_ids: [K] env indices, each due (``commander_due(team)``) and with a
                 ``"learned"`` (or ``"external"``) commander on that team.
             actions: [K, ACTION_DIM] integers (``docs/COMMANDER.md`` "Outputs").
+
+        Returns:
+            [K] int32: the ships whose order each decision changed.
 
         Raises:
             ValueError: A shape mismatch, a repeated env, an env not due or whose
@@ -544,11 +547,12 @@ class RustVecEnv:
         """
         ids = np.ascontiguousarray(env_ids, dtype=np.int64).reshape(-1)
         acts = np.ascontiguousarray(actions, dtype=np.int32)
-        self._env.submit_commander_actions(team, ids, acts)
+        return self._env.submit_commander_actions(team, ids, acts)
 
     def commander_locks(self, i: int, team: int) -> dict[str, object]:
-        """Team ``team``'s commander lock state in env ``i`` (``decisions``,
-        ``squad_lock_left``, ``ship_lock_left``, ``last_launch_tick``)."""
+        """Team ``team``'s commander hold state in env ``i`` (``decisions``,
+        ``squad_hold_left``, ``ship_hold_left``, ``changed_ships``,
+        ``last_launch_tick``)."""
         return dict(self._env.commander_locks(i, team))
 
     def team_values(self) -> NDArray[np.float32]:

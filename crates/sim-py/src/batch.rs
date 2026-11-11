@@ -223,7 +223,7 @@ struct Slot {
     next: Option<Roster>,
     /// Flat `EVENT_STRIDE` encoding of the last step's events (record_events only).
     events: Vec<f32>,
-    /// Per team: the learned commander's lock state (`commander_io`), reset whenever
+    /// Per team: the learned commander's hold state (`commander_io`), reset whenever
     /// `m` is rebuilt.
     locks: [CommanderLocks; 2],
 }
@@ -391,9 +391,29 @@ impl Batch {
         });
     }
 
-    /// Team `team`'s commander lock state in env `i` (`commander_io::CommanderLocks`).
+    /// Team `team`'s commander hold state in env `i` (`commander_io::CommanderLocks`).
     pub fn commander_locks(&self, i: usize, team: u8) -> &CommanderLocks {
         &self.slots[i].locks[usize::from(team & 1)]
+    }
+
+    /// Team `team`'s holds in env `i` as the next decision would see them: decisions
+    /// until each squad may take a new order, and until each slot's order may change
+    /// (`commander_io::squad_hold_left`, `ship_hold_left`; 0 is free now).
+    pub fn commander_holds(
+        &self,
+        i: usize,
+        team: u8,
+    ) -> (
+        [u32; sim::command::MAX_SQUADS],
+        [u32; sim::state::MAX_SHIPS],
+    ) {
+        let slot = &self.slots[i];
+        let locks = &slot.locks[usize::from(team & 1)];
+        let squads = std::array::from_fn(|k| {
+            commander_io::squad_hold_left(&slot.m, &self.cat, team, locks, k)
+        });
+        let ships = std::array::from_fn(|s| commander_io::ship_hold_left(&slot.m, locks, s));
+        (squads, ships)
     }
 
     /// Per env: whether the next step is team `team`'s slow tick.
@@ -904,15 +924,23 @@ mod tests {
             Err(BatchError::Decode { .. })
         ));
         assert_eq!(b.commander_locks(0, 0).decisions, 0, "nothing decoded");
-        a[commander_io::act::ORDER] = 0;
+        a[commander_io::act::ORDER] = 4;
+        a[commander_io::act::POINT] = 17;
         assert_eq!(b.submit_commander_action(0, 0, &a).unwrap(), 1);
         assert_eq!(b.commander_locks(0, 0).decisions, 1);
+        assert_eq!(b.commander_locks(0, 0).changed_ships, 1);
         assert_eq!(b.commander_locks(1, 0).decisions, 0, "env 1 untouched");
         scripted_steps(&mut b, &mut o, 1);
         assert_eq!(b.match_at(0).command.squads[0][0].members, 0b1);
         let f = b.commander_features(0);
-        assert_eq!(f[0].entities[0][commander_io::ent::SHIP_LOCK], 1.0);
-        assert_eq!(f[1].entities[0][commander_io::ent::SHIP_LOCK], 0.0);
+        let held = (commander_io::HOLD_DECISIONS - 1) as f32 / commander_io::HOLD_DECISIONS as f32;
+        assert_eq!(f[0].entities[0][commander_io::ent::SHIP_HOLD], held);
+        assert_eq!(f[1].entities[0][commander_io::ent::SHIP_HOLD], 0.0);
+        assert_eq!(
+            b.commander_holds(0, 0).0[0],
+            commander_io::HOLD_DECISIONS - 1
+        );
+        assert_eq!(b.commander_holds(1, 0).1[0], 0);
         // The duel ends on its 300-tick clock; the rebuilt match starts unlocked.
         scripted_steps(&mut b, &mut o, 271);
         assert_eq!(o.episode_count[0], 1);

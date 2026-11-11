@@ -23,7 +23,8 @@ ACTION_DIM: Final = 40
 N_POINTS: Final = 25
 N_SQUADS: Final = 4
 N_LAUNCH_HULLS: Final = 3
-LOCK_DECISIONS: Final = 3
+# A ship keeps a changed order this many decisions unless the order is spent first.
+HOLD_DECISIONS: Final = 5
 
 # Action columns (docs/COMMANDER.md "Outputs").
 LAUNCH: Final = slice(0, 3)
@@ -40,7 +41,7 @@ N_ORDER_CHOICES: Final = 5
 N_SQUAD_CHOICES: Final = 2 + N_SQUADS  # keep, no squad, squad 1-4
 N_WAYPOINT_CHOICES: Final = 1 + N_POINTS
 
-# Per-squad block of the globals: size, kind one-hot (4), lock, point x, y.
+# Per-squad block of the globals: size, kind one-hot (4), hold left, point x, y.
 SQUAD_GLOBALS: Final = slice(18, 50)
 SQUAD_GLOBAL_DIM: Final = 8
 
@@ -61,15 +62,19 @@ def check_sim_layout(io: Mapping[str, object]) -> None:
         ValueError: A constant differs (the sim and the network disagree on a layout).
     """
     expected = {
-        "COMMANDER_IO_VERSION": COMMANDER_IO_VERSION,
-        "ENTITY_DIM": ENTITY_DIM,
-        "GLOBAL_DIM": GLOBAL_DIM,
-        "ACTION_DIM": ACTION_DIM,
-        "N_POINTS": N_POINTS,
-        "LOCK_DECISIONS": LOCK_DECISIONS,
+        "version": COMMANDER_IO_VERSION,
+        "entity_dim": ENTITY_DIM,
+        "global_dim": GLOBAL_DIM,
+        "action_dim": ACTION_DIM,
+        "n_points": N_POINTS,
+        "hold_decisions": HOLD_DECISIONS,
     }
     for key, value in expected.items():
-        if key in io and int(io[key]) != value:  # type: ignore[call-overload]
+        if key not in io:
+            raise ValueError(
+                f"the sim's commander_io() has no {key!r}: rebuild rlf_sim"
+            )
+        if int(io[key]) != value:  # type: ignore[call-overload]
             raise ValueError(f"sim {key} = {io[key]}, the commander expects {value}")
 
 

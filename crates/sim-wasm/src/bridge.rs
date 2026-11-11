@@ -141,7 +141,7 @@ pub fn parse_config(cat: &Catalogue, config_json: &str) -> Result<MatchConfig, S
 pub struct MatchCore {
     cat: Catalogue,
     m: Match,
-    /// Per team: the learned commander's lock state (`sim::commander_io`), as long
+    /// Per team: the learned commander's hold state (`sim::commander_io`), as long
     /// as the match (a new match is a new `MatchCore`).
     locks: [CommanderLocks; 2],
     ships: Vec<f32>,
