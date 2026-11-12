@@ -87,7 +87,12 @@ opponent quota and has the script fly its enemies (``OpponentAssigner.force_scri
 with the learner on the ordered team, team 0, and logs it apart: drills are not in the
 episode tallies. Drill pay is match pay plus order pay; the sim's drill rules end a drill
 as a draw, so no match result is in it. With ``drill_share`` 0 none of this runs and the
-random draws are unchanged.
+random draws are unchanged. Three in four go-to drills carry a deadline in the order
+(SIM_VERSION 8); ``goto_timed_bonus`` and ``goto_miss_penalty`` set what arriving by it
+earns and missing it costs, for every match of the env. ``drill_success["goto"]`` is the
+share of go-to drill ships that arrived in time (a ship killed on the way counts
+against it), ``drill_goto_missed`` the share of ships under a deadline that were alive
+when it passed without them, and ``drill_goto_timed_ships`` how many that is of.
 
 Commander stable (``docs/PILOT_TRAINING.md`` §3, ``spacefight.commander.stable``). With
 ``commander_stable`` set, each side of every match that is not a drill and shows its
@@ -126,6 +131,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import math
 import os
 import time
 from collections.abc import Callable, Iterable, Sequence
@@ -141,7 +147,7 @@ from numpy.typing import NDArray
 from spacefight.commander.decide import NOT_IN_STABLE, decide_learned
 from spacefight.commander.policy import CommanderActor
 from spacefight.commander.stable import StableSampler, commander_label, resolve_stable
-from spacefight.env.drills import DrillLedger
+from spacefight.env.drills import DrillLedger, DrillOutcome
 from spacefight.env.rosters import (
     CONVOY_ESCORT,
     Roster,
@@ -153,6 +159,8 @@ from spacefight.env.rosters import (
 )
 from spacefight.env.rust_env import (
     ATTACK_COL,
+    DEFAULT_GOTO_MISS_PENALTY,
+    DEFAULT_GOTO_TIMED_BONUS,
     HAS_ORDER_COL,
     OBS_DIM,
     OBS_LAYOUT,
@@ -320,6 +328,8 @@ LOG_KEYS: tuple[str, ...] = (
     "drill_rows_share",
     "drill_episodes",
     "drill_success",
+    "drill_goto_timed_ships",
+    "drill_goto_missed",
     "commander_decisions",
     "commander_share",
     "episodes_by_commander",
@@ -330,10 +340,6 @@ LOG_KEYS: tuple[str, ...] = (
     "hull_damage_dealt",
 )
 
-
-# Rollout steps between reads of the sim's order tracks for the drill log's go-to arrivals.
-# Under the drill clock's margin, so an arrival on a deadline is seen.
-DRILL_TRACK_EVERY = 15
 
 # Diagnostics returned by ``ppo_update`` (null in the log when it is skipped).
 PPO_METRIC_KEYS: tuple[str, ...] = (
@@ -441,6 +447,11 @@ class PPOConfig:
     enemy_pfsp_floor: float = DEFAULT_PFSP_FLOOR
     # Step reward = team reward + order_reward_weight * order_rewards (SIM_VERSION 5).
     order_reward_weight: float = 0.0
+    # Order pay of a go-to that carries a deadline (SIM_VERSION 8; drills issue them):
+    # for arriving by it, instead of the 0.2 of a go-to without one, and the one charge
+    # for missing it. Before order_reward_weight, like the rest of the order pay.
+    goto_timed_bonus: float = DEFAULT_GOTO_TIMED_BONUS
+    goto_miss_penalty: float = DEFAULT_GOTO_MISS_PENALTY
     # Reward hiding (run 2026-11-01-fighters-v2): a shot chosen on a row with an order
     # pays nothing from the team reward; the order reward pays what the order wants
     # (damage to its target or threat set). Damage taken, fire cost, arena and the
@@ -561,6 +572,7 @@ class PPOConfig:
             raise ValueError("kl_anchor_coeff must be >= 0 and needs a kl_anchor")
         if not 0 <= self.obs_dim <= OBS_DIM:
             raise ValueError(f"obs_dim must be in 0..={OBS_DIM}, got {self.obs_dim}")
+        self._check_goto_pay()
         if self.beta_rows not in BETA_ROWS:
             raise ValueError(
                 f"beta_rows must be one of {BETA_ROWS}, got {self.beta_rows}"
@@ -574,6 +586,23 @@ class PPOConfig:
                 f"beta_heads must be one of {tuple(HEAD_SETS)}, got {self.beta_heads}"
             )
         self._check_commander_stable()
+
+    def _check_goto_pay(self) -> None:
+        """The pay of a go-to with a deadline.
+
+        Raises:
+            ValueError: ``goto_timed_bonus`` or ``goto_miss_penalty`` is not a finite
+                number >= 0.
+        """
+        pay = {
+            "goto_timed_bonus": self.goto_timed_bonus,
+            "goto_miss_penalty": self.goto_miss_penalty,
+        }
+        for name, value in pay.items():
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"{name} must be a number, got {value!r}")
+            if not math.isfinite(value) or value < 0.0:
+                raise ValueError(f"{name} must be finite and >= 0, got {value}")
 
     def _check_commander_stable(self) -> None:
         """The commander stable's specs and weights (their files load in the trainer).
@@ -1122,6 +1151,10 @@ class EpisodeTally:
     # Drill kind -> [successes, trials, episodes] (``DrillLedger.finish``); drills are
     # not in any count above.
     drills: dict[str, list[int]] = field(default_factory=dict)
+    # Go-to drill ships whose order carried a deadline, and those of them that were
+    # alive when it passed without them.
+    goto_timed_ships: int = 0
+    goto_missed: int = 0
     # Rows on the learner's side, and how many of them were in drills.
     side_rows: int = 0
     drill_rows: int = 0
@@ -1160,18 +1193,21 @@ class EpisodeTally:
         if kind == OpponentKind.SCRIPTED:
             self.scripted_by_class.setdefault(size_class, [0, 0, 0])[slot] += 1
 
-    def add_drill(self, kind: str, successes: int, trials: int) -> None:
+    def add_drill(self, outcome: DrillOutcome) -> None:
         """Record one finished drill (``DrillLedger.finish``)."""
-        tally = self.drills.setdefault(kind, [0, 0, 0])
-        tally[0] += successes
-        tally[1] += trials
+        tally = self.drills.setdefault(outcome.kind, [0, 0, 0])
+        tally[0] += outcome.successes
+        tally[1] += outcome.trials
         tally[2] += 1
+        self.goto_timed_ships += outcome.timed_ships
+        self.goto_missed += outcome.missed
 
     def log_fields(self) -> dict[str, object]:
         """``vs_<kind>_{win,draw,loss,episodes}``, ``episodes``, mean length, mean
         ships per match, and the win rate (draws ½) against the script per roster
-        size class; the drills' share of the rollout, and their episodes and success
-        rate per kind."""
+        size class; the drills' share of the rollout, their episodes and success
+        rate per kind, and the go-to ships under a deadline with the share that
+        missed it (null with none)."""
         out: dict[str, object] = {}
         out["drill_rows_share"] = (
             self.drill_rows / self.side_rows if self.side_rows else 0.0
@@ -1183,6 +1219,10 @@ class EpisodeTally:
             kind: counts[0] / counts[1] if counts[1] else None
             for kind, counts in sorted(self.drills.items())
         }
+        out["drill_goto_timed_ships"] = self.goto_timed_ships
+        out["drill_goto_missed"] = (
+            self.goto_missed / self.goto_timed_ships if self.goto_timed_ships else None
+        )
         for name, (win, draw, loss) in self.outcomes.items():
             total = win + draw + loss
             out[f"vs_{name}_win"] = win / total if total else None
@@ -1331,6 +1371,8 @@ class SpikeTrainer:
             max_ships=config.max_ships or None,
             roster_sampler=sampler,
             order_shaping_gamma=config.gamma,
+            goto_timed_bonus=config.goto_timed_bonus,
+            goto_miss_penalty=config.goto_miss_penalty,
         )
         self.n_envs, self.n_ships = self.env.n_envs, self.env.n_ships
         self.rows = self.n_envs * self.n_ships
@@ -1763,9 +1805,15 @@ class SpikeTrainer:
                 drill_rows = np.repeat(self.drill_ledger.running, n_ships)
                 tally.side_rows += int(own.sum())
                 tally.drill_rows += int((own & drill_rows).sum())
-                if b % DRILL_TRACK_EVERY == 0 and self.drill_ledger.any_goto_running():
-                    self.drill_ledger.see_arrivals(
-                        np.asarray(env.order_tracks()["arrived"], dtype=np.bool_)
+                if self.drill_ledger.any_goto_running():
+                    # Every step: the order tracks cost microseconds, and an arrival
+                    # is in time only if it is seen by its deadline's tick.
+                    tracks = env.order_tracks()
+                    self.drill_ledger.see_tracks(
+                        np.asarray(tracks["arrived"], dtype=np.bool_),
+                        np.asarray(tracks["missed"], dtype=np.bool_),
+                        np.asarray(env.raw.alive, dtype=np.bool_),
+                        np.asarray(env.raw.tick),
                     )
             policy_np = np.flatnonzero(learner)
             policy_rows = torch.from_numpy(policy_np)
@@ -1845,7 +1893,7 @@ class SpikeTrainer:
                 for env_id, length in zip(done_envs, lengths):
                     roster = rosters[int(env_id)]
                     if roster.drill is not None:
-                        tally.add_drill(*self.drill_ledger.finish(int(env_id)))
+                        tally.add_drill(self.drill_ledger.finish(int(env_id)))
                         continue
                     learner_team = int(self.learner_team[env_id])
                     tally.add(

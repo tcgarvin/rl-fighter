@@ -4,11 +4,18 @@ it was told?
 Fixed seeds, separate from training. For a checkpoint or ``script``, per kind and overall,
 with counts and standard errors:
 
-- **go-to**: each ship's arrival by its deadline (``spacefight.env.drills``), shown and
-  with the orders hidden from the obs on the same seeds. A ship killed before its
-  deadline without arriving is *censored*, not failed: fighting on the way is allowed.
-  The script flies orders it cannot see, so its hidden pass would prove nothing and is
-  skipped.
+- **go-to**: each ship's arrival by its deadline (``DrillSpec.deadlines``: the order's
+  own deadline when it carries one, SIM_VERSION 8, else the old rule of twice the
+  straight-line time plus 10 s), shown and with the orders hidden from the obs on the
+  same seeds. A ship killed before its deadline without arriving is *censored*, not
+  failed: fighting on the way is allowed. The script flies orders it cannot see, so its
+  hidden pass would prove nothing and is skipped. The shown pass is also counted apart
+  for orders with and without a deadline, and with one by slack band (``SLACK_BANDS``).
+- **go-to, what the others did**: every ship of the shown pass not killed before its
+  deadline is one of ``in_time``; ``near_miss`` (it came within ``NEAR_MISS_M`` of the
+  circle's edge before its deadline and was not inside in time); ``at_enemy`` (never
+  that close, and before its deadline it was within ``ENEMY_NEAR_M`` of an enemy, or
+  every enemy was dead); ``neither``. Positions are read every ``POLL_TICKS``.
 - **attack**: damage on the named target (does any land, and how much per pilot), the side
   chosen, and the swap test. Damage on other enemies is reported and judged in no way.
 - **defend**: damage on the named ward's attackers against the other's, the side chosen,
@@ -29,6 +36,13 @@ The gate reads its bars from one small YAML (``DEFAULT_BARS``). An unset bar is 
 with any bar unset and none failed the verdict is ``report_only``, stated plainly. A pilot
 named in ``exempt`` is ``exempt`` whatever the numbers say. Bars get their values in step
 6 of the plan, after measuring the script and the founders.
+
+**SIM_VERSION 8 changed the go-to drill** (deadlines in three orders in four, a clock that
+no longer gives the deadline away), so go-to numbers from before it are not comparable,
+and the go-to bars were set on the old drills. The JSON schema is still
+``rlf.eval.drills/1``: the go-to summary only gained keys (``with_deadline``,
+``no_deadline``, ``by_slack``, ``fates``, ``fates_with_deadline``, ``fates_no_deadline``,
+``fates_solo``, ``note``); every key a reader used is where it was.
 
     python -m spacefight.eval.drills --a ckpt.pt --name f995_701 --out drills.json
     python -m spacefight.eval.drills --a script --n-per-kind 64 --out script.json
@@ -80,6 +94,27 @@ COMMIT_M = 80.0
 REFERENCE_RADIUS = 450.0
 # Ticks between reads of positions for the side chosen.
 POLL_TICKS = 3
+# Go-to: a ship that came this close to the circle's edge before its deadline without
+# getting inside in time is a near miss; one that never did but came this close to an
+# enemy went for the enemy instead. Metres at a 450 m arena.
+NEAR_MISS_M = 60.0
+ENEMY_NEAR_M = 150.0
+# What a go-to ship did (module docstring); ``KILLED`` ships are set aside.
+IN_TIME, NEAR_MISS, AT_ENEMY, NEITHER = "in_time", "near_miss", "at_enemy", "neither"
+FATES = (IN_TIME, NEAR_MISS, AT_ENEMY, NEITHER)
+KILLED = "killed"
+# Slack bands of a go-to order's deadline: name and the slack it starts at.
+SLACK_BANDS: tuple[tuple[str, float], ...] = (
+    ("tight", 0.0),
+    ("medium", 2.5),
+    ("loose", 4.5),
+)
+GOTO_V8_NOTE = (
+    "The go-to drill changed with SIM_VERSION 8: three orders in four carry a deadline "
+    "(slack 1.5 to 8) that the sim pays and charges by, and the match clock no longer "
+    "gives the deadline away. Go-to numbers from before are not comparable, and the "
+    "go-to bars were set on the old drills."
+)
 # Kinds' seeds are this far apart, so no two kinds share a generator stream by accident.
 KIND_SEED_STRIDE = 1_000_000
 CHOSE_NAMED, CHOSE_OTHER, NO_CHOICE = "named", "other", "none"
@@ -147,13 +182,41 @@ class Mean:
         return f"{self.mean:.1f} +/- {self.se:.1f} (n={self.n})"
 
 
+def slack_band(slack: float) -> str:
+    """The band of ``SLACK_BANDS`` a deadline's slack falls in: tight below 2.5, medium
+    to 4.5, loose above.
+
+    Raises:
+        ValueError: A slack that is not positive (an order without a deadline has none).
+    """
+    if not slack > 0.0:
+        raise ValueError(f"no slack band for slack {slack}")
+    name = SLACK_BANDS[0][0]
+    for band, start in SLACK_BANDS:
+        if slack >= start:
+            name = band
+    return name
+
+
 @dataclass
 class ShipRun:
-    """One pilot in one played go-to."""
+    """One pilot in one played go-to.
+
+    Attributes:
+        deadline: The tick its arrival is judged by.
+        arrived_tick: The tick it was first seen arrived; -1 never.
+        gone_tick: The tick it was first seen dead, or its match ended; -1 neither.
+        min_edge_m: The closest it came to the circle's edge by its deadline, metres at
+            a 450 m arena; infinite if it was never seen alive after the order.
+        near_enemy: By its deadline it was within ``ENEMY_NEAR_M`` of a live enemy, or
+            every enemy was dead.
+    """
 
     deadline: int
     arrived_tick: int = -1
     gone_tick: int = -1
+    min_edge_m: float = math.inf
+    near_enemy: bool = False
 
     def outcome(self) -> str:
         """``arrived``, ``late`` or ``censored``: it was killed before its deadline, or
@@ -163,6 +226,17 @@ class ShipRun:
         if 0 <= self.gone_tick < self.deadline:
             return "censored"
         return "late"
+
+    def fate(self) -> str:
+        """One of ``FATES``, or ``KILLED`` for a censored ship (module docstring)."""
+        outcome = self.outcome()
+        if outcome == "censored":
+            return KILLED
+        if outcome == "arrived":
+            return IN_TIME
+        if self.min_edge_m <= NEAR_MISS_M:
+            return NEAR_MISS
+        return AT_ENEMY if self.near_enemy else NEITHER
 
 
 @dataclass
@@ -238,6 +312,59 @@ class _SideWatch:
         return CHOSE_NAMED if toward_side == self.spec.named_side else CHOSE_OTHER
 
 
+class _GotoWatch:
+    """How near each pilot of one go-to drill came to the circle and to an enemy, up to
+    its deadline."""
+
+    def __init__(self, spec: DrillSpec) -> None:
+        self.spec = spec
+        # Distances scale to the reference arena, as ``_SideWatch``'s do.
+        self.scale = REFERENCE_RADIUS / spec.arena_radius
+        self.point = np.asarray(spec.point, dtype=np.float64)
+        self.deadlines = np.asarray(spec.deadlines, dtype=np.int64)
+        self.enemies = range(len(spec.teams[0]), len(spec.layout))
+        self.min_edge = np.full(len(spec.pilots), math.inf)
+        self.near_enemy = np.zeros(len(spec.pilots), dtype=np.bool_)
+
+    def settled(self, tick: int) -> bool:
+        """Every deadline has passed: nothing more to read."""
+        return tick > int(self.deadlines.max())
+
+    def see(self, ships: Sequence[Mapping[str, Any]], tick: int) -> None:
+        """Read the positions at ``tick`` (``render_state``'s ship list)."""
+        at = np.array([ships[s]["pos"] for s in self.spec.pilots], dtype=np.float64)
+        alive = np.array([bool(ships[s]["alive"]) for s in self.spec.pilots])
+        counted = alive & (tick <= self.deadlines)
+        edge = np.linalg.norm(at - self.point, axis=1) - self.spec.radius
+        edge = np.maximum(0.0, edge) * self.scale
+        self.min_edge[counted] = np.minimum(self.min_edge, edge)[counted]
+        foes = np.array(
+            [ships[s]["pos"] for s in self.enemies if ships[s]["alive"]],
+            dtype=np.float64,
+        ).reshape(-1, 2)
+        if foes.shape[0] == 0:
+            self.near_enemy |= counted
+            return
+        gaps = np.linalg.norm(at[:, None, :] - foes[None, :, :], axis=2).min(axis=1)
+        self.near_enemy |= counted & (gaps * self.scale <= ENEMY_NEAR_M)
+
+
+def _poll_positions(
+    env: RustVecEnv,
+    sides: Mapping[int, _SideWatch],
+    gotos: Mapping[int, _GotoWatch],
+    running: NDArray[np.bool_],
+    tick: int,
+) -> None:
+    """Show every watch that still needs them its env's ships."""
+    for i, side in sides.items():
+        if running[i] and not side.settled:
+            side.see(env.raw.render_state(i)["ships"])
+    for i, goto in gotos.items():
+        if running[i] and not goto.settled(tick):
+            goto.see(env.raw.render_state(i)["ships"], tick)
+
+
 def run_pass(
     controller: Controller,
     specs: Sequence[DrillSpec],
@@ -289,11 +416,13 @@ def run_pass(
     ledger = DrillLedger(n, s)
     records = [DrillRecord(spec) for spec in specs]
     watches: dict[int, _SideWatch] = {}
+    gotos: dict[int, _GotoWatch] = {}
     for i, spec in enumerate(specs):
         ledger.begin(i, env.rosters[i].drill)
         if spec.has_sides:
             watches[i] = _SideWatch(spec)
         else:
+            gotos[i] = _GotoWatch(spec)
             records[i].ships = [ShipRun(d) for d in spec.deadlines]
     running = np.ones(n, dtype=np.bool_)
     controller.reset(seed)
@@ -302,13 +431,11 @@ def run_pass(
     gone_tick = np.full((n, s), -1, dtype=np.int64)
     for tick in range(max_steps):
         if tick == ORDER_TICK + 1:
-            _check_orders_landed(env, specs, running)
+            check_orders_landed(env, specs, running)
         if ledger.any_goto_running():
             _note_goto_ticks(env, ledger, running, arrived_tick, gone_tick, tick)
         if tick >= ORDER_TICK and tick % POLL_TICKS == 0:
-            for i, watch in watches.items():
-                if running[i] and not watch.settled:
-                    watch.see(env.raw.render_state(i)["ships"])
+            _poll_positions(env, watches, gotos, running, tick)
         decide = running[:, None] & env.act_mask
         actions = idle_actions(n * s).reshape(n, s, -1)
         rows = decide & scripted
@@ -337,9 +464,11 @@ def run_pass(
         record.total_damage = float(ledger.total_damage[i])
         if i in watches:
             record.choice = watches[i].choice()
-        for ship, slot in zip(record.ships, record.spec.pilots):
+        for k, (ship, slot) in enumerate(zip(record.ships, record.spec.pilots)):
             ship.arrived_tick = int(arrived_tick[i, slot])
             ship.gone_tick = int(gone_tick[i, slot])
+            ship.min_edge_m = float(gotos[i].min_edge[k])
+            ship.near_enemy = bool(gotos[i].near_enemy[k])
     return records
 
 
@@ -359,7 +488,7 @@ def _note_goto_ticks(
     gone_tick[open_rows & ~alive & (gone_tick < 0)] = tick
 
 
-def _check_orders_landed(
+def check_orders_landed(
     env: RustVecEnv, specs: Sequence[DrillSpec], running: NDArray[np.bool_]
 ) -> None:
     """Raise unless every live pilot has its order: a refused or mangled command would
@@ -381,37 +510,63 @@ def _check_orders_landed(
 # -- summaries --------------------------------------------------------------------------
 
 
+def _arrivals(records: Sequence[DrillRecord]) -> dict[str, Any]:
+    """Ships that arrived by their deadline, of those not killed before it."""
+    outcomes = [ship.outcome() for r in records for ship in r.ships]
+    arrived = outcomes.count("arrived")
+    late = outcomes.count("late")
+    rate = Rate.of(arrived, arrived + late)
+    return {
+        "rate": rate.rate,
+        "se": rate.se,
+        "arrived": arrived,
+        "late": late,
+        "censored": outcomes.count("censored"),
+        "n": arrived + late,
+    }
+
+
+def _fates(records: Sequence[DrillRecord]) -> dict[str, Any]:
+    """What the ships not killed before their deadline did: a share per ``FATES``."""
+    fates = [ship.fate() for r in records for ship in r.ships]
+    n = len(fates) - fates.count(KILLED)
+    out: dict[str, Any] = {"n": n, KILLED: fates.count(KILLED)}
+    for fate in FATES:
+        out[fate] = asdict(Rate.of(fates.count(fate), n))
+    return out
+
+
 def summarise_goto(
     shown: Sequence[DrillRecord], hidden: Sequence[DrillRecord]
 ) -> dict[str, Any]:
-    """Arrival by deadline, shown and hidden, near and far, ship by ship (ships of one
-    squad are not independent, so the errors are a little small)."""
-
-    def count(records: Sequence[DrillRecord]) -> dict[str, Any]:
-        outcomes = [ship.outcome() for r in records for ship in r.ships]
-        arrived = outcomes.count("arrived")
-        late = outcomes.count("late")
-        rate = Rate.of(arrived, arrived + late)
-        return {
-            "rate": rate.rate,
-            "se": rate.se,
-            "arrived": arrived,
-            "late": late,
-            "censored": outcomes.count("censored"),
-            "n": arrived + late,
-        }
-
+    """Arrival by deadline, shown and hidden, near and far, with and without a deadline
+    in the order and by its slack, and what the ships that were not in time did; ship by
+    ship (ships of one squad are not independent, so the errors are a little small)."""
     near = [r for r in shown if not r.spec.far]
     far = [r for r in shown if r.spec.far]
     around = [r for r in shown if r.spec.enemies_around]
+    timed = [r for r in shown if r.spec.timed]
+    untimed = [r for r in shown if not r.spec.timed]
+    solo = [r for r in shown if len(r.spec.pilots) == 1]
     out: dict[str, Any] = {
         "n_drills": len(shown),
-        "shown": count(shown),
-        "shown_near": count(near),
-        "shown_far": count(far),
-        "shown_enemies_around": count(around),
-        "hidden": count(hidden) if hidden else None,
+        "shown": _arrivals(shown),
+        "shown_near": _arrivals(near),
+        "shown_far": _arrivals(far),
+        "shown_enemies_around": _arrivals(around),
+        "hidden": _arrivals(hidden) if hidden else None,
         "lift": None,
+        "with_deadline": _arrivals(timed),
+        "no_deadline": _arrivals(untimed),
+        "by_slack": {
+            band: _arrivals([r for r in timed if slack_band(r.spec.slack) == band])
+            for band, _ in SLACK_BANDS
+        },
+        "fates": _fates(shown),
+        "fates_with_deadline": _fates(timed),
+        "fates_no_deadline": _fates(untimed),
+        "fates_solo": _fates(solo),
+        "note": GOTO_V8_NOTE,
     }
     if hidden:
         out["lift"] = out["shown"]["rate"] - out["hidden"]["rate"]
@@ -657,6 +812,52 @@ class DrillResult:
         return report_markdown(self)
 
 
+def _goto_deadline_lines(goto: Mapping[str, Any]) -> list[str]:
+    """The go-to section's v8 lines: the note, arrival with and without a deadline and
+    by slack, and what the ships not killed before their deadline did."""
+
+    def short(raw: Mapping[str, Any]) -> str:
+        return f"{raw['rate']:.2f} ({raw['arrived']}/{raw['n']})"
+
+    lines = [
+        f"- Deadline in the order: {short(goto['with_deadline'])}",
+        f"- No deadline (judged by 2x + 10 s): {short(goto['no_deadline'])}",
+        "",
+        goto["note"],
+        "",
+        "| Slack | In time |",
+        "|---|---|",
+    ]
+    edges = [f"{start:g}" for _, start in SLACK_BANDS[1:]]
+    spans = [f"under {edges[0]}", f"{edges[0]} to {edges[1]}", f"over {edges[1]}"]
+    for (band, _), span in zip(SLACK_BANDS, spans, strict=True):
+        lines.append(f"| {band} ({span}) | {short(goto['by_slack'][band])} |")
+    columns = {
+        "All": goto["fates"],
+        "Deadline": goto["fates_with_deadline"],
+        "None": goto["fates_no_deadline"],
+        "Solo": goto["fates_solo"],
+    }
+    labels = {
+        IN_TIME: "In time",
+        NEAR_MISS: f"Near miss (within {NEAR_MISS_M:g} m)",
+        AT_ENEMY: "At the enemy instead",
+        NEITHER: "Neither",
+    }
+    lines += [
+        "",
+        "Ships not killed before their deadline, order shown:",
+        "",
+        "| | " + " | ".join(columns) + " |",
+        "|---|" + "---|" * len(columns),
+        "| Ships | " + " | ".join(str(c["n"]) for c in columns.values()) + " |",
+    ]
+    for fate, label in labels.items():
+        cells = " | ".join(f"{c[fate]['rate']:.2f}" for c in columns.values())
+        lines.append(f"| {label} | {cells} |")
+    return lines
+
+
 def report_markdown(result: DrillResult) -> str:
     """The result as plain Markdown."""
     goto, attack, defend = (
@@ -701,6 +902,7 @@ def report_markdown(result: DrillResult) -> str:
         f"- Near: {arrival(goto['shown_near'])}",
         f"- Far: {arrival(goto['shown_far'])}",
         f"- Enemies around the route: {arrival(goto['shown_enemies_around'])}",
+        *_goto_deadline_lines(goto),
     ]
     for label, part in (("Attack", attack), ("Defend", defend)):
         lines += ["", f"## {label} ({part['n_pairs']} swap pairs)", ""]

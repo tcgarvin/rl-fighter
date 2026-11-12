@@ -26,13 +26,19 @@ rlf_sim = pytest.importorskip(
 )
 
 from spacefight.env.drills import (  # noqa: E402
+    GOTO_CLOCK_EXTRA_TICKS,
+    GOTO_NO_DEADLINE_P,
+    GOTO_SLACK,
     GOTO_SLACK_S,
     GOTO_TIME_MULT,
+    GOTO_TURN_S,
     ORDER_TICK,
     TICK_HZ,
     DrillGenerator,
     DrillLedger,
+    DrillOutcome,
     goto_deadline_tick,
+    goto_order_deadline_tick,
 )
 from spacefight.env.rosters import (  # noqa: E402
     DRILL_ATTACK,
@@ -42,6 +48,7 @@ from spacefight.env.rosters import (  # noqa: E402
     EXTERNAL,
     FLEET_HULLS,
     MAX_DRILL_SHIPS,
+    NO_DEADLINE,
     DrillTag,
     OpeningOrder,
     PilotsDistribution,
@@ -56,12 +63,20 @@ from spacefight.env.rust_env import (  # noqa: E402
 )
 from spacefight.eval.controllers import Scripted  # noqa: E402
 from spacefight.eval.drills import (  # noqa: E402
+    AT_ENEMY,
     BAR_PATHS,
     CHOSE_NAMED,
     CHOSE_OTHER,
     DEFAULT_BARS,
+    ENEMY_NEAR_M,
     EXEMPT,
     FAIL,
+    FATES,
+    IN_TIME,
+    KILLED,
+    NEAR_MISS,
+    NEAR_MISS_M,
+    NEITHER,
     NO_CHOICE,
     PASS,
     REPORT_ONLY,
@@ -70,6 +85,7 @@ from spacefight.eval.drills import (  # noqa: E402
     DrillRecord,
     Rate,
     ShipRun,
+    _GotoWatch,
     _sides_summary,
     apply_gate,
     evaluate,
@@ -77,6 +93,8 @@ from spacefight.eval.drills import (  # noqa: E402
     main,
     parse_bars,
     run_pass,
+    slack_band,
+    summarise_goto,
 )
 from spacefight.rl.opponents import (  # noqa: E402
     OpponentAssigner,
@@ -239,29 +257,213 @@ def test_go_to_enemies_are_around_the_route_or_far_from_it() -> None:
     assert min(far_from_route) > 200.0, "far means far from the route"
 
 
-def test_deadlines_match_the_physics() -> None:
-    caps = GEN.speed_caps
+def test_the_old_rule_deadline_is_twice_the_straight_line_plus_ten_seconds() -> None:
     assert goto_deadline_tick(600.0, 60.0) == ORDER_TICK + math.ceil(
         (GOTO_TIME_MULT * 600.0 / 60.0 + GOTO_SLACK_S) * TICK_HZ
     )
-    for seed in range(100):
-        spec = GEN.generate(DRILL_GOTO, seed)
-        assert len(spec.deadlines) == len(spec.pilots) == len(spec.distances)
-        for slot, deadline, distance in zip(
-            spec.pilots, spec.deadlines, spec.distances
-        ):
-            cap = caps[spec.teams[0][slot]]
-            start = spec.layout[slot]
-            straight = math.hypot(start.x - spec.point[0], start.y - spec.point[1])
-            assert distance == pytest.approx(max(0.0, straight - spec.radius), abs=1e-3)
-            # A flat-out straight run is over well before the deadline.
-            flat_out = ORDER_TICK + distance / cap * TICK_HZ
-            assert deadline >= flat_out + GOTO_SLACK_S * TICK_HZ
-        assert spec.clock_ticks > max(spec.deadlines)
     with pytest.raises(ValueError):
         goto_deadline_tick(-1.0, 60.0)
     with pytest.raises(ValueError):
         goto_deadline_tick(10.0, 0.0)
+
+
+def test_the_order_deadline_is_slack_times_the_slowest_ship_plus_the_turn() -> None:
+    # The gunship is the slow one: 240 m at 24 m/s is 10 s; the fighter needs 5 s.
+    tick = goto_order_deadline_tick(2.0, [300.0, 240.0], [60.0, 24.0])
+    assert tick == ORDER_TICK + math.ceil((2.0 * 10.0 + GOTO_TURN_S) * TICK_HZ)
+    assert goto_order_deadline_tick(1.0, [0.0], [60.0]) == ORDER_TICK + math.ceil(
+        GOTO_TURN_S * TICK_HZ
+    )
+    bad: list[tuple[float, list[float], list[float]]] = [
+        (0.0, [100.0], [60.0]),
+        (math.inf, [100.0], [60.0]),
+        (2.0, [], []),
+        (2.0, [100.0], [60.0, 50.0]),
+        (2.0, [-1.0], [60.0]),
+        (2.0, [100.0], [0.0]),
+    ]
+    for slack, distances, caps in bad:
+        with pytest.raises(ValueError):
+            goto_order_deadline_tick(slack, distances, caps)
+
+
+def test_go_to_distances_are_to_the_circle_s_edge() -> None:
+    for seed in range(100):
+        spec = GEN.generate(DRILL_GOTO, seed)
+        assert len(spec.deadlines) == len(spec.pilots) == len(spec.distances)
+        for slot, distance in zip(spec.pilots, spec.distances):
+            start = spec.layout[slot]
+            straight = math.hypot(start.x - spec.point[0], start.y - spec.point[1])
+            assert distance == pytest.approx(max(0.0, straight - spec.radius), abs=1e-3)
+
+
+def test_three_go_tos_in_four_carry_one_deadline_for_the_squad() -> None:
+    caps = GEN.speed_caps
+    specs = [GEN.generate(DRILL_GOTO, seed) for seed in range(400)]
+    timed = [s for s in specs if s.timed]
+    untimed = [s for s in specs if not s.timed]
+    assert len(untimed) / len(specs) == pytest.approx(GOTO_NO_DEADLINE_P, abs=0.07)
+    for spec in timed:
+        hull_caps = [caps[spec.teams[0][slot]] for slot in spec.pilots]
+        assert GOTO_SLACK[0] <= spec.slack <= GOTO_SLACK[1]
+        assert spec.deadline_tick == goto_order_deadline_tick(
+            spec.slack, spec.distances, hull_caps
+        )
+        assert spec.deadlines == (spec.deadline_tick,) * len(spec.pilots)
+        assert spec.order().deadline_tick == spec.deadline_tick
+        assert spec.roster().drill == DrillTag(
+            DRILL_GOTO, spec.pilots, deadlines=spec.deadlines, timed=True
+        )
+        # The slowest ship's flat-out straight run fits, with the turn allowance over.
+        flat_out = max(d / cap for d, cap in zip(spec.distances, hull_caps))
+        assert spec.deadline_tick >= ORDER_TICK + (flat_out + GOTO_TURN_S) * TICK_HZ
+    # Log-uniform: as many slacks under the geometric middle as over it.
+    middle = math.sqrt(GOTO_SLACK[0] * GOTO_SLACK[1])
+    below = sum(s.slack < middle for s in timed) / len(timed)
+    assert below == pytest.approx(0.5, abs=0.09)
+    assert min(s.slack for s in timed) < 1.7 and max(s.slack for s in timed) > 7.0
+
+
+def test_a_go_to_without_a_deadline_is_judged_by_the_old_rule_ship_by_ship() -> None:
+    caps = GEN.speed_caps
+    untimed = [
+        s for s in (GEN.generate(DRILL_GOTO, seed) for seed in range(60)) if not s.timed
+    ]
+    assert untimed
+    for spec in untimed:
+        assert spec.deadline_tick == NO_DEADLINE and spec.slack == 0.0
+        assert spec.order().deadline_tick == NO_DEADLINE
+        assert spec.deadlines == tuple(
+            goto_deadline_tick(d, caps[spec.teams[0][slot]])
+            for slot, d in zip(spec.pilots, spec.distances)
+        )
+        tag = spec.roster().drill
+        assert tag is not None and not tag.timed and tag.deadlines == spec.deadlines
+
+
+def test_the_go_to_clock_runs_a_drawn_one_to_twenty_seconds_past_the_last_deadline() -> (
+    None
+):
+    low, high = GOTO_CLOCK_EXTRA_TICKS
+    assert (low, high) == (1 * TICK_HZ, 20 * TICK_HZ)
+    extras = []
+    for seed in range(300):
+        spec = GEN.generate(DRILL_GOTO, seed)
+        extras.append(spec.clock_ticks - max(spec.deadlines))
+        assert spec.roster().time_limit_s == pytest.approx(spec.clock_ticks / TICK_HZ)
+    assert low <= min(extras) and max(extras) <= high
+    # Spread over the range, so the match's time left does not give the deadline away.
+    assert min(extras) < low + 60 and max(extras) > high - 60
+    assert np.std(extras) > 120
+
+
+# A go-to drill's layout for three seeds, computed before the order carried a deadline
+# (SIM_VERSION 7): teams, point, radius, distances, the first pilot's start, the last
+# enemy's start, and the old-rule deadlines.
+_GOTO_LAYOUT_PINS: dict[int, dict[str, Any]] = {
+    7: {
+        "teams": (("gunship",), ("fighter", "gunship", "strafer")),
+        "far": True,
+        "around": False,
+        "point": (122.8653811545024, 361.9769291672397),
+        "radius": 47.34321924681465,
+        "distances": (482.99796570108686,),
+        "first": (
+            -151.93939327663412,
+            -91.61331367512614,
+            -0.06641588950022648,
+            -11.531780455381934,
+            -1.5765556417093336,
+        ),
+        "last": (
+            235.20201772356089,
+            -142.49565206968862,
+            -2.0296311167516583,
+            2.2566870179993384,
+            2.3032717080852567,
+        ),
+        "old_deadlines": (1568,),
+    },
+    500_000: {
+        "teams": (("fighter", "fighter", "gunship"), ("strafer",)),
+        "far": False,
+        "around": False,
+        "point": (277.3717324194038, -28.330800409043835),
+        "radius": 57.664582849950015,
+        "distances": (181.37356309645233, 179.48354642264945, 181.37356309645233),
+        "first": (
+            39.054289596541274,
+            -46.8788909809921,
+            15.697065518885047,
+            4.8465345800605695,
+            0.29946867580835246,
+        ),
+        "last": (
+            17.09091474871945,
+            354.58835377526435,
+            3.6723611607718287,
+            -9.766018394354882,
+            -1.2111188880928836,
+        ),
+        "old_deadlines": (542, 540, 814),
+    },
+    500_123: {
+        "teams": (("strafer", "gunship"), ("fighter", "gunship")),
+        "far": False,
+        "around": False,
+        "point": (202.47083668798874, -288.95979013902075),
+        "radius": 15.210934699625257,
+        "distances": (171.75087066772474, 171.75087066772474),
+        "first": (
+            30.50480856302309,
+            -362.3246443755173,
+            -23.408393007187662,
+            7.297858713884375,
+            2.839379828339627,
+        ),
+        "last": (
+            -99.96379863601629,
+            298.7176576003802,
+            0.2936088926088984,
+            -0.8465832370786814,
+            -1.2369605483216652,
+        ),
+        "old_deadlines": (567, 790),
+    },
+}
+
+
+@pytest.mark.parametrize("seed", sorted(_GOTO_LAYOUT_PINS))
+def test_a_seed_s_go_to_layout_is_what_it_was_before_deadlines(seed: int) -> None:
+    pin = _GOTO_LAYOUT_PINS[seed]
+    spec = GEN.generate(DRILL_GOTO, seed)
+    exact = pytest.approx
+    assert spec.teams == pin["teams"]
+    assert (spec.far, spec.enemies_around) == (pin["far"], pin["around"])
+    assert spec.point == exact(pin["point"], rel=1e-12)
+    assert spec.radius == exact(pin["radius"], rel=1e-12)
+    assert spec.distances == exact(pin["distances"], rel=1e-12)
+    assert spec.layout[0].row() == exact(list(pin["first"]), rel=1e-12)
+    assert spec.layout[-1].row() == exact(list(pin["last"]), rel=1e-12)
+    caps = GEN.speed_caps
+    old_rule = tuple(
+        goto_deadline_tick(d, caps[spec.teams[0][slot]])
+        for slot, d in zip(spec.pilots, spec.distances)
+    )
+    assert old_rule == pin["old_deadlines"]
+
+
+def test_the_sim_holds_the_drill_s_deadline_once_the_order_lands() -> None:
+    specs = [GEN.generate(DRILL_GOTO, seed) for seed in range(40)]
+    timed = next(s for s in specs if s.timed)
+    untimed = next(s for s in specs if not s.timed)
+    for spec in (timed, untimed):
+        env = play(spec.roster(), steps=ORDER_TICK + 1)
+        tracks = env.order_tracks()
+        for slot in spec.pilots:
+            assert int(tracks["deadline"][0, slot]) == spec.deadline_tick
+        has_deadline = env.obs[0, 0, rlf_sim.OBS_LAYOUT["order_time"][0]]
+        assert has_deadline == (1.0 if spec.timed else 0.0)
 
 
 def test_rosters_with_layouts_are_validated() -> None:
@@ -605,9 +807,49 @@ def test_the_ledger_books_hits_on_the_named_target_and_each_group() -> None:
     assert ledger.target_damage[1] == pytest.approx(5.0)
     assert ledger.group_damage[1].tolist() == pytest.approx([5.0, 2.0])
     assert ledger.total_damage[1] == pytest.approx(7.0)
-    assert ledger.finish(1) == (DRILL_ATTACK, 1, 1)
+    assert ledger.finish(1) == DrillOutcome(DRILL_ATTACK, 1, 1)
     with pytest.raises(ValueError, match="not running"):
         ledger.finish(1)
+
+
+def _tracks(**flags: list[bool]) -> dict[str, np.ndarray]:
+    """One env of three slots: ``arrived``, ``missed`` and ``alive`` rows."""
+    return {name: np.array([row], dtype=np.bool_) for name, row in flags.items()}
+
+
+def test_the_ledger_counts_arrivals_in_time_and_missed_deadlines() -> None:
+    ledger = DrillLedger(1, 3)
+    tag = DrillTag(DRILL_GOTO, (0, 1, 2), deadlines=(500, 500, 500), timed=True)
+    ledger.begin(0, tag)
+    alive = [True, True, False]
+    seen = _tracks(arrived=[True, False, False], missed=[False, False, False])
+    ledger.see_tracks(
+        seen["arrived"], seen["missed"], np.array([alive]), np.array([400])
+    )
+    # Past the deadline the sim marks the other two missed; the dead one is not counted.
+    seen = _tracks(arrived=[True, False, False], missed=[False, True, True])
+    ledger.see_tracks(
+        seen["arrived"], seen["missed"], np.array([alive]), np.array([501])
+    )
+    assert ledger.finish(0) == DrillOutcome(DRILL_GOTO, 1, 3, timed_ships=3, missed=1)
+    with pytest.raises(ValueError, match="deadlines for"):
+        DrillTag(DRILL_GOTO, (0, 1), deadlines=(500,))
+
+
+def test_the_ledger_judges_a_go_to_without_a_deadline_by_the_tick_it_is_given() -> None:
+    ledger = DrillLedger(1, 3)
+    ledger.begin(0, DrillTag(DRILL_GOTO, (0, 1), deadlines=(500, 800)))
+    alive = np.array([[True, True, True]])
+    nothing = np.zeros((1, 3), dtype=np.bool_)
+    late = _tracks(arrived=[True, True, False])["arrived"]
+    # Both first show as arrived at tick 600: in time for the second ship only.
+    ledger.see_tracks(nothing, nothing, alive, np.array([500]))
+    ledger.see_tracks(late, nothing, alive, np.array([600]))
+    assert ledger.finish(0) == DrillOutcome(DRILL_GOTO, 1, 2)
+    # With no deadlines on the tag (a hand-built drill) any arrival counts.
+    ledger.begin(0, DrillTag(DRILL_GOTO, (0, 1)))
+    ledger.see_tracks(late, nothing, alive, np.array([5000]))
+    assert ledger.finish(0) == DrillOutcome(DRILL_GOTO, 2, 2)
 
 
 # -- the eval's measurements --------------------------------------------------------------
@@ -637,6 +879,92 @@ def test_being_killed_on_the_way_is_censored_not_failed() -> None:
     assert ShipRun(deadline=600, gone_tick=300).outcome() == "censored"
     assert ShipRun(deadline=600, gone_tick=700).outcome() == "late"
     assert ShipRun(deadline=600).outcome() == "late"
+
+
+def test_a_ship_that_was_not_in_time_was_a_near_miss_at_the_enemy_or_neither() -> None:
+    assert ShipRun(600, arrived_tick=500, min_edge_m=0.0).fate() == IN_TIME
+    assert ShipRun(600, gone_tick=300, min_edge_m=10.0).fate() == KILLED
+    close = ShipRun(600, arrived_tick=700, min_edge_m=NEAR_MISS_M, near_enemy=True)
+    assert close.fate() == NEAR_MISS, "a near miss whatever else it was near"
+    assert ShipRun(600, min_edge_m=NEAR_MISS_M + 1, near_enemy=True).fate() == AT_ENEMY
+    assert ShipRun(600, min_edge_m=NEAR_MISS_M + 1).fate() == NEITHER
+    assert ShipRun(600).fate() == NEITHER
+
+
+def _ship(x: float, y: float, alive: bool = True) -> dict[str, Any]:
+    return {"pos": (x, y), "alive": alive}
+
+
+def test_the_go_to_watch_reads_distances_up_to_each_ship_s_deadline() -> None:
+    spec = replace(
+        GEN.generate(DRILL_GOTO, 7),
+        teams=(("fighter", "fighter"), ("fighter",)),
+        layout=(ShipStart(0, 0, 0, 0, 0),) * 3,
+        pilots=(0, 1),
+        point=(300.0, 0.0),
+        radius=50.0,
+        deadlines=(100, 200),
+        arena_radius=450.0,
+    )
+    watch = _GotoWatch(spec)
+    # Tick 90: ship 0 is 150 m from the edge and 100 m from the enemy; ship 1 far off.
+    watch.see([_ship(100, 0), _ship(-300, 0), _ship(100, 100)], 90)
+    assert watch.min_edge.tolist() == pytest.approx([150.0, 550.0])
+    assert watch.near_enemy.tolist() == [True, False]
+    # Tick 150 is past ship 0's deadline: only ship 1 is read, 40 m from the edge.
+    watch.see([_ship(290, 0), _ship(210, 0), _ship(100, 100, alive=False)], 150)
+    assert watch.min_edge.tolist() == pytest.approx([150.0, 40.0])
+    assert watch.near_enemy.tolist() == [True, True], "every enemy dead counts"
+    assert not watch.settled(200) and watch.settled(201)
+    assert ENEMY_NEAR_M == 150.0 and NEAR_MISS_M == 60.0
+
+
+def test_slack_bands_are_tight_under_two_and_a_half_and_loose_over_four_and_a_half() -> (
+    None
+):
+    assert [slack_band(x) for x in (1.5, 2.49, 2.5, 4.49, 4.5, 8.0)] == [
+        "tight",
+        "tight",
+        "medium",
+        "medium",
+        "loose",
+        "loose",
+    ]
+    with pytest.raises(ValueError):
+        slack_band(0.0)
+
+
+def test_the_go_to_summary_keeps_its_old_keys_and_splits_by_deadline_and_fate() -> None:
+    specs = GEN.generate_many(DRILL_GOTO, 24, 2000)
+    shown = run_pass(Scripted(), specs, 11)
+    out = summarise_goto(shown, [])
+    for key in ("n_drills", "shown", "shown_near", "shown_far", "shown_enemies_around"):
+        assert key in out
+    assert out["hidden"] is None and out["lift"] is None
+    assert set(out["shown"]) == {"rate", "se", "arrived", "late", "censored", "n"}
+    parts = (out["with_deadline"], out["no_deadline"])
+    for key in ("arrived", "late", "censored", "n"):
+        assert sum(part[key] for part in parts) == out["shown"][key]
+    bands = out["by_slack"]
+    assert set(bands) == {"tight", "medium", "loose"}
+    assert sum(b["n"] for b in bands.values()) == out["with_deadline"]["n"]
+    fates = out["fates"]
+    assert fates["n"] == out["shown"]["n"] and fates[KILLED] == out["shown"]["censored"]
+    assert sum(fates[f]["successes"] for f in FATES) == fates["n"]
+    assert fates[IN_TIME]["successes"] == out["shown"]["arrived"]
+    assert out["fates_with_deadline"]["n"] + out["fates_no_deadline"]["n"] == fates["n"]
+    assert out["fates_solo"]["n"] == sum(
+        ship.fate() != KILLED
+        for r in shown
+        if len(r.spec.pilots) == 1
+        for ship in r.ships
+    )
+    assert "SIM_VERSION 8" in out["note"]
+    # A ship in time was inside the circle at some read of its position.
+    for record in shown:
+        for ship in record.ships:
+            if ship.fate() == IN_TIME:
+                assert ship.min_edge_m <= NEAR_MISS_M
 
 
 def test_rates_carry_counts_and_standard_errors() -> None:
@@ -741,9 +1069,13 @@ def test_a_tiny_eval_runs_on_the_script_and_writes_its_report(tmp_path: Path) ->
     assert data["gate"]["verdict"] == REPORT_ONLY
     assert data["kinds"][DRILL_GOTO]["hidden"] is None, "the script has no hidden pass"
     assert data["kinds"][DRILL_ATTACK]["n_pairs"] == 4
+    assert data["kinds"][DRILL_GOTO]["by_slack"].keys() == {"tight", "medium", "loose"}
     report = out.with_suffix(".md").read_text()
     assert "Report only, not a pass" in report
     assert "Swap test" in report
+    assert "changed with SIM_VERSION 8" in report
+    assert "| tight (under 2.5) |" in report
+    assert "| Near miss (within 60 m) |" in report
 
 
 def test_evaluate_uses_the_same_drills_and_seeds_every_time() -> None:

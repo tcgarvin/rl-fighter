@@ -160,6 +160,9 @@ nohup lab/runs/2026-10-31-order-pilot/run.sh > lab/runs/2026-10-31-order-pilot/r
 # and run B3 (w1_400 widened to 583, arms transit / reward; SMOKE=1 tiny sizes).
 # v6 pilots export with 583 inputs and sim_version 6: tools/export_policy.py
 # --wasm-sim-version 6 --wasm-obs-dim 583 --wasm-pilot-compat 3,4,5,6
+# v8 pilots (go-to deadlines, 587 inputs): --wasm-sim-version 8 --wasm-obs-dim 587
+# --wasm-pilot-compat 3,4,5,6,7,8 --wasm-pilot-obs-dims '{"3":385,"4":385,"5":403,"6":583,"7":583,"8":587}'
+# (JS parity on a real one: RLF_PARITY_CHECKPOINT_V8=<ckpt.pt> pytest tests/test_web_policy.py)
 uv run python -m spacefight.eval.orders --a <checkpoint.pt> --out orders.json
 nohup lab/runs/2026-11-01-order-pilot-b3/run.sh > lab/runs/2026-11-01-order-pilot-b3/run.out 2>&1 &
 
@@ -171,6 +174,20 @@ uv run python -m spacefight.eval.drills --a <checkpoint.pt|script> --name <pilot
     --n-per-kind 64 --threads 2 --out drills.json [--exempt f995_701,transit_300] [--bars <yaml>]
 uv run python -m pytest tests/test_drills.py -v
 cargo test -p sim --test drills
+
+# Go-to deadlines (SIM_VERSION 8, OBS_DIM 587): three go-to drills in four carry a deadline
+# in the order (slack 1.5 to 8 times the slowest ship's straight line, plus 3 s), the drill
+# eval splits go-to by deadline, slack band and what the ships that were late did (go-to
+# numbers from before v8 are not comparable). Trainer keys (PPOConfig, --set):
+# goto_timed_bonus (1.0, pay for arriving by the deadline), goto_miss_penalty (1.0, charged
+# once on a miss); logs drill_goto_timed_ships / drill_goto_missed. A 583-input pilot takes
+# the new inputs with --init <ckpt> --set obs_dim=587 --set new_input_lr_mult=3; --set
+# obs_dim=583 trains it blind to them. The deadline sweep (rlf.eval.goto_sweep/1, report
+# beside it): one ship, the same starts flown at slack 0.8 to 8 and with no deadline;
+# nodeadline:<ckpt> flies a pilot blind to the deadline, notime:<ckpt> with order_time zeroed.
+uv run python -m spacefight.eval.goto_sweep --a <checkpoint.pt|script|nodeadline:<ckpt>> \
+    --name <pilot> --out sweep.json [--seeds-per-cell 6] [--threads 4] [--seed 700000]
+uv run python -m pytest tests/test_goto_sweep.py tests/test_goto_deadline_train.py -v
 
 # Pilot population (docs/PILOT_TRAINING.md sections 4-6): records in lab/population/<season>/
 # members/ (rlf.population.member/1; weights stay out of git), all-pairs no-commander round

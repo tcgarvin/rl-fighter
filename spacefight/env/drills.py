@@ -29,8 +29,18 @@ How a drill is played:
 Kinds:
 
 - ``goto``: a near or far point, sometimes with enemies around the route, sometimes far
-  from it. The deadline is the ship's straight-line time at its speed cap, doubled, plus
-  10 s (``goto_deadline_tick``). It says nothing about the route.
+  from it. Three in four carry a deadline in the order itself (SIM_VERSION 8), one tick
+  for the whole squad: a slack drawn log-uniformly from ``GOTO_SLACK`` times the slowest
+  ship's straight-line time at its speed cap, plus ``GOTO_TURN_S`` to turn and get going
+  (``goto_order_deadline_tick``). So in a mixed squad the fast ships have time to spare
+  and the slow one is tight. The sim pays and charges by that tick and the pilot sees
+  the time left. The rest (``GOTO_NO_DEADLINE_P``) carry none, as every commander's
+  go-to does today; the eval then judges each ship by the old rule: its straight-line
+  time doubled, plus 10 s (``goto_deadline_tick``). Neither says anything about the
+  route. The match's clock runs a drawn 1 to 20 s past the last deadline, so the match's
+  time left, which the pilot sees as a fraction of the clock, no longer marks the
+  deadline; once it has passed the pilots have no order and fight on until the clock, as
+  they would in a real match.
 - ``attack``: enemy groups on opposite sides, one member of one group named. Usually each
   group is busy with a freighter on its side; sometimes (``charging``) there are no
   freighters and the groups fly straight at the pilots.
@@ -47,6 +57,7 @@ them.
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -62,6 +73,7 @@ from spacefight.env.rosters import (
     DRILL_KINDS,
     EXTERNAL,
     FLEET_HULLS,
+    NO_DEADLINE,
     DrillTag,
     OpeningOrder,
     Roster,
@@ -73,13 +85,24 @@ from spacefight.env.rosters import (
 TICK_HZ = 30
 # The first slow tick (``COMMAND_TICKS``): when the orders reach the ships.
 ORDER_TICK = 60
-# Go-to deadline, from the order: this many times the straight-line time at the hull's
-# speed cap, plus this many seconds. "You've got to get there eventually."
+# What a go-to with no deadline in its order is judged by: this many times the
+# straight-line time at the hull's speed cap, plus this many seconds. "You've got to get
+# there eventually."
 GOTO_TIME_MULT = 2.0
 GOTO_SLACK_S = 10.0
-# The clock runs this long past the last deadline, so a reader polling the sim sees an
-# arrival on the deadline before the match ends.
-GOTO_CLOCK_MARGIN_TICKS = 30
+# Share of go-to drills whose order carries no deadline (all a commander issues today).
+GOTO_NO_DEADLINE_P = 0.25
+# The order's deadline: a slack drawn log-uniformly from this range, times the slowest
+# ship's straight-line time at its speed cap, plus GOTO_TURN_S to turn and get going.
+GOTO_SLACK = (1.5, 8.0)
+GOTO_TURN_S = 3.0
+# ``DrillSpec.slack`` of a go-to whose order carries no deadline.
+NO_SLACK = 0.0
+# The clock runs this many ticks (1 to 20 s, drawn per drill) past the last deadline. The
+# pilot sees the share of the match that is left, so a fixed margin would give the
+# deadline away; the least of it lets a reader polling the sim see an arrival on the
+# deadline.
+GOTO_CLOCK_EXTRA_TICKS = (30, 600)
 # Attack and defend clock: long enough for a gunship (24 m/s) to cross to either side.
 SIDE_CLOCK_TICKS = 900
 
@@ -122,6 +145,8 @@ START_SPEED_FRAC = 0.5
 WARD_MAX_SPEED = 3.0
 ENEMY_START_SPEED_FRAC = 0.3
 MAX_PLACEMENT_TRIES = 64
+# Bearings tried for a parked ship's place on the rim.
+PARKED_BEARINGS = 72
 
 
 def goto_deadline_tick(distance_m: float, speed_cap: float) -> int:
@@ -137,6 +162,39 @@ def goto_deadline_tick(distance_m: float, speed_cap: float) -> int:
     if distance_m < 0 or speed_cap <= 0:
         raise ValueError(f"bad go-to: {distance_m} m at {speed_cap} m/s")
     seconds = GOTO_TIME_MULT * distance_m / speed_cap + GOTO_SLACK_S
+    return ORDER_TICK + int(math.ceil(seconds * TICK_HZ))
+
+
+def goto_order_deadline_tick(
+    slack: float, distances_m: Sequence[float], speed_caps: Sequence[float]
+) -> int:
+    """The deadline tick a go-to order carries, one for the whole squad.
+
+    ``ORDER_TICK + ceil((slack * max_i(d_i / cap_i) + GOTO_TURN_S) * TICK_HZ)``: slack 1
+    is the slowest ship's straight line at its speed cap from a flying start, plus the
+    turn allowance. The drills and the deadline sweep (``spacefight.eval.goto_sweep``)
+    both use it.
+
+    Args:
+        slack: The multiple of the slowest ship's straight-line time.
+        distances_m: Each pilot's straight-line distance to the arrival circle's edge.
+        speed_caps: Each pilot's hull speed cap, m/s.
+
+    Raises:
+        ValueError: No ships, lengths that differ, a slack or speed cap that is not
+            positive, or a negative distance.
+    """
+    if not distances_m or len(distances_m) != len(speed_caps):
+        raise ValueError(
+            f"need one distance per speed cap, got {len(distances_m)} and "
+            f"{len(speed_caps)}"
+        )
+    if not slack > 0 or not math.isfinite(slack):
+        raise ValueError(f"slack must be positive and finite, got {slack}")
+    if min(distances_m) < 0 or min(speed_caps) <= 0:
+        raise ValueError(f"bad go-to: {distances_m} m at {speed_caps} m/s")
+    slowest = max(d / cap for d, cap in zip(distances_m, speed_caps))
+    seconds = slack * slowest + GOTO_TURN_S
     return ORDER_TICK + int(math.ceil(seconds * TICK_HZ))
 
 
@@ -162,7 +220,13 @@ class DrillSpec:
         charging: Attack only: no freighters, the groups fly at the pilots.
         point: Go-to point.
         radius: Go-to radius.
-        deadlines: Go-to: per pilot, the tick it must arrive by.
+        deadline_tick: Go-to: the deadline the order carries (SIM_VERSION 8), one tick
+            for the squad; ``NO_DEADLINE`` (0) when it carries none.
+        slack: Go-to: the slack ``deadline_tick`` was drawn with
+            (``goto_order_deadline_tick``); ``NO_SLACK`` (0.0) with no deadline.
+        deadlines: Go-to: per pilot, the tick the eval judges its arrival by: the
+            order's deadline when it has one, else the old rule for that ship
+            (``goto_deadline_tick``).
         distances: Go-to: per pilot, the straight-line distance to the arrival circle.
         far: Go-to: a map-crossing distance.
         enemies_around: Go-to: the enemies start beside the route, not far from it.
@@ -183,6 +247,8 @@ class DrillSpec:
     charging: bool = False
     point: tuple[float, float] = (0.0, 0.0)
     radius: float = 0.0
+    deadline_tick: int = NO_DEADLINE
+    slack: float = NO_SLACK
     deadlines: tuple[int, ...] = ()
     distances: tuple[float, ...] = ()
     far: bool = False
@@ -192,6 +258,11 @@ class DrillSpec:
     def has_sides(self) -> bool:
         """Attack and defend name a side; a go-to does not."""
         return self.kind != DRILL_GOTO
+
+    @property
+    def timed(self) -> bool:
+        """Whether the order carries a deadline (a go-to only)."""
+        return self.deadline_tick != NO_DEADLINE
 
     @property
     def named_slot(self) -> int:
@@ -212,7 +283,13 @@ class DrillSpec:
         """The order the pilots get."""
         if self.kind == DRILL_GOTO:
             return OpeningOrder(
-                0, 0, self.pilots, DRILL_GOTO, point=self.point, radius=self.radius
+                0,
+                0,
+                self.pilots,
+                DRILL_GOTO,
+                point=self.point,
+                radius=self.radius,
+                deadline_tick=self.deadline_tick,
             )
         return OpeningOrder(0, 0, self.pilots, self.kind, target=self.named_slot)
 
@@ -231,6 +308,8 @@ class DrillSpec:
             other_group=(
                 self.side_groups[1 - self.named_side] if self.has_sides else ()
             ),
+            deadlines=self.deadlines,
+            timed=self.timed,
         )
         return Roster(
             teams=self.teams,
@@ -468,11 +547,11 @@ class DrillGenerator:
         return hulls, starts
 
     def _route(
-        self, rng: np.random.Generator, far: bool
+        self, rng: np.random.Generator, span: tuple[float, float]
     ) -> tuple[tuple[float, float], tuple[float, float]]:
-        """A start and a point at a drawn distance, both inside their limits, along the
-        layout's y axis."""
-        low, high = GOTO_FAR if far else GOTO_NEAR
+        """A start and a point at a distance drawn from ``span`` (metres at the
+        reference arena), both inside their limits, along the layout's y axis."""
+        low, high = span
         start_limit = START_LIMIT * self.scale
         point_limit = POINT_LIMIT * self.scale
         for _ in range(MAX_PLACEMENT_TRIES):
@@ -489,13 +568,12 @@ class DrillGenerator:
     def _goto(self, seed: int, rng: np.random.Generator) -> DrillSpec:
         frame = _Frame(rng)
         far = bool(rng.random() < GOTO_FAR_P)
-        start, point = self._route(rng, far)
+        start, point = self._route(rng, GOTO_FAR if far else GOTO_NEAR)
         radius = float(rng.uniform(*GOTO_RADIUS)) * self.scale
         n = int(rng.integers(1, MAX_PILOTS + 1))
         pilot_hulls = _strike_hulls(rng, n)
         pilot_starts = []
         distances = []
-        deadlines = []
         for k, hull in enumerate(pilot_hulls):
             x = start[0] + (k - (n - 1) / 2) * PILOT_SPACING * self.scale
             # Any heading: a turn before the run is part of what the deadline allows.
@@ -504,26 +582,153 @@ class DrillGenerator:
             pilot_starts.append(frame.start(x, start[1], speed, heading))
             distance = max(0.0, math.hypot(point[0] - x, point[1] - start[1]) - radius)
             distances.append(distance)
-            deadlines.append(goto_deadline_tick(distance, self.speed_caps[hull]))
         around = bool(rng.random() < GOTO_ENEMIES_AROUND_P)
         m = int(rng.integers(GOTO_ENEMIES[0], GOTO_ENEMIES[1] + 1))
         enemy_hulls = _strike_hulls(rng, m)
         enemy_starts = self._goto_enemies(rng, frame, start, point, enemy_hulls, around)
-        return DrillSpec(
+        # Drawn after everything above, so a seed's layout is what it was before the
+        # order carried a deadline (SIM_VERSION 7 and earlier). All three are drawn
+        # whatever the outcome, so no draw depends on another's.
+        untimed = bool(rng.random() < GOTO_NO_DEADLINE_P)
+        low, high = GOTO_SLACK
+        slack = float(math.exp(rng.uniform(math.log(low), math.log(high))))
+        extra = int(
+            rng.integers(GOTO_CLOCK_EXTRA_TICKS[0], GOTO_CLOCK_EXTRA_TICKS[1] + 1)
+        )
+        spec = DrillSpec(
             kind=DRILL_GOTO,
             seed=seed,
             teams=(pilot_hulls, enemy_hulls),
             layout=(*pilot_starts, *enemy_starts),
             pilots=tuple(range(n)),
-            clock_ticks=max(deadlines) + GOTO_CLOCK_MARGIN_TICKS,
+            clock_ticks=0,
             arena_radius=self.arena_radius,
             point=frame.point(*point),
             radius=radius,
-            deadlines=tuple(deadlines),
             distances=tuple(distances),
             far=far,
             enemies_around=around,
         )
+        return self.with_slack(spec, NO_SLACK if untimed else slack, extra)
+
+    def with_slack(
+        self, spec: DrillSpec, slack: float, clock_extra_ticks: int
+    ) -> DrillSpec:
+        """The go-to ``spec`` with its deadline and clock set.
+
+        Args:
+            spec: A go-to drill.
+            slack: The order's deadline is ``goto_order_deadline_tick`` of this slack
+                for the squad; ``NO_SLACK`` (0.0): the order carries none and each ship
+                is judged by the old rule (``goto_deadline_tick``).
+            clock_extra_ticks: The clock runs this far past the last tick a ship is
+                judged by.
+
+        Raises:
+            ValueError: Not a go-to, a negative slack, or a negative clock margin.
+        """
+        if spec.kind != DRILL_GOTO:
+            raise ValueError(f"only a go-to takes a deadline, not a {spec.kind!r}")
+        if slack < 0 or clock_extra_ticks < 0:
+            raise ValueError(
+                f"slack and clock margin must be >= 0, got {slack}, {clock_extra_ticks}"
+            )
+        caps = [self.speed_caps[spec.teams[0][slot]] for slot in spec.pilots]
+        if slack == NO_SLACK:
+            tick = NO_DEADLINE
+            deadlines = tuple(
+                goto_deadline_tick(d, cap) for d, cap in zip(spec.distances, caps)
+            )
+        else:
+            tick = goto_order_deadline_tick(slack, spec.distances, caps)
+            deadlines = (tick,) * len(spec.pilots)
+        return replace(
+            spec,
+            deadline_tick=tick,
+            slack=slack,
+            deadlines=deadlines,
+            clock_ticks=max(deadlines) + clock_extra_ticks,
+        )
+
+    def single_goto(
+        self,
+        seed: int,
+        hull: str,
+        edge_distance_m: float,
+        radius_m: float,
+        enemy_hulls: Sequence[str],
+        parked: bool = False,
+    ) -> DrillSpec:
+        """A go-to for one ship at a set distance from a circle of a set radius: the
+        layouts of the deadline sweep (``spacefight.eval.goto_sweep``).
+
+        The start, heading and start speed are drawn as a go-to drill's are, and before
+        anything about the enemies, so the same ``seed`` with other enemies has the same
+        ship in the same place. The order carries no deadline and the clock stops at the
+        last tick judged; ``with_slack`` sets both.
+
+        Args:
+            seed: The layout's seed.
+            hull: The pilot's hull.
+            edge_distance_m: From the ship's start to the circle's edge.
+            radius_m: The circle's radius.
+            enemy_hulls: The enemies' hulls, beside the route as a drill's are.
+            parked: Instead: one enemy at rest on the rim, as far as it can be from
+                both the start and the point (a roster needs two teams). Whoever flies
+                the match gives it idle actions.
+
+        Raises:
+            KeyError: An unknown hull.
+            ValueError: A distance or radius that is not positive, no enemy, or more
+                than one enemy to park.
+            RuntimeError: The route does not fit the arena.
+        """
+        if edge_distance_m <= 0 or radius_m <= 0:
+            raise ValueError(f"bad go-to: {edge_distance_m} m to a {radius_m} m circle")
+        if not enemy_hulls or (parked and len(enemy_hulls) != 1):
+            raise ValueError(f"need enemies, and one to park, got {enemy_hulls}")
+        rng = np.random.default_rng([seed, DRILL_KINDS.index(DRILL_GOTO), 0x51E9])
+        frame = _Frame(rng)
+        centre = (edge_distance_m + radius_m) / self.scale
+        start, point = self._route(rng, (centre, centre))
+        heading = float(rng.uniform(-math.pi, math.pi))
+        speed = float(rng.uniform(0.0, START_SPEED_FRAC)) * self.speed_caps[hull]
+        hulls = tuple(enemy_hulls)
+        if parked:
+            enemies = [self._parked(frame, start, point)]
+        else:
+            enemies = self._goto_enemies(rng, frame, start, point, hulls, True)
+        spec = DrillSpec(
+            kind=DRILL_GOTO,
+            seed=seed,
+            teams=((hull,), hulls),
+            layout=(frame.start(start[0], start[1], speed, heading), *enemies),
+            pilots=(0,),
+            clock_ticks=0,
+            arena_radius=self.arena_radius,
+            point=frame.point(*point),
+            radius=radius_m,
+            distances=(edge_distance_m,),
+            far=edge_distance_m >= GOTO_FAR[0] * self.scale,
+            enemies_around=not parked,
+        )
+        return self.with_slack(spec, NO_SLACK, 0)
+
+    def _parked(
+        self, frame: _Frame, start: tuple[float, float], point: tuple[float, float]
+    ) -> ShipStart:
+        """A ship at rest on the rim, as far as it can be from ``start`` and ``point``."""
+        limit = START_LIMIT * self.scale
+        best, best_gap = (limit, 0.0), -1.0
+        for angle in np.linspace(0.0, 2.0 * math.pi, PARKED_BEARINGS, endpoint=False):
+            x, y = limit * math.cos(angle), limit * math.sin(angle)
+            gap = min(
+                math.hypot(x - start[0], y - start[1]),
+                math.hypot(x - point[0], y - point[1]),
+            )
+            if gap > best_gap:
+                best, best_gap = (x, y), gap
+        return frame.start(best[0], best[1], 0.0, _bearing(*best, 0.0, 0.0))
 
     def _goto_enemies(
         self,
@@ -583,14 +788,36 @@ class DrillGenerator:
 _HIT_SHOOTER, _HIT_TARGET, _HIT_DAMAGE = 0, 1, 3
 # Per-slot marks of ``DrillLedger.side_of``.
 _NOT_A_GROUP, _NAMED_GROUP, _OTHER_GROUP = -1, 0, 1
+# ``DrillLedger.deadline`` of a slot whose arrival counts whenever it comes.
+_ANY_TICK = np.iinfo(np.int64).max
+
+
+@dataclass(frozen=True)
+class DrillOutcome:
+    """One finished drill, for the training log (``DrillLedger.finish``).
+
+    Attributes:
+        kind: The drill's kind.
+        successes: Go-to: pilots that arrived in time. Attack and defend: 0 or 1.
+        trials: Go-to: the pilots. Attack and defend: 1.
+        timed_ships: Go-to whose order carried a deadline: the pilots; else 0.
+        missed: Of ``timed_ships``, those alive when their deadline passed without
+            them (the ones the sim charged).
+    """
+
+    kind: str
+    successes: int
+    trials: int
+    timed_ships: int = 0
+    missed: int = 0
 
 
 class DrillLedger:
     """What the pilots of each env's current drill did, vectorised over the envs.
 
     The trainer's logs and the eval share it: every hit a pilot lands is booked here, and
-    go-to arrivals as the sim's order tracks show them. It does no per-env work on a step;
-    only ``begin`` and ``finish``, once a match, loop in Python.
+    go-to arrivals and missed deadlines as the sim's order tracks show them. It does no
+    per-env work on a step; only ``begin`` and ``finish``, once a match, loop in Python.
 
     Args:
         n_envs: Envs.
@@ -610,7 +837,13 @@ class DrillLedger:
         # [N, 2] the pilots' damage on the named group's ships and on the other's.
         self.group_damage = np.zeros((n_envs, 2), dtype=np.float64)
         self.total_damage = np.zeros(n_envs, dtype=np.float64)
+        # Go-to: arrived in time; alive when the order's deadline passed without it.
         self.arrived = np.zeros((n_envs, n_ships), dtype=np.bool_)
+        self.missed = np.zeros((n_envs, n_ships), dtype=np.bool_)
+        # [N, S] the tick each pilot's arrival is judged by, and [N] whether the order
+        # itself carries a deadline (the sim then marks only arrivals in time).
+        self.deadline = np.full((n_envs, n_ships), _ANY_TICK, dtype=np.int64)
+        self.timed = np.zeros(n_envs, dtype=np.bool_)
 
     def begin(self, env: int, tag: DrillTag | None) -> None:
         """Env ``env``'s new match has this drill; ``None``: it is not a drill."""
@@ -624,9 +857,15 @@ class DrillLedger:
         self.group_damage[env] = 0.0
         self.total_damage[env] = 0.0
         self.arrived[env] = False
+        self.missed[env] = False
+        self.deadline[env] = _ANY_TICK
+        self.timed[env] = False
         if tag is None:
             return
         self.pilot[env, list(tag.pilots)] = True
+        if tag.deadlines:
+            self.deadline[env, list(tag.pilots)] = tag.deadlines
+        self.timed[env] = tag.timed
         self.named_slot[env] = tag.named_slot
         self.side_of[env, list(tag.named_group)] = _NAMED_GROUP
         self.side_of[env, list(tag.other_group)] = _OTHER_GROUP
@@ -653,21 +892,44 @@ class DrillLedger:
         grouped = side >= 0
         np.add.at(self.group_damage, (env_ids[grouped], side[grouped]), amount[grouped])
 
-    def see_arrivals(self, arrived: NDArray[np.bool_]) -> None:
-        """Note the arrivals in ``order_tracks()["arrived"]`` (``[N, S]``)."""
-        self.arrived[self.goto] |= arrived[self.goto] & self.pilot[self.goto]
+    def see_tracks(
+        self,
+        arrived: NDArray[np.bool_],
+        missed: NDArray[np.bool_],
+        alive: NDArray[np.bool_],
+        tick: NDArray[np.integer],
+    ) -> None:
+        """Note go-to arrivals in time and missed deadlines. Call before every step: an
+        arrival counts if it is first seen by the tick the pilot is judged by.
+
+        Args:
+            arrived: ``order_tracks()["arrived"]``, ``[N, S]``.
+            missed: ``order_tracks()["missed"]``, ``[N, S]``.
+            alive: ``[N, S]`` ships alive now. A ship dead when its deadline passes is
+                marked missed by the sim and not charged; it is not counted here.
+            tick: ``[N]`` each env's match tick now.
+        """
+        rows = self.goto[:, None] & self.pilot
+        in_time = self.timed[:, None] | (
+            np.asarray(tick, dtype=np.int64)[:, None] <= self.deadline
+        )
+        self.arrived |= rows & arrived & in_time
+        self.missed |= rows & missed & alive
 
     def any_goto_running(self) -> bool:
         """Whether a go-to drill is being played."""
         return bool(self.goto.any())
 
-    def finish(self, env: int) -> tuple[str, int, int]:
-        """The drill in ``env`` is over: ``(kind, successes, trials)`` for the logs.
+    def finish(self, env: int) -> DrillOutcome:
+        """The drill in ``env`` is over: its outcome for the logs.
 
-        A go-to counts each pilot that arrived. An attack counts whether any damage landed
-        on the named target, and a defend whether the named ward's attackers took more
-        than the other's. These are running signals for a training log; the side chosen
-        and the swap test need the eval (``spacefight.eval.drills``).
+        A go-to counts each pilot that arrived in time: by the order's deadline when it
+        carries one, else by the old rule for that ship (``DrillSpec.deadlines``). A ship
+        killed on the way counts as not arrived here; the eval sets those aside. An attack
+        counts whether any damage landed on the named target, and a defend whether the
+        named ward's attackers took more than the other's. These are running signals for
+        a training log; the side chosen and the swap test need the eval
+        (``spacefight.eval.drills``).
 
         Raises:
             ValueError: ``env`` is not running a drill.
@@ -679,7 +941,14 @@ class DrillLedger:
         self.goto[env] = False
         self.tags[env] = None
         if tag.kind == DRILL_GOTO:
-            return tag.kind, int(self.arrived[env].sum()), len(tag.pilots)
+            return DrillOutcome(
+                tag.kind,
+                int(self.arrived[env].sum()),
+                len(tag.pilots),
+                timed_ships=len(tag.pilots) if tag.timed else 0,
+                missed=int(self.missed[env].sum()),
+            )
         if tag.kind == DRILL_ATTACK:
-            return tag.kind, int(self.target_damage[env] > 0.0), 1
-        return tag.kind, int(self.group_damage[env, 0] > self.group_damage[env, 1]), 1
+            return DrillOutcome(tag.kind, int(self.target_damage[env] > 0.0), 1)
+        more = self.group_damage[env, 0] > self.group_damage[env, 1]
+        return DrillOutcome(tag.kind, int(more), 1)

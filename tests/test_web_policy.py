@@ -51,20 +51,28 @@ WIDE_CHECKPOINT = Path(
         REPO / "lab/runs/2026-11-01-order-pilot-b3/reward/checkpoints/ppo_bc_300.pt",
     )
 )
-WIDE_EVAL = REPO / "lab/runs/2026-11-01-order-pilot-b3/eval/reward_300_fleet_vs_script.json"
+WIDE_EVAL = (
+    REPO / "lab/runs/2026-11-01-order-pilot-b3/eval/reward_300_fleet_vs_script.json"
+)
+# A 587-input pilot trained on the SIM_VERSION 8 sim (go-to deadlines), when one is named.
+V8_CHECKPOINT = os.environ.get("RLF_PARITY_CHECKPOINT_V8", "")
+V8_OBS_DIM = 587
 NODE = shutil.which("node")
 
 pytestmark = pytest.mark.skipif(NODE is None, reason="node is not on PATH")
 
 
-def _random_checkpoint(path: Path, seed: int) -> None:
+def _random_checkpoint(
+    path: Path, seed: int, obs_dim: int = OBS_DIM, sim_version: int = 2
+) -> None:
     """A checkpoint with weights large enough that logits are far from uniform."""
     torch.manual_seed(seed)
-    actor = SpikeActor()
+    actor = SpikeActor(obs_dim=obs_dim)
     with torch.no_grad():
         for p in actor.parameters():
             p.normal_(0.0, 0.08)
-    save_policy(path, actor, SpikeCritic(), {"kind": "test", "sim_version": 2})
+    critic = SpikeCritic(obs_dim=obs_dim)
+    save_policy(path, actor, critic, {"kind": "test", "sim_version": sim_version})
 
 
 def _masks(rng: np.random.Generator, n: int) -> HeadMasks:
@@ -185,6 +193,24 @@ def test_js_policy_matches_torch_on_the_583_input_champion(tmp_path: Path) -> No
     _check_parity(
         WIDE_CHECKPOINT, tmp_path, sim_version=6, eval_json=WIDE_EVAL, obs_dim=583
     )
+
+
+def test_js_policy_matches_torch_on_a_587_input_v8_pilot(tmp_path: Path) -> None:
+    """Every input column carries weight, the four ``order_time`` ones included."""
+    ckpt = tmp_path / "v8.pt"
+    _random_checkpoint(ckpt, seed=2, obs_dim=V8_OBS_DIM, sim_version=8)
+    _check_parity(ckpt, tmp_path, sim_version=8, obs_dim=V8_OBS_DIM)
+    manifest = json.loads((tmp_path / "policy" / "manifest.json").read_text())
+    assert manifest["obs_dim"] == V8_OBS_DIM and manifest["sim_version"] == 8
+    assert manifest["layers"][0]["in"] == V8_OBS_DIM
+
+
+@pytest.mark.skipif(
+    not Path(V8_CHECKPOINT).is_file(),
+    reason="set RLF_PARITY_CHECKPOINT_V8 to a 587-input checkpoint",
+)
+def test_js_policy_matches_torch_on_a_trained_587_input_pilot(tmp_path: Path) -> None:
+    _check_parity(Path(V8_CHECKPOINT), tmp_path, sim_version=8, obs_dim=V8_OBS_DIM)
 
 
 def test_a_fleet_eval_summarises_like_a_duel_eval() -> None:

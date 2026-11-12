@@ -217,6 +217,12 @@ class DrillTag:
         named_slot: The attack target's or the ward's slot; -1 for a go-to.
         named_group: Enemy slots on the named side.
         other_group: Enemy slots on the other side.
+        deadlines: Go-to: per pilot, the tick its arrival is judged by
+            (``DrillSpec.deadlines``); empty: any arrival counts.
+        timed: Go-to: the order itself carries a deadline (SIM_VERSION 8).
+
+    Raises:
+        ValueError: ``deadlines`` is neither empty nor one per pilot.
     """
 
     kind: str
@@ -224,6 +230,14 @@ class DrillTag:
     named_slot: int = -1
     named_group: tuple[int, ...] = ()
     other_group: tuple[int, ...] = ()
+    deadlines: tuple[int, ...] = ()
+    timed: bool = False
+
+    def __post_init__(self) -> None:
+        if self.deadlines and len(self.deadlines) != len(self.pilots):
+            raise ValueError(
+                f"{len(self.deadlines)} deadlines for {len(self.pilots)} pilots"
+            )
 
 
 @dataclass(frozen=True)

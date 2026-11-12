@@ -51,6 +51,19 @@ Order pay: attack pays damage to the target. Defend pays damage to the ward's th
 penalties for ward damage and death. Go-to pays potential shaping (fixed at discount 0.99
 when this was written; it now follows the training discount, section 3) and 0.2 on arrival.
 
+Since SIM_VERSION 8 (2026-11-12) a go-to can carry a deadline, and then its pay is strict at
+the deadline and free before it:
+
+| Go-to | Shaping | Arriving | Missing the deadline |
+|---|---|---|---|
+| No deadline | until it arrives | +0.2 | never happens |
+| With a deadline | the same, until it arrives or the deadline passes | +1.0 if in time (`goto_timed_bonus`) | -1.0 once (`goto_miss_penalty`), then the order is over: no more shaping, no late bonus |
+
+Nothing is charged for time before the deadline, so an order with time to spare leaves room
+to land hits on the way. Both amounts are trainer settings (`PPOConfig`, `--set`), passed to
+the sim for every match of the run; the defaults are the sim's. Only drills issue deadlines
+today (section 2); no commander does.
+
 The price of a shot: since night 4 (2026-11-09) every training line pays `extra_fire_cost`
 0.002 per shot on top of the sim's 0.002, twice the sim's price, charged by the trainer so
 the sim and the browser are unchanged. At 2x, pilots held the trigger less and hit a little
@@ -77,7 +90,7 @@ that didn't do what was asked.
 
 | Order | Setup | Pass condition | Not judged |
 |---|---|---|---|
-| Go-to | A near or far point, sometimes with enemies around | Gets there by the deadline: straight-line time at the hull's speed cap, plus generous slack | The route, or fighting on the way |
+| Go-to | A near or far point, sometimes with enemies around | Gets there by the deadline: the order's own when it carries one (three in four, since 2026-11-12), else straight-line time at the hull's speed cap, doubled, plus 10 s | The route, or fighting on the way |
 | Attack | Enemy groups on opposite sides, one target named | Damage lands on the named target, and the pilot goes for its side | Hits on other enemies, which are never penalised |
 | Defend | Two friendly ships under attack on opposite sides, one named | The pilot goes to the named ship and hits its attackers more than the other's | Whether the ward survives |
 
@@ -126,8 +139,8 @@ SIM_SPEC §5.10). No physics changed, the goldens hold and `SIM_VERSION` is stil
   rotation and, half the time, a mirror, so the named side is not fixed in the world or in
   the pilot's frame. Go-to enemies start beside the route half the time, else across the
   arena from it.
-- **Deadline:** from the order, the ship's straight-line time at its speed cap, doubled,
-  plus 10 s. Each ship has its own.
+- **Deadline** (as first built; see "Go-to deadlines" below): from the order, the ship's
+  straight-line time at its speed cap, doubled, plus 10 s. Each ship has its own.
 - **Orders are queued once, when a match is built** (`Roster.opening_orders`, in
   `RustVecEnv`), and the sim applies them on the first slow tick (tick 60). That is simpler
   than issuing them on slow ticks, and there is no per-env Python on a step. Standing orders
@@ -150,6 +163,42 @@ SIM_SPEC §5.10). No physics changed, the goldens hold and `SIM_VERSION` is stil
 - **Pay:** order pay in a defend drill still includes the ward-loss penalties, as in a match.
   They are paid but not judged: the eval never looks at whether a ward survived.
 
+### Go-to deadlines (2026-11-12, SIM_VERSION 8)
+
+A diagnostic of the go-to drills (256 per pilot, every ship's path traced) found that
+pilots read a go-to but fail it two ways: about a third of ships come within 60 m of the
+circle and are not inside in time, and a growing share go and kill an enemy first. Ships
+alone do worst. The deadline existed only in the eval. Now the order carries it, the pilot
+sees the time left (four new inputs, `order_time`: 583 to 587), and the pay is strict at the
+deadline and free before it (section 1).
+
+- **Three go-to drills in four carry a deadline**, one tick for the whole squad:
+  `slack x the slowest ship's straight-line time at its speed cap + 3 s`, slack drawn
+  log-uniformly from 1.5 to 8 (`goto_order_deadline_tick`). In a mixed squad the fast ships
+  have time to spare and the slow one is tight. The rest carry none, which is all a
+  commander issues today, and are judged as before: twice the straight-line time plus 10 s,
+  ship by ship.
+- **A seed's layout is unchanged.** The new numbers are drawn after the old ones, so the
+  start, point, radius, hulls and enemies of a seed are what they were; a test pins three.
+- **The clock no longer marks the deadline.** It ran 1 s past the last deadline, and a
+  pilot sees the share of the match that is left, so it could have timed itself by the
+  match. It now runs a drawn 1 to 20 s past. After the deadline the pilots have no order
+  and fight on until the clock, as in a real match. A weaker hint remains: when the
+  deadline falls, the share of the match left is 0.21 at the median (0.04 to 0.55 for nine
+  drills in ten), so "the match is mostly over" still says the deadline is near.
+- **Go-to drills got longer.** Mean clock 33 s before, 51 s now (one in twenty over 120 s),
+  so the same `drill_share` gives go-to drills more of the rollout than it did.
+- **Old pilots still fly.** A 583-input pilot reads its prefix and cannot see the time
+  left. It is still paid and charged by the deadline.
+
+Measured on the script, which flies straight to the point and does not read the deadline
+(256 go-to drills): in time 0.94 of ships at slack under 2.5, 1.00 above. Over 1,024 drills
+the slowest ship of a squad of two or more was in time 0.95 or more at every slack, but
+ships alone at slack 1.5 to 1.75 made 18 of 24. The sweep below says the same: alone at
+slack 1.5 the script is in time 0.76, at slack 2 0.96. So the bottom of the slack range
+asks a lone ship to hurry more than the script does. Whether a trained pilot can make it is
+not known yet.
+
 ### Drills in training
 
 `drill_share` and `drill_weights` in `pilots_v1` (`roster_overrides`, default 0, and at 0 no
@@ -162,9 +211,16 @@ left after drills, so the Fighters row of section 4 is `drill_share: 0.1, comman
 - A run with drills must pay for orders: the config refuses `order_reward_weight` 0, and
   refuses `hide_damage_when_ordered`, which would teach a pilot not to shoot.
 - Logs: `drill_rows_share`, `drill_episodes` and `drill_success` per kind. Success in the log
-  is a running signal: go-to, ships arrived; attack, any damage on the target; defend, the
-  named ward's attackers took more. Side and swap need the eval. Drills are not in the
-  episode tallies, so a draw in a drill does not touch `vs_scripted_*`.
+  is a running signal: go-to, ships that arrived in time (by the order's deadline when it
+  has one; a ship killed on the way counts against it here); attack, any damage on the
+  target; defend, the named ward's attackers took more. `drill_goto_missed` is the share of
+  go-to ships under a deadline that were alive when it passed without them, of
+  `drill_goto_timed_ships`. Side and swap need the eval. Drills are not in the episode
+  tallies, so a draw in a drill does not touch `vs_scripted_*`.
+- Go-to pay under a deadline is set per run: `goto_timed_bonus` and `goto_miss_penalty`
+  (both 1.0). A 583-input pilot takes the four new inputs with `--set obs_dim=587 --set
+  new_input_lr_mult=3` (zero columns that step three times as far); with `--set
+  obs_dim=583` it trains blind to them, as a control.
 
 ### Drill eval
 
@@ -172,6 +228,81 @@ left after drills, so the Fighters row of section 4 is `drill_share: 0.1, comman
 seeds, separate from training. The script gets no hidden pass, since it flies orders it
 cannot see. Standard errors treat ships of one squad as independent for go-to, so they are a
 little small there. Attack and defend are per drill.
+
+Since 2026-11-12 go-to is judged by the order's own deadline when it has one. The report
+also gives arrival with and without a deadline and by slack band (tight under 2.5, medium to
+4.5, loose over), and says what the ships that were not killed before their deadline did:
+in time; a near miss (within 60 m of the circle before the deadline, not inside in time);
+at the enemy instead (never that close, and within 150 m of an enemy, or every enemy dead);
+or neither. Positions are read ten times a second. The JSON only gained keys. **Go-to
+numbers from before this change are not comparable with those after**, and the go-to bars
+below were set on the old drills; they have not been retuned, and the gate archives nobody.
+
+### The deadline sweep
+
+`spacefight/eval/goto_sweep.py`, JSON `rlf.eval.goto_sweep/1` and a report beside it. The
+go-to version of the swap test: the same start flown at different time allowances. A pilot
+that understands the allowance changes what it does with it; one that ignores the number
+flies the same way every time.
+
+- **One ship alone**, under drill rules: fighter, strafer or gunship; 150, 300 or 500 m from
+  the circle's edge; radius 20 or 60 m; against a parked enemy (one fighter at rest on the
+  rim, given no actions), one script fighter beside the route, or three script ships beside
+  it. Six starts of each: 324 layouts.
+- **Each layout is flown eight times**: slack 0.8, 1, 1.5, 2, 3, 5 and 8, and with no
+  deadline. Slack 0.8 and 1 are at or past what a ship can do; they show whether it still
+  goes. The match seed is the same at every level. The clock stops 20 s after the deadline.
+- **Per level**, and by enemies, hull and distance: the share in time (of ships alive at the
+  deadline, deaths counted apart), the median time to arrive over the time allowed, the
+  median "leave time" (seconds until half the distance is covered), and gun damage dealt
+  and taken before arriving or the deadline.
+- **Headlines:** in time at slack 1.5 and over; the arrival-time ratio (median seconds to
+  arrive at slack 8 over slack 1.5; 1 means it ignores the allowance); hits bought by slack
+  (damage dealt before arriving at slack 8 minus at slack 1.5, against one and three
+  enemies).
+- **How to read them.** The ratio is taken on the layouts where the ship was inside the
+  circle within the slack-1.5 allowance at both levels, and the report gives the share of
+  layouts that were, at each level: the same share at both means it ignores the allowance,
+  fewer at slack 8 means it used the time. A first version paired every layout "reached at
+  both, whenever" and read 1.42 for a pilot that cannot see the deadline, because the
+  short match at slack 1.5 only keeps its quick flights. Hits bought goes up for a ship
+  that never arrives too, since a later deadline is more time to shoot, so it means
+  something only beside the in-time share.
+- `nodeadline:<checkpoint>` flies a pilot with the deadline's three inputs zeroed, so every
+  go-to reads as one without a deadline; `notime:<checkpoint>` zeroes closeness too.
+
+**Baseline, 2026-11-12** (`lab/population/2026-11-sim6/sweep/baseline-v8/`): the script and
+three 583-input pilots, which cannot see the deadline. This is the "ignores it" level that
+pilots trained with the new inputs are compared with.
+
+In time, of ships alive at the deadline:
+
+| Pilot | Slack 1.5 and over | 1.5 | 3 | 8 | No deadline |
+|---|---|---|---|---|---|
+| `script` | 0.94 | 0.76 | 1.00 | 1.00 | 1.00 |
+| `followers_1793` | 0.28 | 0.05 | 0.24 | 0.66 | 0.22 |
+| `fighters_1832` | 0.15 | 0.03 | 0.09 | 0.40 | 0.08 |
+| `fighters_pay1_1317` | 0.09 | 0.01 | 0.05 | 0.22 | 0.04 |
+
+What it did with the time:
+
+| Pilot | Ratio (layouts) | Inside early at 1.5 | at 8 | Hits bought, one | three |
+|---|---|---|---|---|---|
+| `script` | 1.00 (181) | 0.56 | 0.56 | +0.6 | +0.2 |
+| `followers_1793` | 0.96 (6) | 0.04 | 0.03 | +27.2 | +73.1 |
+| `fighters_1832` | 0.96 (3) | 0.02 | 0.02 | +8.6 | +83.9 |
+| `fighters_pay1_1317` | 1.00 (2) | 0.01 | 0.01 | +10.9 | +89.4 |
+
+"Inside early" is the share of layouts inside the circle within the slack-1.5 allowance.
+The three pilots' ratios rest on 2 to 6 layouts and say nothing yet; their "inside early"
+shares are what a later pilot is compared with.
+
+A lone trained pilot mostly does not go: it fights first, and flies to the rim to shoot
+even a parked enemy (`followers_1793` dealt it 47 damage on average with no deadline, and
+was in time 0.03 of the time). Its in-time share rises with slack, which fits a pilot that
+gets there eventually whatever the order says; these pilots cannot see the deadline. This
+is one ship alone; this morning's traces had squads doing better. A sweep takes about 12 s
+for the script and 75 s for a pilot on 4 threads.
 
 ### Obeying only in drills: what a pilot can see
 

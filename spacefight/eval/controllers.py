@@ -34,6 +34,16 @@ THROTTLE_HOLD = 1
 SLEW_HOLD = 1
 # make_controller prefix of a policy flown with the obs order block zeroed.
 BLANK_ORDERS_PREFIX = "blank:"
+# ... with a go-to's deadline zeroed in the ``order_time`` block (SIM_VERSION 8), so
+# every go-to reads as one without a deadline, and with the whole block zeroed.
+NO_DEADLINE_PREFIX = "nodeadline:"
+NO_ORDER_TIME_PREFIX = "notime:"
+# What a policy is kept from seeing of the ``order_time`` block.
+SEE_ORDER_TIME, HIDE_DEADLINE, HIDE_ORDER_TIME = "", "deadline", "order_time"
+ORDER_TIME_HIDES = (SEE_ORDER_TIME, HIDE_DEADLINE, HIDE_ORDER_TIME)
+# The block's floats that carry the deadline (has_deadline, time left, urgency); its
+# fourth, closeness, any go-to has (SIM_SPEC §7.2).
+_DEADLINE_FLOATS = 3
 
 
 def idle_actions(n_rows: int) -> NDArray[np.int8]:
@@ -127,22 +137,38 @@ class Policy:
             ``False`` takes the argmax of every head.
         blank_orders: Zero the obs order block (SIM_VERSION 5) before the policy
             sees it: stage B's "same pilot with orders blanked" baseline.
+        hide_order_time: ``HIDE_DEADLINE`` zeroes the deadline's three floats of the
+            ``order_time`` block (SIM_VERSION 8), so a go-to with a deadline reads as
+            one without: the same pilot blind to the deadline. ``HIDE_ORDER_TIME``
+            zeroes the whole block, closeness too. A pilot of 583 inputs or fewer
+            never sees the block, so neither changes how it flies.
 
     Raises:
         FileNotFoundError: ``path`` does not exist.
-        ValueError: ``path`` is not a spike-policy checkpoint.
+        ValueError: ``path`` is not a spike-policy checkpoint, or an unknown
+            ``hide_order_time``.
     """
 
     def __init__(
-        self, path: Path, sample: bool = True, blank_orders: bool = False
+        self,
+        path: Path,
+        sample: bool = True,
+        blank_orders: bool = False,
+        hide_order_time: str = SEE_ORDER_TIME,
     ) -> None:
         if not path.is_file():
             raise FileNotFoundError(f"policy checkpoint not found: {path}")
+        if hide_order_time not in ORDER_TIME_HIDES:
+            raise ValueError(
+                f"hide_order_time must be one of {ORDER_TIME_HIDES}, "
+                f"got {hide_order_time!r}"
+            )
         from spacefight.rl import spike_policy
 
         self.path = path
         self.sample = sample
         self.blank_orders = blank_orders
+        self.hide_order_time = hide_order_time
         self._spike = spike_policy
         actor, _critic, meta = spike_policy.load_policy(path)
         self.actor = actor.eval()
@@ -152,7 +178,8 @@ class Policy:
     def label(self) -> str:
         mode = "" if self.sample else ":argmax"
         blank = ":blank_orders" if self.blank_orders else ""
-        return f"policy:{self.path.name}{mode}{blank}"
+        hidden = f":no_{self.hide_order_time}" if self.hide_order_time else ""
+        return f"policy:{self.path.name}{mode}{blank}{hidden}"
 
     def reset(self, seed: int) -> None:
         """Seed torch's global RNG, which the actor samples from."""
@@ -167,6 +194,11 @@ class Policy:
         obs = np.ascontiguousarray(env.obs[rows], dtype=np.float32)
         if self.blank_orders:
             offset, width = OBS_LAYOUT["order"]
+            obs[:, offset : offset + width] = 0.0
+        if self.hide_order_time:
+            offset, width = OBS_LAYOUT["order_time"]
+            if self.hide_order_time == HIDE_DEADLINE:
+                width = _DEADLINE_FLOATS
             obs[:, offset : offset + width] = 0.0
         masks = self._spike.HeadMasks.from_numpy(
             env.thruster_mask[rows], env.turret_mask[rows], env.fixed_turret[rows]
@@ -233,7 +265,9 @@ class PerHull:
 
 def make_controller(spec: str, sample: bool = True, seed: int = 0) -> Controller:
     """Build a controller from a CLI spec: ``script``, ``random``, a checkpoint path,
-    or ``blank:<checkpoint>`` (the policy with the obs order block zeroed).
+    ``blank:<checkpoint>`` (the policy with the obs order block zeroed),
+    ``nodeadline:<checkpoint>`` (blind to a go-to's deadline) or ``notime:<checkpoint>``
+    (the whole ``order_time`` block zeroed).
 
     Raises:
         FileNotFoundError: ``spec`` is neither keyword nor an existing file.
@@ -245,4 +279,11 @@ def make_controller(spec: str, sample: bool = True, seed: int = 0) -> Controller
     if spec.startswith(BLANK_ORDERS_PREFIX):
         path = Path(spec.removeprefix(BLANK_ORDERS_PREFIX))
         return Policy(path, sample=sample, blank_orders=True)
+    for prefix, hide in (
+        (NO_DEADLINE_PREFIX, HIDE_DEADLINE),
+        (NO_ORDER_TIME_PREFIX, HIDE_ORDER_TIME),
+    ):
+        if spec.startswith(prefix):
+            path = Path(spec.removeprefix(prefix))
+            return Policy(path, sample=sample, hide_order_time=hide)
     return Policy(Path(spec), sample=sample)
