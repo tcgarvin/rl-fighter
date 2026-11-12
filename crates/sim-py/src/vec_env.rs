@@ -349,9 +349,12 @@ impl VecEnv {
     /// order (SIM_SPEC §7.2); rewards and scripts are unaffected.
     /// `order_shaping_gamma` is the discount of the go-to order reward's shaping term
     /// (SIM_SPEC §8), in (0, 1]: a trainer passes its own discount. It holds for every
-    /// match of the env, whatever roster is queued.
+    /// match of the env, whatever roster is queued. v8: `goto_timed_bonus` is the order
+    /// reward for arriving at a go-to with a deadline in time and `goto_miss_penalty`
+    /// the one-shot charge for missing it (both finite and >= 0, SIM_SPEC §8); they
+    /// hold for every match of the env too.
     #[new]
-    #[pyo3(signature = (assets_dir, n_envs, fleets, seed, arena_radius=450.0, time_limit_s=90.0, n_threads=0, record_events=false, reaction_ticks=2, max_ships=None, mission=None, commanders=None, hide_orders=None, order_shaping_gamma=sim::reward::ORDER_SHAPING_GAMMA))]
+    #[pyo3(signature = (assets_dir, n_envs, fleets, seed, arena_radius=450.0, time_limit_s=90.0, n_threads=0, record_events=false, reaction_ticks=2, max_ships=None, mission=None, commanders=None, hide_orders=None, order_shaping_gamma=sim::reward::ORDER_SHAPING_GAMMA, goto_timed_bonus=sim::reward::ORDER_TIMED_ARRIVAL_BONUS, goto_miss_penalty=sim::reward::ORDER_MISS_PENALTY))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         py: Python<'_>,
@@ -369,6 +372,8 @@ impl VecEnv {
         commanders: Option<Vec<String>>,
         hide_orders: Option<Vec<bool>>,
         order_shaping_gamma: f32,
+        goto_timed_bonus: f32,
+        goto_miss_penalty: f32,
     ) -> PyResult<Self> {
         if n_envs < 1 {
             return Err(PyValueError::new_err(format!(
@@ -413,6 +418,8 @@ impl VecEnv {
                 base_seed: seed,
                 reaction_ticks,
                 order_shaping_gamma,
+                goto_timed_bonus,
+                goto_miss_penalty,
                 roster: Roster {
                     fleets,
                     arena_radius,
@@ -534,6 +541,20 @@ impl VecEnv {
         self.batch.match_at(0).cfg.order_shaping_gamma
     }
 
+    /// v8: the order reward for arriving at a go-to with a deadline in time, in this
+    /// env's matches (the constructor's `goto_timed_bonus`, as f32).
+    #[getter]
+    fn goto_timed_bonus(&self) -> f32 {
+        self.batch.match_at(0).cfg.goto_timed_bonus
+    }
+
+    /// v8: the one-shot order-reward charge for missing a go-to's deadline, in this
+    /// env's matches (the constructor's `goto_miss_penalty`, as f32).
+    #[getter]
+    fn goto_miss_penalty(&self) -> f32 {
+        self.batch.match_at(0).cfg.goto_miss_penalty
+    }
+
     /// Rebuild every match at episode 0 and write the fresh observations. Rewards,
     /// dones, hits are cleared; winner is -2.
     fn reset(&mut self, py: Python<'_>) -> PyResult<()> {
@@ -580,7 +601,8 @@ impl VecEnv {
     /// v4: queue commands for team `team` of match `i`, applied on that match's next
     /// slow tick (`command_due`). `commands` is one command dict or a list of them
     /// (SIM_SPEC §10.3). Only an `"external"` team's commands are used; the queue is
-    /// dropped if the match ends first.
+    /// dropped if the match ends first. v8: a go-to order may carry `"deadline"`, the
+    /// match tick to arrive by (a non-negative integer; 0 or absent: no deadline).
     fn submit_command(
         &mut self,
         py: Python<'_>,
@@ -851,7 +873,9 @@ impl VecEnv {
     /// instance's target or ward slot, -1), `point` (`[N,S,2] f32`, the instance's
     /// go-to point), `radius` (`[N,S] f32`, the standing go-to radius, 0 otherwise),
     /// `arrived` (`[N,S] bool`) and `instance_start` (`[N,S] uint32`, its start
-    /// tick). Padding slots read 0 / -1 / false.
+    /// tick); v8: `deadline` (`[N,S] uint32`, the instance's go-to deadline tick, 0
+    /// for none) and `missed` (`[N,S] bool`, the deadline passed before the ship
+    /// arrived). Padding slots read 0 / -1 / false.
     fn order_tracks<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let (n, s) = (self.batch.n_envs(), self.batch.n_ships());
         let mut standing = Array2::<i8>::zeros(Dim([n, s]));
@@ -861,6 +885,8 @@ impl VecEnv {
         let mut radius = Array2::<f32>::zeros(Dim([n, s]));
         let mut arrived = Array2::<bool>::from_elem(Dim([n, s]), false);
         let mut start = Array2::<u32>::zeros(Dim([n, s]));
+        let mut deadline = Array2::<u32>::zeros(Dim([n, s]));
+        let mut missed = Array2::<bool>::from_elem(Dim([n, s]), false);
         for i in 0..n {
             let m = self.batch.match_at(i);
             for k in 0..m.ships.len() {
@@ -878,6 +904,8 @@ impl VecEnv {
                 }
                 arrived[[i, k]] = track.arrived;
                 start[[i, k]] = track.start_tick;
+                deadline[[i, k]] = track.deadline;
+                missed[[i, k]] = track.missed;
             }
         }
         let out = PyDict::new(py);
@@ -888,6 +916,8 @@ impl VecEnv {
         out.set_item("radius", radius.into_pyarray(py))?;
         out.set_item("arrived", arrived.into_pyarray(py))?;
         out.set_item("instance_start", start.into_pyarray(py))?;
+        out.set_item("deadline", deadline.into_pyarray(py))?;
+        out.set_item("missed", missed.into_pyarray(py))?;
         Ok(out)
     }
 

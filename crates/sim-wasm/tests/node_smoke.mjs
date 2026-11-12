@@ -82,14 +82,14 @@ function check(cond, msg) {
 }
 
 check(sim.SHIP_STRIDE() === 29 && sim.EVENT_STRIDE() === 8 && sim.PROJECTILE_STRIDE() === 8, "strides");
-check(sim.ACTION_WIDTH() === 21 && sim.OBS_DIM() === 583, "action/obs widths");
-check(sim.sim_version() === 7 && Array.from(sim.pilot_compat_versions()).join() === "3,4,5,6,7", "v7 + pilot compat");
+check(sim.ACTION_WIDTH() === 21 && sim.OBS_DIM() === 587, "action/obs widths");
+check(sim.sim_version() === 8 && Array.from(sim.pilot_compat_versions()).join() === "3,4,5,6,7,8", "v8 + pilot compat");
 check(
-  sim.pilotObsDim(3) === 385 && sim.pilotObsDim(4) === 385 && sim.pilotObsDim(5) === 403 && sim.pilotObsDim(6) === 583 && sim.pilotObsDim(7) === 583,
+  sim.pilotObsDim(3) === 385 && sim.pilotObsDim(4) === 385 && sim.pilotObsDim(5) === 403 && sim.pilotObsDim(6) === 583 && sim.pilotObsDim(7) === 583 && sim.pilotObsDim(8) === 587,
   "pilot obs dims",
 );
-check(JSON.stringify(JSON.parse(sim.pilotObsDimsJson())) === '{"3":385,"4":385,"5":403,"6":583,"7":583}', "pilotObsDimsJson");
-check(JSON.parse(sim.obsLayoutJson()).blocks.at(-1).join() === "order_ships,473,110", "obs layout ends with the order_ships block");
+check(JSON.stringify(JSON.parse(sim.pilotObsDimsJson())) === '{"3":385,"4":385,"5":403,"6":583,"7":583,"8":587}', "pilotObsDimsJson");
+check(JSON.parse(sim.obsLayoutJson()).blocks.at(-1).join() === "order_time,583,4", "obs layout ends with the order_time block");
 check(sim.MAX_TRAIN_SHIPS() === 12, "MAX_TRAIN_SHIPS");
 check(sim.pilot_compatible(3) && !sim.pilot_compatible(2), "pilot_compatible");
 check(sim.SHIP_EXT_STRIDE() === 10 && sim.SQUAD_STRIDE() === 9 && sim.TEAM_STRIDE() === 8 && sim.CONVOY_STRIDE() === 14, "v4 strides");

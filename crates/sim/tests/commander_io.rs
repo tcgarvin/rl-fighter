@@ -5,7 +5,8 @@ mod common;
 
 use common::asset_catalogue;
 use sim::command::{
-    COMMAND_TICKS, Command, CommanderMode, LEARNED_COMMAND_TICKS, Order, Squad, Waypoint,
+    COMMAND_TICKS, Command, CommanderMode, LEARNED_COMMAND_TICKS, NO_DEADLINE, Order, Squad,
+    Waypoint,
 };
 use sim::commander_io::{
     ACTION_DIM, CommanderFeatures, CommanderLocks, DecodeError, ENTITY_DIM, FLAT_DIM, FLAT_LAYOUT,
@@ -154,6 +155,7 @@ fn a_mirrored_deathmatch_looks_the_same_to_both_teams() {
             order: Order::GoTo {
                 point: map_point(team as u8, 3, R),
                 radius: GOTO_RADIUS,
+                deadline: NO_DEADLINE,
             },
         };
         m.ships[o + 1].hp *= 0.5;
@@ -410,6 +412,7 @@ fn decode_moves_ships_sets_orders_and_keeps() {
                 order: Order::GoTo {
                     point: map_point(0, 9, R),
                     radius: GOTO_RADIUS,
+                    deadline: NO_DEADLINE,
                 },
             },
         ]
@@ -430,7 +433,7 @@ fn decode_moves_ships_sets_orders_and_keeps() {
         Command::Squad {
             squad: 0,
             members: 0b1000,
-            order: Order::GoTo { point, radius },
+            order: Order::GoTo { point, radius, .. },
         },
     ] = cmds[..]
     else {
@@ -643,6 +646,49 @@ fn a_spent_order_ends_its_hold_at_once() {
     b[act::TARGET] = 3;
     assert_eq!(decide(&mut m, &cat, 0, &mut locks, &b), 1);
     assert_eq!(ship_hold_left(&m, &locks, 0), HOLD_DECISIONS - 1);
+}
+
+/// v8: a go-to whose deadline the ship missed is spent exactly as an arrived one is.
+/// No learned commander issues a deadline yet, so the test puts one on the squad's
+/// order as an external commander would.
+#[test]
+fn a_missed_goto_ends_its_hold_as_an_arrival_does() {
+    let cat = asset_catalogue();
+    let mut m = present_deathmatch(&cat);
+    let mut locks = CommanderLocks::default();
+    let mut a = keep();
+    a[act::SQUAD + 1] = 3; // slot 1 goes to point 5
+    a[act::ORDER + 1] = 4;
+    a[act::POINT + 1] = 5;
+    assert_eq!(decide(&mut m, &cat, 0, &mut locks, &a), 1);
+    assert_eq!(ship_hold_left(&m, &locks, 1), HOLD_DECISIONS - 1);
+    let Order::GoTo { point, radius, .. } = m.command.squads[0][1].order else {
+        panic!("squad 2 has a go-to");
+    };
+    // Well outside the circle, with a deadline it cannot make.
+    let away = if point.x > 0.0 { -1.0 } else { 1.0 };
+    m.ships[1].pos = point + Vec2::new(away * (radius + 100.0), 0.0);
+    m.ships[1].vel = Vec2::ZERO;
+    let deadline = m.tick + 2;
+    m.command.squads[0][1].order = Order::GoTo {
+        point,
+        radius,
+        deadline,
+    };
+    // Up to the deadline tick the hold stands.
+    while m.tick < deadline {
+        m.step(&cat);
+        assert_eq!(ship_hold_left(&m, &locks, 1), HOLD_DECISIONS - 1);
+        assert!(!masks(&m, &cat, 0, &locks).order[1][1]);
+    }
+    // The first step past it: missed, so the order is spent and the ship is free.
+    m.step(&cat);
+    assert!(m.order_track(1).missed && !m.order_track(1).arrived);
+    assert_eq!(ship_hold_left(&m, &locks, 1), 0);
+    assert!(masks(&m, &cat, 0, &locks).order[1][1]);
+    let f = features(&m, &cat, 0, &locks);
+    assert_eq!(f.entities[1][ent::SHIP_HOLD], 0.0);
+    assert_eq!(f.entities[1][ent::ORDER], 1.0, "its order reads none");
 }
 
 /// A hold reads its order's state only once the decision has applied: straight after

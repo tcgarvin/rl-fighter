@@ -385,7 +385,7 @@ impl MatchCore {
                         let p = self.m.ships()[usize::from(target)].pos;
                         (target, [p.x, p.y], 0.0)
                     }
-                    Order::GoTo { point, radius } => (NONE, [point.x, point.y], radius),
+                    Order::GoTo { point, radius, .. } => (NONE, [point.x, point.y], radius),
                 };
                 out.extend_from_slice(&[
                     f32::from(team),

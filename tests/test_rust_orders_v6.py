@@ -55,11 +55,11 @@ def run(env: "rlf_sim.VecEnv", steps: int) -> None:
 
 
 def test_v6_constants_and_layout() -> None:
-    assert rlf_sim.SIM_VERSION == 7
-    assert rlf_sim.OBS_DIM == 583
+    assert rlf_sim.SIM_VERSION == 8
+    assert rlf_sim.OBS_DIM == 587 and rlf_sim.OBS_DIM_V7 == 583
     assert rlf_sim.OBS_DIM_V5 == 403 and rlf_sim.OBS_DIM_V4 == 385
-    assert rlf_sim.PILOT_OBS_DIMS == {3: 385, 4: 385, 5: 403, 6: 583, 7: 583}
-    assert list(rlf_sim.PILOT_COMPAT_VERSIONS) == [3, 4, 5, 6, 7]
+    assert rlf_sim.PILOT_OBS_DIMS == {3: 385, 4: 385, 5: 403, 6: 583, 7: 583, 8: 587}
+    assert list(rlf_sim.PILOT_COMPAT_VERSIONS) == [3, 4, 5, 6, 7, 8]
     assert rlf_sim.SHIP_EXTRA_W == 10 and rlf_sim.N_ORDER_SHIPS == 5
     assert list(rlf_sim.ORDER_KINDS) == ["attack", "defend", "goto"]
     assert (EXTRAS_OFF, EXTRAS_W) == (403, 7 * 10)
@@ -85,7 +85,12 @@ def test_v6_buffers_shapes_and_order_tracks() -> None:
         "radius",
         "arrived",
         "instance_start",
+        "deadline",
+        "missed",
     }
+    assert tracks["deadline"].dtype == np.uint32 and tracks["missed"].dtype == np.bool_
+    # No commander of the sim issues a deadline.
+    assert not tracks["deadline"].any() and not tracks["missed"].any()
     assert tracks["standing_kind"].shape == (n, s)
     assert tracks["standing_kind"].dtype == np.int8
     assert tracks["target"].dtype == np.int16

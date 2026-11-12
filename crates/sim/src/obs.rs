@@ -1,10 +1,12 @@
 //! Observation layout constants and `Match::write_obs` (SIM_SPEC §7.2, v2; v5 order
-//! block; v6 threat blocks).
+//! block; v6 threat blocks; v8 order-time block).
 //!
-//! The obs is a fixed 583-float vector (385 through v4; v5 appends the 18-float
+//! The obs is a fixed 587-float vector (385 through v4; v5 appends the 18-float
 //! `order` block, so the first `OBS_DIM_V4` floats are exactly v4's and a v3/v4
 //! pilot reads `obs[..OBS_DIM_V4]`; v6 appends `ship_extras` and `order_ships`, so
-//! the first `OBS_DIM_V5` floats are exactly v5's) in the observing ship's body frame (relative
+//! the first `OBS_DIM_V5` floats are exactly v5's; v8 appends the 4-float
+//! `order_time` block, so the first `OBS_DIM_V7` floats are exactly v6's and v7's)
+//! in the observing ship's body frame (relative
 //! vectors rotated by `-heading`, so forward = +x, port = +y). Every block is a
 //! sequence of fixed-width records of one entity (self, thruster, turret, ship,
 //! projectile, pending action); each record has its own writer so the later
@@ -52,11 +54,17 @@
 //!   order.
 //! - v6 hidden-order mode (`MatchConfig.hide_orders`): a hidden team's obs is exactly
 //!   that of a ship without an order: zero order block, zero `order_ships`, zero
-//!   order-dependent extras.
+//!   order-dependent extras (v8: and zero `order_time`).
+//! - v8 `order_time` (`write_order_time`): all zero unless the order the ship sees is a
+//!   go-to (so zero without an order, on a hidden team, and once the go-to is over:
+//!   arrived or missed). "Distance" is to the circle's edge, `max(0, d − radius)`.
+//!   Time left counts the steps in which an arrival is still in time: on the deadline
+//!   tick itself it is 0, and the urgency of a ship still outside reads its ceiling.
 
+use crate::DT;
 use crate::actions::{POWER_MAX, ShipAction, THROTTLE_HOLD};
 use crate::arrival::ARRIVAL_LOCK_TICKS;
-use crate::command::Order;
+use crate::command::{NO_DEADLINE, Order};
 use crate::data::{Catalogue, HullDef, ThrusterDef};
 use crate::math::{TAU, Vec2, clamp, rot};
 use crate::order::{N_HULL_CLASSES, effective_order, order_geometry};
@@ -64,8 +72,11 @@ use crate::state::{
     MAX_REACTION_TICKS, MAX_SHIPS, MAX_THRUSTERS, MAX_TURRETS, Match, Projectile, Ship, ShipIdx,
 };
 
-/// Total obs width (v6; 403 in v5, 385 through v4).
-pub const OBS_DIM: usize = 583;
+/// Total obs width (v8; 583 in v6 and v7, 403 in v5, 385 through v4).
+pub const OBS_DIM: usize = 587;
+/// Width of the v6 and v7 obs, the prefix every v8 obs starts with unchanged: what a
+/// pilot trained under SIM_VERSION 6 or 7 reads (`crate::PILOT_OBS_DIMS`).
+pub const OBS_DIM_V7: usize = 583;
 /// Width of the v5 obs, the prefix every v6 obs starts with unchanged: what a pilot
 /// trained under SIM_VERSION 5 reads (`crate::PILOT_OBS_DIMS`).
 pub const OBS_DIM_V5: usize = 403;
@@ -127,6 +138,15 @@ pub const SHIP_EXTRA_W: usize = N_HULL_CLASSES + 4;
 pub const N_ORDER_SHIPS: usize = 5;
 /// v6 `order_ships` record: a ship record plus its extras.
 pub const ORDER_SHIP_W: usize = SHIP_W + SHIP_EXTRA_W;
+/// v8 order-time record: has_deadline, time left, urgency, closeness.
+pub const ORDER_TIME_W: usize = 4;
+/// v8: the time-left feature is ticks to the deadline over this (30 s).
+pub const ORDER_TIME_TICKS: f32 = 900.0;
+/// v8: the time-left and urgency features are clamped to `[0, ORDER_TIME_CLIP]`.
+pub const ORDER_TIME_CLIP: f32 = 2.0;
+/// v8: the closeness feature rises from 0 at this distance (m) outside the go-to
+/// circle to 1 at its edge.
+pub const CLOSENESS_RANGE: f32 = 100.0;
 
 // Block offsets and widths.
 pub const SELF_OFF: usize = 0;
@@ -151,10 +171,13 @@ pub const SHIP_EXTRAS_OFF: usize = ORDER_OFF + ORDER_WIDTH;
 pub const SHIP_EXTRAS_WIDTH: usize = N_NEAR_SHIPS * SHIP_EXTRA_W;
 pub const ORDER_SHIPS_OFF: usize = SHIP_EXTRAS_OFF + SHIP_EXTRAS_WIDTH;
 pub const ORDER_SHIPS_WIDTH: usize = N_ORDER_SHIPS * ORDER_SHIP_W;
+pub const ORDER_TIME_OFF: usize = ORDER_SHIPS_OFF + ORDER_SHIPS_WIDTH;
+pub const ORDER_TIME_WIDTH: usize = ORDER_TIME_W;
 
 const _: () = assert!(ORDER_OFF == OBS_DIM_V4);
 const _: () = assert!(SHIP_EXTRAS_OFF == OBS_DIM_V5);
-const _: () = assert!(ORDER_SHIPS_OFF + ORDER_SHIPS_WIDTH == OBS_DIM);
+const _: () = assert!(ORDER_TIME_OFF == OBS_DIM_V7);
+const _: () = assert!(ORDER_TIME_OFF + ORDER_TIME_WIDTH == OBS_DIM);
 const _: () = assert!(SHIP_EXTRA_W == 10 && ORDER_SHIP_W == 22);
 const _: () = assert!(PENDING_W == 22);
 
@@ -172,6 +195,7 @@ pub const OBS_LAYOUT: &[(&str, usize, usize)] = &[
     ("order", ORDER_OFF, ORDER_WIDTH),
     ("ship_extras", SHIP_EXTRAS_OFF, SHIP_EXTRAS_WIDTH),
     ("order_ships", ORDER_SHIPS_OFF, ORDER_SHIPS_WIDTH),
+    ("order_time", ORDER_TIME_OFF, ORDER_TIME_WIDTH),
 ];
 
 /// `(name, records)` per block, in `OBS_LAYOUT` order; each block's width is
@@ -188,6 +212,7 @@ pub const OBS_SLOTS: &[(&str, usize)] = &[
     ("order", 1),
     ("ship_extras", N_NEAR_SHIPS),
     ("order_ships", N_ORDER_SHIPS),
+    ("order_time", 1),
 ];
 
 /// Feature indices within the self record.
@@ -315,6 +340,23 @@ pub mod order_f {
     pub const AGE: usize = 14;
     /// One-hot deathmatch, carrier battle, convoy escort.
     pub const MISSION: usize = 15;
+}
+
+/// Feature indices within the v8 order-time record (all 0 unless the ship sees a
+/// go-to order).
+pub mod order_time_f {
+    /// 1 if the go-to has a deadline.
+    pub const HAS_DEADLINE: usize = 0;
+    /// Ticks to the deadline / `ORDER_TIME_TICKS`, in `[0, ORDER_TIME_CLIP]`; 0
+    /// without a deadline.
+    pub const TIME_LEFT: usize = 1;
+    /// Distance to the circle's edge / (seconds left × the hull's speed cap), in
+    /// `[0, ORDER_TIME_CLIP]`: 1 means flat out in a straight line just makes it, more
+    /// means it cannot. 0 without a deadline; the ceiling with no time left and
+    /// distance to go.
+    pub const URGENCY: usize = 2;
+    /// `1 − min(1, distance to the circle's edge / CLOSENESS_RANGE)`, deadline or not.
+    pub const CLOSENESS: usize = 3;
 }
 
 /// Feature indices within a v6 ship-extras record.
@@ -637,6 +679,39 @@ pub fn write_order(m: &Match, cat: &Catalogue, ship: &Ship, out: &mut [f32]) {
     clamp_record(out);
 }
 
+/// v8: `ship`'s order-time record (`ORDER_TIME_W` floats, module docs): all zero
+/// unless the order it sees is a go-to.
+pub fn write_order_time(m: &Match, cat: &Catalogue, ship: &Ship, out: &mut [f32]) {
+    let out = &mut out[..ORDER_TIME_W];
+    out.fill(0.0);
+    let Order::GoTo {
+        point,
+        radius,
+        deadline,
+    } = seen_order(m, ship)
+    else {
+        return;
+    };
+    let to_edge = ((point - ship.pos).length() - radius).max(0.0);
+    out[order_time_f::CLOSENESS] = 1.0 - (to_edge / CLOSENESS_RANGE).min(1.0);
+    if deadline != NO_DEADLINE {
+        let ticks_left = deadline.saturating_sub(m.tick) as f32;
+        out[order_time_f::HAS_DEADLINE] = 1.0;
+        out[order_time_f::TIME_LEFT] = (ticks_left / ORDER_TIME_TICKS).min(ORDER_TIME_CLIP);
+        // Metres the hull covers at its speed cap in the steps left. Zero with no time
+        // left (or a static hull): any distance to go then reads the ceiling.
+        let reach = ticks_left * DT * cat.hull(ship.hull).speed_cap;
+        out[order_time_f::URGENCY] = if to_edge <= 0.0 {
+            0.0
+        } else if reach <= 0.0 {
+            ORDER_TIME_CLIP
+        } else {
+            (to_edge / reach).min(ORDER_TIME_CLIP)
+        };
+    }
+    clamp_record(out);
+}
+
 /// v6: what a ship's order-dependent obs features are measured against: the order
 /// it sees ([`seen_order`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -825,5 +900,11 @@ impl Match {
         }
 
         write_order(self, cat, me, &mut out[ORDER_OFF..ORDER_OFF + ORDER_WIDTH]);
+        write_order_time(
+            self,
+            cat,
+            me,
+            &mut out[ORDER_TIME_OFF..ORDER_TIME_OFF + ORDER_TIME_WIDTH],
+        );
     }
 }

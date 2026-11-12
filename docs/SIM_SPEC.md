@@ -181,6 +181,44 @@ random-actions scenarios are no longer replayed (`tests/golden/v3/`, `v4/`, `v5/
 their record). Pilots of v3 to v6 still fly, but were trained when crashes cost a light
 ship less and against a script that rammed.
 
+### 0.6 v8 changes (SIM_VERSION 7 → 8, go-to deadlines)
+
+The owner's decision (2026-11-12) after a diagnostic of the go-to drills: pilots read a
+go-to but kill enemies first and arrive late, and stop 40 to 60 m short of the circle.
+The deadline existed only in the eval; nothing in the order, the pay or the obs
+carried it. Now a go-to may carry one, the pilot sees the time left, and the pay is
+strict about the deadline but free before it, so an order with time to spare leaves
+room to fight on the way. No commander in the sim issues a deadline yet: they come from
+external commands (drills first).
+
+| # | change | why | sections |
+|---|---|---|---|
+| 1 | `Order::GoTo { point, radius, deadline }`: `deadline: u32` is the match tick to be inside the radius by, `NO_DEADLINE = 0` for none (JSON `"deadline"`, default 0). Any value is accepted. The scripted, random and learned commanders and capital waypoints pass `NO_DEADLINE`. Hashed with the order | the order has to say when | §5.9, §10.3 |
+| 2 | `OrderTrack` gains `deadline` and `missed` (both hashed). A go-to re-issued with **another deadline is a new instance**, even at the same point | a new deadline is a new thing to do, with its own pay | §5.9 |
+| 3 | **Arrival and expiry.** Inside the radius at the end of a step whose tick is ≤ the deadline: arrived in time. At the end of the first step whose tick is > the deadline, a ship of the instance that has not arrived has **missed**: `missed = true` and its effective order is none from then on, as after an arrival (obs shows no order, no shaping, the script flies its role, a drill no longer waits for it, a learned commander's hold on it is spent). The squad's standing order stays. A deadline already past when the order lands is missed on that step | "be there by tick y" has to end at tick y | §5.9, §5.10, §11 |
+| 4 | **An instance that starts with the ship on the field and already inside the radius is complete at once and pays no arrival bonus** (every go-to, deadline or not; v7 paid 0.2 on that step) | row 2 would otherwise let a commander farm the bonus by re-issuing deadlines to a ship that is already there | §5.9, §8 |
+| 5 | **Pay.** A go-to with a deadline has the no-deadline shaping until arrival or expiry, pays `MatchConfig.goto_timed_bonus` (default `ORDER_TIMED_ARRIVAL_BONUS = 1.0`) instead of 0.2 for arriving in time, and charges `MatchConfig.goto_miss_penalty` (default `ORDER_MISS_PENALTY = 1.0`) once on a miss; a ship that is dead or absent on that step is marked missed but not charged. Nothing is charged for time before the deadline. Both config values are validated (finite, ≥ 0) and, like `order_shaping_gamma`, are not hashed | strict about the deadline, free before it | §8 |
+| 6 | Obs `OBS_DIM` 583 → **587**: block `order_time` (4 floats) at offset 583: has_deadline, time left, urgency, closeness. All zero unless the ship sees a go-to. The first 583 floats are v7's | the pilot has to see the clock; and the order block's distance, scaled by the arena radius, moves 0.1 over the last 45 m, which may be too coarse to finish on | §7.2 |
+| 7 | `PILOT_COMPAT_VERSIONS = [3, 4, 5, 6, 7, 8]`, `PILOT_OBS_DIMS` adds `8: 587`; v6 and v7 pilots keep reading their 583-float prefix (`OBS_DIM_V7`). Bindings: `goto_timed_bonus` / `goto_miss_penalty` kwargs and getters, `order_tracks()` adds `deadline` and `missed`, `NO_DEADLINE`, `OBS_DIM_V7` | older pilots fly on; the trainer sets the pay | §10 |
+
+Not changed: the `Order` event and the wasm `squads()` view keep their layouts (all
+eight event floats are in use, and the web client reads nine floats per squad), so a
+deadline is visible in the JSON views (`mission_state`, `commander_obs`) and in
+`order_tracks()` only.
+
+**Compatibility.** With no deadline issued, v8 flies exactly as v7. The `v7_compat_*`
+replay renders all nine v7 scenarios as v7 did (the state hash without the deadlines
+and `missed`; the aux digest over the first 583 obs floats plus the order rewards) and
+matches the v7 traces kept in `tests/golden/v7/` bit for bit: every ship and
+projectile, obs prefix, reward, hit and event, under the scripted and the random
+commander, in every mission. Row 4 is the one rule that reaches such a match. It
+changes only the order reward of the step an instance starts on (v7 marked the ship
+arrived on that same step, so nothing a ship or a script reads differs); the replay adds
+the 0.2 back for those steps and so shows that nothing else about the order reward
+moved. It fires 4, 4 and 2 times in the three random-commander scenarios and never
+under the scripted commander. `v3_compat_duel_*`, `v4_compat_duel_*` and
+`v5_compat_duel_*` still pass.
+
 ---
 
 ## 1. Conventions
@@ -270,6 +308,8 @@ pub struct MatchConfig {
     pub commanders: [CommanderMode; 2],              // v4; default [Scripted; 2] (§5.9)
     pub hide_orders: [bool; 2],                      // v6; default [false; 2] (§7.2)
     pub order_shaping_gamma: f32,                    // default 0.99; in (0, 1] (§8)
+    pub goto_timed_bonus: f32,                       // v8; default 1.0; finite, >= 0 (§8)
+    pub goto_miss_penalty: f32,                      // v8; default 1.0; finite, >= 0 (§8)
     pub start_layout: Option<Vec<ShipStart>>,        // default None; where each slot starts (§5.10)
     pub drill: bool,                                 // default false; drill rules (§5.10)
 }
@@ -841,9 +881,10 @@ waypoint: Unset | At(pos) }` for the team's own carriers and transports in the m
 `MAX_SQUADS = 4`): members are restricted to own strike craft in the match (bits for
 other slots, capital ships, dead or departed ships are dropped) and removed from the
 team's other squads; the order is sanitised: `Attack { target }` needs an active enemy,
-`Defend { ward }` an own ship in the match, `GoTo { point, radius }` finite (point
-clamped into `0.95 R`, radius into `[10, R]`), else `Order::None` (v6; v5's `Guard`
-and `Hold`). Any drop makes the
+`Defend { ward }` an own ship in the match, `GoTo { point, radius, deadline }` finite
+(point clamped into `0.95 R`, radius into `[10, R]`), else `Order::None` (v6; v5's
+`Guard` and `Hold`). A go-to's `deadline` (v8; a match tick, `NO_DEADLINE = 0` for none)
+is kept as given, whatever its value. Any drop makes the
 outcome `Sanitized`.
 
 **State** (hashed): `CommandState { squads: [[Squad { members, order }; 4]; 2],
@@ -851,26 +892,44 @@ waypoints: [Waypoint; MAX_SHIPS] }`. Setup sets the carriers' and transports' fi
 waypoints. Pilots do not see orders in stage A; v5 adds the obs block (below, §7.2).
 
 **A ship's own order (v5, v6; `order.rs`).** The *standing* order of slot `s` is its
-waypoint as `GoTo { point, radius: CAPITAL_WAYPOINT_RADIUS = 25 }` if it has one
-(capital ships), else its squad's order, else none. The *valid* order is the standing
+waypoint as `GoTo { point, radius: CAPITAL_WAYPOINT_RADIUS = 25 }` (no deadline) if it
+has one (capital ships), else its squad's order, else none. The *valid* order is the standing
 one with an attack on a target that is not active, or a defend of a ward that is not
 active (dead, docked, not yet arrived, jumped out), replaced by none at once, not at
-the next slow tick. The *effective* order is the valid one, except that a go-to the
-ship has **completed** (arrived in during its current instance) is none: the ship
+the next slow tick. The *effective* order is the valid one, except that a go-to that
+is **over** for the ship, because it arrived during its current instance or (v8)
+missed the instance's deadline, is none: the ship
 flies its role again while the squad's standing go-to lasts until the commander
 changes it. The obs, the go-to shaping and the scripts use the effective order; hit
 credit and the defend penalties the standing one. Order geometry: attack → the
 target's position, defend → the ward's, go-to → its point; radius 0 for attack and
 defend, the go-to radius for go-to.
 
-**Order instances (v5, v6).** `Match.order_tracks[s]` (`OrderTrack`, hashed): the
-instance's key `(kind, target, point)`, its `start_tick`, `arrived` and `last_phi`.
+**Order instances (v5, v6, v8).** `Match.order_tracks[s]` (`OrderTrack`, hashed): the
+instance's key `(kind, target, point, deadline)`, its `start_tick`, `arrived`,
+`last_phi` and (v8) `missed`.
 Stage 13b compares each ship's *standing* order with its key (v6; v5 used the
 effective order, so a dead target started an empty instance): a different kind or
-target, or a go-to point more than `GOTO_SAME_POINT = 40` m from the instance's first
-point, starts a new instance at this tick with Φ reset to its current value (a radius
+target, a go-to point more than `GOTO_SAME_POINT = 40` m from the instance's first
+point, or (v8) a different go-to deadline starts a new instance at this tick with Φ
+reset to its current value (a radius
 change or a smaller move is the same instance, completed or not). Setup starts every
-ship's instance at tick 0 (only capital waypoints exist then).
+ship's instance at tick 0 (only capital waypoints exist then). v8: an instance that
+starts with the ship active after stage 2 (at setup: active) and already inside the
+radius starts `arrived`, with no bonus (§8); a ship that is not on the field then is
+not marked, and arrives in the usual way once it is.
+
+**Go-to deadlines (v8).** Stage 13b, per ship with a standing go-to, after the instance
+check and the shaping, in this order. *Expiry:* if the instance has a deadline, the
+step's tick is past it and the ship has neither arrived nor missed, then `missed =
+true` (whether or not the ship is on the field; only a ship active after stage 2 is
+charged, §8). *Arrival:* a ship active after stage 2, inside the radius, neither
+arrived nor missed, has `arrived = true`. So arrival at the end of the step whose tick
+equals the deadline is in time, the step after is too late, and an order that lands
+with its deadline already past is missed on the step it lands (and charged; it is
+still complete with no charge if the ship is inside the radius then). A missed go-to
+is over for that ship exactly as an arrived one is: effective order none. A go-to
+without a deadline never expires.
 
 **Threat sets and hits (v6).** `Match.hit_by[w][e]` is the tick `e` last damaged `w`
 (hull or shield, enemies only; 0 never; hashed over the match's slots), updated at
@@ -882,8 +941,8 @@ and `Match.ward_threat` (output) use the ships active after stage 2 as candidate
 every such ward; the scripts and the transit flag the ships active now.
 `Match.hull_lost[s]` (output) is the hull fraction `s` lost in the step, measured
 from its hp at the end of the previous step's stage 13b (a death counts the rest of
-its hull). `Match::order_transit(s)`: the effective order is a go-to (not arrived), or
-a defend whose ward's threat set is empty.
+its hull). `Match::order_transit(s)`: the effective order is a go-to (not arrived, nor
+missed), or a defend whose ward's threat set is empty.
 
 **Random commander (v5, `CommanderMode::Random`, `"random"`,
 `scripted/random_commander.rs`).** Stage B trains pilots on any order. Per team, on
@@ -1023,7 +1082,8 @@ commander's are advisory, §11). Differences: every ship starts under a control 
 comes from an obs that shows the orders of the first slow tick. Stage 13 replaces the
 deathmatch's: team 0 has no strike craft in the match → over (`Eliminated`); the time limit
 → over (`TimeLimit`); team 1 is gone and no strike craft of team 0 has an effective go-to →
-over (`Eliminated`). Killing the last enemy does not cut a go-to short. The winner is always
+over (`Eliminated`). Killing the last enemy does not cut a go-to short; a go-to whose
+deadline was missed (v8) is no longer effective, so it does not keep the drill going. The winner is always
 a draw, so the terminal reward (§8) is 0, with the rest of the pay as usual. A freighter
 with no waypoint coasts and holds its heading, and does not keep a drill going.
 
@@ -1125,7 +1185,7 @@ zero unused slots), and the consts `THROTTLE_DECREASE = 0`, `THROTTLE_HOLD = 1`,
 
 ### 7.2 Observation (fixed vector for the spike)
 
-`OBS_DIM = 583` `f32` (v6; 403 in v5, 385 in v2–v4, 204 in v1), body frame of the observing ship (relative
+`OBS_DIM = 587` `f32` (v8; 583 in v6 and v7, 403 in v5, 385 in v2–v4, 204 in v1), body frame of the observing ship (relative
 vectors rotated by `-heading`, so forward = +x). Scales: `R` = arena radius,
 `VS = 100` m/s, `OM = 4` rad/s, `L = 20` m, `A = 100` m/s², `HP = 400`, `DMG = 60`,
 `T_H = 2.0` s (threat horizon). Values are clamped to `[-5, 5]` after scaling. Absent
@@ -1159,12 +1219,13 @@ entities/slots are all-zero with `present = 0`. Blocks (offset: width — featur
 385: 18  v5 order block (below); 385 = OBS_DIM_V4, the obs of a v3/v4 pilot
 403: 70  v6 ship_extras, 7 × 10, one per `ships` slot (below); 403 = OBS_DIM_V5
 473: 110 v6 order_ships, 5 × 22 (below)
-583 = OBS_DIM
+583: 4   v8 order_time (below); 583 = OBS_DIM_V7, the obs of a v6 or v7 pilot
+587 = OBS_DIM
 ```
 
 **Order block (v5, `write_order`).** The ship's effective order (§5.9), body frame,
 clamped like the rest. A ship with no order (v6: or a completed go-to, or on a
-hidden-order team) gets 18 zeros (mission and age included), so an order-less row is
+hidden-order team; v8: or a go-to whose deadline it missed) gets 18 zeros (mission and age included), so an order-less row is
 a v4 obs padded with zeros.
 
 | offset | feature |
@@ -1183,7 +1244,8 @@ a v4 obs padded with zeros.
 
 Pilots see their order in every mission, the scripted deathmatch commander's advisory
 orders included. A pilot of sim version `v` reads `obs[..., :PILOT_OBS_DIMS[v]]`:
-385 for v3/v4 (no order block), 403 for v5, 583 for v6 (`sim::pilot_obs_dim`).
+385 for v3/v4 (no order block), 403 for v5, 583 for v6 and v7, 587 for v8
+(`sim::pilot_obs_dim`).
 
 **Ship extras (v6, `write_ship_extras`).** One 10-float record per `ships` slot, same
 order (zero for an empty slot), so a pilot can judge threats:
@@ -1203,9 +1265,30 @@ block), nearest first (ties to the lower slot), each the 12-float `ships` record
 rather than re-selecting the 7 `ships` slots by the order point: the v5 prefix stays
 exact, and a defender still sees what is near itself.
 
+**Order time (v8, `write_order_time`).** Four floats, all zero unless the order the
+ship sees is a go-to (so zero with no order, an attack or a defend, on a hidden-order
+team, and once the go-to is over: arrived or missed). `e = max(0, d − radius)` is the
+distance to the circle's edge in metres, `left = max(0, deadline − tick)` the ticks
+left: the number of steps in which an arrival is still in time.
+
+| offset | feature |
+|---|---|
+| 0 | has_deadline: 1 if the go-to has a deadline |
+| 1 | time left: `left / 900` (30 s), clamped to [0, 2]; 0 without a deadline |
+| 2 | urgency: `e / (left / 30 × speed_cap)`, clamped to [0, 2], with the hull's catalogue `speed_cap` (fighter 60, strafer 50, gunship 24 m/s). 1 means a straight line at that speed just makes it. 0 inside the circle and without a deadline; 2 with `left = 0` and `e > 0` |
+| 3 | closeness: `1 − min(1, e / 100)`, for any go-to, deadline or not: 0 at 100 m or more outside the circle, 1 at its edge |
+
+On the deadline tick itself `left` is 0: the next step is the one that marks the miss.
+The speed cap is the hull's catalogue value, which is the real cap at an even power
+split. The cap a ship flies under is `speed_cap × (0.6 + 0.4 P_e)` (§5.1, §5.2): 0.68
+of it with the engines starved, up to 1.26 of it with full power to the engines. So
+urgency 1 needs at least an even split, and a ship that had to start from rest or turn
+first cannot make urgency 1 at an even split; above about 1.26 no power split makes
+it.
+
 **Hidden-order mode (v6).** `MatchConfig.hide_orders[team]`: that team's ships see
-no order: the order block, `order_ships` and extras 7–9 are zero, exactly as for a
-ship without one. Everything else (rewards, tracks, scripts, the commander) is
+no order: the order block, `order_ships`, extras 7–9 and (v8) `order_time` are zero,
+exactly as for a ship without one. Everything else (rewards, tracks, scripts, the commander) is
 unchanged: the order-following eval's control arm on paired seeds.
 
 **Threat score (projectile ordering).** For a live projectile with `team !=
@@ -1260,7 +1343,7 @@ still penalises its target, while hits from projectiles of an already-dead shoot
 credit nobody in `rewards` (the HitRecord keeps the credit). Rewards are not
 normalised in the sim. Weights are the named consts in `reward.rs`.
 
-**Order reward (v5, v6; `order_rewards[N, S] f32`, stage 13b).** A separate buffer, so
+**Order reward (v5, v6, v8; `order_rewards[N, S] f32`, stage 13b).** A separate buffer, so
 the trainer weights it (`w`) and `rewards` stays exactly v4's. The same ships earn it
 as earn `rewards` (docked reserves earn nothing); per ship and step, summed in this
 order:
@@ -1271,8 +1354,23 @@ order:
 | defend, damage | the same weights on damage dealt to the ward's **threat set** (§5.9; candidates: the ships on the field this step, positions after the step) |
 | defend, ward hull | `DEFEND_HULL_LOSS_WEIGHT = −0.5 ×` the ward's hull fraction lost this step (`Match.hull_lost`; fractions, so a freighter and a carrier weigh the same) |
 | defend, ward death | `DEFEND_WARD_DEATH = −0.3` once, on the step the ward dies |
-| go-to: shaping | `γΦ′ − Φ`, `Φ = −K · max(0, d − radius) / R`, `K = 1.0`, `γ = MatchConfig.order_shaping_gamma` (default 0.99), until arrival; on the step an instance starts, 0 (Φ is reset to Φ′: no reward for the jump) |
-| go-to: arrival | `ORDER_ARRIVAL_BONUS = +0.2` once per instance, the first step inside the radius (`d ≤ radius`); the go-to is then complete for that ship |
+| go-to: shaping | `γΦ′ − Φ`, `Φ = −K · max(0, d − radius) / R`, `K = 1.0`, `γ = MatchConfig.order_shaping_gamma` (default 0.99), until arrival (v8: or a missed deadline; the step that marks the miss still pays it); on the step an instance starts, 0 (Φ is reset to Φ′: no reward for the jump). The same with and without a deadline |
+| go-to without a deadline: arrival | `ORDER_ARRIVAL_BONUS = +0.2` once per instance, the first step inside the radius (`d ≤ radius`); the go-to is then complete for that ship |
+| go-to with a deadline: arrival (v8) | `+MatchConfig.goto_timed_bonus` (default `ORDER_TIMED_ARRIVAL_BONUS = 1.0`) once per instance, instead of the 0.2, the first step inside the radius whose tick is ≤ the deadline |
+| go-to with a deadline: miss (v8) | `−MatchConfig.goto_miss_penalty` (default `ORDER_MISS_PENALTY = 1.0`) once per instance, on the first step whose tick is > the deadline, if the ship has not arrived. Nothing after it: no shaping, no late bonus |
+| go-to: starts inside (v8) | an instance that starts with the ship already inside the radius is complete at once and pays neither bonus (v7 paid the 0.2 on that step) |
+
+**Deadlines (v8).** The pay is strict about the deadline and free before it: no term
+charges for time, so a pilot with time to spare loses nothing by fighting on the way,
+and the whole difference between making and missing the deadline is `goto_timed_bonus +
+goto_miss_penalty` (2.0 by default, the size of a win against a loss). A ship that does
+not earn on the step that marks the miss (dead, or absent) is marked missed and not
+charged. A deadline already past when the order lands is a miss on that step, charged
+like any other, so a commander that issues one costs its pilots the penalty; a new
+instance (a point moved more than 40 m, or another deadline) is charged on its own.
+Both values are `MatchConfig` fields, finite and ≥ 0 or a `SetupError`
+(`InvalidGotoPay`), and like `order_shaping_gamma` they only change `order_rewards`, so
+they are not in the state hash.
 
 **Shaping discount.** `MatchConfig.order_shaping_gamma` must be the trainer's discount:
 only then does the shaping leave the optimal policy unchanged. Set below the trainer's
@@ -1291,8 +1389,10 @@ the standing go-to (a go-to is never invalid). Defend has no location term at al
 no order pays a presence term (v6; v5 paid `0.0009` per step inside for at most 300
 steps, which rewarded parking). Consts in `reward.rs`: `ORDER_HULL_WEIGHT`,
 `ORDER_SHIELD_WEIGHT`, `DEFEND_HULL_LOSS_WEIGHT`, `DEFEND_WARD_DEATH`,
-`ORDER_SHAPING_K`, `ORDER_SHAPING_GAMMA`, `ORDER_ARRIVAL_BONUS`; in `order.rs`:
-`THREAT_MARGIN`, `RECENT_HIT_TICKS`, `GOTO_SAME_POINT`, `CAPITAL_WAYPOINT_RADIUS`.
+`ORDER_SHAPING_K`, `ORDER_SHAPING_GAMMA`, `ORDER_ARRIVAL_BONUS`,
+`ORDER_TIMED_ARRIVAL_BONUS`, `ORDER_MISS_PENALTY`; in `order.rs`:
+`THREAT_MARGIN`, `RECENT_HIT_TICKS`, `GOTO_SAME_POINT`, `CAPITAL_WAYPOINT_RADIUS`; in
+`command.rs`: `NO_DEADLINE`.
 Capital ships' waypoints are paid as go-to too (they are what their obs shows); stage
 B trains strike rows only.
 
@@ -1343,7 +1443,8 @@ pub enum Event {
 v4 flat encodings (kinds 8–12): `Launch` = `[8, ship, carrier, mouth.x, mouth.y,
 dir.x, dir.y, bay]`; `Order` = `[9, team, squad, point.x, point.y, target (−1 none),
 radius, kind]` (kind 0 none, 1 attack, 2 defend, 3 go-to (v5: guard, hold); point = the go-to point, or the
-target's position when the order was given), emitted once per changed squad per slow
+target's position when the order was given; v8: a go-to's deadline is not in the event,
+whose eight floats are all taken, though a changed deadline alone does emit one), emitted once per changed squad per slow
 tick; `JumpCharge` = `[10, ship, 0, x, y, 0, 0, until]`; `JumpOut` = `[11, ship, 0, x,
 y, 0, 0, heading]`; `MatchEnd` = `[12, winner (−1 draw), reason, 0, 0, 0, 0, 0]`,
 emitted on the step the match ends (every mission, deathmatch too).
@@ -1442,7 +1543,31 @@ env.order_tracks() -> dict of new arrays: standing_kind, effective_kind [N,S] in
     # (0 none, 1 attack, 2 defend, 3 goto), target [N,S] int16 (-1), point [N,S,2] f32,
     # radius [N,S] f32 (the standing go-to's), arrived [N,S] bool, instance_start [N,S] u32
 env.mission_state(i)["squads"][t][k]["order"]["kind"] in "none" | "attack" | "defend" | "goto"
+# v8:
+rlf_sim.SIM_VERSION == 8, OBS_DIM == 587, OBS_DIM_V7 == 583, NO_DEADLINE == 0
+rlf_sim.PILOT_COMPAT_VERSIONS == [3, 4, 5, 6, 7, 8]
+rlf_sim.PILOT_OBS_DIMS == {3: 385, 4: 385, 5: 403, 6: 583, 7: 583, 8: 587}
+rlf_sim.OBS_LAYOUT/OBS_SLOTS + "order_time" (583, 4; 1)
+rlf_sim.ORDER_TIME_TICKS == 900.0, CLOSENESS_RANGE == 100.0     # the block's scales (§7.2)
+VecEnv(..., goto_timed_bonus=1.0, goto_miss_penalty=1.0)   # pay of a go-to with a deadline
+                                          # (§8), finite and >= 0 or ValueError; every match
+                                          # of the env, whatever roster is queued
+env.goto_timed_bonus, env.goto_miss_penalty                # f32, as the sim holds them
+rlf_sim.ORDER_TIMED_ARRIVAL_BONUS == 1.0, ORDER_MISS_PENALTY == 1.0   # the defaults
+env.submit_command(i, team, {"kind": "squad", "squad": 0, "members": [0],
+    "order": {"kind": "goto", "point": [x, y], "radius": 30, "deadline": tick}})
+    # deadline: the match tick to arrive by, a non-negative integer; 0 or absent: none
+env.order_tracks(): + deadline [N,S] u32 (the instance's, 0 none), missed [N,S] bool
+env.mission_state(i)["squads"][t][k]["order"]: a go-to always has "deadline" (0 none)
 ```
+
+v8 Python side: `RustVecEnv(..., goto_timed_bonus=, goto_miss_penalty=)` with the sim's
+defaults and matching properties; `rosters.OpeningOrder.deadline_tick` (an absolute
+match tick, `rosters.NO_DEADLINE = 0` for none; a non-negative int, on go-to orders
+only, or `ValueError`) reaches the sim as the order's `"deadline"`;
+`spike_policy.PILOT_OBS_DIMS[8] = 587`. A checkpoint records its own `obs_dim` and
+every caller cuts the obs to it (`fit_obs`), so a 583-input pilot of v6 or v7 flies a
+v8 env unchanged.
 
 v5 Python side: `RustVecEnv` exposes `order_rewards` (property and `StepInfo.order_rewards`,
 views) and passes `mission`, `commanders` and `time_limit_s` through
@@ -1555,7 +1680,7 @@ v5 additions:
 // config_json "commanders" also takes "random".
 order_rewards(): Float32Array;     // last step's order reward per ship (§8)
 // module: pilotObsDim(version): number (throws for a version this build does not fly);
-// pilotObsDimsJson(): string  // {"3":385,"4":385,"5":403,"6":583}
+// pilotObsDimsJson(): string  // {"3":385,"4":385,"5":403,"6":583,"7":583,"8":587}
 // obsLayoutJson(): string     // {"blocks": [[name, offset, width], ...], "slots": [[name, n], ...]}
 // MAX_TRAIN_SHIPS(): number   // 12
 ```
@@ -1582,7 +1707,9 @@ Both bindings parse missions and commands with the same serde structs (PyO3 pass
 {"kind": "waypoint", "ship": 0, "pos": [x, y] | null}            // null unsets
 {"kind": "squad", "squad": 0, "members": [1, 2, 3],
  "order": {"kind": "none"} | {"kind": "attack", "target": 9} | {"kind": "defend", "ward": 0}
-        | {"kind": "goto", "point": [x, y], "radius": 50}}
+        | {"kind": "goto", "point": [x, y], "radius": 50, "deadline": 0}}
+// v8: "deadline" is the match tick to arrive by, a non-negative integer; 0 or absent
+// means none. The views (mission_state, commander_obs) always write it.
 ```
 
 **Default rosters** (WP-S2, `mission::default_rosters(kind)`, as `MissionRosterView`
@@ -1696,7 +1823,9 @@ after target selection (manoeuvre, deconfliction, turrets, power) is unchanged:
   within 0.5 rad of it and coasts under 4 m/s missing.
 - *Go-to* `point, radius` (v6): flies to its station at `radius/2` from the point (the
   same ring rule, at most `0.9 ×` its speed cap) without engaging; once it has arrived
-  the order is complete and the pilot flies its role (*None*).
+  the order is complete and the pilot flies its role (*None*). v8: the script does not
+  read the deadline (it flies the same transit with or without one); once the deadline
+  is missed the order is over and it flies its role too.
 - *None*: exactly the pre-order behaviour.
 
 Pilots follow orders in every mission **except a deathmatch whose team has the
@@ -1790,7 +1919,11 @@ other ship is 1 rad off the nose. Measured (script vs script, 48 matches a missi
   is appended, the match's slots × slots as `u32` row by row (ward-major).
   `ward_threat`, `hull_lost` and the hp marks are outputs or copies, not hashed. The
   v5 hash is rebuilt by the test (`v5_state_hash` with `V5Tracks`, v5's
-  valid-order-keyed instances).
+  valid-order-keyed instances). v8: an order hashes its go-to deadline after the
+  radius (0 for the other kinds), and the `OrderTrack` appends `deadline` and `missed`
+  (kind, target, point, start tick, arrived, last Φ, deadline, missed). The v7 hash is
+  the v8 one without those three (`v7_state_hash`, `hash_command_v7`), and the nine v7
+  traces are replayed against it (`v7_compat_*`, §0.6).
 - Native test (`crates/sim/tests/determinism.rs`): four golden scenarios, embedded
   with `include_str!` so the same binary runs under wasmtime:
   v4 adds `carrier_battle_s23` (two carriers with six-ship wings, scripted commanders, to

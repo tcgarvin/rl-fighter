@@ -8,7 +8,9 @@ mod common;
 use common::{
     CARRIER, FIGHTER, FREIGHTER, GUNSHIP, STRAFER, TORPEDO, asset_catalogue, config, test_catalogue,
 };
-use sim::command::{COMMAND_TICKS, Command, CommanderMode, Order, Outcome, Squad, Waypoint};
+use sim::command::{
+    COMMAND_TICKS, Command, CommanderMode, NO_DEADLINE, Order, Outcome, Squad, Waypoint,
+};
 use sim::data::{Catalogue, HullId};
 use sim::events::HitRecord;
 use sim::math::{PI, Vec2, rot};
@@ -87,7 +89,9 @@ fn pilot_obs_dims_cover_every_compatible_version() {
     assert_eq!(pilot_obs_dim(3), Some(OBS_DIM_V4));
     assert_eq!(pilot_obs_dim(4), Some(OBS_DIM_V4));
     assert_eq!(pilot_obs_dim(5), Some(OBS_DIM_V5));
-    assert_eq!((OBS_DIM_V5, OBS_DIM), (403, 583));
+    assert_eq!(pilot_obs_dim(6), Some(OBS_DIM_V7));
+    assert_eq!(pilot_obs_dim(7), Some(OBS_DIM_V7));
+    assert_eq!((OBS_DIM_V5, OBS_DIM_V7, OBS_DIM), (403, 583, 587));
     assert_eq!(pilot_obs_dim(sim::SIM_VERSION), Some(OBS_DIM));
     assert_eq!(pilot_obs_dim(2), None);
 }
@@ -209,6 +213,7 @@ fn goto_block_has_no_target_features_and_minus_own_velocity() {
         Order::GoTo {
             point,
             radius: 60.0,
+            deadline: NO_DEADLINE,
         },
     );
     refresh(&mut m, &cat);
@@ -348,6 +353,7 @@ fn a_new_order_target_or_squad_move_starts_an_instance_a_dead_target_does_not() 
     let hold = |p: f32, r: f32| Order::GoTo {
         point: Vec2::new(p, 0.0),
         radius: r,
+        deadline: NO_DEADLINE,
     };
     set_squad(&mut m, 0, 2, &[0], hold(100.0, 50.0));
     m.step(&cat);
@@ -432,6 +438,7 @@ fn goto_match(cat: &Catalogue, dist: f32, radius: f32) -> Match {
         Order::GoTo {
             point: Vec2::ZERO,
             radius,
+            deadline: NO_DEADLINE,
         },
     );
     m
@@ -516,6 +523,7 @@ fn goto_shaping_is_gamma_phi_prime_minus_phi_and_resets_on_a_new_instance() {
         Order::GoTo {
             point: Vec2::new(-200.0, 0.0),
             radius: 50.0,
+            deadline: NO_DEADLINE,
         },
     );
     assert_eq!(refresh(&mut m, &cat)[0], 0.0);
@@ -557,12 +565,13 @@ fn a_goto_reissued_within_40_m_is_the_same_instance() {
     refresh(&mut m, &cat);
     assert!(
         m.order_track(0).arrived,
-        "inside at the start: arrives at once"
+        "inside at the start: complete at once"
     );
     let start = m.order_track(0).start_tick;
     let goto = |x: f32| Order::GoTo {
         point: Vec2::new(x, 0.0),
         radius: 50.0,
+        deadline: NO_DEADLINE,
     };
     for x in [GOTO_SAME_POINT - 1.0, -30.0, 10.0] {
         set_squad(&mut m, 0, 0, &[0], goto(x));
@@ -572,10 +581,14 @@ fn a_goto_reissued_within_40_m_is_the_same_instance() {
         assert_eq!(effective_order(&m, 0), Order::None);
     }
     // 45 m from the instance's first point: a new instance, paid again on arrival.
-    m.ships[0].pos.x = 45.0;
+    m.ships[0].pos.x = 245.0;
     set_squad(&mut m, 0, 0, &[0], goto(GOTO_SAME_POINT + 5.0));
-    assert!(close(refresh(&mut m, &cat)[0], ORDER_ARRIVAL_BONUS));
+    assert_eq!(refresh(&mut m, &cat)[0], 0.0);
     assert_ne!(m.order_track(0).start_tick, start);
+    assert!(!m.order_track(0).arrived);
+    let phi = -(200.0 - 50.0) / R;
+    m.ships[0].pos.x = 45.0;
+    assert!(close(refresh(&mut m, &cat)[0], -phi + ORDER_ARRIVAL_BONUS));
 }
 
 #[test]
@@ -868,7 +881,7 @@ fn random_commander_issues_only_valid_commands() {
                                 assert_eq!(m.ships[usize::from(ward)].team, team);
                                 assert_eq!(members & (1 << ward), 0, "defending itself");
                             }
-                            Order::GoTo { point, radius } => {
+                            Order::GoTo { point, radius, .. } => {
                                 assert!(point.length() <= GOTO_POINT_FRAC * R + 1e-3);
                                 assert!((GOTO_RADIUS_MIN..GOTO_RADIUS_MAX).contains(&radius));
                             }
@@ -1034,6 +1047,7 @@ fn scripted_pilots_follow_random_orders_in_deathmatch() {
             Order::GoTo {
                 point,
                 radius: 60.0,
+                deadline: NO_DEADLINE,
             },
         );
         // The random commander keeps this order for the whole test.

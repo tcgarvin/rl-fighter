@@ -33,7 +33,8 @@ pub fn pilot_compatible(version: u32) -> bool {
 }
 
 /// v5: the obs width a pilot trained under sim `version` consumes (`obs[:width]`,
-/// `sim::PILOT_OBS_DIMS`: 385 for v3 and v4 pilots, 403 for v5, 583 for v6); throws for
+/// `sim::PILOT_OBS_DIMS`: 385 for v3 and v4 pilots, 403 for v5, 583 for v6 and v7, 587
+/// for v8); throws for
 /// a version that does not fly in this build. The live page feeds a policy only that
 /// prefix.
 #[wasm_bindgen(js_name = pilotObsDim)]
@@ -46,7 +47,8 @@ pub fn pilot_obs_dim(version: u32) -> Result<usize, JsError> {
     })
 }
 
-/// v5: `sim::PILOT_OBS_DIMS` as JSON, `{"3": 385, "4": 385, "5": 403, "6": 583}`.
+/// v5: `sim::PILOT_OBS_DIMS` as JSON, `{"3": 385, "4": 385, "5": 403, "6": 583, "7": 583,
+/// "8": 587}`.
 #[wasm_bindgen(js_name = pilotObsDimsJson)]
 pub fn pilot_obs_dims_json() -> String {
     let body: Vec<String> = sim::PILOT_OBS_DIMS
@@ -370,7 +372,8 @@ impl WasmMatch {
     }
 
     /// v4: queue commands (JSON object or array, SIM_SPEC §10.3) for `team`'s next
-    /// slow tick; used only when that team's commander is `"external"`.
+    /// slow tick; used only when that team's commander is `"external"`. v8: a go-to
+    /// order may carry `"deadline"`, the match tick to arrive by (0 or absent: none).
     pub fn submit_commands(&mut self, team: u32, json: &str) -> Result<(), JsError> {
         self.core.submit_commands(team, json).map_err(js_err)
     }

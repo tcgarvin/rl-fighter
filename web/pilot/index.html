@@ -322,6 +322,16 @@
             </li>
           </ul>
           <p>
+            The sim itself (version <span data-fact="sim.version">8</span>) writes
+            <span data-fact="sim.obs_dim">587</span> numbers. The last
+            <span data-fact="sim.obs_unread">4</span> are for a go-to order with a deadline:
+            whether there is one, how much time is left, how hard the ship must fly to
+            make it, and how close it is to the point. This champion and the pilots on the
+            live page were trained before those existed. They read the first
+            <span data-fact="obs.dim">583</span> and do not see a deadline; no commander
+            on the page gives one yet.
+          </p>
+          <p>
             Nothing in the observation says "you are a gunship": other ships have a class
             on their record, the pilot's own ship does not. The pilot learns which
             hull it is flying from the thruster and turret records: their count, placement
@@ -700,7 +710,7 @@
       <footer class="page-footer">
         This page describes champion <code data-fact="champion.id">2026-11-01-v2-f995</code>
         (trained in sim version <span data-fact="champion.sim_version">6</span>, flying
-        in sim version <span data-fact="sim.version">7</span>; hulls
+        in sim version <span data-fact="sim.version">8</span>; hulls
         <span data-fact="champion.hulls">fighter, strafer, gunship</span>). Its numbers are
         checked against the sim, the policy code, the hull files and the exported champion
         weights by <code>tools/pilot_facts.py</code> on every site build.

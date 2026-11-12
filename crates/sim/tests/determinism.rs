@@ -46,6 +46,19 @@
 //! against v3, v4 and v5; the mixed and random-actions scenarios are not
 //! (`tests/golden/v3/`, `v4/` and `v5/` keep their record). Obs and actions, what an
 //! old pilot needs to fly, are unchanged (`tests/obs.rs`).
+//!
+//! v8 compatibility (SIM_SPEC §0.6): `v7_compat_*` replay all nine v7 scenarios (the v7
+//! golden traces are kept verbatim under `tests/golden/v7/`) and render them as
+//! SIM_VERSION 7 would have: the state hash without the go-to deadlines (squad orders
+//! and order tracks) and the tracks' `missed` flag, the aux digest over the first
+//! `OBS_DIM_V7` obs floats plus the order rewards as v7 paid them. They prove that a
+//! match in which nobody issues a deadline, every mission and both the scripted and
+//! the random commander included, is bit-identical to v7: every ship and projectile,
+//! every obs prefix, reward, hit and event. The one v8 rule that touches such a match
+//! is that an order instance starting with the ship already inside its go-to radius
+//! pays no arrival bonus; it changes that step's order reward only (the ship was
+//! complete on that step in v7 too), and the v7 flavour adds the bonus back, so the
+//! traces also show that nothing else about the order reward moved.
 
 mod common;
 
@@ -56,7 +69,8 @@ use sim::data::{Catalogue, HullId};
 use sim::events::{EVENT_STRIDE, KIND_COLLISION};
 use sim::hash::StateHash;
 use sim::mission::{CarrierBattle, ConvoyEscort, EndReason, Mission};
-use sim::obs::{OBS_DIM, OBS_DIM_V4, OBS_DIM_V5};
+use sim::obs::{OBS_DIM, OBS_DIM_V4, OBS_DIM_V5, OBS_DIM_V7};
+use sim::reward::ORDER_ARRIVAL_BONUS;
 use sim::rng::Pcg32;
 use sim::scripted;
 use sim::setup::MatchConfig;
@@ -161,6 +175,8 @@ enum Flavour {
     V4,
     /// As SIM_VERSION 5 rendered it (module docs).
     V5,
+    /// As SIM_VERSION 7 rendered it (module docs).
+    V7,
 }
 
 impl Flavour {
@@ -170,6 +186,7 @@ impl Flavour {
             Flavour::Current => OBS_DIM,
             Flavour::V3 | Flavour::V4 => OBS_DIM_V4,
             Flavour::V5 => OBS_DIM_V5,
+            Flavour::V7 => OBS_DIM_V7,
         }
     }
 
@@ -179,6 +196,7 @@ impl Flavour {
             Flavour::V3 => 3,
             Flavour::V4 => 4,
             Flavour::V5 => 5,
+            Flavour::V7 => 7,
         }
     }
 }
@@ -211,6 +229,70 @@ fn v3_state_hash(cat: &Catalogue, m: &Match) -> u64 {
     h.finish()
 }
 
+/// The command state as SIM_VERSION 4 to 7 hashed it: squad orders without the v8
+/// go-to deadline.
+fn hash_command_v7(m: &Match, h: &mut StateHasher) {
+    for team in &m.command.squads {
+        for squad in team {
+            h.write_u32(squad.members);
+            h.write_u8(squad.order.kind());
+            h.write_u8(squad.order.target());
+            let (point, radius) = match squad.order {
+                sim::command::Order::GoTo { point, radius, .. } => (point, radius),
+                _ => (sim::Vec2::ZERO, 0.0),
+            };
+            h.write_vec2(point);
+            h.write_f32(radius);
+        }
+    }
+    m.command.waypoints.hash_into(h);
+}
+
+/// `Match::state_hash` as SIM_VERSION 7 computed it: the v8 hash without the go-to
+/// deadlines and the order tracks' `missed` flag.
+fn v7_state_hash(m: &Match) -> u64 {
+    let mut h = StateHasher::new();
+    h.write_u32(m.tick);
+    m.rng.hash_into(&mut h);
+    m.ships.as_slice().hash_into(&mut h);
+    m.projectiles.hash_into(&mut h);
+    h.write_usize(m.proj_next);
+    h.write_u8(m.phase.index());
+    h.write_i8(m.winner);
+    for reserve in &m.reserves {
+        h.write_usize(reserve.len());
+        reserve.as_slice().hash_into(&mut h);
+    }
+    m.mission.hash_into(&mut h);
+    hash_command_v7(m, &mut h);
+    m.random_commander.hash_into(&mut h);
+    for track in &m.order_tracks {
+        assert!(
+            !track.has_deadline() && !track.missed,
+            "v7 compat scenarios issue no deadlines"
+        );
+        h.write_u8(track.kind);
+        h.write_u8(track.target);
+        h.write_vec2(track.point);
+        h.write_u32(track.start_tick);
+        h.write_bool(track.arrived);
+        h.write_f32(track.last_phi);
+    }
+    let n = m.ships.len();
+    for row in &m.hit_by[..n] {
+        row[..n].hash_into(&mut h);
+    }
+    h.finish()
+}
+
+/// Whether v8's "an instance that starts inside the radius pays no bonus" fired for
+/// `slot` in the step just taken: a go-to instance that started this tick complete.
+/// v7 paid `ORDER_ARRIVAL_BONUS` on that step, as the last term of the order reward.
+fn started_inside(m: &Match, slot: usize) -> bool {
+    let track = &m.order_tracks[slot];
+    track.kind == 3 && track.arrived && track.start_tick == m.tick
+}
+
 /// `Match::state_hash` as SIM_VERSION 4 computed it: the v5 hash without the random
 /// commander's state and the order tracks.
 fn v4_state_hash(m: &Match) -> u64 {
@@ -227,7 +309,7 @@ fn v4_state_hash(m: &Match) -> u64 {
         reserve.as_slice().hash_into(&mut h);
     }
     m.mission.hash_into(&mut h);
-    m.command.hash_into(&mut h);
+    hash_command_v7(m, &mut h);
     h.finish()
 }
 
@@ -274,7 +356,7 @@ fn v5_state_hash(m: &Match, v5: &V5Tracks) -> u64 {
         reserve.as_slice().hash_into(&mut h);
     }
     m.mission.hash_into(&mut h);
-    m.command.hash_into(&mut h);
+    hash_command_v7(m, &mut h);
     m.random_commander.hash_into(&mut h);
     let unused = (0u8, sim::state::NONE, 0u32);
     for s in 0..sim::state::MAX_SHIPS {
@@ -296,6 +378,7 @@ fn state_hash(flavour: Flavour, cat: &Catalogue, m: &Match, v5: &V5Tracks) -> u6
         Flavour::V3 => v3_state_hash(cat, m),
         Flavour::V4 => v4_state_hash(m),
         Flavour::V5 => v5_state_hash(m, v5),
+        Flavour::V7 => v7_state_hash(m),
     }
 }
 
@@ -344,6 +427,16 @@ fn digest_outputs(
             aux.write_f32(r);
         }
     }
+    if flavour == Flavour::V7 {
+        for (slot, &r) in m.order_rewards().iter().enumerate() {
+            let bonus = if started_inside(m, slot) {
+                ORDER_ARRIVAL_BONUS
+            } else {
+                0.0
+            };
+            aux.write_f32(r + bonus);
+        }
+    }
 }
 
 /// Run a scenario and render its trace: a header, `tick state aux` at each sample
@@ -358,6 +451,14 @@ fn trace(
 ) -> String {
     let cat = asset_catalogue();
     let mut m = Match::new(&cat, cfg).expect("match setup");
+    if flavour == Flavour::V7 {
+        // v7 started every track not arrived; a ship inside a go-to radius at setup
+        // would need the bonus added back on the first step.
+        assert!(
+            m.order_tracks.iter().all(|t| !t.arrived),
+            "arrived at setup"
+        );
+    }
     let mut v5 = if flavour == Flavour::V5 {
         V5Tracks::new(&m)
     } else {
@@ -681,6 +782,132 @@ fn golden_3v3_random_commander_seed41() {
     );
 }
 
+/// The nine golden scenarios: name, config and driver.
+fn golden_scenarios() -> Vec<(&'static str, MatchConfig, Driver, u32)> {
+    let cat = asset_catalogue();
+    let three = (
+        ["fighter", "strafer", "gunship"],
+        ["gunship", "fighter", "strafer"],
+    );
+    let mut random_cfg = config(&cat, 17, &three.0, &three.1);
+    random_cfg.time_limit_ticks = RANDOM_TICKS;
+    let mut carrier_random = carrier_battle_config(&cat, 31);
+    carrier_random.commanders = [CommanderMode::Random; 2];
+    let mut convoy_random = convoy_config(&cat, 37);
+    convoy_random.commanders = [CommanderMode::Random; 2];
+    let mut dm_random = config(&cat, 41, &three.0, &three.1);
+    dm_random.commanders = [CommanderMode::Random, CommanderMode::Scripted];
+    vec![
+        (
+            "duel_fighter_s7",
+            config(&cat, 7, &["fighter"], &["fighter"]),
+            Driver::Scripted,
+            SCRIPTED_TICKS,
+        ),
+        (
+            "2v2_mixed_s11",
+            config(&cat, 11, &["fighter", "strafer"], &["gunship", "fighter"]),
+            Driver::Scripted,
+            SCRIPTED_TICKS,
+        ),
+        (
+            "3v3_mixed_s13",
+            config(&cat, 13, &three.0, &three.1),
+            Driver::Scripted,
+            SCRIPTED_TICKS,
+        ),
+        (
+            "3v3_random_s17",
+            random_cfg,
+            Driver::Random(RandomActions::new(17, 6)),
+            RANDOM_TICKS,
+        ),
+        (
+            "carrier_battle_s23",
+            carrier_battle_config(&cat, 23),
+            Driver::Scripted,
+            MISSION_TICKS,
+        ),
+        (
+            "convoy_escort_s29",
+            convoy_config(&cat, 29),
+            Driver::Scripted,
+            MISSION_TICKS,
+        ),
+        (
+            "carrier_battle_random_s31",
+            carrier_random,
+            Driver::Scripted,
+            MISSION_TICKS,
+        ),
+        (
+            "convoy_escort_random_s37",
+            convoy_random,
+            Driver::Scripted,
+            MISSION_TICKS,
+        ),
+        (
+            "3v3_random_commander_s41",
+            dm_random,
+            Driver::Scripted,
+            SCRIPTED_TICKS,
+        ),
+    ]
+}
+
+/// Every ship's position, velocity, heading, hull and shield (float bit patterns) and
+/// flags after every tick of a scenario, one line per ship and tick.
+fn kinematics_trace(cfg: &MatchConfig, mut driver: Driver, ticks: u32) -> String {
+    let cat = asset_catalogue();
+    let mut m = Match::new(&cat, cfg).expect("match setup");
+    let mut out = String::new();
+    while m.tick() < ticks && m.phase() == MatchPhase::Running {
+        let actions: Vec<ShipAction> = match &mut driver {
+            Driver::Scripted => (0..m.ships().len())
+                .map(|i| scripted::act(&m, &cat, i as u8))
+                .collect(),
+            Driver::Random(r) => r.next(),
+        };
+        for (i, a) in actions.into_iter().enumerate() {
+            m.set_action(i as u8, a);
+        }
+        m.step(&cat);
+        for s in m.ships() {
+            out += &format!(
+                "{} {} {:08x} {:08x} {:08x} {:08x} {:08x} {:08x} {:08x} {}{}\n",
+                m.tick(),
+                s.slot,
+                s.pos.x.to_bits(),
+                s.pos.y.to_bits(),
+                s.vel.x.to_bits(),
+                s.vel.y.to_bits(),
+                s.heading.to_bits(),
+                s.hp.to_bits(),
+                s.shield.to_bits(),
+                u8::from(s.alive),
+                u8::from(s.present),
+            );
+        }
+    }
+    out += &format!("end {} winner {}\n", m.tick(), m.winner());
+    out
+}
+
+/// Diagnostic for a sim version change that should leave flight alone: writes
+/// [`kinematics_trace`] of the nine golden scenarios into `$RLF_KINEMATICS_DIR`, to
+/// diff between two builds (`cargo test -p sim --test determinism kinematics --
+/// --ignored`).
+#[test]
+#[ignore = "diagnostic: writes per-tick ship kinematics into $RLF_KINEMATICS_DIR"]
+fn dump_kinematics_of_the_golden_scenarios() {
+    let dir = std::env::var("RLF_KINEMATICS_DIR").expect("set RLF_KINEMATICS_DIR");
+    for (name, cfg, driver, ticks) in golden_scenarios() {
+        let path = format!("{dir}/{name}.txt");
+        std::fs::write(&path, kinematics_trace(&cfg, driver, ticks))
+            .unwrap_or_else(|e| panic!("writing {path}: {e}"));
+    }
+}
+
 /// Compare with a v4 golden file, never rewritten (it is the v4 record).
 fn check_v4(embedded: &str, actual: &str) {
     assert_eq!(
@@ -711,6 +938,93 @@ fn v5_compat_duel_fighter_seed7() {
         include_str!("golden/v5/duel_fighter_s7.txt"),
         &duel_trace(Flavour::V5),
     );
+}
+
+/// Every v7 golden scenario, rendered as v7 rendered it, against the v7 record (never
+/// rewritten): nobody issues a deadline in them, so v8 flies them exactly as v7 did.
+#[test]
+fn v7_compat_all_nine_scenarios_replay_bit_for_bit() {
+    let golden = [
+        (
+            "duel_fighter_s7",
+            include_str!("golden/v7/duel_fighter_s7.txt"),
+        ),
+        ("2v2_mixed_s11", include_str!("golden/v7/2v2_mixed_s11.txt")),
+        ("3v3_mixed_s13", include_str!("golden/v7/3v3_mixed_s13.txt")),
+        (
+            "3v3_random_s17",
+            include_str!("golden/v7/3v3_random_s17.txt"),
+        ),
+        (
+            "carrier_battle_s23",
+            include_str!("golden/v7/carrier_battle_s23.txt"),
+        ),
+        (
+            "convoy_escort_s29",
+            include_str!("golden/v7/convoy_escort_s29.txt"),
+        ),
+        (
+            "carrier_battle_random_s31",
+            include_str!("golden/v7/carrier_battle_random_s31.txt"),
+        ),
+        (
+            "convoy_escort_random_s37",
+            include_str!("golden/v7/convoy_escort_random_s37.txt"),
+        ),
+        (
+            "3v3_random_commander_s41",
+            include_str!("golden/v7/3v3_random_commander_s41.txt"),
+        ),
+    ];
+    for (name, cfg, driver, ticks) in golden_scenarios() {
+        let (_, embedded) = golden
+            .iter()
+            .find(|(n, _)| *n == name)
+            .unwrap_or_else(|| panic!("no v7 golden for {name}"));
+        let every = match name {
+            "3v3_random_s17" => Some(RANDOM_SAMPLE_EVERY),
+            _ if ticks == MISSION_TICKS => Some(MISSION_SAMPLE_EVERY),
+            _ => None,
+        };
+        let sample = |t: u32| match every {
+            Some(n) => t % n == 0,
+            None => SCRIPTED_SAMPLES.contains(&t),
+        };
+        let actual = trace(name, &cfg, driver, ticks, sample, Flavour::V7);
+        assert_eq!(
+            *embedded, actual,
+            "{name} diverged from SIM_VERSION 7 with no deadline issued (SIM_SPEC §0.6)"
+        );
+    }
+}
+
+/// How often v8's "starts inside the radius: no bonus" rule fires in the golden
+/// scenarios (the only thing v8 changes in them): never under the scripted commander.
+#[test]
+fn only_the_random_commander_starts_goto_instances_inside_the_radius() {
+    let cat = asset_catalogue();
+    for (name, cfg, mut driver, ticks) in golden_scenarios() {
+        let mut m = Match::new(&cat, &cfg).expect("match setup");
+        let mut fired = 0u32;
+        while m.tick() < ticks && m.phase() == MatchPhase::Running {
+            let actions: Vec<ShipAction> = match &mut driver {
+                Driver::Scripted => (0..m.ships().len())
+                    .map(|i| scripted::act(&m, &cat, i as u8))
+                    .collect(),
+                Driver::Random(r) => r.next(),
+            };
+            for (i, a) in actions.into_iter().enumerate() {
+                m.set_action(i as u8, a);
+            }
+            m.step(&cat);
+            fired += (0..m.ships().len())
+                .filter(|&s| started_inside(&m, s))
+                .count() as u32;
+        }
+        println!("{name}: {fired} go-to instances started inside the radius");
+        let random = cfg.commanders.contains(&CommanderMode::Random);
+        assert!(random || fired == 0, "{name}: {fired}");
+    }
 }
 
 /// The two mission scenarios end properly (not at the budget) with a reason.

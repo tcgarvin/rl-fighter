@@ -101,7 +101,8 @@ def _activations(module: nn.Sequential) -> set[str]:
 
 def champion_obs_dim(champion: Champion) -> int:
     """The obs width a pilot of the champion's sim version reads
-    (``rlf_sim.PILOT_OBS_DIMS``: 385 for v3/v4, 403 for v5, 583 for v6).
+    (``rlf_sim.PILOT_OBS_DIMS``: 385 for v3/v4, 403 for v5, 583 for v6/v7, 587 for
+    v8).
 
     Raises:
         PilotFactsError: the sim build does not fly pilots of that version, or the
@@ -135,10 +136,14 @@ def live_max_pilots() -> int:
 def obs_facts(obs_dim: int) -> dict[str, str]:
     """Width, offset and record count of every obs block the pilot reads, from the
     Rust sim. The page describes the champion's network, whose input is the obs prefix
-    of its sim version (``champion_obs_dim``)."""
+    of its sim version (``champion_obs_dim``); ``sim.obs_dim`` is what the installed
+    sim writes and ``sim.obs_unread`` how many of those numbers, at the end, the
+    champion does not read."""
     facts = {
         "obs.dim": str(obs_dim),
         "sim.version": str(rlf_sim.SIM_VERSION),
+        "sim.obs_dim": str(rlf_sim.OBS_DIM),
+        "sim.obs_unread": str(rlf_sim.OBS_DIM - obs_dim),
         "sim.max_ships": str(rlf_sim.MAX_SHIPS),
         "sim.max_others": str(rlf_sim.MAX_SHIPS - 1),
         "sim.near_ships": str(rlf_sim.N_NEAR_SHIPS),

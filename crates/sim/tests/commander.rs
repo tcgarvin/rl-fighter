@@ -4,7 +4,7 @@
 mod common;
 
 use common::asset_catalogue;
-use sim::command::{COMMAND_TICKS, Command, CommanderMode, Order, Squad};
+use sim::command::{COMMAND_TICKS, Command, CommanderMode, NO_DEADLINE, Order, Squad};
 use sim::data::{Catalogue, HullId};
 use sim::events::Event;
 use sim::math::{Vec2, wrap_angle};
@@ -270,6 +270,7 @@ fn scripted_pilot_flies_to_a_goto_point_then_falls_back_to_its_role() {
             order: Order::GoTo {
                 point,
                 radius: 40.0,
+                deadline: NO_DEADLINE,
             },
         },
     );

@@ -5,7 +5,7 @@
 mod common;
 
 use common::asset_catalogue;
-use sim::command::{Command, CommanderMode, Order};
+use sim::command::{Command, CommanderMode, NO_DEADLINE, Order};
 use sim::data::{Catalogue, HullId};
 use sim::math::Vec2;
 use sim::mission::{EndReason, Mission};
@@ -210,6 +210,7 @@ fn killing_every_enemy_does_not_cut_a_go_to_short() {
             Order::GoTo {
                 point: Vec2::new(-200.0, 0.0),
                 radius: 20.0,
+                deadline: NO_DEADLINE,
             },
         ),
     );
@@ -226,6 +227,54 @@ fn killing_every_enemy_does_not_cut_a_go_to_short() {
     m.step(&cat);
     assert_eq!(m.phase(), MatchPhase::Over);
     assert_eq!(m.winner(), WINNER_DRAW);
+}
+
+/// v8: a go-to whose deadline has passed is no longer open, so with the enemies gone
+/// the drill ends instead of waiting for an arrival that no longer counts.
+#[test]
+fn a_missed_go_to_no_longer_keeps_a_drill_open() {
+    let cat = asset_catalogue();
+    let cfg = drill(
+        &cat,
+        &["fighter"],
+        &["fighter"],
+        vec![at(-300.0, 0.0), at(300.0, 0.0)],
+    );
+    let mut m = Match::new(&cat, &cfg).unwrap();
+    m.submit_command(
+        0,
+        squad(
+            1,
+            Order::GoTo {
+                point: Vec2::new(200.0, 200.0),
+                radius: 20.0,
+                deadline: 90,
+            },
+        ),
+    );
+    while m.tick() < 61 {
+        m.step(&cat);
+    }
+    assert_eq!(m.order_track(0).deadline, 90);
+    m.ships[1].hp = 0.0;
+    while m.tick() < 90 {
+        m.step(&cat);
+        assert_eq!(m.phase(), MatchPhase::Running, "the go-to is still open");
+    }
+    // Tick 91 marks the miss (and charges it); tick 92's end check sees no open go-to.
+    m.step(&cat);
+    assert!(m.order_track(0).missed);
+    // The charge, less that step's small shaping term.
+    let paid = m.order_rewards()[0];
+    assert!(
+        (paid + sim::reward::ORDER_MISS_PENALTY).abs() < 0.05,
+        "{paid}"
+    );
+    assert_eq!(m.phase(), MatchPhase::Running);
+    m.step(&cat);
+    assert_eq!(m.phase(), MatchPhase::Over);
+    assert_eq!(m.winner(), WINNER_DRAW);
+    assert_eq!(m.rewards()[0], 0.0, "a drill still pays no result");
 }
 
 #[test]

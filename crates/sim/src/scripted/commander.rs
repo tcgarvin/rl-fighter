@@ -37,7 +37,9 @@
 //!   scripted pilots do not follow a scripted deathmatch commander
 //!   (`scripted::orders`), so these orders are only shown.
 
-use crate::command::{BAY_COOLDOWN_TICKS, Command, MAX_SQUADS, Order, Squad, Waypoint};
+use crate::command::{
+    BAY_COOLDOWN_TICKS, Command, MAX_SQUADS, NO_DEADLINE, Order, Squad, Waypoint,
+};
 use crate::data::Catalogue;
 use crate::math::Vec2;
 use crate::mission::{ConvoyEscort, JumpState, Mission, is_capital_ship};
@@ -271,6 +273,7 @@ fn sticky_goto(current: Order, want: Vec2, radius: f32) -> Order {
     Order::GoTo {
         point: want,
         radius,
+        deadline: NO_DEADLINE,
     }
 }
 

@@ -39,7 +39,7 @@
 //! 0 is random. Its streams and memory are hashed. Scripted strike pilots follow its
 //! orders, as they follow an external commander's (`scripted::orders`).
 
-use crate::command::{Command, MAX_SQUADS, Order, Squad};
+use crate::command::{Command, MAX_SQUADS, NO_DEADLINE, Order, Squad};
 use crate::data::Catalogue;
 use crate::hash::{StateHash, StateHasher};
 use crate::math::{TAU, Vec2};
@@ -234,7 +234,11 @@ fn draw_order(m: &Match, cat: &Catalogue, team: u8, members: u32, rng: &mut Pcg3
         3 => {
             let point = goto_point(m, team, members, rng);
             let radius = rng.range(GOTO_RADIUS_MIN, GOTO_RADIUS_MAX);
-            Order::GoTo { point, radius }
+            Order::GoTo {
+                point,
+                radius,
+                deadline: NO_DEADLINE,
+            }
         }
         _ => Order::None,
     }

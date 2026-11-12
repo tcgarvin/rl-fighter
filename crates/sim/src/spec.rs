@@ -126,7 +126,9 @@ pub fn parse_commanders(names: &[String]) -> Result<[CommanderMode; 2], String> 
 }
 
 /// `{"kind": "none"}`, `{"kind": "attack", "target": slot}`, `{"kind": "defend",
-/// "ward": slot}`, `{"kind": "goto", "point": [x, y], "radius": r}` (v6).
+/// "ward": slot}`, `{"kind": "goto", "point": [x, y], "radius": r, "deadline": tick}`
+/// (v6; v8 adds `deadline`, the match tick to arrive by, 0 or absent for none; views
+/// always write it).
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum OrderSpec {
@@ -141,6 +143,8 @@ pub enum OrderSpec {
     GoTo {
         point: [f32; 2],
         radius: f32,
+        #[serde(default)]
+        deadline: u32,
     },
 }
 
@@ -150,9 +154,14 @@ impl From<Order> for OrderSpec {
             Order::None => OrderSpec::None {},
             Order::Attack { target } => OrderSpec::Attack { target },
             Order::Defend { ward } => OrderSpec::Defend { ward },
-            Order::GoTo { point, radius } => OrderSpec::GoTo {
+            Order::GoTo {
+                point,
+                radius,
+                deadline,
+            } => OrderSpec::GoTo {
                 point: [point.x, point.y],
                 radius,
+                deadline,
             },
         }
     }
@@ -164,9 +173,14 @@ impl From<OrderSpec> for Order {
             OrderSpec::None {} => Order::None,
             OrderSpec::Attack { target } => Order::Attack { target },
             OrderSpec::Defend { ward } => Order::Defend { ward },
-            OrderSpec::GoTo { point, radius } => Order::GoTo {
+            OrderSpec::GoTo {
+                point,
+                radius,
+                deadline,
+            } => Order::GoTo {
                 point: v(point),
                 radius,
+                deadline,
             },
         }
     }

@@ -296,6 +296,25 @@ fn external_commands_round_trip_as_json() {
     assert_eq!(squads[2], 2.0, "two members");
     let obs = m.commander_obs_json(0).unwrap();
     assert!(obs.contains("\"reserves\""), "{obs}");
+    assert!(obs.contains("\"deadline\":0"), "no deadline given: {obs}");
+    // v8: a go-to may carry a deadline tick; the JSON views show it. The flat squads
+    // view keeps its nine floats.
+    while !m.command_due() {
+        m.step();
+    }
+    m.submit_commands(
+        0,
+        r#"{"kind": "squad", "squad": 0, "members": [1, 2],
+            "order": {"kind": "goto", "point": [0, 0], "radius": 50, "deadline": 4000}}"#,
+    )
+    .unwrap();
+    m.step();
+    let obs = m.commander_obs_json(0).unwrap();
+    assert!(obs.contains("\"deadline\":4000"), "{obs}");
+    assert_eq!(
+        m.squads().len(),
+        2 * sim::command::MAX_SQUADS * SQUAD_STRIDE
+    );
 }
 
 #[test]

@@ -1,0 +1,17 @@
+# sim golden trace carrier_battle_s23 (SIM_VERSION 7); regenerate with UPDATE_GOLDEN=1
+# tick state_hash aux_digest; end tick state_hash aux_digest phase winner
+300 9a535809f7d22ffe 58cee0e96bb93f5f
+600 74d7cabb8f888016 1a09d6809f4b698a
+900 b8d51314484d98da d81c53388fa09eb6
+1200 cbe195f105606dcc 35e6b27e695f309d
+1500 309bb3d95284098b 4b2a4a04df784bdc
+1800 a4a8117437f59bc3 b789372ba2834b7c
+2100 5f6ef57ff49b1e8f 0f25c53e9a66c7eb
+2400 b94fd43bf015413c 3e4d0be76b37e231
+2700 d31ea633fae90a9b 8ba6cfd5625de62c
+3000 c83f64d7cfe8e55d 99ba47a347b2e582
+3300 89c3d7d6a04ca8c6 20aeb346a7f332f4
+3600 1ce77be29494f524 f4b5a25051dce02c
+3900 d3fb73737fbeaa64 66d3321c2c62e05b
+end 3936 1baf45c2a18208f1 ba31f3220d2a50ce over 0
+reason carrier_destroyed

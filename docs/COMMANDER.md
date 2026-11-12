@@ -102,8 +102,9 @@ that kind (its log-probability counts only then).
 
 **Map points, `N_POINTS = 25`, team frame:** point 0 is the centre; point `1 + 8 r + b` is
 at radius `(0.3, 0.6, 0.85)[r] R` and bearing `45 b` degrees, counter-clockwise from `+x`
-(toward the enemy side). Go-to orders use radius `GOTO_RADIUS = 60` m. A carrier waypoint
-is the point itself.
+(toward the enemy side). Go-to orders use radius `GOTO_RADIUS = 60` m and carry no
+deadline (SIM_VERSION 8 lets a go-to carry one, `docs/SIM_SPEC.md` §0.6; so far only an
+external commander's orders do). A carrier waypoint is the point itself.
 
 **Masks** (a choice is allowed when its mask is true; "keep" and "hold" always are):
 
@@ -133,8 +134,8 @@ keep; the ship is free again at decision n+5. So a ship's order changes at most 
 - A squad's order is held while any of its members is held: its hold left is the longest
   among them.
 - A hold ends early when the order is spent: the attack target or the defend ward is gone
-  (dead, or jumped out), or the ship has arrived at its go-to point. The ship can then be
-  re-ordered at once.
+  (dead, or jumped out), or the ship has arrived at its go-to point, or it has missed the
+  go-to's deadline. The ship can then be re-ordered at once.
 - Moving a ship between squads that have the same order, or from no squad into a squad
   with no order, changes nobody's order and sets no hold. Re-issuing the same order is not
   a change.
@@ -191,7 +192,9 @@ it reads it so:
   squad's order set to none): it is held too.
 - **A spent order.** A hold set with an attack, defend or go-to order is over as soon as
   the ship's effective order (`order::effective_order`) is none: the target or ward is
-  not on the field, or the ship has arrived at the go-to point. This is read only once the
+  not on the field, the ship has arrived at the go-to point, or (SIM_VERSION 8) the
+  go-to had a deadline and the ship missed it. The decoder gives its go-tos no deadline,
+  so the last case needs an order that came from somewhere else. This is read only once the
   decision that set the hold has applied (a later tick), so the ship's old order cannot
   end the new hold. A hold set with no order runs its full length. When one member of a
   squad arrives, that ship can be moved at once, but the squad's order stays held while

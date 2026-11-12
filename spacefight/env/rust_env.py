@@ -37,6 +37,14 @@ exports ``order_transit``, ``ward_threat`` and ``ward_hull_lost`` and
 Go-to order pay's shaping term must use the trainer's discount, so ``RustVecEnv`` takes
 ``order_shaping_gamma`` and applies it to every match of the env (SIM_SPEC §8).
 
+SIM_VERSION 8 (go-to deadlines). A go-to order may carry a deadline, an absolute match
+tick (``NO_DEADLINE``, 0, for none): ``OpeningOrder.deadline_tick`` for a roster's
+opening orders, ``"deadline"`` in the order dict of ``raw.submit_command`` for an
+external commander mid-match. The obs grows to 587 (``order_time``: has_deadline, time
+left, urgency, closeness; the first 583 floats are v7's), ``order_tracks()`` adds
+``deadline`` and ``missed``, and ``RustVecEnv`` takes the pay for a go-to with a
+deadline, ``goto_timed_bonus`` and ``goto_miss_penalty``, for every match of the env.
+
 The learned commander (``docs/COMMANDER.md``): a team whose commander is
 ``"learned"`` decides every ``LEARNED_COMMAND_TICKS``. ``commander_due(team)`` says
 which envs decide before the next step, ``commander_features(team)`` gives every env's
@@ -90,6 +98,10 @@ TRACK_NONE, TRACK_ATTACK, TRACK_DEFEND, TRACK_GOTO = 0, 1, 2, 3
 # record, the ships observed round the order point, and the order kinds in the
 # obs one-hot's order (kind codes 1, 2, 3; 0 is none).
 OBS_DIM_V5: int = int(rlf_sim.OBS_DIM_V5)
+# SIM_VERSION 8: the v6 / v7 obs width (the prefix a v6 or v7 pilot reads), and the
+# deadline tick of a go-to without a deadline.
+OBS_DIM_V7: int = int(rlf_sim.OBS_DIM_V7)
+NO_DEADLINE: int = int(rlf_sim.NO_DEADLINE)
 SHIP_EXTRA_W: int = int(rlf_sim.SHIP_EXTRA_W)
 N_ORDER_SHIPS: int = int(rlf_sim.N_ORDER_SHIPS)
 ORDER_KINDS: tuple[str, ...] = tuple(rlf_sim.ORDER_KINDS)
@@ -103,6 +115,10 @@ DEFAULT_REACTION_TICKS = 2
 # Default discount of go-to order pay's shaping term (MatchConfig default). A trainer
 # passes its own discount instead (SIM_SPEC §8).
 DEFAULT_ORDER_SHAPING_GAMMA: float = float(rlf_sim.ORDER_SHAPING_GAMMA)
+# Default order pay of a go-to with a deadline (MatchConfig defaults, SIM_VERSION 8):
+# for arriving by the deadline tick, and the one-shot charge for missing it.
+DEFAULT_GOTO_TIMED_BONUS: float = float(rlf_sim.ORDER_TIMED_ARRIVAL_BONUS)
+DEFAULT_GOTO_MISS_PENALTY: float = float(rlf_sim.ORDER_MISS_PENALTY)
 
 # Number of choices of each action head (SIM_SPEC §7.1): values are 0..n-1.
 ACTION_HEAD_CHOICES: dict[str, int] = {"throttle": 3, "slew": 3, "fire": 2, "power": 7}
@@ -253,6 +269,11 @@ class RustVecEnv:
             for every match of the env, whatever roster is queued. A trainer passes
             its own discount: anything else pays a pilot to stay away from the point
             (SIM_SPEC §8).
+        goto_timed_bonus: Order pay for arriving at a go-to with a deadline by its
+            deadline tick (SIM_VERSION 8), finite and >= 0, for every match of the env.
+        goto_miss_penalty: Order pay charged once, as its negative, when a go-to's
+            deadline passes before the ship has arrived, finite and >= 0, for every
+            match of the env.
 
     Raises:
         ValueError: Invalid arguments or assets (from ``rlf_sim``), or a sampled
@@ -276,6 +297,8 @@ class RustVecEnv:
         commanders: Sequence[str] = (SCRIPTED, SCRIPTED),
         hide_orders: tuple[bool, bool] = (False, False),
         order_shaping_gamma: float = DEFAULT_ORDER_SHAPING_GAMMA,
+        goto_timed_bonus: float = DEFAULT_GOTO_TIMED_BONUS,
+        goto_miss_penalty: float = DEFAULT_GOTO_MISS_PENALTY,
     ) -> None:
         if max_ships is None and roster_sampler is not None:
             max_ships = roster_sampler.max_ships
@@ -296,6 +319,8 @@ class RustVecEnv:
             commanders=list(modes),
             hide_orders=list(_hide_pair(hide_orders)),
             order_shaping_gamma=order_shaping_gamma,
+            goto_timed_bonus=goto_timed_bonus,
+            goto_miss_penalty=goto_miss_penalty,
         )
         self.fleets: tuple[tuple[str, ...], ...] = tuple(tuple(t) for t in fleets)
         self.reaction_ticks = reaction_ticks
@@ -345,6 +370,18 @@ class RustVecEnv:
         """Discount of go-to order pay's shaping term in this env's matches, as the
         sim holds it (f32)."""
         return float(self._env.order_shaping_gamma)
+
+    @property
+    def goto_timed_bonus(self) -> float:
+        """Order pay for arriving at a go-to with a deadline in time, in this env's
+        matches, as the sim holds it (f32)."""
+        return float(self._env.goto_timed_bonus)
+
+    @property
+    def goto_miss_penalty(self) -> float:
+        """Order pay charged once for missing a go-to's deadline, in this env's
+        matches, as the sim holds it (f32)."""
+        return float(self._env.goto_miss_penalty)
 
     @property
     def obs_layout(self) -> dict[str, tuple[int, int]]:
@@ -495,7 +532,9 @@ class RustVecEnv:
         ``standing_kind``/``effective_kind`` [N, S] int8 (0 none, 1 attack, 2
         defend, 3 goto), ``target`` [N, S] int16 (-1), ``point`` [N, S, 2] f32,
         ``radius`` [N, S] f32, ``arrived`` [N, S] bool, ``instance_start`` [N, S]
-        uint32."""
+        uint32, and (SIM_VERSION 8) ``deadline`` [N, S] uint32 (the instance's go-to
+        deadline tick, ``NO_DEADLINE`` for none) and ``missed`` [N, S] bool (the
+        deadline passed before the ship arrived)."""
         return dict(self._env.order_tracks())
 
     # -- the learned commander (docs/COMMANDER.md) ---------------------------

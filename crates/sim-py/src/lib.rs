@@ -36,6 +36,11 @@ fn rlf_sim(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("OBS_DIM_V4", sim::obs::OBS_DIM_V4)?;
     // v6.
     m.add("OBS_DIM_V5", sim::obs::OBS_DIM_V5)?;
+    // v8: the v6 / v7 obs width, and the sentinel of a go-to without a deadline.
+    m.add("OBS_DIM_V7", sim::obs::OBS_DIM_V7)?;
+    m.add("NO_DEADLINE", sim::command::NO_DEADLINE)?;
+    m.add("ORDER_TIME_TICKS", sim::obs::ORDER_TIME_TICKS)?;
+    m.add("CLOSENESS_RANGE", sim::obs::CLOSENESS_RANGE)?;
     m.add("SHIP_EXTRA_W", SHIP_EXTRA_W)?;
     m.add("N_ORDER_SHIPS", N_ORDER_SHIPS)?;
     // Order kinds in the obs one-hot's order (kind codes 1, 2, 3; 0 is none).
@@ -116,6 +121,12 @@ fn rlf_sim(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("ACTION_LAYOUT", action_layout)?;
 
     m.add("ORDER_SHAPING_GAMMA", sim::reward::ORDER_SHAPING_GAMMA)?;
+    // v8: the defaults of the constructor's `goto_timed_bonus` / `goto_miss_penalty`.
+    m.add(
+        "ORDER_TIMED_ARRIVAL_BONUS",
+        sim::reward::ORDER_TIMED_ARRIVAL_BONUS,
+    )?;
+    m.add("ORDER_MISS_PENALTY", sim::reward::ORDER_MISS_PENALTY)?;
     m.add_class::<vec_env::VecEnv>()?;
     m.add_function(wrap_pyfunction!(arena_radius_for, m)?)?;
     m.add_function(wrap_pyfunction!(arena_radius_for_mission, m)?)?;

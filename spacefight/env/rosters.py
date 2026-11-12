@@ -89,6 +89,10 @@ CONVOY_ESCORT = "convoy_escort"
 MISSIONS: tuple[str, ...] = (DEATHMATCH, CARRIER_BATTLE, CONVOY_ESCORT)
 # Order drills (``docs/PILOT_TRAINING.md`` §2), in ``drill_weights`` order.
 DRILL_GOTO, DRILL_ATTACK, DRILL_DEFEND = "goto", "attack", "defend"
+# ``OpeningOrder.deadline_tick`` of a go-to without a deadline (SIM_VERSION 8).
+NO_DEADLINE: int = int(rlf_sim.NO_DEADLINE)
+# The largest tick the sim's clock (and so a deadline) can hold.
+_MAX_TICK = 2**32 - 1
 DRILL_KINDS: tuple[str, ...] = (DRILL_GOTO, DRILL_ATTACK, DRILL_DEFEND)
 SCRIPTED = "scripted"
 RANDOM = "random"
@@ -145,6 +149,13 @@ class OpeningOrder:
         target: The attack target's or the defend ward's slot; -1 for a go-to.
         point: The go-to point, metres.
         radius: The go-to radius, metres.
+        deadline_tick: A go-to's deadline (SIM_VERSION 8): the match tick to be inside
+            the radius by, ``NO_DEADLINE`` for none. An absolute tick, not a duration:
+            an opening order lands on the first slow tick (``COMMAND_TICKS``, tick 60).
+
+    Raises:
+        ValueError: ``deadline_tick`` is not an int in ``0..2**32``, or is set on an
+            order that is not a go-to.
     """
 
     team: int
@@ -154,6 +165,19 @@ class OpeningOrder:
     target: int = -1
     point: tuple[float, float] = (0.0, 0.0)
     radius: float = 0.0
+    deadline_tick: int = NO_DEADLINE
+
+    def __post_init__(self) -> None:
+        tick = self.deadline_tick
+        if isinstance(tick, bool) or not isinstance(tick, int):
+            raise ValueError(f"deadline_tick must be an int, got {tick!r}")
+        if not 0 <= tick <= _MAX_TICK:
+            raise ValueError(f"deadline_tick must be in 0..={_MAX_TICK}, got {tick}")
+        if tick != NO_DEADLINE and self.kind != DRILL_GOTO:
+            raise ValueError(
+                f"only a go-to takes a deadline; a {self.kind!r} order got "
+                f"deadline_tick {tick}"
+            )
 
     def command(self) -> dict[str, object]:
         """The sim's command dict.
@@ -167,7 +191,12 @@ class OpeningOrder:
         elif self.kind == "defend":
             order = {"kind": "defend", "ward": self.target}
         elif self.kind == "goto":
-            order = {"kind": "goto", "point": list(self.point), "radius": self.radius}
+            order = {
+                "kind": "goto",
+                "point": list(self.point),
+                "radius": self.radius,
+                "deadline": self.deadline_tick,
+            }
         else:
             raise ValueError(f"unknown order kind {self.kind!r}")
         return {

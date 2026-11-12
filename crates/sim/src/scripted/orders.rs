@@ -168,7 +168,7 @@ fn station(m: &Match, cat: &Catalogue, me: &Ship, order: Order) -> Option<(Vec2,
             let r = cat.hull(w.hull).bound_radius + DEFEND_STATION;
             Some((w.pos + ring * r, w.vel, STATION_SPEED_FRAC))
         }
-        Order::GoTo { point, radius } => Some((
+        Order::GoTo { point, radius, .. } => Some((
             point + ring * (GOTO_STATION_FRAC * radius),
             Vec2::ZERO,
             GOTO_SPEED_FRAC,

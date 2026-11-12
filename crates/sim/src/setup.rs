@@ -9,7 +9,7 @@ use crate::events::EventBuf;
 use crate::math::Vec2;
 use crate::mission::{self, Mission, MissionState};
 use crate::order::{self, OrderTrack};
-use crate::reward::ORDER_SHAPING_GAMMA;
+use crate::reward::{ORDER_MISS_PENALTY, ORDER_SHAPING_GAMMA, ORDER_TIMED_ARRIVAL_BONUS};
 use crate::rng::Pcg32;
 use crate::scripted::random_commander::RandomCommander;
 use crate::state::{
@@ -83,6 +83,13 @@ pub struct MatchConfig {
     /// observes and no script reads, so it is not part of the state hash and not a
     /// SIM_VERSION matter.
     pub order_shaping_gamma: f32,
+    /// v8: order reward for arriving at a go-to with a deadline by its deadline tick
+    /// (SIM_SPEC §8), finite and >= 0. Like `order_shaping_gamma` it only changes
+    /// `order_rewards`, so it is not hashed.
+    pub goto_timed_bonus: f32,
+    /// v8: order reward charged once (as `-goto_miss_penalty`) when a go-to's deadline
+    /// passes before the ship has arrived (SIM_SPEC §8), finite and >= 0. Not hashed.
+    pub goto_miss_penalty: f32,
     /// Where every ship starts, one entry per slot (team 0 then team 1): present at
     /// tick 0, no jump-in, no control lock, no rng draw. `None`: the mission places the
     /// ships. Only a deathmatch takes one (SIM_SPEC §5.10); a carrier battle and a
@@ -109,6 +116,8 @@ impl Default for MatchConfig {
             commanders: [CommanderMode::Scripted; 2],
             hide_orders: [false; 2],
             order_shaping_gamma: ORDER_SHAPING_GAMMA,
+            goto_timed_bonus: ORDER_TIMED_ARRIVAL_BONUS,
+            goto_miss_penalty: ORDER_MISS_PENALTY,
             start_layout: None,
             drill: false,
         }
@@ -131,6 +140,8 @@ pub enum SetupError {
     ReactionTooLong { ticks: u8 },
     /// `order_shaping_gamma` is not a finite number in (0, 1].
     InvalidOrderShapingGamma { gamma: f32 },
+    /// `goto_timed_bonus` or `goto_miss_penalty` (`name`) is not a finite number >= 0.
+    InvalidGotoPay { name: &'static str, value: f32 },
     /// v4: the fleets or parameters do not fit the mission.
     Mission(String),
     /// `start_layout` or `drill` is not usable (the message says why).
@@ -157,6 +168,9 @@ impl fmt::Display for SetupError {
             ),
             SetupError::InvalidOrderShapingGamma { gamma } => {
                 write!(f, "order_shaping_gamma must be in (0, 1], got {gamma}")
+            }
+            SetupError::InvalidGotoPay { name, value } => {
+                write!(f, "{name} must be finite and >= 0, got {value}")
             }
             SetupError::Mission(msg) => f.write_str(msg),
             SetupError::StartLayout(msg) => write!(f, "start layout: {msg}"),
@@ -193,6 +207,14 @@ fn validate(cat: &Catalogue, cfg: &MatchConfig) -> Result<(), SetupError> {
         return Err(SetupError::InvalidOrderShapingGamma {
             gamma: cfg.order_shaping_gamma,
         });
+    }
+    for (name, value) in [
+        ("goto_timed_bonus", cfg.goto_timed_bonus),
+        ("goto_miss_penalty", cfg.goto_miss_penalty),
+    ] {
+        if !(value.is_finite() && value >= 0.0) {
+            return Err(SetupError::InvalidGotoPay { name, value });
+        }
     }
     let count = cfg.fleets[0].len() + cfg.fleets[1].len();
     if count > MAX_SHIPS {

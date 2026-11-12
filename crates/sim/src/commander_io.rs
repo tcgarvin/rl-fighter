@@ -24,7 +24,7 @@
 //! `Match::submit_command` and apply on the team's slow tick (`LEARNED_COMMAND_TICKS`).
 
 use crate::TICK_HZ;
-use crate::command::{Command, MAX_SQUADS, Order, Waypoint};
+use crate::command::{Command, MAX_SQUADS, NO_DEADLINE, Order, Waypoint};
 use crate::data::{Catalogue, HullId};
 use crate::math::{PI, Vec2};
 use crate::mission::{JumpState, Mission, MissionKind, is_capital_ship};
@@ -202,7 +202,8 @@ pub struct CommanderLocks {
 /// Decisions until slot `s`'s order may change again (0: it may now), counting the
 /// next one. A hold whose order is spent is over: once the decision that set it has
 /// applied, a ship given an attack, defend or go-to order whose effective order is
-/// none (the target or ward is gone, or it has arrived) is free at once.
+/// none (the target or ward is gone, it has arrived, or, v8, it has missed the go-to's
+/// deadline) is free at once.
 pub fn ship_hold_left(m: &Match, locks: &CommanderLocks, s: usize) -> u32 {
     let left = locks.ship_hold_end[s].saturating_sub(locks.decisions);
     if left == 0 || s >= m.ships.len() {
@@ -726,6 +727,7 @@ pub fn decode(
             _ => Order::GoTo {
                 point: map_point(team, choice(act::POINT + k), radius),
                 radius: GOTO_RADIUS,
+                deadline: NO_DEADLINE,
             },
         };
         if order == orders[k] {

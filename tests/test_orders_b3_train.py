@@ -247,7 +247,8 @@ def _config(init: str, **overrides: object) -> PPOConfig:
 
 
 def _narrow_init(v1_like: Path, w1_like: Path) -> Path:
-    """The init one step narrower than the installed sim (v5: v1, v6: w1_400)."""
+    """An init narrower than the installed sim: w1_400's width under v6 and v7 (one
+    step narrower), v1's under v5 and from v8 on."""
     return w1_like if rust_env.OBS_DIM == V6_OBS_DIM else v1_like
 
 
@@ -322,16 +323,16 @@ def test_trainer_pulls_exactly_the_transit_rows(
     batch, expected = batches[0], expected_rows[0]
     assert expected.any() and not expected.all()
     # The pull reads the acting rows (value-only rows are never in the actor's loss).
-    np.testing.assert_array_equal(
-        batch.pull_rows[batch.acting_rows].numpy(), expected
-    )
+    np.testing.assert_array_equal(batch.pull_rows[batch.acting_rows].numpy(), expected)
     assert row["beta_rows_share"] == pytest.approx(float(expected.mean()))
 
 
 @needs_v6
 def test_trainer_on_v6_pulls_transit_rows_only(tmp_path: Path, w1_like: Path) -> None:
+    """A 583-wide learner, as run B3's: under a wider sim (v8) it trains on its prefix."""
     cfg = _config(
         str(w1_like),
+        obs_dim=V6_OBS_DIM,
         n_updates=2,
         beta_rows="transit",
         kl_anchor=str(w1_like),

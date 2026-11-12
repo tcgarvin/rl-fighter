@@ -13,17 +13,28 @@
 //!   that is no longer active (dead, jumped out) and a defend of a ward that is not on
 //!   the field read as `Order::None`.
 //! - The **effective** order ([`effective_order`]) is the valid order, except that a
-//!   go-to **completes per ship on arrival**: once the ship has been inside the radius
-//!   during the instance, its effective order is none (obs `has_order = 0`, no order
+//!   go-to **is over per ship** once the ship has arrived or (v8) missed its deadline:
+//!   once the ship has been inside the radius during the instance, or the deadline
+//!   passed without that, its effective order is none (obs `has_order = 0`, no order
 //!   reward, the script falls back to its role) while the squad's standing order lasts
 //!   until the commander changes it. The obs, the go-to shaping and the scripts use it.
 //! - An **order instance** starts whenever a ship's standing order kind or target
-//!   changes, or a go-to point moves more than `GOTO_SAME_POINT` from the instance's
+//!   changes, a go-to point moves more than `GOTO_SAME_POINT` from the instance's
 //!   first point (a re-issued point within it is the same instance and pays nothing
-//!   twice). v6 keys instances on the standing order, so a target or ward that dies
-//!   does not start one (v5 keyed them on the valid order). Its state, [`OrderTrack`], is per ship and hashed: the key (kind, target,
-//!   point), the start tick, whether the ship has arrived (go-to) and the last
-//!   potential Φ of the shaping term.
+//!   twice), or (v8) a go-to's deadline changes. v6 keys instances on the standing
+//!   order, so a target or ward that dies does not start one (v5 keyed them on the
+//!   valid order). Its state, [`OrderTrack`], is per ship and hashed: the key (kind,
+//!   target, point, deadline), the start tick, whether the ship has arrived or
+//!   missed (go-to) and the last potential Φ of the shaping term.
+//! - v8, **deadlines**: a go-to may carry a deadline, an absolute match tick
+//!   (`command::NO_DEADLINE` for none). A ship inside the radius at the end of a step
+//!   whose tick is at most the deadline has arrived in time. At the end of the first
+//!   step whose tick is past the deadline, a ship of the instance that has not arrived
+//!   has **missed** (`OrderTrack::missed`), dead and absent ships included; a deadline
+//!   already past when the instance starts is missed in that same step.
+//! - v8: an instance that starts with the ship on the field and already inside the
+//!   radius is complete at once (`arrived`) and pays no arrival bonus, so re-issuing a
+//!   go-to with a new deadline to a ship that is already there earns nothing.
 //! - A ward's **threat set** ([`Match::threat_set`]): the enemies within their own
 //!   longest weapon range + `THREAT_MARGIN` + the ward's bound radius of the ward, or
 //!   that damaged the ward in the last `RECENT_HIT_TICKS` ticks (`Match.hit_by`,
@@ -33,7 +44,7 @@
 //! rewards), the tracks also once at setup, so the obs written after a step shows the
 //! order and its age as of that step's end.
 
-use crate::command::{Order, Waypoint};
+use crate::command::{NO_DEADLINE, Order, Waypoint};
 use crate::data::{Catalogue, HullDef};
 use crate::hash::{StateHash, StateHasher};
 use crate::math::Vec2;
@@ -94,6 +105,7 @@ pub fn standing_order(m: &Match, slot: usize) -> Order {
         return Order::GoTo {
             point,
             radius: CAPITAL_WAYPOINT_RADIUS,
+            deadline: NO_DEADLINE,
         };
     }
     let ship = &m.ships[slot];
@@ -120,19 +132,19 @@ pub fn valid_order(m: &Match, slot: usize) -> Order {
     }
 }
 
-/// [`valid_order`] with a go-to the ship has completed (arrived during its instance)
-/// replaced by `Order::None` (module docs).
+/// [`valid_order`] with a go-to that is over for the ship (it arrived during the
+/// instance, or missed its deadline) replaced by `Order::None` (module docs).
 pub fn effective_order(m: &Match, slot: usize) -> Order {
     let order = valid_order(m, slot);
     completed(m, slot, order)
 }
 
 /// `order` (the slot's valid or squad order), or `Order::None` if it is a go-to whose
-/// current instance the ship has arrived in.
+/// current instance is over for the ship: it has arrived, or (v8) missed the deadline.
 pub fn completed(m: &Match, slot: usize, order: Order) -> Order {
     let track = &m.order_tracks[slot];
     match order {
-        Order::GoTo { .. } if track.arrived && track.same_instance(order) => Order::None,
+        Order::GoTo { .. } if track.over() && track.same_instance(order) => Order::None,
         o => o,
     }
 }
@@ -145,7 +157,7 @@ pub fn order_geometry(m: &Match, order: Order) -> Option<(Vec2, f32)> {
         Order::None => None,
         Order::Attack { target } => Some((m.ships[usize::from(target)].pos, 0.0)),
         Order::Defend { ward } => Some((m.ships[usize::from(ward)].pos, 0.0)),
-        Order::GoTo { point, radius } => Some((point, radius)),
+        Order::GoTo { point, radius, .. } => Some((point, radius)),
     }
 }
 
@@ -161,10 +173,16 @@ pub struct OrderTrack {
     /// Tick the instance started.
     pub start_tick: u32,
     /// Go-to: the ship has been inside the radius during this instance (it is
-    /// complete).
+    /// complete), in time if the instance has a deadline.
     pub arrived: bool,
     /// Potential Φ at the end of the last step (go-to; 0 otherwise).
     pub last_phi: f32,
+    /// v8: the instance's go-to deadline tick, `NO_DEADLINE` without one and for the
+    /// other kinds.
+    pub deadline: u32,
+    /// v8, go-to with a deadline: the deadline passed before the ship arrived. The
+    /// order is over for the ship, as after an arrival.
+    pub missed: bool,
 }
 
 impl Default for OrderTrack {
@@ -176,6 +194,8 @@ impl Default for OrderTrack {
             start_tick: 0,
             arrived: false,
             last_phi: 0.0,
+            deadline: NO_DEADLINE,
+            missed: false,
         }
     }
 }
@@ -183,15 +203,27 @@ impl Default for OrderTrack {
 impl OrderTrack {
     /// Whether `order` is this instance's order: same kind and target and, for a
     /// go-to, a point within `GOTO_SAME_POINT` of the instance's (a radius alone does
-    /// not make a new instance).
+    /// not make a new instance) and (v8) the same deadline.
     pub fn same_instance(&self, order: Order) -> bool {
         if self.kind != order.kind() || self.target != order.target() {
             return false;
         }
         match order {
-            Order::GoTo { point, .. } => (point - self.point).length() <= GOTO_SAME_POINT,
+            Order::GoTo {
+                point, deadline, ..
+            } => (point - self.point).length() <= GOTO_SAME_POINT && deadline == self.deadline,
             _ => true,
         }
+    }
+
+    /// Whether the instance has a deadline.
+    pub fn has_deadline(&self) -> bool {
+        self.deadline != NO_DEADLINE
+    }
+
+    /// Go-to: the instance is over for the ship, arrived or missed.
+    pub fn over(&self) -> bool {
+        self.arrived || self.missed
     }
 
     /// A fresh instance of `order` starting at `tick` with potential `phi`.
@@ -206,6 +238,8 @@ impl OrderTrack {
             start_tick: tick,
             arrived: false,
             last_phi: phi,
+            deadline: order.deadline(),
+            missed: false,
         }
     }
 }
@@ -218,6 +252,8 @@ impl StateHash for OrderTrack {
         h.write_u32(self.start_tick);
         h.write_bool(self.arrived);
         h.write_f32(self.last_phi);
+        h.write_u32(self.deadline);
+        h.write_bool(self.missed);
     }
 }
 
@@ -277,8 +313,8 @@ impl Match {
     }
 
     /// v6, for the trainer's script pull: whether slot `slot` is in transit now, its
-    /// effective order a go-to not yet arrived, or a defend whose ward's threat set
-    /// (among the active ships) is empty.
+    /// effective order a go-to not yet arrived (nor, v8, missed), or a defend whose
+    /// ward's threat set (among the active ships) is empty.
     pub fn order_transit(&self, cat: &Catalogue, slot: usize) -> bool {
         match effective_order(self, slot) {
             Order::GoTo { .. } => true,

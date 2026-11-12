@@ -123,8 +123,19 @@ pub enum Order {
     Defend { ward: ShipIdx },
     /// v6 (replaces hold): go to a point (inside `POINT_LIMIT_FRAC` of the arena),
     /// arriving within `radius`; completes per ship on arrival (`order` module).
-    GoTo { point: Vec2, radius: f32 },
+    /// v8: `deadline` is the match tick to be inside the radius by, [`NO_DEADLINE`]
+    /// for none. A ship not there at the end of that tick has missed the order, which
+    /// is then over for it (`order` module).
+    GoTo {
+        point: Vec2,
+        radius: f32,
+        deadline: u32,
+    },
 }
+
+/// `Order::GoTo::deadline` of a go-to without a deadline (v8). Tick 0 is free as the
+/// sentinel: orders land on ticks >= 1.
+pub const NO_DEADLINE: u32 = 0;
 
 impl Order {
     /// 0 none, 1 attack, 2 defend, 3 go-to.
@@ -154,6 +165,15 @@ impl Order {
             Order::None | Order::GoTo { .. } => NONE,
         }
     }
+
+    /// A go-to's deadline tick; [`NO_DEADLINE`] for a go-to without one and for the
+    /// other kinds.
+    pub fn deadline(&self) -> u32 {
+        match *self {
+            Order::GoTo { deadline, .. } => deadline,
+            Order::None | Order::Attack { .. } | Order::Defend { .. } => NO_DEADLINE,
+        }
+    }
 }
 
 impl StateHash for Order {
@@ -161,11 +181,12 @@ impl StateHash for Order {
         h.write_u8(self.kind());
         h.write_u8(self.target());
         let (point, radius) = match *self {
-            Order::GoTo { point, radius } => (point, radius),
+            Order::GoTo { point, radius, .. } => (point, radius),
             _ => (Vec2::ZERO, 0.0),
         };
         h.write_vec2(point);
         h.write_f32(radius);
+        h.write_u32(self.deadline());
     }
 }
 
@@ -477,7 +498,9 @@ impl Match {
     }
 
     /// `order` if it is valid for `team` now, else `Order::None`; go-to points are
-    /// clamped into the arena and their radius into `[MIN_GOTO_RADIUS, R]`.
+    /// clamped into the arena and their radius into `[MIN_GOTO_RADIUS, R]`. A go-to's
+    /// deadline is kept as given: one already past expires at the end of the step
+    /// (`order` module).
     fn sanitize_order(&self, team: u8, order: Order) -> Order {
         let n = self.ships.len();
         let radius = self.cfg.arena_radius;
@@ -499,13 +522,18 @@ impl Match {
                     Order::None
                 }
             }
-            Order::GoTo { point, radius: r } => {
+            Order::GoTo {
+                point,
+                radius: r,
+                deadline,
+            } => {
                 if !finite(point) || !r.is_finite() {
                     return Order::None;
                 }
                 Order::GoTo {
                     point: clamp_to_disc(point, POINT_LIMIT_FRAC * radius),
                     radius: r.clamp(MIN_GOTO_RADIUS, radius),
+                    deadline,
                 }
             }
         }
@@ -515,7 +543,7 @@ impl Match {
     fn emit_order(&mut self, team: u8, k: usize) {
         let order = self.command.squads[usize::from(team)][k].order;
         let (point, radius) = match order {
-            Order::GoTo { point, radius } => (point, radius),
+            Order::GoTo { point, radius, .. } => (point, radius),
             Order::Attack { target } => (self.ships[usize::from(target)].pos, 0.0),
             Order::Defend { ward } => (self.ships[usize::from(ward)].pos, 0.0),
             Order::None => (Vec2::ZERO, 0.0),

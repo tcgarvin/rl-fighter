@@ -21,10 +21,17 @@
 //!   `DEFEND_WARD_DEATH` once if the ward died this step. Every defender of the ward
 //!   pays the whole of both (shared, not split). No location term;
 //! - *go-to*: potential shaping `γΦ′ − Φ` with `Φ = −K · max(0, d − radius) / R` and
-//!   `γ = MatchConfig.order_shaping_gamma` until arrival, no shaping on the step an instance starts (Φ is reset, so a new
-//!   order pays nothing for the jump); a one-shot `ORDER_ARRIVAL_BONUS` the first time
-//!   inside the radius per instance, which completes the order for that ship. No
-//!   presence term (v5 had one).
+//!   `γ = MatchConfig.order_shaping_gamma` until arrival, no shaping on the step an
+//!   instance starts (Φ is reset, so a new order pays nothing for the jump); a
+//!   one-shot `ORDER_ARRIVAL_BONUS` the first time inside the radius per instance,
+//!   which completes the order for that ship. No presence term (v5 had one).
+//!   v8: an instance that starts with the ship already inside the radius is complete
+//!   with no bonus. A go-to **with a deadline** has the same shaping until arrival or
+//!   expiry, pays `MatchConfig.goto_timed_bonus` instead of `ORDER_ARRIVAL_BONUS` for
+//!   arriving by the deadline tick, and charges `MatchConfig.goto_miss_penalty` once,
+//!   at the end of the first step past the deadline, to a ship that has not arrived
+//!   (a ship that does not earn this step, dead or absent, is marked missed but not
+//!   charged). Time before the deadline costs nothing.
 //!
 //! Hit credit and both defend terms use the standing order (the squad's order during
 //! the step: the effective order is already none on the tick an attack target or a
@@ -67,9 +74,15 @@ pub const ORDER_SHAPING_K: f32 = 1.0;
 /// the optimal policy unchanged. With γ too low for the trainer's discount, the term
 /// pays a pilot to stay away from the point.
 pub const ORDER_SHAPING_GAMMA: f32 = 0.99;
-/// Paid once per go-to instance, the first time inside its radius (v6: 0.2, was 0.1
-/// with a presence term on top).
+/// Paid once per go-to instance without a deadline, the first time inside its radius
+/// (v6: 0.2, was 0.1 with a presence term on top).
 pub const ORDER_ARRIVAL_BONUS: f32 = 0.2;
+/// v8, default of `MatchConfig.goto_timed_bonus`: paid once per go-to instance with a
+/// deadline, for being inside its radius by the deadline tick.
+pub const ORDER_TIMED_ARRIVAL_BONUS: f32 = 1.0;
+/// v8, default of `MatchConfig.goto_miss_penalty`: charged once per go-to instance
+/// with a deadline, when the deadline passes before the ship has arrived.
+pub const ORDER_MISS_PENALTY: f32 = 1.0;
 
 /// The shaping potential of a ship `dist` metres from an order point with radius
 /// `radius` in an arena of `arena_radius`.
@@ -160,15 +173,17 @@ impl Match {
 
     /// At setup: every ship's order instance starts at tick 0 with its standing order
     /// then (only capital ships' waypoints exist yet), and the hull marks start at
-    /// the full hulls.
+    /// the full hulls. v8: a ship on the field and already inside its go-to radius
+    /// starts with the instance complete (no bonus, as in a step).
     pub(crate) fn init_order_tracks(&mut self) {
         let radius = self.cfg.arena_radius;
         for s in 0..self.ships.len() {
             let order = standing_order(self, s);
-            let phi = self
-                .goto_distance(s, order)
-                .map_or(0.0, |(d, r)| order_potential(d, r, radius));
-            self.order_tracks[s] = OrderTrack::start(order, self.tick, phi);
+            let place = self.goto_distance(s, order);
+            let phi = place.map_or(0.0, |(d, r)| order_potential(d, r, radius));
+            let mut track = OrderTrack::start(order, self.tick, phi);
+            track.arrived = self.ships[s].active() && place.is_some_and(|(d, r)| d <= r);
+            self.order_tracks[s] = track;
         }
         self.mark_hulls();
     }
@@ -227,6 +242,8 @@ impl Match {
         }
         let radius = self.cfg.arena_radius;
         let gamma = self.cfg.order_shaping_gamma;
+        let timed_bonus = self.cfg.goto_timed_bonus;
+        let miss_penalty = self.cfg.goto_miss_penalty;
         for (s, reward) in r.iter_mut().enumerate().take(n) {
             if earning[s]
                 && let Order::Defend { ward } = standing_order(self, s)
@@ -240,20 +257,34 @@ impl Match {
             let order = standing_order(self, s);
             let place = self.goto_distance(s, order);
             let phi = place.map_or(0.0, |(d, rad)| order_potential(d, rad, radius));
+            let inside = place.is_some_and(|(d, rad)| d <= rad);
             let track = &mut self.order_tracks[s];
             if !track.same_instance(order) {
-                // A new instance: Φ restarts here, so the jump pays nothing.
+                // A new instance: Φ restarts here, so the jump pays nothing. v8: a ship
+                // already inside the radius has nothing to do and earns no bonus.
                 *track = OrderTrack::start(order, tick, phi);
+                track.arrived = earning[s] && inside;
             } else {
-                if earning[s] && place.is_some() && !track.arrived {
+                if earning[s] && place.is_some() && !track.over() {
                     *reward += gamma * phi - track.last_phi;
                 }
                 track.last_phi = phi;
             }
-            let inside = place.is_some_and(|(d, rad)| d <= rad);
-            if earning[s] && inside && !track.arrived {
+            // v8: the first step past the deadline; arrival on the deadline tick itself
+            // is in time. Expiry is checked first, so a late ship cannot arrive.
+            if place.is_some() && track.has_deadline() && tick > track.deadline && !track.over() {
+                track.missed = true;
+                if earning[s] {
+                    *reward -= miss_penalty;
+                }
+            }
+            if earning[s] && inside && !track.over() {
                 track.arrived = true;
-                *reward += ORDER_ARRIVAL_BONUS;
+                *reward += if track.has_deadline() {
+                    timed_bonus
+                } else {
+                    ORDER_ARRIVAL_BONUS
+                };
             }
         }
         self.order_rewards = r;

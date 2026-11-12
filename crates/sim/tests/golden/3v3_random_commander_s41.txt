@@ -1,7 +1,7 @@
-# sim golden trace 3v3_random_commander_s41 (SIM_VERSION 7); regenerate with UPDATE_GOLDEN=1
+# sim golden trace 3v3_random_commander_s41 (SIM_VERSION 8); regenerate with UPDATE_GOLDEN=1
 # tick state_hash aux_digest; end tick state_hash aux_digest phase winner
-1 2bd05cf0fe4f9c6a a6f953935531a575
-30 5cef2c45fde8b743 208b62dffcb70785
-300 4538f946dc0b3caf 49a5e7e105d533f7
-1000 325618a7d8f176f4 2dc9379444d8de65
-end 1969 69f9620a45cb0e8f 73f948559178f641 over 0
+1 e5374861f6644196 243a1714218354f5
+30 8e875f51a972567f d063f8d186d42885
+300 20e7473a022be09f 6cb64648686ae02d
+1000 7366e5dd3ae9aeb8 71ef8dbd04a9a952
+end 1969 792c38cb2f072597 a731b22706592e44 over 0

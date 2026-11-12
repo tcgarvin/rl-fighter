@@ -72,6 +72,10 @@ pub struct BatchConfig {
     /// `MatchConfig.order_shaping_gamma` of every match. It belongs to the batch, not
     /// to a roster, so no roster swap can lose the trainer's discount.
     pub order_shaping_gamma: f32,
+    /// `MatchConfig.goto_timed_bonus` and `goto_miss_penalty` of every match (v8), the
+    /// batch's for the same reason.
+    pub goto_timed_bonus: f32,
+    pub goto_miss_penalty: f32,
     /// The roster every env starts with.
     pub roster: Roster,
     /// Buffer slots per match (S); at least the roster's ship count.
@@ -246,6 +250,8 @@ fn match_config(cfg: &BatchConfig, roster: &Roster, index: usize, episode: u32) 
         commanders: roster.commanders,
         hide_orders: roster.hide_orders,
         order_shaping_gamma: cfg.order_shaping_gamma,
+        goto_timed_bonus: cfg.goto_timed_bonus,
+        goto_miss_penalty: cfg.goto_miss_penalty,
         start_layout: roster.start_layout.clone(),
         drill: roster.drill,
     }
@@ -823,6 +829,8 @@ mod tests {
                 base_seed: 3,
                 reaction_ticks: 2,
                 order_shaping_gamma: sim::reward::ORDER_SHAPING_GAMMA,
+                goto_timed_bonus: sim::reward::ORDER_TIMED_ARRIVAL_BONUS,
+                goto_miss_penalty: sim::reward::ORDER_MISS_PENALTY,
                 roster,
                 n_ships,
                 n_threads,
@@ -896,6 +904,8 @@ mod tests {
                 base_seed: 3,
                 reaction_ticks: 2,
                 order_shaping_gamma: sim::reward::ORDER_SHAPING_GAMMA,
+                goto_timed_bonus: sim::reward::ORDER_TIMED_ARRIVAL_BONUS,
+                goto_miss_penalty: sim::reward::ORDER_MISS_PENALTY,
                 roster,
                 n_ships: 2,
                 n_threads: 1,
@@ -997,6 +1007,8 @@ mod tests {
             base_seed: 3,
             reaction_ticks: 2,
             order_shaping_gamma: gamma,
+            goto_timed_bonus: sim::reward::ORDER_TIMED_ARRIVAL_BONUS,
+            goto_miss_penalty: sim::reward::ORDER_MISS_PENALTY,
             roster: roster.clone(),
             n_ships: 2,
             n_threads: 1,
