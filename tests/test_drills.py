@@ -321,7 +321,8 @@ def test_three_go_tos_in_four_carry_one_deadline_for_the_squad() -> None:
     middle = math.sqrt(GOTO_SLACK[0] * GOTO_SLACK[1])
     below = sum(s.slack < middle for s in timed) / len(timed)
     assert below == pytest.approx(0.5, abs=0.09)
-    assert min(s.slack for s in timed) < 1.7 and max(s.slack for s in timed) > 7.0
+    assert min(s.slack for s in timed) < 1.15 * GOTO_SLACK[0]
+    assert max(s.slack for s in timed) > 0.875 * GOTO_SLACK[1]
 
 
 def test_a_go_to_without_a_deadline_is_judged_by_the_old_rule_ship_by_ship() -> None:

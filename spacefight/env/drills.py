@@ -94,7 +94,7 @@ GOTO_SLACK_S = 10.0
 GOTO_NO_DEADLINE_P = 0.25
 # The order's deadline: a slack drawn log-uniformly from this range, times the slowest
 # ship's straight-line time at its speed cap, plus GOTO_TURN_S to turn and get going.
-GOTO_SLACK = (1.5, 8.0)
+GOTO_SLACK = (2.0, 8.0)
 GOTO_TURN_S = 3.0
 # ``DrillSpec.slack`` of a go-to whose order carries no deadline.
 NO_SLACK = 0.0

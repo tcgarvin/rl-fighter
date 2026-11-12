@@ -176,7 +176,7 @@ uv run python -m pytest tests/test_drills.py -v
 cargo test -p sim --test drills
 
 # Go-to deadlines (SIM_VERSION 8, OBS_DIM 587): three go-to drills in four carry a deadline
-# in the order (slack 1.5 to 8 times the slowest ship's straight line, plus 3 s), the drill
+# in the order (slack 2 to 8 times the slowest ship's straight line, plus 3 s), the drill
 # eval splits go-to by deadline, slack band and what the ships that were late did (go-to
 # numbers from before v8 are not comparable). Trainer keys (PPOConfig, --set):
 # goto_timed_bonus (1.0, pay for arriving by the deadline), goto_miss_penalty (1.0, charged

@@ -64,7 +64,13 @@ import rlf_sim
 import yaml  # type: ignore[import-untyped]
 from numpy.typing import NDArray
 
-from spacefight.env.drills import ORDER_TICK, DrillGenerator, DrillLedger, DrillSpec
+from spacefight.env.drills import (
+    GOTO_SLACK,
+    ORDER_TICK,
+    DrillGenerator,
+    DrillLedger,
+    DrillSpec,
+)
 from spacefight.env.rosters import (
     DEFAULT_ASSETS,
     DRILL_ATTACK,
@@ -111,7 +117,8 @@ SLACK_BANDS: tuple[tuple[str, float], ...] = (
 )
 GOTO_V8_NOTE = (
     "The go-to drill changed with SIM_VERSION 8: three orders in four carry a deadline "
-    "(slack 1.5 to 8) that the sim pays and charges by, and the match clock no longer "
+    f"(slack {GOTO_SLACK[0]:g} to {GOTO_SLACK[1]:g}) that the sim pays and charges by, "
+    "and the match clock no longer "
     "gives the deadline away. Go-to numbers from before are not comparable, and the "
     "go-to bars were set on the old drills."
 )

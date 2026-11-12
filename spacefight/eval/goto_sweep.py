@@ -16,10 +16,11 @@ point, given idle actions here), ``one`` (one script fighter beside the route) a
 ``three`` (a script fighter, strafer and gunship beside the route).
 
 **Matches.** Every level plays the same layouts in the same env slots with the same base
-seed, so a layout's match seed does not depend on the level. The clock stops
-``CLOCK_EXTRA_TICKS`` (20 s) after the deadline, so what the ship does after it is seen.
-With no deadline the ship is judged by the old rule (twice the straight-line time plus
-10 s) and the clock stops 20 s after that.
+seed, so a layout's match seed does not depend on the level. A layout's clock is the
+same at every level: ``CLOCK_EXTRA_TICKS`` (20 s) after the latest tick any level judges
+it by. A pilot sees the share of the match left, so a clock that moved with the deadline
+would tell a pilot blind to ``order_time`` which level it was flying. With no deadline
+the ship is judged by the old rule (twice the straight-line time plus 10 s).
 
 **Measures**, per level, and by opposition, hull and distance:
 
@@ -61,7 +62,7 @@ import math
 import sys
 import time
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -174,6 +175,7 @@ class Layout:
         radius_m: The circle's radius.
         opposition: A name of ``OPPOSITIONS``.
         spec: The go-to, with no deadline yet (``DrillGenerator.with_slack``).
+        clock_ticks: Its clock at every level of the sweep (module docstring).
     """
 
     hull: str
@@ -181,6 +183,23 @@ class Layout:
     radius_m: float
     opposition: str
     spec: DrillSpec
+    clock_ticks: int
+
+
+def common_clock_ticks(
+    gen: DrillGenerator, spec: DrillSpec, levels: Sequence[float]
+) -> int:
+    """The clock ``spec`` flies under at every one of ``levels``: ``CLOCK_EXTRA_TICKS``
+    past the latest tick any of them judges it by.
+
+    Raises:
+        ValueError: No levels.
+    """
+    if not levels:
+        raise ValueError("a sweep needs at least one level")
+    return max(
+        gen.with_slack(spec, slack, CLOCK_EXTRA_TICKS).clock_ticks for slack in levels
+    )
 
 
 def build_layouts(
@@ -205,7 +224,10 @@ def build_layouts(
                             OPPOSITIONS[opposition],
                             parked=opposition == PARKED,
                         )
-                        layouts.append(Layout(hull, distance, radius, opposition, spec))
+                        clock = common_clock_ticks(gen, spec, cfg.levels)
+                        layouts.append(
+                            Layout(hull, distance, radius, opposition, spec, clock)
+                        )
                 cell += 1
     return tuple(layouts)
 
@@ -402,7 +424,10 @@ def run_level(
     if not layouts:
         raise ValueError("run_level needs at least one layout")
     gen = DrillGenerator(assets_dir)
-    specs = [gen.with_slack(lay.spec, slack, CLOCK_EXTRA_TICKS) for lay in layouts]
+    specs = [
+        replace(gen.with_slack(lay.spec, slack, 0), clock_ticks=lay.clock_ticks)
+        for lay in layouts
+    ]
     env = _level_env(specs, seed, n_threads, assets_dir)
     n, s = env.n_envs, env.n_ships
     team = env.team.astype(np.int64).copy()

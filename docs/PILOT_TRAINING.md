@@ -174,7 +174,7 @@ deadline and free before it (section 1).
 
 - **Three go-to drills in four carry a deadline**, one tick for the whole squad:
   `slack x the slowest ship's straight-line time at its speed cap + 3 s`, slack drawn
-  log-uniformly from 1.5 to 8 (`goto_order_deadline_tick`). In a mixed squad the fast ships
+  log-uniformly from 2 to 8 (`goto_order_deadline_tick`). In a mixed squad the fast ships
   have time to spare and the slow one is tight. The rest carry none, which is all a
   commander issues today, and are judged as before: twice the straight-line time plus 10 s,
   ship by ship.
@@ -191,13 +191,14 @@ deadline and free before it (section 1).
 - **Old pilots still fly.** A 583-input pilot reads its prefix and cannot see the time
   left. It is still paid and charged by the deadline.
 
-Measured on the script, which flies straight to the point and does not read the deadline
-(256 go-to drills): in time 0.94 of ships at slack under 2.5, 1.00 above. Over 1,024 drills
-the slowest ship of a squad of two or more was in time 0.95 or more at every slack, but
-ships alone at slack 1.5 to 1.75 made 18 of 24. The sweep below says the same: alone at
-slack 1.5 the script is in time 0.76, at slack 2 0.96. So the bottom of the slack range
-asks a lone ship to hurry more than the script does. Whether a trained pilot can make it is
-not known yet.
+**Why the range starts at 2.** The first range was 1.5 to 8. The script, which flies
+straight to the point and does not read the deadline, made 0.94 of its deadlines at slack
+under 2.5, but ships alone at slack 1.5 to 1.75 made only 18 of 24 (1,024 drills), and in
+the sweep below a lone script ship is in time 0.76 at slack 1.5 and 0.96 at 2. A deadline
+the script cannot make charges a pilot for nothing it did, so the range was raised the same
+day. With 2 to 8 the script makes 0.96 at slack under 2.5 (94 of 98 ships, 256 drills),
+0.99 from 2.5 to 4.5 and 1.00 above; solo ships 0.98. The sweep still flies 0.8, 1 and 1.5
+to show what a pilot does when it cannot make it.
 
 ### Drills in training
 
@@ -251,7 +252,9 @@ flies the same way every time.
   it. Six starts of each: 324 layouts.
 - **Each layout is flown eight times**: slack 0.8, 1, 1.5, 2, 3, 5 and 8, and with no
   deadline. Slack 0.8 and 1 are at or past what a ship can do; they show whether it still
-  goes. The match seed is the same at every level. The clock stops 20 s after the deadline.
+  goes. The match seed is the same at every level, and so is the clock: 20 s after the
+  latest tick any level judges the ship by. A pilot sees the share of the match left, so a
+  clock that moved with the deadline would tell a blind pilot which level it was flying.
 - **Per level**, and by enemies, hull and distance: the share in time (of ships alive at the
   deadline, deaths counted apart), the median time to arrive over the time allowed, the
   median "leave time" (seconds until half the distance is covered), and gun damage dealt
@@ -280,26 +283,26 @@ In time, of ships alive at the deadline:
 | Pilot | Slack 1.5 and over | 1.5 | 3 | 8 | No deadline |
 |---|---|---|---|---|---|
 | `script` | 0.94 | 0.76 | 1.00 | 1.00 | 1.00 |
-| `followers_1793` | 0.28 | 0.05 | 0.24 | 0.66 | 0.22 |
-| `fighters_1832` | 0.15 | 0.03 | 0.09 | 0.40 | 0.08 |
-| `fighters_pay1_1317` | 0.09 | 0.01 | 0.05 | 0.22 | 0.04 |
+| `followers_1793` | 0.27 | 0.05 | 0.21 | 0.66 | 0.23 |
+| `fighters_1832` | 0.14 | 0.01 | 0.11 | 0.40 | 0.11 |
+| `fighters_pay1_1317` | 0.08 | 0.01 | 0.04 | 0.22 | 0.05 |
 
 What it did with the time:
 
 | Pilot | Ratio (layouts) | Inside early at 1.5 | at 8 | Hits bought, one | three |
 |---|---|---|---|---|---|
 | `script` | 1.00 (181) | 0.56 | 0.56 | +0.6 | +0.2 |
-| `followers_1793` | 0.96 (6) | 0.04 | 0.03 | +27.2 | +73.1 |
-| `fighters_1832` | 0.96 (3) | 0.02 | 0.02 | +8.6 | +83.9 |
-| `fighters_pay1_1317` | 1.00 (2) | 0.01 | 0.01 | +10.9 | +89.4 |
+| `followers_1793` | 1.01 (9) | 0.05 | 0.03 | +28.4 | +74.7 |
+| `fighters_1832` | 1.00 (3) | 0.01 | 0.02 | +10.4 | +73.3 |
+| `fighters_pay1_1317` | 1.00 (2) | 0.01 | 0.01 | +11.2 | +91.4 |
 
 "Inside early" is the share of layouts inside the circle within the slack-1.5 allowance.
-The three pilots' ratios rest on 2 to 6 layouts and say nothing yet; their "inside early"
+The three pilots' ratios rest on 2 to 9 layouts and say nothing yet; their "inside early"
 shares are what a later pilot is compared with.
 
 A lone trained pilot mostly does not go: it fights first, and flies to the rim to shoot
-even a parked enemy (`followers_1793` dealt it 47 damage on average with no deadline, and
-was in time 0.03 of the time). Its in-time share rises with slack, which fits a pilot that
+even a parked enemy (`followers_1793` dealt it 45 damage on average with no deadline, and
+was in time 0.04 of the time). Its in-time share rises with slack, which fits a pilot that
 gets there eventually whatever the order says; these pilots cannot see the deadline. This
 is one ship alone; this morning's traces had squads doing better. A sweep takes about 12 s
 for the script and 75 s for a pilot on 4 threads.
