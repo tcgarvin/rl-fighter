@@ -1,0 +1,39 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "fighters_v8_362",
+ "family": "fighters",
+ "founder": "f995_701",
+ "parent": "fighters_1832",
+ "relation": "fork",
+ "fork_update": 1832,
+ "settings_changed": {
+  "sim_version": 8,
+  "obs_dim": 587,
+  "goto_timed_bonus": 1.0,
+  "goto_miss_penalty": 1.0
+ },
+ "checkpoint": "lab/runs/2026-11-12-pilots-v8/fighters_v8/checkpoints/ppo_bc_362.pt",
+ "sha256": "b193cf8c5f73ce9b534f5500973eed5e7c1385b6554be244028d1e9b61db08a3",
+ "status": "active",
+ "archived_reason": "",
+ "archived_date": "",
+ "note": "First v8 night: fighters_1832's line with four new inputs for a go-to's deadline, trained on go-to drills that carry one.",
+ "ratings": [],
+ "drills": [
+  {
+   "phase": "first-v8-night",
+   "date": "2026-11-13",
+   "scores": {
+    "goto_arrival": 0.4180478821362799,
+    "goto_lift": 0.20825767234607012,
+    "attack_target_hit": 0.912109375,
+    "attack_side": 0.86328125,
+    "attack_flip": 0.73046875,
+    "defend_more_on_named": 0.849609375,
+    "defend_side": 0.873046875,
+    "defend_flip": 0.7578125
+   },
+   "passed": false
+  }
+ ]
+}

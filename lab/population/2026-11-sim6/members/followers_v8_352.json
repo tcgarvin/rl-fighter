@@ -1,0 +1,39 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "followers_v8_352",
+ "family": "followers",
+ "founder": "transit_300",
+ "parent": "followers_1793",
+ "relation": "fork",
+ "fork_update": 1793,
+ "settings_changed": {
+  "sim_version": 8,
+  "obs_dim": 587,
+  "goto_timed_bonus": 1.0,
+  "goto_miss_penalty": 1.0
+ },
+ "checkpoint": "lab/runs/2026-11-12-pilots-v8/followers_v8/checkpoints/ppo_bc_352.pt",
+ "sha256": "4a012bb278b1c6bf5f4847fe1ab3b910338eba394412f61e6d079275dd610b22",
+ "status": "active",
+ "archived_reason": "",
+ "archived_date": "",
+ "note": "First v8 night: followers_1793's line with four new inputs for a go-to's deadline, trained on go-to drills that carry one.",
+ "ratings": [],
+ "drills": [
+  {
+   "phase": "first-v8-night",
+   "date": "2026-11-13",
+   "scores": {
+    "goto_arrival": 0.5069444444444444,
+    "goto_lift": 0.3226898380792853,
+    "attack_target_hit": 0.9296875,
+    "attack_side": 0.84765625,
+    "attack_flip": 0.71875,
+    "defend_more_on_named": 0.83203125,
+    "defend_side": 0.87109375,
+    "defend_flip": 0.7578125
+   },
+   "passed": false
+  }
+ ]
+}

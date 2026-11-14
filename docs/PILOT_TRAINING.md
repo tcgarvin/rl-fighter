@@ -307,6 +307,48 @@ gets there eventually whatever the order says; these pilots cannot see the deadl
 is one ship alone; this morning's traces had squads doing better. A sweep takes about 12 s
 for the script and 75 s for a pilot on 4 threads.
 
+**First v8 night, 2026-11-13** (`lab/runs/2026-11-12-pilots-v8`; sweeps in
+`lab/population/2026-11-sim6/sweep/first-v8-night/`). Four lines trained 7 hours, about 355
+updates: `followers_v8`, `fighters_v8` (order pay 3) and `fighters_pay1_v8` widened to 587
+inputs, and `followers_v8_blind`, paid by deadlines it cannot see. One night did not teach
+them to fly by the deadline.
+
+| Pilot | Sweep, slack 1.5 and over | 2 | 8 | Drill go-to, in time | At the enemy instead | WAR |
+|---|---|---|---|---|---|---|
+| `followers_1793` | 0.27 | 0.08 | 0.66 | 0.49 | 0.23 | +11.0 |
+| `followers_v8_352` | 0.26 | 0.06 | 0.69 | 0.51 | 0.21 | +16.6 |
+| `followers_v8_blind_360` | 0.27 | 0.13 | 0.60 | 0.51 | 0.23 | +12.3 |
+| `fighters_1832` | 0.14 | 0.03 | 0.40 | 0.38 | 0.35 | +12.4 |
+| `fighters_v8_362` | 0.19 | 0.05 | 0.46 | 0.42 | 0.31 | +9.6 |
+| `fighters_pay1_1317` | 0.08 | 0.03 | 0.22 | 0.25 | 0.47 | +16.7 |
+| `fighters_pay1_v8_351` | 0.19 | 0.05 | 0.49 | 0.31 | 0.44 | +13.0 |
+
+- **A lone pilot still fights first** and is in time only when the deadline is long. Nobody
+  arrives later with more time (ratios 0.89 to 1.00, on 1 to 22 layouts).
+- **A hint that the two `fighters` lines read the new inputs:** with the deadline inputs
+  zeroed (`nodeadline:`) they do worse at long allowances (`fighters_v8_362` at slack 5,
+  0.34 against 0.22; `fighters_pay1_v8_351` at 8, 0.49 against 0.37; about 2.5 standard
+  errors each, the largest of several gaps; 0.19 against 0.15 and 0.16 over slack 1.5 and
+  up). `followers_v8_352` shows none (0.26 against 0.28).
+- **Seeing against blind: no difference** on the drills (0.51 both) or the sweep. Neither
+  learned to hurry, so the control could not separate them.
+- **Drills:** near misses stayed about a quarter of ships for every pilot. By slack band
+  `followers_v8_352` is 0.30, 0.55, 0.74 (parent 0.30, 0.53, 0.72). Attack and defend flips
+  rose for `fighters_v8_362` (0.65 to 0.73, 0.67 to 0.76) and `followers_v8_blind_360`
+  (0.72 to 0.81, 0.74 to 0.79), less for the other two.
+- **Combat:** both `fighters` children rate below their parents and lose to them head to
+  head (0.43 and 0.37). `followers_v8_352` rates 5.6 above its parent but wins 0.47 head to
+  head; the blind twin wins 0.57 and rates 1.3 above. Not explained (night 4 saw the same).
+- **Why little moved.** A line saw 1,100 to 1,800 go-to drills and 2,070 to 3,306 ships
+  under a deadline all night, and its share of misses hardly fell (`drill_goto_missed`:
+  followers 0.37 to 0.34 first quarter to last, fighters 0.50 to 0.44, fighters_pay1 0.55
+  to 0.54). At order pay 1 a deadline is worth +1 or -1 and a fighter kill 0.8, so fighting
+  first costs little. Order pay 3 (`fighters_v8`) did not gain more on go-to than pay 1
+  (`fighters_pay1_v8`); not a clean comparison.
+
+`followers_v8_352` and `fighters_pay1_v8_351` joined the live ten on WAR. Nobody was
+archived. Next: `lab/runs/2026-11-14-goto-school`.
+
 ### Obeying only in drills: what a pilot can see
 
 A drill is not disguised beyond its mission one-hot. A pilot could tell a drill from a match

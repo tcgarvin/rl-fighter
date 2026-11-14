@@ -17,5 +17,7 @@
  "fighters_pay1_849": "fighters_pay1_462 trained a second night under the learned commanders. Retired from training on 2026-11-10 for fighters_pay1_1317, its next night, but still flies here.",
  "fighters_1832": "fighters_1338 trained a fourth night with each shot costing twice as much, under the new crash rules. It holds the trigger less than its parent and takes far less crash damage.",
  "followers_1793": "followers_1323 trained a fourth night with each shot costing twice as much. It fires less and crashes less than its parent, and follows orders a little less well.",
- "fighters_pay1_1317": "fighters_pay1_849 trained a third night with each shot costing twice as much. The night's biggest gain: it fires a quarter fewer shots than its parent, beats it head to head, and mostly ignores orders."
+ "fighters_pay1_1317": "fighters_pay1_849 trained a third night with each shot costing twice as much. The night's biggest gain: it fires a quarter fewer shots than its parent, beats it head to head, and mostly ignores orders.",
+ "followers_v8_352": "followers_1793 trained a fifth night, and one of the first two pilots here that can see a go-to order's deadline. It has not yet learned to fly by it: alone it still fights first. It adds more wins than its parent.",
+ "fighters_pay1_v8_351": "fighters_pay1_1317 trained a fourth night, and one of the first two pilots here that can see a go-to order's deadline. It reaches a go-to point a little more often than its parent, still under a third of the time, and fights a little worse."
 }

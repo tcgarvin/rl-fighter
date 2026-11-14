@@ -1,0 +1,121 @@
+08:01:09 drills: script
+08:01:22 sweep: script
+08:01:41 drills: followers_1793
+08:03:05 sweep: followers_1793
+08:04:39 drills: fighters_1832
+08:05:59 sweep: fighters_1832
+08:07:34 drills: fighters_pay1_1317
+08:08:59 sweep: fighters_pay1_1317
+08:10:32 drills: followers_v8_352
+added followers_v8_352 (followers, under transit_300)
+followers_v8_352: followers_v8_352 failed the drill gate: goto_arrival, goto_lift, defend_more_on_named.
+08:12:00 sweep: followers_v8_352
+08:13:54 sweep: followers_v8_352_nodeadline
+08:15:47 drills: fighters_v8_362
+added fighters_v8_362 (fighters, under f995_701)
+fighters_v8_362: fighters_v8_362 failed the drill gate: goto_arrival, goto_lift, defend_more_on_named.
+08:17:09 sweep: fighters_v8_362
+08:18:57 sweep: fighters_v8_362_nodeadline
+08:20:42 drills: fighters_pay1_v8_351
+added fighters_pay1_v8_351 (fighters, under f995_701)
+fighters_pay1_v8_351: fighters_pay1_v8_351 failed the drill gate: goto_arrival, goto_lift, attack_target_hit, attack_side, attack_flip, defend_more_on_named, defend_side, defend_flip.
+08:22:05 sweep: fighters_pay1_v8_351
+08:23:35 sweep: fighters_pay1_v8_351_nodeadline
+08:25:08 drills: followers_v8_blind_360
+added followers_v8_blind_360 (followers, under transit_300)
+followers_v8_blind_360: followers_v8_blind_360 failed the drill gate: goto_arrival, goto_lift.
+08:26:34 sweep: followers_v8_blind_360
+08:28:28 shooting: followers_v8_352 vs followers_1793
+08:31:42 shooting: fighters_v8_362 vs fighters_1832
+08:35:08 shooting: fighters_pay1_v8_351 vs fighters_pay1_1317
+08:38:20 shooting: followers_v8_blind_360 vs followers_1793
+08:41:32 WAR: f99_696,fighters_pay1_1317,fighters_1832,fighters_pay1_462,f995_701,f995_400,followers_1793,fighters_1338,fighters_pay1_849,followers_1323,followers_v8_352,fighters_v8_362,fighters_pay1_v8_351,followers_v8_blind_360
+deathmatch chunk 1/15: 96 matches in 32s (3.02/s)
+deathmatch chunk 2/15: 96 matches in 45s (2.12/s)
+deathmatch chunk 3/15: 96 matches in 36s (2.67/s)
+deathmatch chunk 4/15: 96 matches in 48s (2.01/s)
+deathmatch chunk 5/15: 96 matches in 56s (1.70/s)
+deathmatch chunk 6/15: 96 matches in 34s (2.81/s)
+deathmatch chunk 7/15: 96 matches in 56s (1.71/s)
+deathmatch chunk 8/15: 96 matches in 39s (2.49/s)
+deathmatch chunk 9/15: 96 matches in 36s (2.64/s)
+deathmatch chunk 10/15: 96 matches in 52s (1.85/s)
+deathmatch chunk 11/15: 96 matches in 35s (2.74/s)
+deathmatch chunk 12/15: 96 matches in 30s (3.15/s)
+deathmatch chunk 13/15: 96 matches in 36s (2.69/s)
+deathmatch chunk 14/15: 96 matches in 36s (2.67/s)
+deathmatch chunk 15/15: 96 matches in 53s (1.83/s)
+carrier_battle chunk 1/15: 96 matches in 95s (1.01/s)
+carrier_battle chunk 2/15: 96 matches in 88s (1.09/s)
+carrier_battle chunk 3/15: 96 matches in 93s (1.03/s)
+carrier_battle chunk 4/15: 96 matches in 108s (0.89/s)
+carrier_battle chunk 5/15: 96 matches in 124s (0.77/s)
+carrier_battle chunk 6/15: 96 matches in 98s (0.98/s)
+carrier_battle chunk 7/15: 96 matches in 135s (0.71/s)
+carrier_battle chunk 8/15: 96 matches in 136s (0.71/s)
+carrier_battle chunk 9/15: 96 matches in 103s (0.93/s)
+carrier_battle chunk 10/15: 96 matches in 95s (1.01/s)
+carrier_battle chunk 11/15: 96 matches in 112s (0.86/s)
+carrier_battle chunk 12/15: 96 matches in 112s (0.86/s)
+carrier_battle chunk 13/15: 96 matches in 99s (0.97/s)
+carrier_battle chunk 14/15: 96 matches in 143s (0.67/s)
+carrier_battle chunk 15/15: 96 matches in 110s (0.87/s)
+convoy_escort chunk 1/15: 96 matches in 80s (1.19/s)
+convoy_escort chunk 2/15: 96 matches in 63s (1.52/s)
+convoy_escort chunk 3/15: 96 matches in 77s (1.24/s)
+convoy_escort chunk 4/15: 96 matches in 77s (1.25/s)
+convoy_escort chunk 5/15: 96 matches in 69s (1.39/s)
+convoy_escort chunk 6/15: 96 matches in 107s (0.90/s)
+convoy_escort chunk 7/15: 96 matches in 73s (1.31/s)
+convoy_escort chunk 8/15: 96 matches in 67s (1.43/s)
+convoy_escort chunk 9/15: 96 matches in 167s (0.58/s)
+convoy_escort chunk 10/15: 96 matches in 82s (1.17/s)
+convoy_escort chunk 11/15: 96 matches in 69s (1.39/s)
+convoy_escort chunk 12/15: 96 matches in 80s (1.20/s)
+convoy_escort chunk 13/15: 96 matches in 79s (1.21/s)
+convoy_escort chunk 14/15: 96 matches in 82s (1.17/s)
+convoy_escort chunk 15/15: 96 matches in 76s (1.26/s)
+# Wins above replacement: 2026-11-sim6
+
+4320 matches (1440 DM, 1440 Carrier, 1440 Convoy). Wins added per 100 matches a pilot flew in, over the script flying its ships. A draw is half a win.
+
+| Pilot | WAR | 95% CI | Ships |
+|---|--:|---|--:|
+| f995_701 | +16.8 | +13.2 to +19.8 | 2934 |
+| fighters_pay1_1317 | +16.7 | +13.2 to +19.9 | 2853 |
+| f99_696 | +16.7 | +13.3 to +19.7 | 3000 |
+| followers_v8_352 | +16.6 | +12.9 to +19.7 | 3048 |
+| fighters_pay1_462 | +15.5 | +12.0 to +18.6 | 2905 |
+| fighters_pay1_849 | +14.6 | +11.2 to +17.5 | 3065 |
+| f995_400 | +14.0 | +10.5 to +16.9 | 2890 |
+| fighters_pay1_v8_351 | +13.0 | +9.6 to +16.0 | 2931 |
+| followers_1323 | +12.8 | +9.3 to +15.6 | 2954 |
+| fighters_1832 | +12.4 | +8.9 to +15.4 | 2966 |
+| followers_v8_blind_360 | +12.3 | +8.7 to +15.2 | 2954 |
+| fighters_1338 | +12.2 | +8.7 to +15.2 | 2945 |
+| followers_1793 | +11.0 | +7.5 to +14.5 | 3018 |
+| fighters_v8_362 | +9.6 | +6.1 to +12.8 | 2981 |
+| script | 0 | replacement | 2956 |
+
+**By mission**
+
+| Pilot | DM | Carrier | Convoy |
+|---|--:|--:|--:|
+| f995_701 | +13.6 | +18.5 | +16.6 |
+| fighters_pay1_1317 | +13.6 | +18.9 | +15.9 |
+| f99_696 | +13.7 | +18.7 | +16.1 |
+| followers_v8_352 | +13.6 | +18.8 | +15.6 |
+| fighters_pay1_462 | +12.9 | +17.1 | +14.9 |
+| fighters_pay1_849 | +11.9 | +16.6 | +13.8 |
+| f995_400 | +11.8 | +15.5 | +13.5 |
+| fighters_pay1_v8_351 | +10.8 | +14.5 | +12.5 |
+| followers_1323 | +10.3 | +14.4 | +12.2 |
+| fighters_1832 | +10.0 | +14.0 | +11.9 |
+| followers_v8_blind_360 | +10.3 | +13.6 | +11.9 |
+| fighters_1338 | +9.9 | +13.5 | +11.8 |
+| followers_1793 | +9.1 | +12.5 | +10.4 |
+| fighters_v8_362 | +7.5 | +10.9 | +9.4 |
+
+95% intervals from 500 bootstrap refits over matches. Ridge prior 1 logit per ship.
+wrote lab/population/2026-11-sim6/report.md
+09:40:22 done: morning

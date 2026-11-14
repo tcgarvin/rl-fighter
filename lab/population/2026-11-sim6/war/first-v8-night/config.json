@@ -1,0 +1,93 @@
+{
+ "schema": "rlf.population.war_config/1",
+ "pilots": [
+  [
+   "f995_400",
+   "c208c3aa979d5fbd10f7bb324194e628e9ba5054e3976865f30362186109b883"
+  ],
+  [
+   "f995_701",
+   "bf3bd0cb3c27889e9be4915f24c9674f375dd8bc815307596068e1f3ef99cf54"
+  ],
+  [
+   "f99_696",
+   "345be910ff548533a41fa5fd1ae65df75c1a0f08e7d50f8494a784d8578ab77f"
+  ],
+  [
+   "fighters_1338",
+   "03f22318b4eebb05e9f99e76a07158c2107097f266994fd95c0cf880036c1b08"
+  ],
+  [
+   "fighters_1832",
+   "8fcdbfb7b0718700d45503c1f5cc6c5234654a1ed40001da97375776da88a790"
+  ],
+  [
+   "fighters_pay1_1317",
+   "420dc5c042ba31c1d24ace7333ff33c14c6e54db74cf3b67a9b098c6cdf6012d"
+  ],
+  [
+   "fighters_pay1_462",
+   "638b4394aa6e465c1e9ada826bb10d73ad72cc347bddfad906d497b374d1597c"
+  ],
+  [
+   "fighters_pay1_849",
+   "a8f5becf3cf85bf2db87db567f9fe20cd7073168d5c792bddea13f21801f8b13"
+  ],
+  [
+   "fighters_pay1_v8_351",
+   "c41a780f8c0a2833d0765c32ad9adcd1876ed71f2ddbb789a9c7aab2383a55e1"
+  ],
+  [
+   "fighters_v8_362",
+   "b193cf8c5f73ce9b534f5500973eed5e7c1385b6554be244028d1e9b61db08a3"
+  ],
+  [
+   "followers_1323",
+   "1f50f4a24159d2a2b15b57da3b9f7195d22000960ad1561bb398a80a981fdae7"
+  ],
+  [
+   "followers_1793",
+   "b92300c57e6806bade7cf85e7067e226de5633f15b0a5a1d8c81728f72a065e4"
+  ],
+  [
+   "followers_v8_352",
+   "4a012bb278b1c6bf5f4847fe1ab3b910338eba394412f61e6d079275dd610b22"
+  ],
+  [
+   "followers_v8_blind_360",
+   "e8e5b1f3161f346130f6017a6ab31523b53b4b19ddad38655a71a87bb8d47d41"
+  ]
+ ],
+ "commanders": [
+  [
+   "scripted",
+   "scripted",
+   ""
+  ],
+  [
+   "c1_shaped",
+   "learned",
+   "e847aff72c668781b58ec0a4ee7d037f03dcf32a036abd28d48ab19a9c943828"
+  ],
+  [
+   "c1_outcome",
+   "learned",
+   "25026a0bc111079191addae08a43ca8dca9a5ef03620993f5e140d2d70481749"
+  ],
+  [
+   "c1_shaped_s1",
+   "learned",
+   "4c42860da1090e20083eef91838b36a8bddc11a6020ea90b94f491fecb3f7fec"
+  ]
+ ],
+ "n_per_mission": 1440,
+ "chunk": 96,
+ "deathmatch_drafts": 24,
+ "seed": 500000,
+ "missions": [
+  "deathmatch",
+  "carrier_battle",
+  "convoy_escort"
+ ],
+ "sim_version": 8
+}

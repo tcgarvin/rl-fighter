@@ -1,0 +1,2546 @@
+{
+ "pilot": "policy:ppo_bc_1832.pt",
+ "name": "fighters_1832",
+ "config": {
+  "seeds_per_cell": 6,
+  "seed": 700000,
+  "hulls": [
+   "fighter",
+   "strafer",
+   "gunship"
+  ],
+  "distances_m": [
+   150.0,
+   300.0,
+   500.0
+  ],
+  "radii_m": [
+   20.0,
+   60.0
+  ],
+  "oppositions": [
+   "parked",
+   "one",
+   "three"
+  ],
+  "slacks": [
+   0.8,
+   1.0,
+   1.5,
+   2.0,
+   3.0,
+   5.0,
+   8.0
+  ],
+  "sim_version": 8
+ },
+ "n_layouts": 324,
+ "headline": {
+  "in_time_feasible": {
+   "successes": 173,
+   "n": 1233,
+   "rate": 0.14030819140308193,
+   "se": 0.009890798841655682
+  },
+  "arrival_time_ratio": {
+   "ratio": 1.0,
+   "layouts": 3,
+   "tight_s": 6.466666666666667,
+   "loose_s": 6.466666666666667,
+   "early_tight": {
+    "successes": 4,
+    "n": 324,
+    "rate": 0.012345679012345678,
+    "se": 0.006134617222221645
+   },
+   "early_loose": {
+    "successes": 5,
+    "n": 324,
+    "rate": 0.015432098765432098,
+    "se": 0.0068479854416035185
+   }
+  },
+  "hits_bought": {
+   "one": {
+    "n": 108,
+    "mean": 10.425925925925926,
+    "se": 1.7923269064685268
+   },
+   "three": {
+    "n": 108,
+    "mean": 73.2824074074074,
+    "se": 14.804064244417054
+   }
+  },
+  "tight_slack": 1.5,
+  "loose_slack": 8.0
+ },
+ "levels": {
+  "0.8": {
+   "all": {
+    "n": 324,
+    "died": 9,
+    "in_time": {
+     "successes": 1,
+     "n": 315,
+     "rate": 0.0031746031746031746,
+     "se": 0.003169560116336297
+    },
+    "reached": {
+     "successes": 17,
+     "n": 315,
+     "rate": 0.05396825396825397,
+     "se": 0.01273112440723951
+    },
+    "arrival_s": null,
+    "arrival_share": null,
+    "allowance_s": 8.0,
+    "leave_s": null,
+    "damage_dealt": {
+     "n": 324,
+     "mean": 41.55401234567901,
+     "se": 2.4283266447850824
+    },
+    "damage_taken": {
+     "n": 324,
+     "mean": 59.60339506172839,
+     "se": 4.509574264311974
+    }
+   },
+   "by_opposition": {
+    "parked": {
+     "n": 108,
+     "died": 0,
+     "in_time": {
+      "successes": 1,
+      "n": 108,
+      "rate": 0.009259259259259259,
+      "se": 0.009216292627144504
+     },
+     "reached": {
+      "successes": 1,
+      "n": 108,
+      "rate": 0.009259259259259259,
+      "se": 0.009216292627144504
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 8.0,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 2.425925925925926,
+      "se": 0.7389668097761879
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 0.0,
+      "se": 0.0
+     }
+    },
+    "one": {
+     "n": 108,
+     "died": 0,
+     "in_time": {
+      "successes": 0,
+      "n": 108,
+      "rate": 0.0,
+      "se": 0.0
+     },
+     "reached": {
+      "successes": 2,
+      "n": 108,
+      "rate": 0.018518518518518517,
+      "se": 0.012972757420698037
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 8.0,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 52.342592592592595,
+      "se": 2.5429390372598353
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 53.35648148148148,
+      "se": 2.7548695905558667
+     }
+    },
+    "three": {
+     "n": 108,
+     "died": 9,
+     "in_time": {
+      "successes": 0,
+      "n": 99,
+      "rate": 0.0,
+      "se": 0.0
+     },
+     "reached": {
+      "successes": 14,
+      "n": 99,
+      "rate": 0.1414141414141414,
+      "se": 0.03502036666045565
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 8.0,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 69.89351851851852,
+      "se": 4.846323231397669
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 125.45370370370371,
+      "se": 10.123502964074781
+     }
+    }
+   },
+   "by_hull": {
+    "fighter": {
+     "n": 108,
+     "died": 3,
+     "in_time": {
+      "successes": 0,
+      "n": 105,
+      "rate": 0.0,
+      "se": 0.0
+     },
+     "reached": {
+      "successes": 4,
+      "n": 105,
+      "rate": 0.0380952380952381,
+      "se": 0.0186812844795725
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 7.0,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 25.85648148148148,
+      "se": 2.4894120801071
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 20.73611111111111,
+      "se": 1.9945566537333845
+     }
+    },
+    "strafer": {
+     "n": 108,
+     "died": 6,
+     "in_time": {
+      "successes": 1,
+      "n": 102,
+      "rate": 0.00980392156862745,
+      "se": 0.009755744758307872
+     },
+     "reached": {
+      "successes": 8,
+      "n": 102,
+      "rate": 0.0784313725490196,
+      "se": 0.02662003748268168
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 7.833333333333333,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 39.958333333333336,
+      "se": 3.630438681587727
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 48.083333333333336,
+      "se": 3.6895848706631265
+     }
+    },
+    "gunship": {
+     "n": 108,
+     "died": 0,
+     "in_time": {
+      "successes": 0,
+      "n": 108,
+      "rate": 0.0,
+      "se": 0.0
+     },
+     "reached": {
+      "successes": 5,
+      "n": 108,
+      "rate": 0.046296296296296294,
+      "se": 0.020219386838511877
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 13.0,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 58.84722222222222,
+      "se": 5.3761241683588885
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 109.99074074074075,
+      "se": 11.29109543696083
+     }
+    }
+   },
+   "by_distance": {
+    "150": {
+     "n": 108,
+     "died": 5,
+     "in_time": {
+      "successes": 1,
+      "n": 103,
+      "rate": 0.009708737864077669,
+      "se": 0.009661493117216525
+     },
+     "reached": {
+      "successes": 9,
+      "n": 103,
+      "rate": 0.08737864077669903,
+      "se": 0.027824626570949217
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 5.4,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 30.546296296296298,
+      "se": 3.2026061952021383
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 49.48148148148148,
+      "se": 5.643081016414665
+     }
+    },
+    "300": {
+     "n": 108,
+     "died": 2,
+     "in_time": {
+      "successes": 0,
+      "n": 106,
+      "rate": 0.0,
+      "se": 0.0
+     },
+     "reached": {
+      "successes": 2,
+      "n": 106,
+      "rate": 0.018867924528301886,
+      "se": 0.01321517350891462
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 7.833333333333333,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 39.75925925925926,
+      "se": 3.8868642638866686
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 57.18055555555556,
+      "se": 7.0459583207361955
+     }
+    },
+    "500": {
+     "n": 108,
+     "died": 2,
+     "in_time": {
+      "successes": 0,
+      "n": 106,
+      "rate": 0.0,
+      "se": 0.0
+     },
+     "reached": {
+      "successes": 6,
+      "n": 106,
+      "rate": 0.05660377358490566,
+      "se": 0.022444856199570117
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 11.0,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 54.35648148148148,
+      "se": 5.034168690204299
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 72.14814814814815,
+      "se": 10.009679157983154
+     }
+    }
+   }
+  },
+  "1": {
+   "all": {
+    "n": 324,
+    "died": 18,
+    "in_time": {
+     "successes": 1,
+     "n": 306,
+     "rate": 0.0032679738562091504,
+     "se": 0.0032626296599002863
+    },
+    "reached": {
+     "successes": 8,
+     "n": 306,
+     "rate": 0.026143790849673203,
+     "se": 0.009121599205061769
+    },
+    "arrival_s": null,
+    "arrival_share": null,
+    "allowance_s": 9.266666666666667,
+    "leave_s": null,
+    "damage_dealt": {
+     "n": 324,
+     "mean": 49.757716049382715,
+     "se": 2.8375470846912916
+    },
+    "damage_taken": {
+     "n": 324,
+     "mean": 66.7175925925926,
+     "se": 5.255903022855105
+    }
+   },
+   "by_opposition": {
+    "parked": {
+     "n": 108,
+     "died": 0,
+     "in_time": {
+      "successes": 1,
+      "n": 108,
+      "rate": 0.009259259259259259,
+      "se": 0.009216292627144504
+     },
+     "reached": {
+      "successes": 1,
+      "n": 108,
+      "rate": 0.009259259259259259,
+      "se": 0.009216292627144504
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 9.266666666666667,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 6.263888888888889,
+      "se": 1.5074015258772013
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 0.0,
+      "se": 0.0
+     }
+    },
+    "one": {
+     "n": 108,
+     "died": 0,
+     "in_time": {
+      "successes": 0,
+      "n": 108,
+      "rate": 0.0,
+      "se": 0.0
+     },
+     "reached": {
+      "successes": 1,
+      "n": 108,
+      "rate": 0.009259259259259259,
+      "se": 0.009216292627144504
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 9.266666666666667,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 57.8287037037037,
+      "se": 2.4748664091990222
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 56.06481481481482,
+      "se": 2.6753985785666843
+     }
+    },
+    "three": {
+     "n": 108,
+     "died": 18,
+     "in_time": {
+      "successes": 0,
+      "n": 90,
+      "rate": 0.0,
+      "se": 0.0
+     },
+     "reached": {
+      "successes": 6,
+      "n": 90,
+      "rate": 0.06666666666666667,
+      "se": 0.02629368792488718
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 9.266666666666667,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 85.18055555555556,
+      "se": 5.8740179589639885
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 144.08796296296296,
+      "se": 12.016881998061521
+     }
+    }
+   },
+   "by_hull": {
+    "fighter": {
+     "n": 108,
+     "died": 5,
+     "in_time": {
+      "successes": 0,
+      "n": 103,
+      "rate": 0.0,
+      "se": 0.0
+     },
+     "reached": {
+      "successes": 3,
+      "n": 103,
+      "rate": 0.02912621359223301,
+      "se": 0.016569323999667214
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 8.0,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 31.59722222222222,
+      "se": 3.018536668279097
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 24.11574074074074,
+      "se": 2.2566448022017056
+     }
+    },
+    "strafer": {
+     "n": 108,
+     "died": 10,
+     "in_time": {
+      "successes": 1,
+      "n": 98,
+      "rate": 0.01020408163265306,
+      "se": 0.010151886499405334
+     },
+     "reached": {
+      "successes": 4,
+      "n": 98,
+      "rate": 0.04081632653061224,
+      "se": 0.0199873311965045
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 9.0,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 51.27777777777778,
+      "se": 4.622769233348437
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 51.31481481481482,
+      "se": 3.857034233078329
+     }
+    },
+    "gunship": {
+     "n": 108,
+     "died": 3,
+     "in_time": {
+      "successes": 0,
+      "n": 105,
+      "rate": 0.0,
+      "se": 0.0
+     },
+     "reached": {
+      "successes": 1,
+      "n": 105,
+      "rate": 0.009523809523809525,
+      "se": 0.009478349552916559
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 15.5,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 66.39814814814815,
+      "se": 6.06162023252359
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 124.72222222222223,
+      "se": 13.400640301635859
+     }
+    }
+   },
+   "by_distance": {
+    "150": {
+     "n": 108,
+     "died": 5,
+     "in_time": {
+      "successes": 1,
+      "n": 103,
+      "rate": 0.009708737864077669,
+      "se": 0.009661493117216525
+     },
+     "reached": {
+      "successes": 5,
+      "n": 103,
+      "rate": 0.04854368932038835,
+      "se": 0.021175915873535393
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 6.0,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 34.36574074074074,
+      "se": 3.4766727851939323
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 54.023148148148145,
+      "se": 6.263132220402849
+     }
+    },
+    "300": {
+     "n": 108,
+     "died": 4,
+     "in_time": {
+      "successes": 0,
+      "n": 104,
+      "rate": 0.0,
+      "se": 0.0
+     },
+     "reached": {
+      "successes": 0,
+      "n": 104,
+      "rate": 0.0,
+      "se": 0.0
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 9.0,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 46.38425925925926,
+      "se": 4.416618205819099
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 63.61574074074074,
+      "se": 7.978390050109578
+     }
+    },
+    "500": {
+     "n": 108,
+     "died": 9,
+     "in_time": {
+      "successes": 0,
+      "n": 99,
+      "rate": 0.0,
+      "se": 0.0
+     },
+     "reached": {
+      "successes": 3,
+      "n": 99,
+      "rate": 0.030303030303030304,
+      "se": 0.017228340715604883
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 13.0,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 68.52314814814815,
+      "se": 5.975888962008982
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 82.51388888888889,
+      "se": 11.973311114959522
+     }
+    }
+   }
+  },
+  "1.5": {
+   "all": {
+    "n": 324,
+    "died": 39,
+    "in_time": {
+     "successes": 4,
+     "n": 285,
+     "rate": 0.014035087719298246,
+     "se": 0.006968123921796184
+    },
+    "reached": {
+     "successes": 12,
+     "n": 285,
+     "rate": 0.042105263157894736,
+     "se": 0.011896101377046999
+    },
+    "arrival_s": null,
+    "arrival_share": null,
+    "allowance_s": 12.4,
+    "leave_s": null,
+    "damage_dealt": {
+     "n": 324,
+     "mean": 70.35802469135803,
+     "se": 4.311604791081546
+    },
+    "damage_taken": {
+     "n": 324,
+     "mean": 76.08024691358025,
+     "se": 5.92924808177543
+    }
+   },
+   "by_opposition": {
+    "parked": {
+     "n": 108,
+     "died": 0,
+     "in_time": {
+      "successes": 1,
+      "n": 108,
+      "rate": 0.009259259259259259,
+      "se": 0.009216292627144504
+     },
+     "reached": {
+      "successes": 1,
+      "n": 108,
+      "rate": 0.009259259259259259,
+      "se": 0.009216292627144504
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 12.4,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 21.962962962962962,
+      "se": 2.903129866087814
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 0.0,
+      "se": 0.0
+     }
+    },
+    "one": {
+     "n": 108,
+     "died": 1,
+     "in_time": {
+      "successes": 1,
+      "n": 107,
+      "rate": 0.009345794392523364,
+      "se": 0.009302019939262133
+     },
+     "reached": {
+      "successes": 1,
+      "n": 107,
+      "rate": 0.009345794392523364,
+      "se": 0.009302019939262133
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 12.4,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 65.92129629629629,
+      "se": 2.245126274499758
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 61.25,
+      "se": 2.7385930386027457
+     }
+    },
+    "three": {
+     "n": 108,
+     "died": 38,
+     "in_time": {
+      "successes": 2,
+      "n": 70,
+      "rate": 0.02857142857142857,
+      "se": 0.019912344355347705
+     },
+     "reached": {
+      "successes": 10,
+      "n": 70,
+      "rate": 0.14285714285714285,
+      "se": 0.041824288840651425
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 12.4,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 123.18981481481481,
+      "se": 10.330757302915359
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 166.99074074074073,
+      "se": 13.32231661543122
+     }
+    }
+   },
+   "by_hull": {
+    "fighter": {
+     "n": 108,
+     "died": 12,
+     "in_time": {
+      "successes": 0,
+      "n": 96,
+      "rate": 0.0,
+      "se": 0.0
+     },
+     "reached": {
+      "successes": 4,
+      "n": 96,
+      "rate": 0.041666666666666664,
+      "se": 0.020394687716095018
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 10.5,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 45.0,
+      "se": 4.08672004423747
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 30.02777777777778,
+      "se": 2.7438359859600414
+     }
+    },
+    "strafer": {
+     "n": 108,
+     "died": 17,
+     "in_time": {
+      "successes": 2,
+      "n": 91,
+      "rate": 0.02197802197802198,
+      "se": 0.015369081467100395
+     },
+     "reached": {
+      "successes": 6,
+      "n": 91,
+      "rate": 0.06593406593406594,
+      "se": 0.026014950241775747
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 12.0,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 71.86111111111111,
+      "se": 6.127587413218546
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 56.861111111111114,
+      "se": 4.188188618815158
+     }
+    },
+    "gunship": {
+     "n": 108,
+     "died": 10,
+     "in_time": {
+      "successes": 2,
+      "n": 98,
+      "rate": 0.02040816326530612,
+      "se": 0.0142827390249748
+     },
+     "reached": {
+      "successes": 2,
+      "n": 98,
+      "rate": 0.02040816326530612,
+      "se": 0.0142827390249748
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 21.766666666666666,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 94.21296296296296,
+      "se": 10.136774919456725
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 141.35185185185185,
+      "se": 15.172872047760475
+     }
+    }
+   },
+   "by_distance": {
+    "150": {
+     "n": 108,
+     "died": 9,
+     "in_time": {
+      "successes": 3,
+      "n": 99,
+      "rate": 0.030303030303030304,
+      "se": 0.017228340715604883
+     },
+     "reached": {
+      "successes": 4,
+      "n": 99,
+      "rate": 0.04040404040404041,
+      "se": 0.019789690695126556
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 7.5,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 42.81944444444444,
+      "se": 4.085377655617141
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 63.14351851851852,
+      "se": 7.533526802709184
+     }
+    },
+    "300": {
+     "n": 108,
+     "died": 10,
+     "in_time": {
+      "successes": 1,
+      "n": 98,
+      "rate": 0.01020408163265306,
+      "se": 0.010151886499405334
+     },
+     "reached": {
+      "successes": 2,
+      "n": 98,
+      "rate": 0.02040816326530612,
+      "se": 0.0142827390249748
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 12.0,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 67.33796296296296,
+      "se": 6.347066696926321
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 78.89814814814815,
+      "se": 10.548112010248904
+     }
+    },
+    "500": {
+     "n": 108,
+     "died": 20,
+     "in_time": {
+      "successes": 0,
+      "n": 88,
+      "rate": 0.0,
+      "se": 0.0
+     },
+     "reached": {
+      "successes": 6,
+      "n": 88,
+      "rate": 0.06818181818181818,
+      "se": 0.026869435544710645
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 18.0,
+     "leave_s": 24.549999999999997,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 100.91666666666667,
+      "se": 9.7711847491422
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 86.19907407407408,
+      "se": 12.155792057241253
+     }
+    }
+   }
+  },
+  "2": {
+   "all": {
+    "n": 324,
+    "died": 65,
+    "in_time": {
+     "successes": 9,
+     "n": 259,
+     "rate": 0.03474903474903475,
+     "se": 0.011379982990712249
+    },
+    "reached": {
+     "successes": 14,
+     "n": 259,
+     "rate": 0.05405405405405406,
+     "se": 0.014050682294865847
+    },
+    "arrival_s": null,
+    "arrival_share": null,
+    "allowance_s": 15.5,
+    "leave_s": null,
+    "damage_dealt": {
+     "n": 324,
+     "mean": 81.55555555555556,
+     "se": 4.2710321234579975
+    },
+    "damage_taken": {
+     "n": 324,
+     "mean": 82.65895061728395,
+     "se": 6.361758749884255
+    }
+   },
+   "by_opposition": {
+    "parked": {
+     "n": 108,
+     "died": 0,
+     "in_time": {
+      "successes": 1,
+      "n": 108,
+      "rate": 0.009259259259259259,
+      "se": 0.009216292627144504
+     },
+     "reached": {
+      "successes": 1,
+      "n": 108,
+      "rate": 0.009259259259259259,
+      "se": 0.009216292627144504
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 15.5,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 38.583333333333336,
+      "se": 3.4357419038551984
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 0.0,
+      "se": 0.0
+     }
+    },
+    "one": {
+     "n": 108,
+     "died": 4,
+     "in_time": {
+      "successes": 4,
+      "n": 104,
+      "rate": 0.038461538461538464,
+      "se": 0.018857320686363848
+     },
+     "reached": {
+      "successes": 4,
+      "n": 104,
+      "rate": 0.038461538461538464,
+      "se": 0.018857320686363848
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 15.5,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 69.94444444444444,
+      "se": 1.9442107855455362
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 65.27777777777777,
+      "se": 2.876115020985414
+     }
+    },
+    "three": {
+     "n": 108,
+     "died": 61,
+     "in_time": {
+      "successes": 4,
+      "n": 47,
+      "rate": 0.0851063829787234,
+      "se": 0.04070215806788415
+     },
+     "reached": {
+      "successes": 9,
+      "n": 47,
+      "rate": 0.19148936170212766,
+      "se": 0.05739396996590885
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 15.5,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 136.13888888888889,
+      "se": 10.161285523564631
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 182.69907407407408,
+      "se": 14.072443269126126
+     }
+    }
+   },
+   "by_hull": {
+    "fighter": {
+     "n": 108,
+     "died": 20,
+     "in_time": {
+      "successes": 2,
+      "n": 88,
+      "rate": 0.022727272727272728,
+      "se": 0.015886938532262085
+     },
+     "reached": {
+      "successes": 4,
+      "n": 88,
+      "rate": 0.045454545454545456,
+      "se": 0.02220473683905442
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 13.0,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 56.64351851851852,
+      "se": 4.646694815916736
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 34.11574074074074,
+      "se": 2.9828067264787523
+     }
+    },
+    "strafer": {
+     "n": 108,
+     "died": 29,
+     "in_time": {
+      "successes": 2,
+      "n": 79,
+      "rate": 0.02531645569620253,
+      "se": 0.017673384396892217
+     },
+     "reached": {
+      "successes": 3,
+      "n": 79,
+      "rate": 0.0379746835443038,
+      "se": 0.021504373106627294
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 15.0,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 84.25,
+      "se": 6.745181157489547
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 61.120370370370374,
+      "se": 4.469091528692359
+     }
+    },
+    "gunship": {
+     "n": 108,
+     "died": 16,
+     "in_time": {
+      "successes": 5,
+      "n": 92,
+      "rate": 0.05434782608695652,
+      "se": 0.023635396237188327
+     },
+     "reached": {
+      "successes": 7,
+      "n": 92,
+      "rate": 0.07608695652173914,
+      "se": 0.027642463311432514
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 28.0,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 103.77314814814815,
+      "se": 9.360976032730818
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 152.74074074074073,
+      "se": 16.290715004461553
+     }
+    }
+   },
+   "by_distance": {
+    "150": {
+     "n": 108,
+     "died": 13,
+     "in_time": {
+      "successes": 4,
+      "n": 95,
+      "rate": 0.042105263157894736,
+      "se": 0.02060465199703549
+     },
+     "reached": {
+      "successes": 6,
+      "n": 95,
+      "rate": 0.06315789473684211,
+      "se": 0.024956588639444353
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 9.0,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 51.995370370370374,
+      "se": 4.9123967033582705
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 70.39351851851852,
+      "se": 8.605382941186608
+     }
+    },
+    "300": {
+     "n": 108,
+     "died": 23,
+     "in_time": {
+      "successes": 1,
+      "n": 85,
+      "rate": 0.011764705882352941,
+      "se": 0.011695296982299022
+     },
+     "reached": {
+      "successes": 3,
+      "n": 85,
+      "rate": 0.03529411764705882,
+      "se": 0.020014242842234478
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 15.0,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 85.48148148148148,
+      "se": 7.969331917311944
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 84.81481481481481,
+      "se": 11.227041094564305
+     }
+    },
+    "500": {
+     "n": 108,
+     "died": 29,
+     "in_time": {
+      "successes": 4,
+      "n": 79,
+      "rate": 0.05063291139240506,
+      "se": 0.024667207688416362
+     },
+     "reached": {
+      "successes": 5,
+      "n": 79,
+      "rate": 0.06329113924050633,
+      "se": 0.027394301110698367
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 23.0,
+     "leave_s": 40.900000000000006,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 107.18981481481481,
+      "se": 7.943849102276231
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 92.76851851851852,
+      "se": 12.806777938932736
+     }
+    }
+   }
+  },
+  "3": {
+   "all": {
+    "n": 324,
+    "died": 82,
+    "in_time": {
+     "successes": 26,
+     "n": 242,
+     "rate": 0.10743801652892562,
+     "se": 0.019906297970686358
+    },
+    "reached": {
+     "successes": 32,
+     "n": 242,
+     "rate": 0.1322314049586777,
+     "se": 0.021775171669706144
+    },
+    "arrival_s": null,
+    "arrival_share": null,
+    "allowance_s": 21.766666666666666,
+    "leave_s": null,
+    "damage_dealt": {
+     "n": 324,
+     "mean": 103.30864197530865,
+     "se": 6.249139478123978
+    },
+    "damage_taken": {
+     "n": 324,
+     "mean": 87.54320987654322,
+     "se": 6.730515964920582
+    }
+   },
+   "by_opposition": {
+    "parked": {
+     "n": 108,
+     "died": 0,
+     "in_time": {
+      "successes": 5,
+      "n": 108,
+      "rate": 0.046296296296296294,
+      "se": 0.020219386838511877
+     },
+     "reached": {
+      "successes": 5,
+      "n": 108,
+      "rate": 0.046296296296296294,
+      "se": 0.020219386838511877
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 21.766666666666666,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 56.958333333333336,
+      "se": 3.365519098754969
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 0.0,
+      "se": 0.0
+     }
+    },
+    "one": {
+     "n": 108,
+     "died": 9,
+     "in_time": {
+      "successes": 14,
+      "n": 99,
+      "rate": 0.1414141414141414,
+      "se": 0.03502036666045565
+     },
+     "reached": {
+      "successes": 14,
+      "n": 99,
+      "rate": 0.1414141414141414,
+      "se": 0.03502036666045565
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 21.766666666666666,
+     "leave_s": 27.2,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 73.68055555555556,
+      "se": 1.6454182683547267
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 67.5925925925926,
+      "se": 2.671903510451919
+     }
+    },
+    "three": {
+     "n": 108,
+     "died": 73,
+     "in_time": {
+      "successes": 7,
+      "n": 35,
+      "rate": 0.2,
+      "se": 0.06761234037828133
+     },
+     "reached": {
+      "successes": 13,
+      "n": 35,
+      "rate": 0.37142857142857144,
+      "se": 0.08167345918877232
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 21.766666666666666,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 179.28703703703704,
+      "se": 16.04334029745528
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 195.03703703703704,
+      "se": 14.824489096384891
+     }
+    }
+   },
+   "by_hull": {
+    "fighter": {
+     "n": 108,
+     "died": 30,
+     "in_time": {
+      "successes": 9,
+      "n": 78,
+      "rate": 0.11538461538461539,
+      "se": 0.03617461319715232
+     },
+     "reached": {
+      "successes": 11,
+      "n": 78,
+      "rate": 0.14102564102564102,
+      "se": 0.03940867560331134
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 18.0,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 69.93055555555556,
+      "se": 4.968364171212393
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 37.879629629629626,
+      "se": 3.144941533695366
+     }
+    },
+    "strafer": {
+     "n": 108,
+     "died": 34,
+     "in_time": {
+      "successes": 5,
+      "n": 74,
+      "rate": 0.06756756756756757,
+      "se": 0.02917843321020329
+     },
+     "reached": {
+      "successes": 6,
+      "n": 74,
+      "rate": 0.08108108108108109,
+      "se": 0.03173090815043605
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 21.0,
+     "leave_s": 26.2,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 102.38888888888889,
+      "se": 8.941449612465675
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 63.03703703703704,
+      "se": 4.620673927033415
+     }
+    },
+    "gunship": {
+     "n": 108,
+     "died": 18,
+     "in_time": {
+      "successes": 12,
+      "n": 90,
+      "rate": 0.13333333333333333,
+      "se": 0.035832256659104667
+     },
+     "reached": {
+      "successes": 15,
+      "n": 90,
+      "rate": 0.16666666666666666,
+      "se": 0.03928371006591931
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 40.5,
+     "leave_s": 31.9,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 137.6064814814815,
+      "se": 15.086665597107762
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 161.71296296296296,
+      "se": 17.289334538154634
+     }
+    }
+   },
+   "by_distance": {
+    "150": {
+     "n": 108,
+     "died": 20,
+     "in_time": {
+      "successes": 6,
+      "n": 88,
+      "rate": 0.06818181818181818,
+      "se": 0.026869435544710645
+     },
+     "reached": {
+      "successes": 11,
+      "n": 88,
+      "rate": 0.125,
+      "se": 0.03525475467611039
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 12.0,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 68.54629629629629,
+      "se": 6.680393892417596
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 80.43055555555556,
+      "se": 10.50702648234742
+     }
+    },
+    "300": {
+     "n": 108,
+     "died": 31,
+     "in_time": {
+      "successes": 4,
+      "n": 77,
+      "rate": 0.05194805194805195,
+      "se": 0.025290379015316663
+     },
+     "reached": {
+      "successes": 5,
+      "n": 77,
+      "rate": 0.06493506493506493,
+      "se": 0.028081167668433007
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 21.0,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 122.51388888888889,
+      "se": 13.437101815094781
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 89.58796296296296,
+      "se": 11.91130874746863
+     }
+    },
+    "500": {
+     "n": 108,
+     "died": 31,
+     "in_time": {
+      "successes": 16,
+      "n": 77,
+      "rate": 0.2077922077922078,
+      "se": 0.04623691196675443
+     },
+     "reached": {
+      "successes": 16,
+      "n": 77,
+      "rate": 0.2077922077922078,
+      "se": 0.04623691196675443
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 33.0,
+     "leave_s": 22.05,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 118.86574074074075,
+      "se": 10.557910746872965
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 92.61111111111111,
+      "se": 12.538340876024533
+     }
+    }
+   }
+  },
+  "5": {
+   "all": {
+    "n": 324,
+    "died": 97,
+    "in_time": {
+     "successes": 46,
+     "n": 227,
+     "rate": 0.2026431718061674,
+     "se": 0.026679606355247083
+    },
+    "reached": {
+     "successes": 46,
+     "n": 227,
+     "rate": 0.2026431718061674,
+     "se": 0.026679606355247083
+    },
+    "arrival_s": null,
+    "arrival_share": null,
+    "allowance_s": 34.266666666666666,
+    "leave_s": 29.75,
+    "damage_dealt": {
+     "n": 324,
+     "mean": 112.60339506172839,
+     "se": 6.682813754523617
+    },
+    "damage_taken": {
+     "n": 324,
+     "mean": 89.45061728395062,
+     "se": 6.8996883942439915
+    }
+   },
+   "by_opposition": {
+    "parked": {
+     "n": 108,
+     "died": 0,
+     "in_time": {
+      "successes": 14,
+      "n": 108,
+      "rate": 0.12962962962962962,
+      "se": 0.03232155981976339
+     },
+     "reached": {
+      "successes": 14,
+      "n": 108,
+      "rate": 0.12962962962962962,
+      "se": 0.03232155981976339
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 34.266666666666666,
+     "leave_s": 43.0,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 67.24537037037037,
+      "se": 2.7167185503837916
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 0.0,
+      "se": 0.0
+     }
+    },
+    "one": {
+     "n": 108,
+     "died": 9,
+     "in_time": {
+      "successes": 21,
+      "n": 99,
+      "rate": 0.21212121212121213,
+      "se": 0.04108697395995793
+     },
+     "reached": {
+      "successes": 21,
+      "n": 99,
+      "rate": 0.21212121212121213,
+      "se": 0.04108697395995793
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 34.266666666666666,
+     "leave_s": 20.0,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 75.69444444444444,
+      "se": 1.3872290185231486
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 67.98611111111111,
+      "se": 2.623189005364112
+     }
+    },
+    "three": {
+     "n": 108,
+     "died": 88,
+     "in_time": {
+      "successes": 11,
+      "n": 20,
+      "rate": 0.55,
+      "se": 0.11124297730643495
+     },
+     "reached": {
+      "successes": 11,
+      "n": 20,
+      "rate": 0.55,
+      "se": 0.11124297730643495
+     },
+     "arrival_s": 41.96666666666667,
+     "arrival_share": 0.7714985495193117,
+     "allowance_s": 34.266666666666666,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 194.87037037037038,
+      "se": 17.318466258695693
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 200.36574074074073,
+      "se": 15.171709029203008
+     }
+    }
+   },
+   "by_hull": {
+    "fighter": {
+     "n": 108,
+     "died": 34,
+     "in_time": {
+      "successes": 13,
+      "n": 74,
+      "rate": 0.17567567567567569,
+      "se": 0.044237340936468264
+     },
+     "reached": {
+      "successes": 13,
+      "n": 74,
+      "rate": 0.17567567567567569,
+      "se": 0.044237340936468264
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 28.0,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 79.35185185185185,
+      "se": 6.386860007636801
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 39.583333333333336,
+      "se": 3.224277149382979
+     }
+    },
+    "strafer": {
+     "n": 108,
+     "died": 39,
+     "in_time": {
+      "successes": 6,
+      "n": 69,
+      "rate": 0.08695652173913043,
+      "se": 0.033921282504586696
+     },
+     "reached": {
+      "successes": 6,
+      "n": 69,
+      "rate": 0.08695652173913043,
+      "se": 0.033921282504586696
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 33.0,
+     "leave_s": 18.15,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 109.79166666666667,
+      "se": 9.707731654105425
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 63.99074074074074,
+      "se": 4.7308026993007255
+     }
+    },
+    "gunship": {
+     "n": 108,
+     "died": 24,
+     "in_time": {
+      "successes": 27,
+      "n": 84,
+      "rate": 0.32142857142857145,
+      "se": 0.05095659274346475
+     },
+     "reached": {
+      "successes": 27,
+      "n": 84,
+      "rate": 0.32142857142857145,
+      "se": 0.05095659274346475
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 65.5,
+     "leave_s": 38.150000000000006,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 148.66666666666666,
+      "se": 15.711470148253255
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 164.77777777777777,
+      "se": 17.776838305913945
+     }
+    }
+   },
+   "by_distance": {
+    "150": {
+     "n": 108,
+     "died": 30,
+     "in_time": {
+      "successes": 9,
+      "n": 78,
+      "rate": 0.11538461538461539,
+      "se": 0.03617461319715232
+     },
+     "reached": {
+      "successes": 9,
+      "n": 78,
+      "rate": 0.11538461538461539,
+      "se": 0.03617461319715232
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 18.0,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 86.02777777777777,
+      "se": 9.498257371763799
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 85.18518518518519,
+      "se": 11.461152711937533
+     }
+    },
+    "300": {
+     "n": 108,
+     "died": 31,
+     "in_time": {
+      "successes": 8,
+      "n": 77,
+      "rate": 0.1038961038961039,
+      "se": 0.03477230266109401
+     },
+     "reached": {
+      "successes": 8,
+      "n": 77,
+      "rate": 0.1038961038961039,
+      "se": 0.03477230266109401
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 33.0,
+     "leave_s": 29.200000000000003,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 127.29166666666667,
+      "se": 13.38976751931055
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 88.5,
+      "se": 11.705518678470339
+     }
+    },
+    "500": {
+     "n": 108,
+     "died": 36,
+     "in_time": {
+      "successes": 29,
+      "n": 72,
+      "rate": 0.4027777777777778,
+      "se": 0.05780088420918413
+     },
+     "reached": {
+      "successes": 29,
+      "n": 72,
+      "rate": 0.4027777777777778,
+      "se": 0.05780088420918413
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 53.0,
+     "leave_s": 20.3,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 124.49074074074075,
+      "se": 11.180517868814436
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 94.66666666666667,
+      "se": 12.740126930242281
+     }
+    }
+   }
+  },
+  "8": {
+   "all": {
+    "n": 324,
+    "died": 104,
+    "in_time": {
+     "successes": 88,
+     "n": 220,
+     "rate": 0.4,
+     "se": 0.03302891295379082
+    },
+    "reached": {
+     "successes": 89,
+     "n": 220,
+     "rate": 0.40454545454545454,
+     "se": 0.03308998954312221
+    },
+    "arrival_s": null,
+    "arrival_share": null,
+    "allowance_s": 53.0,
+    "leave_s": 30.25,
+    "damage_dealt": {
+     "n": 324,
+     "mean": 117.43827160493827,
+     "se": 6.625253902555424
+    },
+    "damage_taken": {
+     "n": 324,
+     "mean": 89.95987654320987,
+     "se": 6.9189186727295615
+    }
+   },
+   "by_opposition": {
+    "parked": {
+     "n": 108,
+     "died": 0,
+     "in_time": {
+      "successes": 33,
+      "n": 108,
+      "rate": 0.3055555555555556,
+      "se": 0.04432532906279343
+     },
+     "reached": {
+      "successes": 33,
+      "n": 108,
+      "rate": 0.3055555555555556,
+      "se": 0.04432532906279343
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 53.0,
+     "leave_s": 36.6,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 79.49537037037037,
+      "se": 1.1798780116139838
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 0.0,
+      "se": 0.0
+     }
+    },
+    "one": {
+     "n": 108,
+     "died": 15,
+     "in_time": {
+      "successes": 42,
+      "n": 93,
+      "rate": 0.45161290322580644,
+      "se": 0.05160423097451011
+     },
+     "reached": {
+      "successes": 42,
+      "n": 93,
+      "rate": 0.45161290322580644,
+      "se": 0.05160423097451011
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 53.0,
+     "leave_s": 19.8,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 76.34722222222223,
+      "se": 1.2923420224403719
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 68.17129629629629,
+      "se": 2.606880772880041
+     }
+    },
+    "three": {
+     "n": 108,
+     "died": 89,
+     "in_time": {
+      "successes": 13,
+      "n": 19,
+      "rate": 0.6842105263157895,
+      "se": 0.10663920529041639
+     },
+     "reached": {
+      "successes": 14,
+      "n": 19,
+      "rate": 0.7368421052631579,
+      "se": 0.10102261788814665
+     },
+     "arrival_s": 28.3,
+     "arrival_share": 0.48576051779935275,
+     "allowance_s": 53.0,
+     "leave_s": 60.3,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 196.47222222222223,
+      "se": 17.516643711375547
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 201.70833333333334,
+      "se": 15.164218939394242
+     }
+    }
+   },
+   "by_hull": {
+    "fighter": {
+     "n": 108,
+     "died": 35,
+     "in_time": {
+      "successes": 31,
+      "n": 73,
+      "rate": 0.4246575342465753,
+      "se": 0.05785237623779012
+     },
+     "reached": {
+      "successes": 32,
+      "n": 73,
+      "rate": 0.4383561643835616,
+      "se": 0.05807411862303531
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 43.0,
+     "leave_s": 39.3,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 88.88888888888889,
+      "se": 6.778122490936155
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 39.94444444444444,
+      "se": 3.227776571349705
+     }
+    },
+    "strafer": {
+     "n": 108,
+     "died": 46,
+     "in_time": {
+      "successes": 11,
+      "n": 62,
+      "rate": 0.1774193548387097,
+      "se": 0.04851699525429469
+     },
+     "reached": {
+      "successes": 11,
+      "n": 62,
+      "rate": 0.1774193548387097,
+      "se": 0.04851699525429469
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 51.0,
+     "leave_s": 18.6,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 112.81944444444444,
+      "se": 9.963055800815233
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 64.74074074074075,
+      "se": 4.835747425378819
+     }
+    },
+    "gunship": {
+     "n": 108,
+     "died": 23,
+     "in_time": {
+      "successes": 46,
+      "n": 85,
+      "rate": 0.5411764705882353,
+      "se": 0.054048398601721254
+     },
+     "reached": {
+      "successes": 46,
+      "n": 85,
+      "rate": 0.5411764705882353,
+      "se": 0.054048398601721254
+     },
+     "arrival_s": 119.23333333333333,
+     "arrival_share": 0.8812297734627832,
+     "allowance_s": 103.0,
+     "leave_s": 32.7,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 150.6064814814815,
+      "se": 15.303705532784475
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 165.19444444444446,
+      "se": 17.818585328156775
+     }
+    }
+   },
+   "by_distance": {
+    "150": {
+     "n": 108,
+     "died": 30,
+     "in_time": {
+      "successes": 16,
+      "n": 78,
+      "rate": 0.20512820512820512,
+      "se": 0.04572081170470404
+     },
+     "reached": {
+      "successes": 17,
+      "n": 78,
+      "rate": 0.21794871794871795,
+      "se": 0.04674632500202805
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 27.0,
+     "leave_s": null,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 100.70370370370371,
+      "se": 8.92235563763754
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 85.61111111111111,
+      "se": 11.457123429624167
+     }
+    },
+    "300": {
+     "n": 108,
+     "died": 33,
+     "in_time": {
+      "successes": 23,
+      "n": 75,
+      "rate": 0.30666666666666664,
+      "se": 0.05324437024665578
+     },
+     "reached": {
+      "successes": 23,
+      "n": 75,
+      "rate": 0.30666666666666664,
+      "se": 0.05324437024665578
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 51.0,
+     "leave_s": 31.35,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 128.4212962962963,
+      "se": 13.830242998964064
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 89.62962962962963,
+      "se": 11.885289115879763
+     }
+    },
+    "500": {
+     "n": 108,
+     "died": 41,
+     "in_time": {
+      "successes": 49,
+      "n": 67,
+      "rate": 0.7313432835820896,
+      "se": 0.05415294608121959
+     },
+     "reached": {
+      "successes": 49,
+      "n": 67,
+      "rate": 0.7313432835820896,
+      "se": 0.05415294608121959
+     },
+     "arrival_s": 71.36666666666666,
+     "arrival_share": 0.6573673870333988,
+     "allowance_s": 83.0,
+     "leave_s": 20.45,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 123.18981481481481,
+      "se": 11.071107994476574
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 94.63888888888889,
+      "se": 12.673561128082492
+     }
+    }
+   }
+  },
+  "none": {
+   "all": {
+    "n": 324,
+    "died": 87,
+    "in_time": {
+     "successes": 25,
+     "n": 237,
+     "rate": 0.10548523206751055,
+     "se": 0.019953331403708488
+    },
+    "reached": {
+     "successes": 118,
+     "n": 237,
+     "rate": 0.4978902953586498,
+     "se": 0.032478201007780566
+    },
+    "arrival_s": null,
+    "arrival_share": null,
+    "allowance_s": 22.5,
+    "leave_s": 28.65,
+    "damage_dealt": {
+     "n": 324,
+     "mean": 105.79320987654322,
+     "se": 6.049510609422593
+    },
+    "damage_taken": {
+     "n": 324,
+     "mean": 88.27777777777777,
+     "se": 6.814707976969727
+    }
+   },
+   "by_opposition": {
+    "parked": {
+     "n": 108,
+     "died": 0,
+     "in_time": {
+      "successes": 2,
+      "n": 108,
+      "rate": 0.018518518518518517,
+      "se": 0.012972757420698037
+     },
+     "reached": {
+      "successes": 52,
+      "n": 108,
+      "rate": 0.48148148148148145,
+      "se": 0.04807951212159639
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 22.5,
+     "leave_s": 33.6,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 59.89351851851852,
+      "se": 3.229490032889178
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 0.0,
+      "se": 0.0
+     }
+    },
+    "one": {
+     "n": 108,
+     "died": 8,
+     "in_time": {
+      "successes": 16,
+      "n": 100,
+      "rate": 0.16,
+      "se": 0.03666060555964672
+     },
+     "reached": {
+      "successes": 55,
+      "n": 100,
+      "rate": 0.55,
+      "se": 0.049749371855330994
+     },
+     "arrival_s": 106.46666666666667,
+     "arrival_share": 2.779097222222222,
+     "allowance_s": 22.5,
+     "leave_s": 19.8,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 75.39814814814815,
+      "se": 1.3871342903367252
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 67.70833333333333,
+      "se": 2.6225016543961392
+     }
+    },
+    "three": {
+     "n": 108,
+     "died": 79,
+     "in_time": {
+      "successes": 7,
+      "n": 29,
+      "rate": 0.2413793103448276,
+      "se": 0.07946270842617656
+     },
+     "reached": {
+      "successes": 11,
+      "n": 29,
+      "rate": 0.3793103448275862,
+      "se": 0.0901022421425571
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 22.5,
+     "leave_s": 58.5,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 182.08796296296296,
+      "se": 15.37345172226085
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 197.125,
+      "se": 15.039175399126922
+     }
+    }
+   },
+   "by_hull": {
+    "fighter": {
+     "n": 108,
+     "died": 31,
+     "in_time": {
+      "successes": 5,
+      "n": 77,
+      "rate": 0.06493506493506493,
+      "se": 0.028081167668433007
+     },
+     "reached": {
+      "successes": 44,
+      "n": 77,
+      "rate": 0.5714285714285714,
+      "se": 0.0563958595679802
+     },
+     "arrival_s": 58.63333333333333,
+     "arrival_share": 2.704444444444445,
+     "allowance_s": 20.0,
+     "leave_s": 33.3,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 75.99537037037037,
+      "se": 5.272611131934238
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 38.55555555555556,
+      "se": 3.162471488312252
+     }
+    },
+    "strafer": {
+     "n": 108,
+     "died": 35,
+     "in_time": {
+      "successes": 6,
+      "n": 73,
+      "rate": 0.0821917808219178,
+      "se": 0.03214613293755408
+     },
+     "reached": {
+      "successes": 25,
+      "n": 73,
+      "rate": 0.3424657534246575,
+      "se": 0.05554005849858788
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 22.0,
+     "leave_s": 18.6,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 105.69444444444444,
+      "se": 8.977221649159228
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 63.24074074074074,
+      "se": 4.632587148098789
+     }
+    },
+    "gunship": {
+     "n": 108,
+     "died": 21,
+     "in_time": {
+      "successes": 14,
+      "n": 87,
+      "rate": 0.16091954022988506,
+      "se": 0.03939549565857642
+     },
+     "reached": {
+      "successes": 49,
+      "n": 87,
+      "rate": 0.5632183908045977,
+      "se": 0.05317542374435479
+     },
+     "arrival_s": 114.26666666666667,
+     "arrival_share": 2.565714285714286,
+     "allowance_s": 35.0,
+     "leave_s": 32.6,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 135.6898148148148,
+      "se": 14.3658884883329
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 163.03703703703704,
+      "se": 17.547280371808466
+     }
+    }
+   },
+   "by_distance": {
+    "150": {
+     "n": 108,
+     "died": 27,
+     "in_time": {
+      "successes": 9,
+      "n": 81,
+      "rate": 0.1111111111111111,
+      "se": 0.034918853391928274
+     },
+     "reached": {
+      "successes": 27,
+      "n": 81,
+      "rate": 0.3333333333333333,
+      "se": 0.052378280087892415
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 16.0,
+     "leave_s": 40.25,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 73.94444444444444,
+      "se": 6.737472296124173
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 82.80092592592592,
+      "se": 10.829328558869534
+     }
+    },
+    "300": {
+     "n": 108,
+     "died": 30,
+     "in_time": {
+      "successes": 3,
+      "n": 78,
+      "rate": 0.038461538461538464,
+      "se": 0.021774558348934533
+     },
+     "reached": {
+      "successes": 34,
+      "n": 78,
+      "rate": 0.4358974358974359,
+      "se": 0.05614665563886408
+     },
+     "arrival_s": null,
+     "arrival_share": null,
+     "allowance_s": 22.0,
+     "leave_s": 31.8,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 121.35648148148148,
+      "se": 12.460545297832223
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 88.90277777777777,
+      "se": 11.852815961064975
+     }
+    },
+    "500": {
+     "n": 108,
+     "died": 30,
+     "in_time": {
+      "successes": 13,
+      "n": 78,
+      "rate": 0.16666666666666666,
+      "se": 0.04219747362848611
+     },
+     "reached": {
+      "successes": 57,
+      "n": 78,
+      "rate": 0.7307692307692307,
+      "se": 0.05022329142607982
+     },
+     "arrival_s": 67.86666666666667,
+     "arrival_share": 2.009274193548387,
+     "allowance_s": 30.0,
+     "leave_s": 20.45,
+     "damage_dealt": {
+      "n": 108,
+      "mean": 122.07870370370371,
+      "se": 10.795388780316467
+     },
+     "damage_taken": {
+      "n": 108,
+      "mean": 93.12962962962963,
+      "se": 12.739652087284501
+     }
+    }
+   }
+  }
+ },
+ "schema": "rlf.eval.goto_sweep/1",
+ "clock_extra_s": 20.0
+}
