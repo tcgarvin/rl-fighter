@@ -1,0 +1,67 @@
+have lab/runs/2026-11-15-commander-3/eval_before/followers/random_v_scripted.json
+have lab/runs/2026-11-15-commander-3/eval_before/followers/price5_v_scripted.json
+have lab/runs/2026-11-15-commander-3/eval_before/followers/hold_v_scripted.json
+have lab/runs/2026-11-15-commander-3/eval_before/followers/c1_shaped_v_scripted.json
+have lab/runs/2026-11-15-commander-3/eval_before/live/random_v_scripted.json
+have lab/runs/2026-11-15-commander-3/eval_before/live/price5_v_scripted.json
+have lab/runs/2026-11-15-commander-3/eval_before/live/hold_v_scripted.json
+have lab/runs/2026-11-15-commander-3/eval_before/live/c1_shaped_v_scripted.json
+10:57:46 eval followers unseen_v_scripted
+10:57:46 eval live unseen_v_scripted
+11:17:01 eval followers price5_v_unseen
+11:20:07 eval followers random_v_unseen
+11:33:39 eval followers price5_v_random
+11:38:28 eval live price5_v_unseen
+11:51:06 eval live random_v_unseen
+11:58:20 eval live price5_v_random
+pilots: followers
+    shaped/commander_327 v scripted   0.593 over 1152  (deathma 0.51 carrier 0.68 convoy_ 0.59)
+                           a orders: 6.7/ship-min, median 5.0 s, ordered 52%
+                           b orders: 4.5/ship-min, median 10.0 s, ordered 99%
+      hold/commander_412 v scripted   0.622 over 1152  (deathma 0.58 carrier 0.64 convoy_ 0.64)
+                           a orders: 5.3/ship-min, median 5.0 s, ordered 42%
+                           b orders: 4.5/ship-min, median 10.0 s, ordered 99%
+    price5/commander_417 v random     0.522 over 1152  (deathma 0.54 carrier 0.49 convoy_ 0.54)
+                           a orders: 5.6/ship-min, median 5.0 s, ordered 44%
+                           b orders: 4.1/ship-min, median 10.0 s, ordered 62%
+    price5/commander_417 v scripted   0.624 over 1152  (deathma 0.54 carrier 0.68 convoy_ 0.66)
+                           a orders: 5.7/ship-min, median 5.0 s, ordered 45%
+                           b orders: 4.6/ship-min, median 10.0 s, ordered 99%
+    price5/commander_417 v unseen     0.343 over 1152  (deathma 0.43 carrier 0.24 convoy_ 0.36)
+                           a orders: 5.7/ship-min, median 5.0 s, ordered 44%
+                           b orders: 4.1/ship-min, median 10.0 s, ordered 99%
+                  random v scripted   0.594 over 1152  (deathma 0.50 carrier 0.65 convoy_ 0.64)
+                           a orders: 4.0/ship-min, median 10.0 s, ordered 62%
+                           b orders: 4.2/ship-min, median 10.0 s, ordered 99%
+                  random v unseen     0.329 over 1152  (deathma 0.36 carrier 0.26 convoy_ 0.36)
+                           a orders: 4.1/ship-min, median 10.0 s, ordered 61%
+                           b orders: 4.0/ship-min, median 10.0 s, ordered 99%
+                  unseen v scripted   0.753 over 1152  (deathma 0.64 carrier 0.87 convoy_ 0.75)
+                           a orders: 3.8/ship-min, median 10.0 s, ordered 99%
+                           b orders: 4.5/ship-min, median 8.0 s, ordered 99%
+pilots: live
+    shaped/commander_327 v scripted   0.559 over 1152  (deathma 0.55 carrier 0.52 convoy_ 0.60)
+                           a orders: 6.7/ship-min, median 5.0 s, ordered 52%
+                           b orders: 4.7/ship-min, median 10.0 s, ordered 99%
+      hold/commander_412 v scripted   0.577 over 1152  (deathma 0.58 carrier 0.50 convoy_ 0.65)
+                           a orders: 5.4/ship-min, median 5.0 s, ordered 42%
+                           b orders: 4.8/ship-min, median 10.0 s, ordered 99%
+    price5/commander_417 v random     0.527 over 1152  (deathma 0.55 carrier 0.51 convoy_ 0.52)
+                           a orders: 5.7/ship-min, median 5.0 s, ordered 45%
+                           b orders: 4.3/ship-min, median 10.0 s, ordered 62%
+    price5/commander_417 v scripted   0.584 over 1152  (deathma 0.54 carrier 0.56 convoy_ 0.65)
+                           a orders: 5.8/ship-min, median 5.0 s, ordered 45%
+                           b orders: 4.9/ship-min, median 8.0 s, ordered 99%
+    price5/commander_417 v unseen     0.412 over 1152  (deathma 0.45 carrier 0.35 convoy_ 0.43)
+                           a orders: 5.8/ship-min, median 5.0 s, ordered 45%
+                           b orders: 4.8/ship-min, median 10.0 s, ordered 99%
+                  random v scripted   0.580 over 1152  (deathma 0.50 carrier 0.59 convoy_ 0.64)
+                           a orders: 4.1/ship-min, median 10.0 s, ordered 61%
+                           b orders: 4.5/ship-min, median 8.0 s, ordered 99%
+                  random v unseen     0.383 over 1152  (deathma 0.40 carrier 0.35 convoy_ 0.39)
+                           a orders: 4.2/ship-min, median 10.0 s, ordered 61%
+                           b orders: 4.5/ship-min, median 8.0 s, ordered 99%
+                  unseen v scripted   0.691 over 1152  (deathma 0.66 carrier 0.75 convoy_ 0.66)
+                           a orders: 4.4/ship-min, median 8.0 s, ordered 99%
+                           b orders: 4.7/ship-min, median 8.0 s, ordered 99%
+12:15:44 done: before (status 0)

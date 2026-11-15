@@ -16,6 +16,7 @@ from spacefight.commander.train import (
     OPP_SCRIPTED,
     OPP_SELF,
     OPP_SNAPSHOT,
+    OPP_UNSEEN,
     Assignment,
     TrainConfig,
     Trainer,
@@ -79,6 +80,7 @@ def test_matches_in_the_same_env_do_not_share_credit() -> None:
         (OPP_RANDOM, ("learned", "random"), (LEARNER, NOT_LEARNED)),
         (OPP_SELF, ("learned", "learned"), (LEARNER, LEARNER)),
         (OPP_SNAPSHOT, ("learned", "learned"), (LEARNER, 2 + 3)),
+        (OPP_UNSEEN, ("learned", "scripted"), (LEARNER, NOT_LEARNED)),
     ],
 )
 def test_an_assignment_names_each_side(opponent, modes, controllers) -> None:
@@ -88,6 +90,31 @@ def test_an_assignment_names_each_side(opponent, modes, controllers) -> None:
     flipped = Assignment(learner_team=1, opponent=opponent, snapshot=3)
     assert flipped.modes() == modes[::-1]
     assert flipped.controllers() == controllers[::-1]
+
+
+def test_only_an_unseen_enemys_pilots_are_kept_from_their_orders() -> None:
+    assert Assignment(learner_team=0, opponent=OPP_UNSEEN).hide_orders() == (
+        False,
+        True,
+    )
+    assert Assignment(learner_team=1, opponent=OPP_UNSEEN).hide_orders() == (
+        True,
+        False,
+    )
+    for opponent in (OPP_SCRIPTED, OPP_RANDOM, OPP_SELF, OPP_SNAPSHOT):
+        for team in (0, 1):
+            a = Assignment(learner_team=team, opponent=opponent)
+            assert a.hide_orders() == (False, False)
+
+
+def test_four_opponent_shares_from_an_older_config_mean_no_unseen_enemy() -> None:
+    assert TrainConfig().opponent_shares == (0.35, 0.1, 0.3, 0.25, 0.0)
+    old = TrainConfig(opponent_shares=(0.35, 0.1, 0.3, 0.25))
+    assert old.opponent_shares == (0.35, 0.1, 0.3, 0.25, 0.0)
+    assert TrainConfig(opponent_shares=(0, 0, 0.5, 0, 0.5)).opponent_shares[4] == 0.5
+    for bad in ((1.0, 0.0, 0.0), (0.5, -0.1, 0.3, 0.3, 0.0), (0.0, 0.0, 0.0, 0.0, 0.0)):
+        with pytest.raises(ValueError, match="opponent_shares"):
+            TrainConfig(opponent_shares=bad)
 
 
 def behaviour_trainer() -> SimpleNamespace:

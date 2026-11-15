@@ -2,9 +2,10 @@
 
 One step is one decision of a ``learned`` team (every 30 ticks). Pilots are frozen and
 drawn per ship from the live list. Each match draws the learner's team, the enemy
-commander (scripted, random, the learner itself, or one of its snapshots, weighted toward
-the ones it beats least), the mission (uniform, as the live page rotates) and a live
-roster.
+commander (scripted, random, the learner itself, one of its snapshots, weighted toward
+the ones it beats least, or "unseen": the script with its orders hidden from its own
+pilots, so a side nobody commands), the mission (uniform, as the live page rotates) and a
+live roster.
 
     uv run python -m spacefight.commander.train --run-dir lab/runs/<id>/<arm> \
         --deadline "07:30" [--n-envs 64] [--smoke]
@@ -70,8 +71,8 @@ WINNER_DRAW: Final = -1
 TICK_HZ: Final = 30
 
 # Enemy commander kinds.
-OPP_SCRIPTED, OPP_RANDOM, OPP_SELF, OPP_SNAPSHOT = range(4)
-OPP_NAMES: Final = ("scripted", "random", "self", "snapshot")
+OPP_SCRIPTED, OPP_RANDOM, OPP_SELF, OPP_SNAPSHOT, OPP_UNSEEN = range(5)
+OPP_NAMES: Final = ("scripted", "random", "self", "snapshot", "unseen")
 # The controller of a team in a match: not learned, the learner, or snapshot k (>= 2).
 NOT_LEARNED, LEARNER = 0, 1
 FEATURE_KEYS: Final = ("globals", "entities", "valid", *MASK_SHAPES)
@@ -102,8 +103,10 @@ class TrainConfig:
     # A fresh actor's odds of "keep" on its order and squad heads (policy.lean_to_keep).
     keep_prior: float = 0.8
     # Enemy commander shares: scripted, random, self, snapshots (snapshots' share goes to
-    # self until the first snapshot exists).
-    opponent_shares: tuple[float, float, float, float] = (0.35, 0.1, 0.3, 0.25)
+    # self until the first snapshot exists), unseen (the scripted commander with its
+    # orders hidden from its own pilots: the side with no orders). Four shares, as configs
+    # from before the unseen enemy have, mean none of it.
+    opponent_shares: tuple[float, ...] = (0.35, 0.1, 0.3, 0.25, 0.0)
     pfsp_power: float = 1.0
     pfsp_floor: float = 0.1
     snapshot_every: int = 20
@@ -114,8 +117,15 @@ class TrainConfig:
     max_updates: int = 1_000_000
 
     def __post_init__(self) -> None:
-        if len(self.opponent_shares) != 4 or min(self.opponent_shares) < 0:
-            raise ValueError("opponent_shares needs four non-negative shares")
+        shares = tuple(float(x) for x in self.opponent_shares)
+        if len(shares) == len(OPP_NAMES) - 1:
+            shares = (*shares, 0.0)
+        if len(shares) != len(OPP_NAMES) or min(shares) < 0 or sum(shares) <= 0:
+            raise ValueError(
+                f"opponent_shares needs {len(OPP_NAMES)} non-negative shares "
+                f"({', '.join(OPP_NAMES)}), not all zero; got {self.opponent_shares}"
+            )
+        self.opponent_shares = shares
         if self.decisions_per_update < self.minibatch:
             raise ValueError("decisions_per_update must be at least one minibatch")
         if self.order_price < 0:
@@ -140,16 +150,28 @@ class Assignment:
             OPP_RANDOM: NOT_LEARNED,
             OPP_SELF: LEARNER,
             OPP_SNAPSHOT: 2 + self.snapshot,
+            OPP_UNSEEN: NOT_LEARNED,
         }[self.opponent]
         c = [enemy, enemy]
         c[self.learner_team] = LEARNER
         return c[0], c[1]
 
     def modes(self) -> tuple[str, str]:
-        enemy = {OPP_SCRIPTED: SCRIPTED, OPP_RANDOM: RANDOM}.get(self.opponent, LEARNED)
+        enemy = {
+            OPP_SCRIPTED: SCRIPTED,
+            OPP_RANDOM: RANDOM,
+            OPP_UNSEEN: SCRIPTED,
+        }.get(self.opponent, LEARNED)
         m = [enemy, enemy]
         m[self.learner_team] = LEARNED
         return m[0], m[1]
+
+    def hide_orders(self) -> tuple[bool, bool]:
+        """Per team, whether its pilots are kept from seeing their orders: the enemy's
+        under an unseen commander, nobody's otherwise."""
+        hide = [self.opponent == OPP_UNSEEN] * 2
+        hide[self.learner_team] = False
+        return hide[0], hide[1]
 
 
 @dataclass
@@ -260,7 +282,7 @@ class Trainer:
         if not self.pool:
             shares[OPP_SELF] += shares[OPP_SNAPSHOT]
             shares[OPP_SNAPSHOT] = 0.0
-        opp = int(self.rng.choice(4, p=shares / shares.sum()))
+        opp = int(self.rng.choice(len(shares), p=shares / shares.sum()))
         snap = -1
         if opp == OPP_SNAPSHOT:
             rates = np.array(
@@ -301,7 +323,7 @@ class Trainer:
             i,
             roster,
             time_limit_s=float(rlf_sim.mission_time_limit_s(a.mission)),
-            hide_orders=(False, False),
+            hide_orders=a.hide_orders(),
         )
         if store:
             self.queued.append(a)

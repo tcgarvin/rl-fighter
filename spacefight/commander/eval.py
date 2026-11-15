@@ -1,12 +1,19 @@
 """Commander against commander (docs/COMMANDER.md): matches as on the live page, every
 strike craft flown by a pilot drawn from the live list, both sides drawn the same way.
 
-    uv run python -m spacefight.commander.eval --a <commander.pt|scripted|random> \
-        --b scripted --n-per-mission 192 --out eval.json
+    uv run python -m spacefight.commander.eval --a <commander.pt|scripted|random|unseen> \
+        --b scripted --n-per-mission 192 --out eval.json [--pilots <list.json>]
 
 Each mission plays ``n_per_mission`` matches: its live rosters (deathmatch: drafts as on
 the live page) in turn, ``a`` on each side half the time. Pilots are drawn with a fixed
-seed, so two evals with the same seed fly the same pilots.
+seed, so two evals with the same seed fly the same pilots. ``--pilots`` names another list
+of the same schema (ids and checkpoints are all it needs), to ask what a commander is
+worth over pilots that follow orders more, or less, than the live ten.
+
+``unseen`` is the scripted commander with its orders hidden from its own pilots (the
+sim's hidden-order mode): it launches and moves its capital ships as the script does, and
+its pilots fly as if nobody commanded them. It is the "no orders" side to compare a
+commander's orders with. Its order counts are still the script's, which nobody saw.
 """
 
 from __future__ import annotations
@@ -48,25 +55,37 @@ WINNER_NONE = -2
 TICK_HZ = 30
 # An order that lasted less than this was cut short (the commander's hold is 5 s).
 SHORT_ORDER_S = 5.0
+# The scripted commander with its orders hidden from its own pilots.
+UNSEEN = "unseen"
 
 
 @dataclass
 class Commander:
-    """A side's commander: a sim mode, and a network for the learned ones."""
+    """A side's commander: a sim mode, and a network for the learned ones.
+
+    Attributes:
+        label: Its name in results.
+        mode: The sim's commander mode.
+        actor: The network of a learned commander.
+        hide_orders: Its own pilots do not see its orders (``UNSEEN``).
+    """
 
     label: str
     mode: str
     actor: CommanderActor | None = None
+    hide_orders: bool = False
 
     @classmethod
     def from_spec(cls, spec: str) -> Commander:
-        """``scripted``, ``random`` or a commander checkpoint.
+        """``scripted``, ``random``, ``unseen`` or a commander checkpoint.
 
         Raises:
             FileNotFoundError: Neither keyword nor an existing file.
         """
         if spec in (SCRIPTED, RANDOM):
             return cls(spec, spec)
+        if spec == UNSEEN:
+            return cls(UNSEEN, SCRIPTED, hide_orders=True)
         path = Path(spec)
         if not path.is_file():
             raise FileNotFoundError(f"no commander {spec!r}")
@@ -211,8 +230,8 @@ def play_matches(
     """Play one match of ``mission`` per roster, as on the live page.
 
     Every strike craft is flown by a pilot drawn ship by ship from ``pilots`` (and the
-    script, with ``include_script``); capital ships fly the sim's scripts. Orders are
-    shown to both sides.
+    script, with ``include_script``); capital ships fly the sim's scripts. A side sees
+    its orders unless its commander hides them (``Commander.hide_orders``).
 
     Args:
         rosters: Match ``i``'s teams; its commanders are set from ``side_commander``.
@@ -247,15 +266,12 @@ def play_matches(
         commanders=(SCRIPTED, SCRIPTED),
     )
     for i, r in enumerate(rosters):
-        modes = (
-            commanders[side_commander[i, 0]].mode,
-            commanders[side_commander[i, 1]].mode,
-        )
+        sides = (commanders[side_commander[i, 0]], commanders[side_commander[i, 1]])
         env.set_next_roster(
             i,
-            Roster(r.teams, mission, modes),
+            Roster(r.teams, mission, (sides[0].mode, sides[1].mode)),
             time_limit_s=time_limit,
-            hide_orders=(False, False),
+            hide_orders=(sides[0].hide_orders, sides[1].hide_orders),
         )
     env.reset()
     stable = PilotStable(
@@ -384,9 +400,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     p.add_argument("--seed", type=int, default=20261107)
     p.add_argument("--threads", type=int, default=8)
     p.add_argument("--out", type=Path, required=True)
+    p.add_argument(
+        "--pilots",
+        type=Path,
+        default=LIVE_PILOTS,
+        help="the pilots both sides draw from: an rlf.live_pilots/1 list "
+        "(default: the live list)",
+    )
     args = p.parse_args(argv)
     torch.set_num_threads(args.threads)
-    res = evaluate(args.a, args.b, args.n_per_mission, args.seed, args.threads)
+    res = evaluate(
+        args.a, args.b, args.n_per_mission, args.seed, args.threads, args.pilots
+    )
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(res, indent=1) + "\n")
     print(f"a {res['a']} v b {res['b']}: {res['score_a']:.3f}", flush=True)

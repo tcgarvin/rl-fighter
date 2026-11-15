@@ -1,0 +1,22 @@
+{
+ "schema": "rlf.live_pilots/1",
+ "note": "Not a live list: the pilots that follow orders best on 2026-11-15, for commander evals and training (spacefight.commander.eval --pilots, TrainConfig.live_pilots). Three pass the drill gate; followers_pay3_810 misses the go-to and defend bars narrowly.",
+ "pilots": [
+  {
+   "id": "followers_school_1052",
+   "checkpoint": "lab/runs/2026-11-14-goto-school-2/followers_school/checkpoints/ppo_bc_1052.pt"
+  },
+  {
+   "id": "followers_school_600",
+   "checkpoint": "lab/runs/2026-11-14-goto-school/followers_school/checkpoints/ppo_bc_600.pt"
+  },
+  {
+   "id": "followers_solo_1072",
+   "checkpoint": "lab/runs/2026-11-14-goto-school-2/followers_solo/checkpoints/ppo_bc_1072.pt"
+  },
+  {
+   "id": "followers_pay3_810",
+   "checkpoint": "lab/runs/2026-11-14-goto-school/followers_pay3/checkpoints/ppo_bc_810.pt"
+  }
+ ]
+}

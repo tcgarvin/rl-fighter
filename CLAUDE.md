@@ -98,15 +98,22 @@ uv run python -m tools.live_commanders list
 # Commander training and eval (docs/COMMANDER.md). A ship keeps a changed order for 5
 # decisions (HOLD_DECISIONS) unless the order is spent; TrainConfig.order_price charges
 # for each ship re-ordered, keep_prior starts a fresh net leaning to "keep". The eval
-# (rlf.eval.commander/1) also times every ship's orders (orders_a / orders_b). Phase 2
+# (rlf.eval.commander/1) also times every ship's orders (orders_a / orders_b); "unseen" is
+# the script with its orders hidden from its own pilots (the no-orders side), and --pilots
+# (the trainer: --set live_pilots=<list>) flies another pilot list than the live ten. Phase 2
 # (arms hold / price2 / price5; SMOKE=1 for tiny sizes into smoke/) starts itself once
 # the owner is idle after midnight and runs morning.sh after.
-uv run python -m spacefight.commander.eval --a <commander.pt|scripted|random> --b scripted \
-    --n-per-mission 192 --out eval.json
+uv run python -m spacefight.commander.eval --a <commander.pt|scripted|random|unseen> --b scripted \
+    --n-per-mission 192 --out eval.json [--pilots <rlf.live_pilots/1 list>]
 nohup setsid lab/runs/2026-11-10-commander-2/launch_when_idle.sh \
     > lab/runs/2026-11-10-commander-2/launch.out 2>&1 &
+# Phase 3 (lab/runs/2026-11-15-commander-3: arms followers / followers_ent01 / live, half
+# their matches against the unseen side, opponent_shares' fifth entry): before.sh is the
+# before-training eval over both pilot lists, summary.py prints an eval directory.
+nohup setsid lab/runs/2026-11-15-commander-3/launch_when_idle.sh \
+    > lab/runs/2026-11-15-commander-3/launch.out 2>&1 &
 uv run python -m pytest tests/test_commander_io.py tests/test_commander_orders.py \
-    tests/test_commander_train.py tests/test_commander_policy.py -v
+    tests/test_commander_train.py tests/test_commander_policy.py tests/test_commander_eval.py -v
 
 # Parity of the browser policy and commander with torch; the headless live-match smoke
 # test (learned commanders: --commanders <azure>,<ember>|draw; default cycles them on both sides)

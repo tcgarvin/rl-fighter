@@ -1,0 +1,128 @@
+{
+ "schema": "rlf.eval.commander/1",
+ "a": "hold/commander_412",
+ "b": "scripted",
+ "seed": 20261107,
+ "pilots": [
+  "f995_701",
+  "fighters_pay1_v8_351",
+  "fighters_pay1_1317",
+  "followers_school_600",
+  "fighters_pay1_462",
+  "fighters_pay1_school_821",
+  "f99_696",
+  "f995_400",
+  "followers_pay3_810",
+  "followers_v8_352"
+ ],
+ "missions": {
+  "deathmatch": {
+   "n": 384,
+   "score_a": 0.5807291666666666,
+   "draw_rate": 0.0,
+   "a_on_team0": 0.5572916666666666,
+   "a_on_team1": 0.6041666666666666,
+   "end_reasons": {
+    "1": 384
+   },
+   "orders_a": {
+    "orders_given": 763,
+    "orders_ended": 618,
+    "orders_per_ship_min": 1.8723339281794855,
+    "ordered_share": 0.13641562704918397,
+    "order_seconds_median": 5.0,
+    "order_seconds_mean": 4.823624595469256,
+    "orders_under_5s": 0.07928802588996764
+   },
+   "orders_b": {
+    "orders_given": 2577,
+    "orders_ended": 1553,
+    "orders_per_ship_min": 6.492846614792259,
+    "ordered_share": 0.9956314029481382,
+    "order_seconds_median": 8.0,
+    "order_seconds_mean": 9.00064391500322,
+    "orders_under_5s": 0.29491307147456536
+   },
+   "secs": 159.4
+  },
+  "carrier_battle": {
+   "n": 384,
+   "score_a": 0.5,
+   "draw_rate": 0.0,
+   "a_on_team0": 0.5260416666666666,
+   "a_on_team1": 0.4739583333333333,
+   "end_reasons": {
+    "3": 384
+   },
+   "orders_a": {
+    "orders_given": 10810,
+    "orders_ended": 9505,
+    "orders_per_ship_min": 6.3457442454392,
+    "ordered_share": 0.5004162988246023,
+    "order_seconds_median": 5.0,
+    "order_seconds_mean": 5.049763282482903,
+    "orders_under_5s": 0.06217780115728564
+   },
+   "orders_b": {
+    "orders_given": 5764,
+    "orders_ended": 2820,
+    "orders_per_ship_min": 4.311087029508477,
+    "ordered_share": 0.9990717317811781,
+    "order_seconds_median": 8.0,
+    "order_seconds_mean": 10.622695035460993,
+    "orders_under_5s": 0.32588652482269503
+   },
+   "secs": 582.0
+  },
+  "convoy_escort": {
+   "n": 384,
+   "score_a": 0.6510416666666666,
+   "draw_rate": 0.0,
+   "a_on_team0": 0.609375,
+   "a_on_team1": 0.6927083333333334,
+   "end_reasons": {
+    "1": 162,
+    "4": 14,
+    "5": 208
+   },
+   "orders_a": {
+    "orders_given": 5150,
+    "orders_ended": 4471,
+    "orders_per_ship_min": 5.089975055278691,
+    "ordered_share": 0.3879368140270276,
+    "order_seconds_median": 5.0,
+    "order_seconds_mean": 4.959069559382688,
+    "orders_under_5s": 0.05770521136211138
+   },
+   "orders_b": {
+    "orders_given": 4199,
+    "orders_ended": 2282,
+    "orders_per_ship_min": 4.7110139319657645,
+    "ordered_share": 0.9704145183648638,
+    "order_seconds_median": 14.0,
+    "order_seconds_mean": 12.798422436459246,
+    "orders_under_5s": 0.16345311130587203
+   },
+   "secs": 382.1
+  }
+ },
+ "score_a": 0.5772569444444443,
+ "orders_a": {
+  "orders_given": 16723,
+  "orders_ended": 14594,
+  "orders_per_ship_min": 5.3551138157823335,
+  "ordered_share": 0.41647238232951045,
+  "order_seconds_median": 5.0,
+  "order_seconds_mean": 5.012402357133069,
+  "orders_under_5s": 0.061532136494449774
+ },
+ "orders_b": {
+  "orders_given": 12540,
+  "orders_ended": 6655,
+  "orders_per_ship_min": 4.776721292533575,
+  "ordered_share": 0.9888219388892029,
+  "order_seconds_median": 10.0,
+  "order_seconds_mean": 10.990232907588279,
+  "orders_under_5s": 0.26296018031555224
+ }
+}

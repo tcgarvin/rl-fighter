@@ -284,6 +284,12 @@ the learner's team at random, the enemy commander from the stable (scripted, ran
 learner itself, its past snapshots; weighted toward the ones it beats least), and every
 strike craft's pilot from the live list. Missions and rosters as on the live page.
 
+**The unseen enemy** (the fifth of `TrainConfig.opponent_shares`, default 0): the
+scripted commander with its orders hidden from its own pilots, so a side that launches
+as the script does and is otherwise not commanded. On 2026-11-15 that side beat the
+scripted commander 0.75 to 0.25 over pilots that follow orders, and every learned
+commander we had. A learner that beats it gives orders worth more than no orders.
+
 **Keep prior** (`TrainConfig.keep_prior`, default 0.8): a fresh actor's order and squad
 heads start with a bias toward "keep", so an untrained commander keeps with about that
 probability when every choice is allowed, not 1 time in 5 (order) or 1 in 6 (squad). It
@@ -292,3 +298,25 @@ applies to a new network only.
 The training log (`log.jsonl` in the run directory) also records, per update,
 `order_seconds` (the mean seconds a ship goes between changes of its order) and
 `ordered_share` (the share of ship-seconds spent with an order).
+
+**The pilots a commander trains over** (`TrainConfig.live_pilots`, default the live
+list): a file of the same schema naming other pilots, for example only those that follow
+orders (`lab/runs/2026-11-15-commander-3/pilots_followers.json`). The critic has one
+identity per pilot in the file, so a run keeps the file it started with.
+
+## Eval
+
+`spacefight.commander.eval` plays commander `--a` against `--b` (JSON
+`rlf.eval.commander/1`): each mission's live rosters in turn, `a` on each side half the
+time, pilots drawn ship by ship with a fixed seed. A side is a checkpoint or one of:
+
+- `scripted`: the sim's scripted commander.
+- `random`: the script's launches with random squads and orders.
+- `unseen`: the scripted commander with its orders hidden from its own pilots (the sim's
+  hidden-order mode). It launches as the script does and its pilots fly as if nobody
+  commanded them, so it is the "no orders" side. A commander's orders are worth something
+  only if it beats this. The order counts the eval reports for it are the script's, which
+  no pilot saw.
+
+`--pilots <list.json>` draws both sides' pilots from another list of the live list's
+schema. The eval also times every ship's orders (`orders_a`, `orders_b`).
