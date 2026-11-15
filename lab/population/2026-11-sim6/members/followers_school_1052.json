@@ -1,0 +1,45 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "followers_school_1052",
+ "family": "followers",
+ "founder": "transit_300",
+ "parent": "followers_school_600",
+ "relation": "fork",
+ "fork_update": 600,
+ "settings_changed": {
+  "sim_version": 8,
+  "obs_dim": 587,
+  "goto_timed_bonus": 3.0,
+  "goto_miss_penalty": 3.0,
+  "drill_share": 0.7,
+  "drill_weights": [
+   6,
+   1,
+   1
+  ]
+ },
+ "checkpoint": "lab/runs/2026-11-14-goto-school-2/followers_school/checkpoints/ppo_bc_1052.pt",
+ "sha256": "5e33ee03d183f051a157184924ce7d85bbcb3b2119dcef1bcec24837d8b6343b",
+ "status": "active",
+ "archived_reason": "",
+ "archived_date": "",
+ "note": "Go-to school, second night: followers_school_600 a night on, unchanged.",
+ "ratings": [],
+ "drills": [
+  {
+   "phase": "goto-school-2",
+   "date": "2026-11-15",
+   "scores": {
+    "goto_arrival": 0.8583473861720068,
+    "goto_lift": 0.6673174858397809,
+    "attack_target_hit": 0.970703125,
+    "attack_side": 0.95703125,
+    "attack_flip": 0.91796875,
+    "defend_more_on_named": 0.900390625,
+    "defend_side": 0.966796875,
+    "defend_flip": 0.93359375
+   },
+   "passed": true
+  }
+ ]
+}

@@ -1,0 +1,89 @@
+{
+ "schema": "rlf.population.war_config/1",
+ "pilots": [
+  [
+   "f995_400",
+   "c208c3aa979d5fbd10f7bb324194e628e9ba5054e3976865f30362186109b883"
+  ],
+  [
+   "f995_701",
+   "bf3bd0cb3c27889e9be4915f24c9674f375dd8bc815307596068e1f3ef99cf54"
+  ],
+  [
+   "f99_696",
+   "345be910ff548533a41fa5fd1ae65df75c1a0f08e7d50f8494a784d8578ab77f"
+  ],
+  [
+   "fighters_pay1_1317",
+   "420dc5c042ba31c1d24ace7333ff33c14c6e54db74cf3b67a9b098c6cdf6012d"
+  ],
+  [
+   "fighters_pay1_462",
+   "638b4394aa6e465c1e9ada826bb10d73ad72cc347bddfad906d497b374d1597c"
+  ],
+  [
+   "fighters_pay1_school_821",
+   "2399be82cbd812e46cedd741cf473f43dd72bf4ce7d1f09dcf52244891a75729"
+  ],
+  [
+   "fighters_pay1_v8_351",
+   "c41a780f8c0a2833d0765c32ad9adcd1876ed71f2ddbb789a9c7aab2383a55e1"
+  ],
+  [
+   "followers_1323",
+   "1f50f4a24159d2a2b15b57da3b9f7195d22000960ad1561bb398a80a981fdae7"
+  ],
+  [
+   "followers_pay3_810",
+   "53f35ac92e152e6206b1451c7cb56d74bedcf18c6424436872bc92a957e24977"
+  ],
+  [
+   "followers_school_1052",
+   "5e33ee03d183f051a157184924ce7d85bbcb3b2119dcef1bcec24837d8b6343b"
+  ],
+  [
+   "followers_school_600",
+   "3bc59822262ec0343fa6aea628a275b86c0d3da13acef34101437dcbbc584fad"
+  ],
+  [
+   "followers_solo_1072",
+   "a05bdb8b01221bce8cebecee6359e19f0c8ddc72b743d13b71ba6b62928d3c09"
+  ],
+  [
+   "followers_v8_352",
+   "4a012bb278b1c6bf5f4847fe1ab3b910338eba394412f61e6d079275dd610b22"
+  ]
+ ],
+ "commanders": [
+  [
+   "scripted",
+   "scripted",
+   ""
+  ],
+  [
+   "c1_shaped",
+   "learned",
+   "e847aff72c668781b58ec0a4ee7d037f03dcf32a036abd28d48ab19a9c943828"
+  ],
+  [
+   "c1_outcome",
+   "learned",
+   "25026a0bc111079191addae08a43ca8dca9a5ef03620993f5e140d2d70481749"
+  ],
+  [
+   "c1_shaped_s1",
+   "learned",
+   "4c42860da1090e20083eef91838b36a8bddc11a6020ea90b94f491fecb3f7fec"
+  ]
+ ],
+ "n_per_mission": 1440,
+ "chunk": 96,
+ "deathmatch_drafts": 24,
+ "seed": 500000,
+ "missions": [
+  "deathmatch",
+  "carrier_battle",
+  "convoy_escort"
+ ],
+ "sim_version": 8
+}

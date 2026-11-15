@@ -1,0 +1,45 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "fighters_pay1_school_821",
+ "family": "fighters",
+ "founder": "f995_701",
+ "parent": "fighters_pay1_v8_351",
+ "relation": "fork",
+ "fork_update": 351,
+ "settings_changed": {
+  "sim_version": 8,
+  "obs_dim": 587,
+  "goto_timed_bonus": 3.0,
+  "goto_miss_penalty": 3.0,
+  "drill_share": 0.7,
+  "drill_weights": [
+   6,
+   1,
+   1
+  ]
+ },
+ "checkpoint": "lab/runs/2026-11-14-goto-school-2/fighters_pay1_school/checkpoints/ppo_bc_821.pt",
+ "sha256": "2399be82cbd812e46cedd741cf473f43dd72bf4ce7d1f09dcf52244891a75729",
+ "status": "active",
+ "archived_reason": "",
+ "archived_date": "",
+ "note": "Go-to school, second night: fighters_pay1_v8_351 a night on with go-to drills as most of its training and a deadline worth 3.",
+ "ratings": [],
+ "drills": [
+  {
+   "phase": "goto-school-2",
+   "date": "2026-11-15",
+   "scores": {
+    "goto_arrival": 0.4833040421792619,
+    "goto_lift": 0.25771481659003626,
+    "attack_target_hit": 0.89453125,
+    "attack_side": 0.673828125,
+    "attack_flip": 0.41015625,
+    "defend_more_on_named": 0.740234375,
+    "defend_side": 0.7578125,
+    "defend_flip": 0.546875
+   },
+   "passed": false
+  }
+ ]
+}

@@ -392,11 +392,54 @@ their pilots are from updates 500 and 600.
 `lab/runs/2026-11-14-goto-school-2` (school again, school with lone ships, school on the
 `fighters_pay1` line).
 
+**Go-to school, second night, 2026-11-15** (`lab/runs/2026-11-14-goto-school-2`; sweeps in
+`lab/population/2026-11-sim6/sweep/goto-school-2/`). Three lines, 23:31 to 06:30, about 460
+updates each: `followers_school` unchanged, `followers_solo` (`drill_goto_solo_share` 0.6)
+and `fighters_pay1_school` (`fighters_pay1_v8_351` given school's first night: drill share
+0.7, go-to weighted 6 of 8, a deadline worth 3).
+
+| Pilot | Drill go-to, in time | Tight | In a squad | Alone | Sweep, slack 2 | Slack 1.5 and over | Attack, defend flip | Against parent | WAR |
+|---|---|---|---|---|---|---|---|---|---|
+| `followers_school_600` | 0.70 | 0.60 | 0.72 | 0.41 | 0.12 | 0.31 | 0.86, 0.89 | parent | +13.7 |
+| `followers_school_1052` | 0.86 | 0.84 | 0.88 | 0.51 | 0.20 | 0.37 | 0.92, 0.93 | 0.46 | +11.4 |
+| `followers_solo_1072` | 0.78 | 0.66 | 0.80 | 0.53 | 0.22 | 0.38 | 0.91, 0.93 | 0.34 | +8.6 |
+| `fighters_pay1_v8_351` | 0.31 | 0.20 | 0.32 | 0.19 | 0.05 | 0.19 | 0.26, 0.33 | parent | +14.7 |
+| `fighters_pay1_school_821` | 0.48 | 0.40 | 0.49 | 0.36 | 0.12 | 0.34 | 0.41, 0.55 | 0.57 | +13.4 |
+
+- **More of the same keeps working in squads.** `drill_goto_missed` fell 0.20 to 0.10
+  through the night on `followers_school` and 0.54 to 0.40 on `fighters_pay1_school`.
+- **Lone-ship practice bought nothing.** `followers_solo` flew about 5,300 go-to drills
+  alone against its twin's 1,700 and is the same alone (sweep 0.38 against 0.37), worse
+  in squads, and clearly worse in combat. Its `drill_goto_missed` stayed flat (0.26 to
+  0.22). The setting stays in the code at 0.
+- **The lone ship fails against an enemy that does nothing.** Sweep at slack 2, by
+  opposition (parked, one, three): `followers_school_1052` 0.01, 0.31, 0.36; its parent
+  0.02, 0.21, 0.14. Drill enemies always attack, so training never shows an enemy to leave
+  alone. Untested reading: an armed enemy comes to the pilot and is fought on the way; a
+  parked one has to be flown to.
+- **"Go now", not "go by when".** With the deadline inputs zeroed `followers_school_1052`
+  is in time as often (0.38 against 0.37) and is halfway there as soon (about 12 s at
+  every slack and with no deadline). A go-to with no deadline: 0.38 in time against its
+  parent's 0.27. Seeing a tight deadline it deals less on the way (42 against 56 at slack
+  2). Nobody yet uses spare time on purpose.
+- **School works on a pilot that ignored orders**, and `fighters_pay1_school_821` beats its
+  parent head to head. It still fails every bar of the gate.
+- **A second night of school cost the followers some combat**: +11.4 against the parent's
+  +13.7 (inside the noise) and 0.46 head to head (just outside it).
+
+`fighters_pay1_school_821` joined the live ten on WAR and `followers_1323` left it.
+`followers_school_1052`, the best follower so far, is twelfth by 0.4 wins per 100 and
+stays off under the WAR rule; the owner may waive that. Nobody was archived. Open for the
+next pilot night: a go-to drill with a passive enemy, and pay for using slack rather than
+only for making the deadline.
+
 **The route fault (fixed 2026-11-14).** A go-to route is placed by trial, and a far one
 fits the arena on about one draw in eight. At 64 tries a far drill failed once in about
 6,700, which raised in the sampler and stopped the trainer. `ROUTE_PLACEMENT_TRIES` is now
 4,096; a seed that found its route within 64 tries draws the same route. Night scripts
-since restart an arm that dies, from its last checkpoint.
+since restart an arm that dies, from its last checkpoint. The enemies placed beside a
+route had the same limit and failed about once in 150,000 go-to drills (one arm died once
+on 2026-11-15 and was restarted); they use the larger limit too.
 
 ### Obeying only in drills: what a pilot can see
 

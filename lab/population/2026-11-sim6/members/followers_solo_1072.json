@@ -1,0 +1,46 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "followers_solo_1072",
+ "family": "followers",
+ "founder": "transit_300",
+ "parent": "followers_school_600",
+ "relation": "fork",
+ "fork_update": 600,
+ "settings_changed": {
+  "sim_version": 8,
+  "obs_dim": 587,
+  "goto_timed_bonus": 3.0,
+  "goto_miss_penalty": 3.0,
+  "drill_share": 0.7,
+  "drill_weights": [
+   6,
+   1,
+   1
+  ],
+  "drill_goto_solo_share": 0.6
+ },
+ "checkpoint": "lab/runs/2026-11-14-goto-school-2/followers_solo/checkpoints/ppo_bc_1072.pt",
+ "sha256": "a05bdb8b01221bce8cebecee6359e19f0c8ddc72b743d13b71ba6b62928d3c09",
+ "status": "active",
+ "archived_reason": "",
+ "archived_date": "",
+ "note": "Go-to school, second night: followers_school_600 a night on with 7 go-to drills in 10 flown by one ship alone.",
+ "ratings": [],
+ "drills": [
+  {
+   "phase": "goto-school-2",
+   "date": "2026-11-15",
+   "scores": {
+    "goto_arrival": 0.7759197324414716,
+    "goto_lift": 0.5796422366715901,
+    "attack_target_hit": 0.923828125,
+    "attack_side": 0.955078125,
+    "attack_flip": 0.91015625,
+    "defend_more_on_named": 0.8828125,
+    "defend_side": 0.96484375,
+    "defend_flip": 0.9296875
+   },
+   "passed": true
+  }
+ ]
+}

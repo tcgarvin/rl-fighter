@@ -1,36 +1,12 @@
 {
  "schema": "rlf.live_pilots/1",
  "season": "lab/population/2026-11-sim6",
- "entry": "2026-11-14-goto-school",
+ "entry": "2026-11-14-goto-school-2",
  "pilots": [
-  {
-   "id": "fighters_pay1_1317",
-   "family": "fighters",
-   "rating": 17.388505289986085,
-   "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters_pay1/checkpoints/ppo_bc_1317.pt",
-   "sha256": "420dc5c042ba31c1d24ace7333ff33c14c6e54db74cf3b67a9b098c6cdf6012d",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/fighters_pay1_1317/420dc5c042ba31c1d24ace7333ff33c14c6e54db74cf3b67a9b098c6cdf6012d.pt",
-   "note": "fighters_pay1_849 trained a third night with each shot costing twice as much. The night's biggest gain: it fires a quarter fewer shots than its parent, beats it head to head, and mostly ignores orders.",
-   "follows": {
-    "go_to": 0.16,
-    "attack": 0.21,
-    "defend": 0.23
-   }
-  },
-  {
-   "id": "f99_696",
-   "family": "history",
-   "rating": 16.930973290107378,
-   "checkpoint": "lab/runs/2026-11-01-fighters-v2/f99/checkpoints/ppo_bc_696.pt",
-   "sha256": "345be910ff548533a41fa5fd1ae65df75c1a0f08e7d50f8494a784d8578ab77f",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/f99_696/345be910ff548533a41fa5fd1ae65df75c1a0f08e7d50f8494a784d8578ab77f.pt",
-   "note": "A sibling of f995_701 with a shorter horizon. It adds the most wins of any pilot when it flies in matches like this page's.",
-   "follows": {}
-  },
   {
    "id": "f995_701",
    "family": "fighters",
-   "rating": 15.440647405369733,
+   "rating": 15.882692110629568,
    "checkpoint": "lab/runs/2026-11-01-fighters-v2/f995/checkpoints/ppo_bc_701.pt",
    "sha256": "bf3bd0cb3c27889e9be4915f24c9674f375dd8bc815307596068e1f3ef99cf54",
    "url": "https://storage.tcgarvin.com/rl-fighter/pilots/f995_701/bf3bd0cb3c27889e9be4915f24c9674f375dd8bc815307596068e1f3ef99cf54.pt",
@@ -42,75 +18,9 @@
    }
   },
   {
-   "id": "followers_1323",
-   "family": "followers",
-   "rating": 15.142439566609415,
-   "checkpoint": "lab/runs/2026-11-01-pilot-families/followers/checkpoints/ppo_bc_1323.pt",
-   "sha256": "1f50f4a24159d2a2b15b57da3b9f7195d22000960ad1561bb398a80a981fdae7",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/followers_1323/1f50f4a24159d2a2b15b57da3b9f7195d22000960ad1561bb398a80a981fdae7.pt",
-   "note": "followers_955 trained a third night under the learned commanders. The best follower on this page, and now a fighter close to the fighters family.",
-   "follows": {
-    "go_to": 0.47,
-    "attack": 0.81,
-    "defend": 0.84
-   }
-  },
-  {
-   "id": "fighters_pay1_462",
-   "family": "fighters",
-   "rating": 15.02701600856366,
-   "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters_pay1/checkpoints/ppo_bc_462.pt",
-   "sha256": "638b4394aa6e465c1e9ada826bb10d73ad72cc347bddfad906d497b374d1597c",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/fighters_pay1_462/638b4394aa6e465c1e9ada826bb10d73ad72cc347bddfad906d497b374d1597c.pt",
-   "note": "f995_701 retrained at a third of the order pay. It fights better than fighters_506 and follows orders less.",
-   "follows": {
-    "go_to": 0.2,
-    "attack": 0.25,
-    "defend": 0.21
-   }
-  },
-  {
-   "id": "followers_school_600",
-   "family": "followers",
-   "rating": 14.522282418299948,
-   "checkpoint": "lab/runs/2026-11-14-goto-school/followers_school/checkpoints/ppo_bc_600.pt",
-   "sha256": "3bc59822262ec0343fa6aea628a275b86c0d3da13acef34101437dcbbc584fad",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/followers_school_600/3bc59822262ec0343fa6aea628a275b86c0d3da13acef34101437dcbbc584fad.pt",
-   "note": "followers_v8_352 after a night of go-to school, with go-to drills as most of its training. In a squad it makes seven go-to deadlines in ten where its parent made five, and it follows attack and defend orders as well as any pilot here. Sent somewhere alone, it still fights first.",
-   "follows": {
-    "go_to": 0.7,
-    "attack": 0.86,
-    "defend": 0.89
-   }
-  },
-  {
-   "id": "f995_400",
-   "family": "history",
-   "rating": 14.305442066128533,
-   "checkpoint": "lab/runs/2026-11-01-fighters-v2/f995/checkpoints/ppo_bc_400.pt",
-   "sha256": "c208c3aa979d5fbd10f7bb324194e628e9ba5054e3976865f30362186109b883",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/f995_400/c208c3aa979d5fbd10f7bb324194e628e9ba5054e3976865f30362186109b883.pt",
-   "note": "The same training run as f995_701, 301 updates earlier. Beats it in convoy escort.",
-   "follows": {}
-  },
-  {
-   "id": "followers_pay3_810",
-   "family": "followers",
-   "rating": 13.786711017180226,
-   "checkpoint": "lab/runs/2026-11-14-goto-school/followers_pay3/checkpoints/ppo_bc_810.pt",
-   "sha256": "53f35ac92e152e6206b1451c7cb56d74bedcf18c6424436872bc92a957e24977",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/followers_pay3_810/53f35ac92e152e6206b1451c7cb56d74bedcf18c6424436872bc92a957e24977.pt",
-   "note": "The school pilot's twin: the same night with its usual drills and only a higher pay for making a go-to deadline. It gained less than half as much on go-to orders, and fights about as well.",
-   "follows": {
-    "go_to": 0.59,
-    "attack": 0.75,
-    "defend": 0.73
-   }
-  },
-  {
    "id": "fighters_pay1_v8_351",
    "family": "fighters",
-   "rating": 13.655198589435564,
+   "rating": 14.70678998179063,
    "checkpoint": "lab/runs/2026-11-12-pilots-v8/fighters_pay1_v8/checkpoints/ppo_bc_351.pt",
    "sha256": "c41a780f8c0a2833d0765c32ad9adcd1876ed71f2ddbb789a9c7aab2383a55e1",
    "url": "https://storage.tcgarvin.com/rl-fighter/pilots/fighters_pay1_v8_351/c41a780f8c0a2833d0765c32ad9adcd1876ed71f2ddbb789a9c7aab2383a55e1.pt",
@@ -122,9 +32,99 @@
    }
   },
   {
+   "id": "fighters_pay1_1317",
+   "family": "fighters",
+   "rating": 14.091458646385234,
+   "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters_pay1/checkpoints/ppo_bc_1317.pt",
+   "sha256": "420dc5c042ba31c1d24ace7333ff33c14c6e54db74cf3b67a9b098c6cdf6012d",
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/fighters_pay1_1317/420dc5c042ba31c1d24ace7333ff33c14c6e54db74cf3b67a9b098c6cdf6012d.pt",
+   "note": "fighters_pay1_849 trained a third night with each shot costing twice as much. The night's biggest gain: it fires a quarter fewer shots than its parent, beats it head to head, and mostly ignores orders.",
+   "follows": {
+    "go_to": 0.16,
+    "attack": 0.21,
+    "defend": 0.23
+   }
+  },
+  {
+   "id": "followers_school_600",
+   "family": "followers",
+   "rating": 13.74225093520661,
+   "checkpoint": "lab/runs/2026-11-14-goto-school/followers_school/checkpoints/ppo_bc_600.pt",
+   "sha256": "3bc59822262ec0343fa6aea628a275b86c0d3da13acef34101437dcbbc584fad",
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/followers_school_600/3bc59822262ec0343fa6aea628a275b86c0d3da13acef34101437dcbbc584fad.pt",
+   "note": "followers_v8_352 after a night of go-to school, with go-to drills as most of its training. In a squad it makes seven go-to deadlines in ten where its parent made five, and it follows attack and defend orders as well as any pilot here. Sent somewhere alone, it still fights first.",
+   "follows": {
+    "go_to": 0.7,
+    "attack": 0.86,
+    "defend": 0.89
+   }
+  },
+  {
+   "id": "fighters_pay1_462",
+   "family": "fighters",
+   "rating": 13.540475651177967,
+   "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters_pay1/checkpoints/ppo_bc_462.pt",
+   "sha256": "638b4394aa6e465c1e9ada826bb10d73ad72cc347bddfad906d497b374d1597c",
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/fighters_pay1_462/638b4394aa6e465c1e9ada826bb10d73ad72cc347bddfad906d497b374d1597c.pt",
+   "note": "f995_701 retrained at a third of the order pay. It fights better than fighters_506 and follows orders less.",
+   "follows": {
+    "go_to": 0.2,
+    "attack": 0.25,
+    "defend": 0.21
+   }
+  },
+  {
+   "id": "fighters_pay1_school_821",
+   "family": "fighters",
+   "rating": 13.442330817694884,
+   "checkpoint": "lab/runs/2026-11-14-goto-school-2/fighters_pay1_school/checkpoints/ppo_bc_821.pt",
+   "sha256": "2399be82cbd812e46cedd741cf473f43dd72bf4ce7d1f09dcf52244891a75729",
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/fighters_pay1_school_821/2399be82cbd812e46cedd741cf473f43dd72bf4ce7d1f09dcf52244891a75729.pt",
+   "note": "fighters_pay1_v8_351 after a night of go-to school, with go-to drills as most of its training. Its parent mostly ignored orders; this one reaches a go-to point by its deadline about half the time, where its parent did a third, and changes target with an attack or defend order more often. It fights about as well.",
+   "follows": {
+    "go_to": 0.48,
+    "attack": 0.41,
+    "defend": 0.55
+   }
+  },
+  {
+   "id": "f99_696",
+   "family": "history",
+   "rating": 12.923499496668692,
+   "checkpoint": "lab/runs/2026-11-01-fighters-v2/f99/checkpoints/ppo_bc_696.pt",
+   "sha256": "345be910ff548533a41fa5fd1ae65df75c1a0f08e7d50f8494a784d8578ab77f",
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/f99_696/345be910ff548533a41fa5fd1ae65df75c1a0f08e7d50f8494a784d8578ab77f.pt",
+   "note": "A sibling of f995_701 with a shorter horizon. It adds the most wins of any pilot when it flies in matches like this page's.",
+   "follows": {}
+  },
+  {
+   "id": "f995_400",
+   "family": "history",
+   "rating": 12.639771212197537,
+   "checkpoint": "lab/runs/2026-11-01-fighters-v2/f995/checkpoints/ppo_bc_400.pt",
+   "sha256": "c208c3aa979d5fbd10f7bb324194e628e9ba5054e3976865f30362186109b883",
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/f995_400/c208c3aa979d5fbd10f7bb324194e628e9ba5054e3976865f30362186109b883.pt",
+   "note": "The same training run as f995_701, 301 updates earlier. Beats it in convoy escort.",
+   "follows": {}
+  },
+  {
+   "id": "followers_pay3_810",
+   "family": "followers",
+   "rating": 11.908213005418446,
+   "checkpoint": "lab/runs/2026-11-14-goto-school/followers_pay3/checkpoints/ppo_bc_810.pt",
+   "sha256": "53f35ac92e152e6206b1451c7cb56d74bedcf18c6424436872bc92a957e24977",
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/followers_pay3_810/53f35ac92e152e6206b1451c7cb56d74bedcf18c6424436872bc92a957e24977.pt",
+   "note": "The school pilot's twin: the same night with its usual drills and only a higher pay for making a go-to deadline. It gained less than half as much on go-to orders, and fights about as well.",
+   "follows": {
+    "go_to": 0.59,
+    "attack": 0.75,
+    "defend": 0.73
+   }
+  },
+  {
    "id": "followers_v8_352",
    "family": "followers",
-   "rating": 12.764213896545893,
+   "rating": 11.800508967633933,
    "checkpoint": "lab/runs/2026-11-12-pilots-v8/followers_v8/checkpoints/ppo_bc_352.pt",
    "sha256": "4a012bb278b1c6bf5f4847fe1ab3b910338eba394412f61e6d079275dd610b22",
    "url": "https://storage.tcgarvin.com/rl-fighter/pilots/followers_v8_352/4a012bb278b1c6bf5f4847fe1ab3b910338eba394412f61e6d079275dd610b22.pt",
@@ -137,5 +137,5 @@
   }
  ],
  "rated_by": "war",
- "war": "lab/population/2026-11-sim6/war/goto-school/war.json"
+ "war": "lab/population/2026-11-sim6/war/goto-school-2/war.json"
 }

@@ -1,0 +1,163 @@
+{
+ "schema": "rlf.population.shadow_war/1",
+ "phase": "goto-school-2",
+ "date": "2026-11-15",
+ "source": "lab/population/2026-11-sim6/war/goto-school-2/war.json",
+ "standings": [
+  {
+   "member": "f995_701",
+   "family": "fighters",
+   "founder": "f995_701",
+   "war": 15.882692110629568,
+   "ci_low": 12.743795829020243,
+   "ci_high": 19.31595942175598,
+   "se": 1.652335994524808,
+   "matches": 2204
+  },
+  {
+   "member": "fighters_pay1_v8_351",
+   "family": "fighters",
+   "founder": "f995_701",
+   "war": 14.70678998179063,
+   "ci_low": 11.040478819545545,
+   "ci_high": 18.299873178772966,
+   "se": 1.7799280236775388,
+   "matches": 2190
+  },
+  {
+   "member": "fighters_pay1_1317",
+   "family": "fighters",
+   "founder": "f995_701",
+   "war": 14.091458646385234,
+   "ci_low": 11.299852169095546,
+   "ci_high": 17.33482848761068,
+   "se": 1.6250896025188613,
+   "matches": 2227
+  },
+  {
+   "member": "followers_school_600",
+   "family": "followers",
+   "founder": "transit_300",
+   "war": 13.74225093520661,
+   "ci_low": 10.47901572390802,
+   "ci_high": 17.27739712552824,
+   "se": 1.7196898437194466,
+   "matches": 2203
+  },
+  {
+   "member": "fighters_pay1_462",
+   "family": "fighters",
+   "founder": "f995_701",
+   "war": 13.540475651177967,
+   "ci_low": 10.447218141082814,
+   "ci_high": 16.70289204070646,
+   "se": 1.6695706400916868,
+   "matches": 2153
+  },
+  {
+   "member": "fighters_pay1_school_821",
+   "family": "fighters",
+   "founder": "f995_701",
+   "war": 13.442330817694884,
+   "ci_low": 10.23906895466563,
+   "ci_high": 16.838208496249816,
+   "se": 1.6730745262079714,
+   "matches": 2158
+  },
+  {
+   "member": "followers_pay3_810",
+   "family": "followers",
+   "founder": "transit_300",
+   "war": 11.908213005418446,
+   "ci_low": 8.610108826350045,
+   "ci_high": 15.392519809967508,
+   "se": 1.7126812986732165,
+   "matches": 2128
+  },
+  {
+   "member": "followers_v8_352",
+   "family": "followers",
+   "founder": "transit_300",
+   "war": 11.800508967633933,
+   "ci_low": 8.497928275335576,
+   "ci_high": 15.073091656706708,
+   "se": 1.6507941419294736,
+   "matches": 2206
+  },
+  {
+   "member": "followers_1323",
+   "family": "followers",
+   "founder": "transit_300",
+   "war": 11.561120598844973,
+   "ci_low": 8.26019769292698,
+   "ci_high": 14.766830733018095,
+   "se": 1.6927133318906347,
+   "matches": 2242
+  },
+  {
+   "member": "followers_school_1052",
+   "family": "followers",
+   "founder": "transit_300",
+   "war": 11.353152085916857,
+   "ci_low": 7.9734965360373975,
+   "ci_high": 14.973639356586254,
+   "se": 1.8135550569963033,
+   "matches": 2212
+  },
+  {
+   "member": "followers_solo_1072",
+   "family": "followers",
+   "founder": "transit_300",
+   "war": 8.60113222195177,
+   "ci_low": 5.666567870191069,
+   "ci_high": 12.031441770968796,
+   "se": 1.6471040197052815,
+   "matches": 2285
+  }
+ ],
+ "culls": [
+  {
+   "member": "fighters_pay1_school_821",
+   "rule": "founder_cap",
+   "reason": "Founder f995_701 is over its cap of 4; this is its lowest survivor (WAR +13.4).",
+   "close_call": true
+  },
+  {
+   "member": "followers_solo_1072",
+   "rule": "founder_cap",
+   "reason": "Founder transit_300 is over its cap of 4; this is its lowest survivor (WAR +8.6).",
+   "close_call": false
+  },
+  {
+   "member": "followers_school_1052",
+   "rule": "founder_cap",
+   "reason": "Founder transit_300 is over its cap of 4; this is its lowest survivor (WAR +11.4).",
+   "close_call": true
+  }
+ ],
+ "protected": [
+  {
+   "member": "script",
+   "reason": "replacement level: its WAR is 0 by definition"
+  }
+ ],
+ "unmeasured": [
+  "fighters_1832",
+  "fighters_v8_362",
+  "fighters_v8_500",
+  "followers_1793",
+  "followers_513",
+  "followers_955",
+  "followers_v8_blind_360",
+  "transit_300"
+ ],
+ "founder_counts": {
+  "f995_701": 5,
+  "transit_300": 6
+ },
+ "leaves_no_pilot": false,
+ "constants": {
+  "ACTIVE_CAP": 10,
+  "FOUNDER_CAP": 4
+ }
+}

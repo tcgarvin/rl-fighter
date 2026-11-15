@@ -246,6 +246,12 @@ def test_a_far_route_that_needs_many_tries_is_still_found(seed: int) -> None:
     assert min(spec.distances) > 300.0
 
 
+def test_enemies_beside_a_route_that_need_many_tries_are_still_placed() -> None:
+    # Seed 68117 found no room beside its route in 64 tries (one more run stopped).
+    spec = GEN.generate(DRILL_GOTO, 68117)
+    assert spec.enemies_around and len(spec.teams[1]) == 3
+
+
 def test_a_solo_share_makes_more_go_tos_one_ship_alone() -> None:
     assert GEN.goto_solo_share == 0.0
     solo = DrillGenerator(goto_solo_share=0.6)

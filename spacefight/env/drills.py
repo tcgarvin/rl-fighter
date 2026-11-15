@@ -145,9 +145,11 @@ START_SPEED_FRAC = 0.5
 WARD_MAX_SPEED = 3.0
 ENEMY_START_SPEED_FRAC = 0.3
 MAX_PLACEMENT_TRIES = 64
-# A far go-to route fits the arena on about one draw in eight, so 64 tries failed once
-# in about 6,700 far drills, which stopped two training runs in one night. A seed that
-# found its route within 64 tries draws the same route as before.
+# A go-to's route and the enemies beside it get far more tries: a failure there raises
+# in the sampler and stops a training run. A far route fits the arena on about one draw
+# in eight, so 64 tries failed once in about 6,700 far drills (two runs stopped in one
+# night); enemies beside a route that starts near the centre failed once in about
+# 150,000 go-to drills (one more). A seed that placed within 64 tries draws what it did.
 ROUTE_PLACEMENT_TRIES = 4096
 # Bearings tried for a parked ship's place on the rim.
 PARKED_BEARINGS = 72
@@ -779,7 +781,7 @@ class DrillGenerator:
         # The route runs along y at x = start[0]: this edge is across the arena from it.
         places = line(-limit if start[0] > 0 else limit, 0.0)
         if around:
-            for _ in range(MAX_PLACEMENT_TRIES):
+            for _ in range(ROUTE_PLACEMENT_TRIES):
                 along = float(rng.uniform(0.3, 0.8))
                 cy = start[1] + along * (point[1] - start[1])
                 side = 1.0 if rng.random() < 0.5 else -1.0
