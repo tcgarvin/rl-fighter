@@ -1,0 +1,10 @@
+
+== deathmatch: 1536 matches, scripted side scored 0.475
+  no orders (script's orders, unseen)  ship-time by order: none 0.01  attack 0.99  defend 0.00  goto 0.00
+  scripted                             ship-time by order: none 0.01  attack 0.99  defend 0.00  goto 0.00
+  window (s)            0    30    60    90
+  lost, no orders    0.00  0.00  0.00  0.00
+  lost, scripted     0.00  0.00  0.00  0.00
+  scripted 1 v 1 no orders: scripted scored 0.475 over 1536 (64 draws)
+  scripted value sh  0.50  0.00  0.00  0.00
+  matches running     706     0     0     0

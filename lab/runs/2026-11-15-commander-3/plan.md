@@ -55,6 +55,40 @@ Score against the side with no orders:
 
 The data: `eval_before/` (`before.sh` runs it again).
 
+## Where the cost is
+
+A second look the same afternoon, the scripted commander's side against the same pilots
+with no orders (`order_cost.py`, outputs in `order_cost/`).
+
+**It is not about obedience as the drills measure it.** A third pilot list,
+`pilots_ignorers.json`: three pilots of the `fighters_pay1` line, which change sides with
+an attack or defend order two or three times in ten. No orders beats the script by the
+same margin over them as over the followers: 0.75 overall, 0.87 in the carrier battle.
+
+**It grows with the size of the fleet.** Even deathmatches, the ordered side's score. In
+deathmatch every order the script gives is an attack order.
+
+| Ships a side | Followers | Ignorers | Matches |
+|---|---|---|---|
+| 1 v 1 | 0.46 | 0.48 | 1,536 |
+| 2 v 2 | 0.35 | 0.30 | 1,536 |
+| 3 v 3 (live drafts) | 0.23 | 0.24 | 512 |
+| 4 v 4 (live drafts) | 0.11 | 0.17 | 64 |
+
+- With one ship a side the order can only name the one enemy there is, and being ordered
+  costs little: three or four points in a hundred.
+- With two or more a side the order chooses the target, and the ordered side loses badly.
+  So most of the cost is the target the script picks, and every pilot we tried goes for
+  it enough to matter, the "ignorers" included.
+- **The ordered side loses its ships early.** In the first 30 seconds of a deathmatch it
+  loses 1.07 ships a match and the side with no orders 0.76. In the convoy escort 2.7
+  against 1.1; in the carrier battle 1.5 against 0.7, and 3.9 against 2.5 in the next 30.
+
+Not yet known: what the ordered pilot does in those seconds that the free one does not.
+The script sends half a fleet at the enemy nearest it and the other half at the most
+damaged enemy. Our guess is that a pilot sent after one enemy stops dealing with the
+others.
+
 ## What changed (2026-11-15)
 
 - **The eval has an `unseen` side** and takes a pilot list (`--pilots`).
@@ -131,6 +165,7 @@ owner's call whether a commander that commands nothing belongs on the page.
 
 - Deadlines on go-to orders. No commander gives one yet; first a commander has to give
   any order worth following.
-- Why the script's orders cost so much. Worth a look by order kind and by mission: the
-  script commands sides in pilot training, and the live stable (the script and three
-  commanders that all lose to no orders) commands the matches that rate pilots.
+- What an ordered pilot does wrong in the first 30 seconds (above). It matters beyond
+  commanders: the script commands sides in pilot training, and the live stable (the
+  script and three commanders that all lose to no orders) commands the matches that rate
+  pilots.

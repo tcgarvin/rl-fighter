@@ -11,7 +11,9 @@
 #   nohup nice -n 19 lab/runs/2026-11-15-commander-3/before.sh \
 #       > lab/runs/2026-11-15-commander-3/before.out 2>&1 &
 #
-# Env: N (384 per mission), THREADS (8 per eval, two at a time), POOLS ("followers live").
+# Env: N (384 per mission), THREADS (8 per eval, two at a time), POOLS ("followers live";
+# "ignorers" is pilots_ignorers.json, three pilots that mostly ignore orders, of which
+# only unseen_v_scripted and random_v_unseen were run), ONLY (a regex of eval names).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
@@ -29,6 +31,7 @@ pool_file() {
     case $1 in
         live) echo lab/live_pilots.json ;;
         followers) echo "$HERE/pilots_followers.json" ;;
+        ignorers) echo "$HERE/pilots_ignorers.json" ;;
         *) echo "unknown pool $1" >&2; exit 2 ;;
     esac
 }
@@ -63,6 +66,7 @@ done
 running=0
 status=0
 for job in "${jobs[@]}"; do
+    [[ $(cut -d' ' -f2 <<< "$job") =~ ^(${ONLY:-.*})$ ]] || continue
     # shellcheck disable=SC2086
     eval_pair $job &
     running=$((running + 1))

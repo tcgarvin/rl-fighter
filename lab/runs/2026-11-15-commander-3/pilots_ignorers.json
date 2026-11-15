@@ -1,0 +1,18 @@
+{
+ "schema": "rlf.live_pilots/1",
+ "note": "Not a live list: three pilots of the fighters_pay1 line, which change sides with an attack or defend order only two or three times in ten, for commander evals (spacefight.commander.eval --pilots). The opposite end from pilots_followers.json.",
+ "pilots": [
+  {
+   "id": "fighters_pay1_1317",
+   "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters_pay1/checkpoints/ppo_bc_1317.pt"
+  },
+  {
+   "id": "fighters_pay1_462",
+   "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters_pay1/checkpoints/ppo_bc_462.pt"
+  },
+  {
+   "id": "fighters_pay1_v8_351",
+   "checkpoint": "lab/runs/2026-11-12-pilots-v8/fighters_pay1_v8/checkpoints/ppo_bc_351.pt"
+  }
+ ]
+}
