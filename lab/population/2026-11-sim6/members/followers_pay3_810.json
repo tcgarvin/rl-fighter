@@ -1,0 +1,39 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "followers_pay3_810",
+ "family": "followers",
+ "founder": "transit_300",
+ "parent": "followers_v8_352",
+ "relation": "fork",
+ "fork_update": 352,
+ "settings_changed": {
+  "sim_version": 8,
+  "obs_dim": 587,
+  "goto_timed_bonus": 3.0,
+  "goto_miss_penalty": 3.0
+ },
+ "checkpoint": "lab/runs/2026-11-14-goto-school/followers_pay3/checkpoints/ppo_bc_810.pt",
+ "sha256": "53f35ac92e152e6206b1451c7cb56d74bedcf18c6424436872bc92a957e24977",
+ "status": "active",
+ "archived_reason": "",
+ "archived_date": "",
+ "note": "Go-to school, pay only: followers_v8_352 one night on with last night's drills and a deadline worth 3.",
+ "ratings": [],
+ "drills": [
+  {
+   "phase": "goto-school",
+   "date": "2026-11-14",
+   "scores": {
+    "goto_arrival": 0.5949820788530465,
+    "goto_lift": 0.39806427063386846,
+    "attack_target_hit": 0.92578125,
+    "attack_side": 0.861328125,
+    "attack_flip": 0.74609375,
+    "defend_more_on_named": 0.826171875,
+    "defend_side": 0.84765625,
+    "defend_flip": 0.7265625
+   },
+   "passed": false
+  }
+ ]
+}

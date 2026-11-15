@@ -1,0 +1,219 @@
+commander stable: scripted 0.250, c1_shaped 0.250, c1_outcome 0.250, c1_shaped_s1 0.250
+update 363 53.64s (rollout 24.59 gae 0.32 ppo 28.73) samples/s 1556 reward 0.0010 vs_scripted_win None
+update 364 60.85s (rollout 19.16 gae 1.58 ppo 40.11) samples/s 2404 reward 0.0015 vs_scripted_win None
+update 365 59.79s (rollout 19.01 gae 1.45 ppo 39.34) samples/s 2479 reward 0.0013 vs_scripted_win None
+update 366 56.84s (rollout 15.07 gae 1.33 ppo 40.44) samples/s 2699 reward 0.0014 vs_scripted_win 1.0
+update 367 64.65s (rollout 17.61 gae 1.57 ppo 45.47) samples/s 2520 reward 0.0012 vs_scripted_win 1.0
+update 368 68.32s (rollout 17.45 gae 1.59 ppo 49.27) samples/s 2407 reward 0.0015 vs_scripted_win None
+update 369 73.27s (rollout 20.91 gae 1.77 ppo 50.58) samples/s 2167 reward 0.0015 vs_scripted_win 1.0
+update 370 65.22s (rollout 16.00 gae 1.16 ppo 48.06) samples/s 2315 reward 0.0012 vs_scripted_win 0.8
+update 371 56.52s (rollout 13.37 gae 1.30 ppo 41.85) samples/s 2567 reward 0.0013 vs_scripted_win 1.0
+update 372 65.75s (rollout 17.59 gae 1.49 ppo 46.66) samples/s 2090 reward 0.0011 vs_scripted_win 1.0
+update 373 62.62s (rollout 19.01 gae 1.45 ppo 42.16) samples/s 2101 reward 0.0011 vs_scripted_win 1.0
+update 374 67.82s (rollout 17.90 gae 1.78 ppo 48.13) samples/s 1949 reward 0.0011 vs_scripted_win 1.0
+update 375 61.04s (rollout 16.27 gae 1.25 ppo 43.53) samples/s 2138 reward 0.0014 vs_scripted_win 1.0
+update 376 66.43s (rollout 18.42 gae 1.51 ppo 46.50) samples/s 1971 reward 0.0015 vs_scripted_win 1.0
+update 377 71.66s (rollout 20.98 gae 1.32 ppo 49.35) samples/s 1836 reward 0.0014 vs_scripted_win 1.0
+update 378 70.66s (rollout 22.64 gae 1.63 ppo 46.40) samples/s 1862 reward 0.0010 vs_scripted_win 0.6666666666666666
+update 379 69.81s (rollout 17.25 gae 1.77 ppo 50.79) samples/s 1857 reward 0.0013 vs_scripted_win 1.0
+update 380 64.07s (rollout 20.69 gae 1.71 ppo 41.67) samples/s 2070 reward 0.0017 vs_scripted_win 1.0
+update 381 66.14s (rollout 18.52 gae 1.61 ppo 46.01) samples/s 2090 reward 0.0015 vs_scripted_win 1.0
+update 382 67.38s (rollout 18.79 gae 1.48 ppo 47.11) samples/s 2065 reward 0.0012 vs_scripted_win 1.0
+update 383 59.95s (rollout 16.79 gae 1.36 ppo 41.80) samples/s 2247 reward 0.0012 vs_scripted_win 1.0
+update 384 63.42s (rollout 19.72 gae 1.50 ppo 42.20) samples/s 2093 reward 0.0006 vs_scripted_win 1.0
+update 385 69.10s (rollout 17.86 gae 2.03 ppo 49.21) samples/s 2000 reward 0.0008 vs_scripted_win 0.5
+update 386 64.59s (rollout 18.52 gae 1.50 ppo 44.57) samples/s 2209 reward 0.0009 vs_scripted_win 1.0
+update 387 69.96s (rollout 22.43 gae 1.40 ppo 46.14) samples/s 2098 reward 0.0013 vs_scripted_win 0.6666666666666666
+update 388 68.58s (rollout 19.43 gae 1.44 ppo 47.71) samples/s 2080 reward 0.0011 vs_scripted_win 1.0
+update 389 65.31s (rollout 17.94 gae 1.32 ppo 46.06) samples/s 2113 reward 0.0009 vs_scripted_win 1.0
+update 390 59.31s (rollout 16.91 gae 1.36 ppo 41.04) samples/s 2255 reward 0.0010 vs_scripted_win 1.0
+update 391 74.39s (rollout 26.02 gae 1.37 ppo 47.01) samples/s 1746 reward 0.0012 vs_scripted_win 1.0
+update 392 65.49s (rollout 18.82 gae 1.44 ppo 45.24) samples/s 1941 reward 0.0013 vs_scripted_win 1.0
+update 393 64.67s (rollout 20.28 gae 1.51 ppo 42.88) samples/s 1934 reward 0.0014 vs_scripted_win 1.0
+update 394 60.86s (rollout 17.89 gae 1.39 ppo 41.58) samples/s 2049 reward 0.0014 vs_scripted_win 1.0
+update 395 58.95s (rollout 14.28 gae 1.34 ppo 43.33) samples/s 2183 reward 0.0011 vs_scripted_win None
+update 396 58.06s (rollout 17.72 gae 1.41 ppo 38.92) samples/s 2238 reward 0.0012 vs_scripted_win 1.0
+update 397 64.73s (rollout 17.63 gae 1.09 ppo 46.02) samples/s 2051 reward 0.0014 vs_scripted_win 1.0
+update 398 62.82s (rollout 17.06 gae 1.41 ppo 44.35) samples/s 2145 reward 0.0013 vs_scripted_win 1.0
+update 399 59.47s (rollout 15.92 gae 1.59 ppo 41.96) samples/s 2245 reward 0.0011 vs_scripted_win 1.0
+update 400 57.17s (rollout 15.01 gae 1.32 ppo 40.85) samples/s 2296 reward 0.0015 vs_scripted_win 1.0
+update 401 66.19s (rollout 18.70 gae 1.34 ppo 46.15) samples/s 1904 reward 0.0014 vs_scripted_win 1.0
+update 402 60.48s (rollout 17.07 gae 1.49 ppo 41.92) samples/s 2067 reward 0.0010 vs_scripted_win 0.875
+update 403 57.72s (rollout 15.64 gae 1.26 ppo 40.82) samples/s 2181 reward 0.0012 vs_scripted_win 1.0
+update 404 62.20s (rollout 19.59 gae 1.41 ppo 41.20) samples/s 1967 reward 0.0013 vs_scripted_win 0.8333333333333334
+update 405 59.15s (rollout 15.31 gae 1.31 ppo 42.53) samples/s 2131 reward 0.0011 vs_scripted_win 1.0
+update 406 57.40s (rollout 18.67 gae 1.50 ppo 37.23) samples/s 2256 reward 0.0011 vs_scripted_win 0.8
+update 407 64.83s (rollout 20.81 gae 1.57 ppo 42.44) samples/s 2002 reward 0.0015 vs_scripted_win 1.0
+update 408 63.91s (rollout 19.23 gae 1.32 ppo 43.35) samples/s 2049 reward 0.0010 vs_scripted_win 1.0
+update 409 68.24s (rollout 22.37 gae 1.38 ppo 44.49) samples/s 1900 reward 0.0009 vs_scripted_win 1.0
+update 410 68.64s (rollout 20.13 gae 1.41 ppo 47.10) samples/s 1933 reward 0.0009 vs_scripted_win 1.0
+update 411 64.49s (rollout 19.31 gae 1.33 ppo 43.86) samples/s 2046 reward 0.0011 vs_scripted_win 0.8
+update 412 63.10s (rollout 19.08 gae 1.57 ppo 42.45) samples/s 2029 reward 0.0011 vs_scripted_win 1.0
+update 413 55.20s (rollout 15.76 gae 1.35 ppo 38.09) samples/s 2308 reward 0.0009 vs_scripted_win 1.0
+update 414 63.82s (rollout 22.08 gae 1.39 ppo 40.36) samples/s 2033 reward 0.0011 vs_scripted_win 1.0
+update 415 67.54s (rollout 22.49 gae 1.15 ppo 43.90) samples/s 1951 reward 0.0016 vs_scripted_win 1.0
+update 416 62.97s (rollout 17.97 gae 1.09 ppo 43.90) samples/s 2076 reward 0.0013 vs_scripted_win 1.0
+update 417 62.25s (rollout 17.31 gae 1.38 ppo 43.56) samples/s 2057 reward 0.0015 vs_scripted_win 1.0
+update 418 64.88s (rollout 20.66 gae 1.70 ppo 42.52) samples/s 1983 reward 0.0014 vs_scripted_win 1.0
+update 419 63.70s (rollout 20.65 gae 1.17 ppo 41.88) samples/s 1976 reward 0.0009 vs_scripted_win 0.8
+update 420 62.30s (rollout 17.15 gae 1.15 ppo 44.00) samples/s 2015 reward 0.0015 vs_scripted_win 1.0
+update 421 64.19s (rollout 20.13 gae 1.38 ppo 42.68) samples/s 1937 reward 0.0015 vs_scripted_win 1.0
+update 422 59.75s (rollout 15.70 gae 1.28 ppo 42.77) samples/s 2043 reward 0.0015 vs_scripted_win 1.0
+update 423 57.61s (rollout 16.88 gae 1.23 ppo 39.51) samples/s 2110 reward 0.0012 vs_scripted_win 1.0
+update 424 58.08s (rollout 19.63 gae 1.55 ppo 36.91) samples/s 2081 reward 0.0011 vs_scripted_win 1.0
+update 425 53.44s (rollout 15.47 gae 0.95 ppo 37.02) samples/s 2277 reward 0.0014 vs_scripted_win 1.0
+update 426 57.37s (rollout 20.28 gae 1.13 ppo 35.96) samples/s 2157 reward 0.0014 vs_scripted_win 1.0
+update 427 62.68s (rollout 17.92 gae 1.34 ppo 43.42) samples/s 2017 reward 0.0013 vs_scripted_win 0.6666666666666666
+update 428 62.85s (rollout 16.67 gae 1.75 ppo 44.43) samples/s 2045 reward 0.0013 vs_scripted_win 1.0
+update 429 66.17s (rollout 20.41 gae 1.50 ppo 44.27) samples/s 1960 reward 0.0015 vs_scripted_win 1.0
+update 430 62.47s (rollout 17.46 gae 1.52 ppo 43.49) samples/s 2080 reward 0.0014 vs_scripted_win 1.0
+update 431 68.93s (rollout 20.69 gae 1.01 ppo 47.23) samples/s 1908 reward 0.0014 vs_scripted_win 1.0
+update 432 60.78s (rollout 17.85 gae 1.53 ppo 41.39) samples/s 2173 reward 0.0016 vs_scripted_win 1.0
+update 433 62.41s (rollout 18.28 gae 1.33 ppo 42.80) samples/s 2131 reward 0.0014 vs_scripted_win 1.0
+update 434 65.99s (rollout 19.12 gae 1.36 ppo 45.51) samples/s 2005 reward 0.0012 vs_scripted_win 1.0
+update 435 64.11s (rollout 18.80 gae 1.51 ppo 43.79) samples/s 2010 reward 0.0014 vs_scripted_win 1.0
+update 436 59.91s (rollout 17.46 gae 1.53 ppo 40.93) samples/s 2171 reward 0.0009 vs_scripted_win 1.0
+update 437 61.99s (rollout 15.92 gae 1.51 ppo 44.56) samples/s 2097 reward 0.0013 vs_scripted_win 1.0
+update 438 60.79s (rollout 16.89 gae 1.31 ppo 42.59) samples/s 2147 reward 0.0019 vs_scripted_win 1.0
+update 439 62.99s (rollout 18.48 gae 1.70 ppo 42.81) samples/s 2072 reward 0.0015 vs_scripted_win 1.0
+update 440 61.95s (rollout 18.71 gae 1.32 ppo 41.93) samples/s 2173 reward 0.0013 vs_scripted_win 1.0
+update 441 64.15s (rollout 17.93 gae 1.31 ppo 44.92) samples/s 2120 reward 0.0012 vs_scripted_win 1.0
+update 442 61.67s (rollout 17.42 gae 1.41 ppo 42.84) samples/s 2167 reward 0.0011 vs_scripted_win 1.0
+update 443 65.97s (rollout 20.67 gae 1.47 ppo 43.83) samples/s 2028 reward 0.0011 vs_scripted_win 1.0
+update 444 61.54s (rollout 15.90 gae 1.33 ppo 44.32) samples/s 2148 reward 0.0009 vs_scripted_win 0.6
+update 445 64.66s (rollout 19.47 gae 1.52 ppo 43.67) samples/s 2006 reward 0.0010 vs_scripted_win 0.5
+update 446 64.43s (rollout 20.84 gae 1.67 ppo 41.92) samples/s 1969 reward 0.0011 vs_scripted_win 1.0
+update 447 61.92s (rollout 17.72 gae 1.19 ppo 43.01) samples/s 2035 reward 0.0013 vs_scripted_win 1.0
+update 448 62.63s (rollout 18.52 gae 1.60 ppo 42.51) samples/s 1989 reward 0.0012 vs_scripted_win 1.0
+update 449 60.84s (rollout 16.67 gae 1.38 ppo 42.78) samples/s 1999 reward 0.0012 vs_scripted_win 1.0
+update 450 60.83s (rollout 19.66 gae 1.40 ppo 39.77) samples/s 2117 reward 0.0010 vs_scripted_win 1.0
+update 451 57.03s (rollout 14.45 gae 1.33 ppo 41.24) samples/s 2256 reward 0.0013 vs_scripted_win 1.0
+update 452 63.52s (rollout 18.07 gae 1.12 ppo 44.33) samples/s 2020 reward 0.0011 vs_scripted_win 1.0
+update 453 53.42s (rollout 13.61 gae 1.31 ppo 38.50) samples/s 2372 reward 0.0008 vs_scripted_win 1.0
+update 454 60.67s (rollout 16.46 gae 1.57 ppo 42.64) samples/s 2093 reward 0.0011 vs_scripted_win 0.6666666666666666
+update 455 66.79s (rollout 21.07 gae 1.34 ppo 44.38) samples/s 1967 reward 0.0012 vs_scripted_win 1.0
+update 456 59.36s (rollout 17.77 gae 1.46 ppo 40.13) samples/s 2145 reward 0.0014 vs_scripted_win 1.0
+update 457 60.98s (rollout 19.30 gae 1.04 ppo 40.64) samples/s 2084 reward 0.0016 vs_scripted_win 1.0
+update 458 60.59s (rollout 17.92 gae 1.46 ppo 41.22) samples/s 2057 reward 0.0012 vs_scripted_win 1.0
+update 459 58.23s (rollout 17.30 gae 1.44 ppo 39.48) samples/s 2205 reward 0.0016 vs_scripted_win 1.0
+update 460 63.64s (rollout 19.46 gae 1.29 ppo 42.88) samples/s 2075 reward 0.0011 vs_scripted_win 1.0
+update 461 60.45s (rollout 18.06 gae 1.36 ppo 41.03) samples/s 2183 reward 0.0009 vs_scripted_win 1.0
+update 462 60.73s (rollout 16.87 gae 1.24 ppo 42.62) samples/s 2141 reward 0.0013 vs_scripted_win 1.0
+update 463 62.96s (rollout 19.01 gae 1.20 ppo 42.75) samples/s 2005 reward 0.0009 vs_scripted_win 1.0
+update 464 64.96s (rollout 21.51 gae 1.49 ppo 41.96) samples/s 1956 reward 0.0013 vs_scripted_win 0.8888888888888888
+update 465 68.07s (rollout 21.19 gae 1.13 ppo 45.76) samples/s 1919 reward 0.0009 vs_scripted_win 1.0
+update 466 62.31s (rollout 17.27 gae 1.37 ppo 43.67) samples/s 2160 reward 0.0011 vs_scripted_win 1.0
+update 467 61.28s (rollout 16.30 gae 1.28 ppo 43.69) samples/s 2193 reward 0.0013 vs_scripted_win 1.0
+update 468 60.26s (rollout 16.48 gae 1.17 ppo 42.61) samples/s 2251 reward 0.0011 vs_scripted_win 1.0
+update 469 64.38s (rollout 17.70 gae 1.37 ppo 45.32) samples/s 2067 reward 0.0009 vs_scripted_win 1.0
+update 470 62.52s (rollout 16.70 gae 1.20 ppo 44.62) samples/s 2174 reward 0.0009 vs_scripted_win 1.0
+update 471 68.26s (rollout 16.90 gae 1.18 ppo 50.18) samples/s 2053 reward 0.0014 vs_scripted_win 1.0
+update 472 61.03s (rollout 16.28 gae 1.64 ppo 43.11) samples/s 2252 reward 0.0013 vs_scripted_win 1.0
+update 473 64.30s (rollout 18.51 gae 1.74 ppo 44.05) samples/s 2113 reward 0.0011 vs_scripted_win 1.0
+update 474 60.81s (rollout 16.63 gae 1.46 ppo 42.73) samples/s 2201 reward 0.0011 vs_scripted_win 1.0
+update 475 63.00s (rollout 18.21 gae 1.93 ppo 42.86) samples/s 2129 reward 0.0013 vs_scripted_win 1.0
+update 476 67.21s (rollout 23.61 gae 1.37 ppo 42.24) samples/s 2035 reward 0.0012 vs_scripted_win 1.0
+update 477 62.01s (rollout 18.50 gae 1.18 ppo 42.34) samples/s 2192 reward 0.0013 vs_scripted_win 0.6666666666666666
+update 478 63.59s (rollout 18.66 gae 1.57 ppo 43.36) samples/s 2147 reward 0.0015 vs_scripted_win 0.875
+update 479 65.93s (rollout 19.65 gae 2.03 ppo 44.24) samples/s 2004 reward 0.0015 vs_scripted_win 1.0
+update 480 62.36s (rollout 17.93 gae 1.19 ppo 43.24) samples/s 2101 reward 0.0014 vs_scripted_win 1.0
+update 481 59.46s (rollout 17.69 gae 1.30 ppo 40.47) samples/s 2204 reward 0.0015 vs_scripted_win 0.8
+update 482 60.98s (rollout 16.62 gae 1.26 ppo 43.10) samples/s 2112 reward 0.0016 vs_scripted_win 1.0
+update 483 63.45s (rollout 19.87 gae 1.71 ppo 41.88) samples/s 2075 reward 0.0013 vs_scripted_win 1.0
+update 484 58.72s (rollout 18.08 gae 1.36 ppo 39.29) samples/s 2166 reward 0.0013 vs_scripted_win 1.0
+update 485 60.55s (rollout 17.72 gae 1.38 ppo 41.46) samples/s 2039 reward 0.0015 vs_scripted_win 1.0
+update 486 62.68s (rollout 20.48 gae 1.42 ppo 40.78) samples/s 1951 reward 0.0014 vs_scripted_win 1.0
+update 487 56.94s (rollout 15.06 gae 1.29 ppo 40.59) samples/s 2210 reward 0.0019 vs_scripted_win 1.0
+update 488 59.96s (rollout 18.73 gae 1.81 ppo 39.42) samples/s 2106 reward 0.0016 vs_scripted_win 1.0
+update 489 64.39s (rollout 23.25 gae 1.29 ppo 39.85) samples/s 1982 reward 0.0016 vs_scripted_win 0.5
+update 490 57.28s (rollout 16.40 gae 1.64 ppo 39.24) samples/s 2265 reward 0.0014 vs_scripted_win 1.0
+update 491 56.00s (rollout 16.57 gae 1.00 ppo 38.44) samples/s 2322 reward 0.0017 vs_scripted_win 1.0
+update 492 62.07s (rollout 17.03 gae 1.30 ppo 43.74) samples/s 2104 reward 0.0017 vs_scripted_win None
+update 493 60.70s (rollout 19.60 gae 1.70 ppo 39.39) samples/s 2126 reward 0.0017 vs_scripted_win 1.0
+update 494 66.71s (rollout 22.18 gae 1.47 ppo 43.05) samples/s 1997 reward 0.0012 vs_scripted_win 1.0
+update 495 60.87s (rollout 18.10 gae 1.22 ppo 41.56) samples/s 2228 reward 0.0013 vs_scripted_win 1.0
+update 496 61.40s (rollout 19.56 gae 1.45 ppo 40.39) samples/s 2164 reward 0.0011 vs_scripted_win 1.0
+update 497 69.06s (rollout 19.96 gae 1.74 ppo 47.36) samples/s 1954 reward 0.0016 vs_scripted_win 1.0
+update 498 65.13s (rollout 17.71 gae 1.32 ppo 46.10) samples/s 2042 reward 0.0016 vs_scripted_win 1.0
+update 499 61.63s (rollout 17.01 gae 1.37 ppo 43.25) samples/s 2165 reward 0.0015 vs_scripted_win 0.6666666666666666
+update 500 62.75s (rollout 18.71 gae 1.55 ppo 42.50) samples/s 2156 reward 0.0016 vs_scripted_win 1.0
+update 501 69.43s (rollout 20.84 gae 1.51 ppo 47.07) samples/s 2009 reward 0.0010 vs_scripted_win 1.0
+update 502 61.23s (rollout 15.83 gae 1.49 ppo 43.90) samples/s 2291 reward 0.0009 vs_scripted_win 1.0
+update 503 66.20s (rollout 21.71 gae 1.51 ppo 42.97) samples/s 2075 reward 0.0012 vs_scripted_win 1.0
+update 504 63.94s (rollout 17.06 gae 1.33 ppo 45.55) samples/s 2145 reward 0.0014 vs_scripted_win 1.0
+update 505 60.81s (rollout 14.32 gae 1.31 ppo 45.18) samples/s 2215 reward 0.0011 vs_scripted_win 1.0
+update 506 64.86s (rollout 17.74 gae 1.82 ppo 45.30) samples/s 2051 reward 0.0011 vs_scripted_win 1.0
+update 507 63.35s (rollout 18.92 gae 1.38 ppo 43.05) samples/s 2115 reward 0.0011 vs_scripted_win 0.8
+update 508 64.03s (rollout 17.57 gae 1.14 ppo 45.31) samples/s 2078 reward 0.0011 vs_scripted_win 1.0
+update 509 62.54s (rollout 18.18 gae 1.18 ppo 43.18) samples/s 2103 reward 0.0015 vs_scripted_win 1.0
+update 510 67.62s (rollout 22.01 gae 1.81 ppo 43.79) samples/s 1933 reward 0.0015 vs_scripted_win 1.0
+update 511 56.46s (rollout 13.51 gae 1.56 ppo 41.38) samples/s 2366 reward 0.0012 vs_scripted_win 1.0
+update 512 71.33s (rollout 25.33 gae 1.54 ppo 44.46) samples/s 1884 reward 0.0014 vs_scripted_win None
+update 513 59.41s (rollout 16.41 gae 1.45 ppo 41.56) samples/s 2238 reward 0.0015 vs_scripted_win 1.0
+update 514 61.59s (rollout 19.31 gae 1.57 ppo 40.71) samples/s 2116 reward 0.0019 vs_scripted_win 1.0
+update 515 66.56s (rollout 18.59 gae 1.27 ppo 46.70) samples/s 1999 reward 0.0014 vs_scripted_win 1.0
+update 516 62.32s (rollout 18.09 gae 1.55 ppo 42.68) samples/s 2144 reward 0.0014 vs_scripted_win 1.0
+update 517 65.34s (rollout 18.32 gae 1.06 ppo 45.96) samples/s 2047 reward 0.0017 vs_scripted_win 1.0
+update 518 67.39s (rollout 19.38 gae 1.59 ppo 46.42) samples/s 1972 reward 0.0016 vs_scripted_win 0.8333333333333334
+update 519 66.25s (rollout 16.77 gae 1.51 ppo 47.98) samples/s 1964 reward 0.0014 vs_scripted_win 0.75
+update 520 60.58s (rollout 17.14 gae 1.44 ppo 42.00) samples/s 2143 reward 0.0012 vs_scripted_win 0.5
+update 521 60.40s (rollout 14.48 gae 1.25 ppo 44.68) samples/s 2159 reward 0.0015 vs_scripted_win 1.0
+update 522 61.33s (rollout 18.48 gae 1.36 ppo 41.48) samples/s 2117 reward 0.0017 vs_scripted_win 1.0
+update 523 51.08s (rollout 12.84 gae 1.22 ppo 37.02) samples/s 2552 reward 0.0016 vs_scripted_win 1.0
+update 524 62.37s (rollout 17.73 gae 1.60 ppo 43.04) samples/s 2092 reward 0.0014 vs_scripted_win 1.0
+update 525 62.30s (rollout 19.49 gae 1.42 ppo 41.40) samples/s 2069 reward 0.0012 vs_scripted_win 1.0
+update 526 61.08s (rollout 20.69 gae 1.33 ppo 39.06) samples/s 2146 reward 0.0011 vs_scripted_win 1.0
+update 527 55.89s (rollout 16.08 gae 1.07 ppo 38.74) samples/s 2375 reward 0.0015 vs_scripted_win 1.0
+update 528 61.46s (rollout 18.39 gae 1.35 ppo 41.72) samples/s 2138 reward 0.0014 vs_scripted_win 1.0
+update 529 59.35s (rollout 18.58 gae 1.35 ppo 39.43) samples/s 2242 reward 0.0017 vs_scripted_win 1.0
+update 530 56.73s (rollout 17.94 gae 1.21 ppo 37.58) samples/s 2301 reward 0.0017 vs_scripted_win 0.8571428571428571
+update 531 61.72s (rollout 22.98 gae 1.41 ppo 37.33) samples/s 2143 reward 0.0017 vs_scripted_win 1.0
+update 532 56.03s (rollout 15.07 gae 1.88 ppo 39.07) samples/s 2318 reward 0.0012 vs_scripted_win 1.0
+update 533 65.06s (rollout 20.60 gae 1.24 ppo 43.22) samples/s 2037 reward 0.0013 vs_scripted_win 1.0
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/timg/code/rl-fighter/spacefight/train_spike.py", line 429, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "/home/timg/code/rl-fighter/spacefight/train_spike.py", line 424, in main
+    code: int = args.func(args)
+                ~~~~~~~~~^^^^^^
+  File "/home/timg/code/rl-fighter/spacefight/train_spike.py", line 402, in run_ppo
+    finished = trainer.train(on_update_end=report)
+  File "/home/timg/code/rl-fighter/spacefight/rl/spike_ppo.py", line 1669, in train
+    row = self.run_update()
+  File "/home/timg/code/rl-fighter/spacefight/rl/spike_ppo.py", line 1690, in run_update
+    tally, steps = self._collect(update)
+                   ~~~~~~~~~~~~~^^^^^^^^
+  File "/home/timg/code/rl-fighter/spacefight/rl/spike_ppo.py", line 1874, in _collect
+    _, rewards, dones, info = env.step()
+                              ~~~~~~~~^^
+  File "/home/timg/code/rl-fighter/spacefight/env/rust_env.py", line 670, in step
+    self._advance_rosters(done_envs)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "/home/timg/code/rl-fighter/spacefight/env/rust_env.py", line 620, in _advance_rosters
+    self.set_next_roster(i, self.roster_sampler.sample())
+                            ~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/home/timg/code/rl-fighter/spacefight/commander/stable.py", line 150, in sample
+    roster = self.inner.sample()
+  File "/home/timg/code/rl-fighter/spacefight/env/rosters.py", line 1059, in sample
+    return self._drill()
+           ~~~~~~~~~~~^^
+  File "/home/timg/code/rl-fighter/spacefight/env/rosters.py", line 1077, in _drill
+    return self.drills.roster(kind, int(rng.integers(2**62)))
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/timg/code/rl-fighter/spacefight/env/drills.py", line 401, in roster
+    return self.generate(kind, seed).roster()
+           ~~~~~~~~~~~~~^^^^^^^^^^^^
+  File "/home/timg/code/rl-fighter/spacefight/env/drills.py", line 396, in generate
+    return self._goto(seed, rng)
+           ~~~~~~~~~~^^^^^^^^^^^
+  File "/home/timg/code/rl-fighter/spacefight/env/drills.py", line 571, in _goto
+    start, point = self._route(rng, GOTO_FAR if far else GOTO_NEAR)
+                   ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/timg/code/rl-fighter/spacefight/env/drills.py", line 564, in _route
+    raise RuntimeError(
+        f"no go-to route of {low}..{high} m fits an arena of {self.arena_radius} m"
+    )
+RuntimeError: no go-to route of 400.0..745.0 m fits an arena of 450.0 m

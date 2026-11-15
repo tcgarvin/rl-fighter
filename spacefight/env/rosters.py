@@ -700,6 +700,8 @@ class PilotsDistribution:
             §2) instead of matches; ``commander_p`` then splits what is left.
         drill_weights: Weights of the drill kinds ``DRILL_KINDS`` (go-to, attack,
             defend) among the drills.
+        drill_goto_solo_share: Chance that a go-to drill is one ship alone whatever
+            squad size it drew (``DrillGenerator``); 0 leaves every drill as it was.
 
     Raises:
         ValueError: Bad weights, shares or draft sizes, or a live roster or a drill
@@ -717,6 +719,7 @@ class PilotsDistribution:
     max_ships: int = MAX_SHIPS
     drill_share: float = 0.0
     drill_weights: tuple[float, ...] = (1.0, 1.0, 1.0)
+    drill_goto_solo_share: float = 0.0
 
     def __post_init__(self) -> None:
         if self.kind != PILOTS_KIND:
@@ -725,7 +728,12 @@ class PilotsDistribution:
             raise ValueError(f"mission_weights needs one weight per {MISSIONS}")
         if any(w < 0 for w in self.mission_weights) or sum(self.mission_weights) <= 0:
             raise ValueError("mission_weights must be >= 0 with a positive sum")
-        for name in ("commander_p", "default_roster_share", "drill_share"):
+        for name in (
+            "commander_p",
+            "default_roster_share",
+            "drill_share",
+            "drill_goto_solo_share",
+        ):
             if not 0.0 <= getattr(self, name) <= 1.0:
                 raise ValueError(f"{name} must be in [0, 1], got {getattr(self, name)}")
         if len(self.drill_weights) != len(DRILL_KINDS):
@@ -1043,7 +1051,7 @@ class PilotsRosterSampler:
             # Imported here: spacefight.env.drills builds Rosters from this module.
             from spacefight.env.drills import DrillGenerator
 
-            self.drills = DrillGenerator()
+            self.drills = DrillGenerator(goto_solo_share=d.drill_goto_solo_share)
 
     @property
     def max_ships(self) -> int:

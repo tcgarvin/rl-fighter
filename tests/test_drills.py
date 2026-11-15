@@ -238,6 +238,39 @@ def test_variety_covers_hulls_squad_sizes_and_go_to_distances() -> None:
     assert 90 <= sum(s.enemies_around for s in specs) <= 210
 
 
+@pytest.mark.parametrize("seed", [19472, 28092, 28614])
+def test_a_far_route_that_needs_many_tries_is_still_found(seed: int) -> None:
+    # These seeds found no far route in 64 tries, which stopped two training runs.
+    spec = GEN.generate(DRILL_GOTO, seed)
+    assert spec.far
+    assert min(spec.distances) > 300.0
+
+
+def test_a_solo_share_makes_more_go_tos_one_ship_alone() -> None:
+    assert GEN.goto_solo_share == 0.0
+    solo = DrillGenerator(goto_solo_share=0.6)
+    sizes = [len(solo.generate(DRILL_GOTO, seed).pilots) for seed in range(400)]
+    # 0.6 forced, and a quarter of the rest drawn alone anyway: 0.7.
+    assert 250 <= sizes.count(1) <= 310
+    assert set(sizes) == {1, 2, 3, 4}
+    always = DrillGenerator(goto_solo_share=1.0)
+    assert {len(always.generate(DRILL_GOTO, seed).pilots) for seed in range(40)} == {1}
+    with pytest.raises(ValueError, match="goto_solo_share"):
+        DrillGenerator(goto_solo_share=1.2)
+
+
+def test_the_sampler_passes_the_solo_share_to_its_go_to_drills() -> None:
+    only_goto = {"drill_share": 1.0, "drill_weights": (1.0, 0.0, 0.0)}
+    solo = PilotsRosterSampler(
+        PilotsDistribution(drill_goto_solo_share=1.0, **only_goto), 7
+    )
+    assert {len(r.drill.pilots) for r in solo.sample_many(40)} == {1}  # type: ignore[union-attr]
+    plain = PilotsRosterSampler(PilotsDistribution(**only_goto), 7)
+    assert len({len(r.drill.pilots) for r in plain.sample_many(40)}) > 1  # type: ignore[union-attr]
+    with pytest.raises(ValueError, match="drill_goto_solo_share"):
+        PilotsDistribution(drill_goto_solo_share=-0.1)
+
+
 def test_go_to_enemies_are_around_the_route_or_far_from_it() -> None:
     near_route: list[float] = []
     far_from_route: list[float] = []

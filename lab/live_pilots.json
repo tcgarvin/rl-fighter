@@ -1,26 +1,12 @@
 {
  "schema": "rlf.live_pilots/1",
  "season": "lab/population/2026-11-sim6",
- "entry": "2026-11-12-pilots-v8",
+ "entry": "2026-11-14-goto-school",
  "pilots": [
-  {
-   "id": "f995_701",
-   "family": "fighters",
-   "rating": 16.80647185521528,
-   "checkpoint": "lab/runs/2026-11-01-fighters-v2/f995/checkpoints/ppo_bc_701.pt",
-   "sha256": "bf3bd0cb3c27889e9be4915f24c9674f375dd8bc815307596068e1f3ef99cf54",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/f995_701/bf3bd0cb3c27889e9be4915f24c9674f375dd8bc815307596068e1f3ef99cf54.pt",
-   "note": "The long-horizon fighter, champion before these lists and founder of the fighters family. Fights hard and ignores orders.",
-   "follows": {
-    "go_to": 0.22,
-    "attack": 0.14,
-    "defend": 0.11
-   }
-  },
   {
    "id": "fighters_pay1_1317",
    "family": "fighters",
-   "rating": 16.742449585451872,
+   "rating": 17.388505289986085,
    "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters_pay1/checkpoints/ppo_bc_1317.pt",
    "sha256": "420dc5c042ba31c1d24ace7333ff33c14c6e54db74cf3b67a9b098c6cdf6012d",
    "url": "https://storage.tcgarvin.com/rl-fighter/pilots/fighters_pay1_1317/420dc5c042ba31c1d24ace7333ff33c14c6e54db74cf3b67a9b098c6cdf6012d.pt",
@@ -34,7 +20,7 @@
   {
    "id": "f99_696",
    "family": "history",
-   "rating": 16.65398029495156,
+   "rating": 16.930973290107378,
    "checkpoint": "lab/runs/2026-11-01-fighters-v2/f99/checkpoints/ppo_bc_696.pt",
    "sha256": "345be910ff548533a41fa5fd1ae65df75c1a0f08e7d50f8494a784d8578ab77f",
    "url": "https://storage.tcgarvin.com/rl-fighter/pilots/f99_696/345be910ff548533a41fa5fd1ae65df75c1a0f08e7d50f8494a784d8578ab77f.pt",
@@ -42,75 +28,23 @@
    "follows": {}
   },
   {
-   "id": "followers_v8_352",
-   "family": "followers",
-   "rating": 16.578012402498665,
-   "checkpoint": "lab/runs/2026-11-12-pilots-v8/followers_v8/checkpoints/ppo_bc_352.pt",
-   "sha256": "4a012bb278b1c6bf5f4847fe1ab3b910338eba394412f61e6d079275dd610b22",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/followers_v8_352/4a012bb278b1c6bf5f4847fe1ab3b910338eba394412f61e6d079275dd610b22.pt",
-   "note": "followers_1793 trained a fifth night, and one of the first two pilots here that can see a go-to order's deadline. It has not yet learned to fly by it: alone it still fights first. It adds more wins than its parent.",
-   "follows": {
-    "go_to": 0.51,
-    "attack": 0.72,
-    "defend": 0.76
-   }
-  },
-  {
-   "id": "fighters_pay1_462",
+   "id": "f995_701",
    "family": "fighters",
-   "rating": 15.454644112557279,
-   "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters_pay1/checkpoints/ppo_bc_462.pt",
-   "sha256": "638b4394aa6e465c1e9ada826bb10d73ad72cc347bddfad906d497b374d1597c",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/fighters_pay1_462/638b4394aa6e465c1e9ada826bb10d73ad72cc347bddfad906d497b374d1597c.pt",
-   "note": "f995_701 retrained at a third of the order pay. It fights better than fighters_506 and follows orders less.",
+   "rating": 15.440647405369733,
+   "checkpoint": "lab/runs/2026-11-01-fighters-v2/f995/checkpoints/ppo_bc_701.pt",
+   "sha256": "bf3bd0cb3c27889e9be4915f24c9674f375dd8bc815307596068e1f3ef99cf54",
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/f995_701/bf3bd0cb3c27889e9be4915f24c9674f375dd8bc815307596068e1f3ef99cf54.pt",
+   "note": "The long-horizon fighter, champion before these lists and founder of the fighters family. Fights hard and ignores orders.",
    "follows": {
-    "go_to": 0.2,
-    "attack": 0.25,
-    "defend": 0.21
-   }
-  },
-  {
-   "id": "fighters_pay1_849",
-   "family": "fighters",
-   "rating": 14.598092695049521,
-   "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters_pay1/checkpoints/ppo_bc_849.pt",
-   "sha256": "a8f5becf3cf85bf2db87db567f9fe20cd7073168d5c792bddea13f21801f8b13",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/fighters_pay1_849/a8f5becf3cf85bf2db87db567f9fe20cd7073168d5c792bddea13f21801f8b13.pt",
-   "note": "fighters_pay1_462 trained a second night under the learned commanders. Retired from training on 2026-11-10 for fighters_pay1_1317, its next night, but still flies here.",
-   "follows": {
-    "go_to": 0.21,
-    "attack": 0.3,
-    "defend": 0.28
-   }
-  },
-  {
-   "id": "f995_400",
-   "family": "history",
-   "rating": 14.019590466604175,
-   "checkpoint": "lab/runs/2026-11-01-fighters-v2/f995/checkpoints/ppo_bc_400.pt",
-   "sha256": "c208c3aa979d5fbd10f7bb324194e628e9ba5054e3976865f30362186109b883",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/f995_400/c208c3aa979d5fbd10f7bb324194e628e9ba5054e3976865f30362186109b883.pt",
-   "note": "The same training run as f995_701, 301 updates earlier. Beats it in convoy escort.",
-   "follows": {}
-  },
-  {
-   "id": "fighters_pay1_v8_351",
-   "family": "fighters",
-   "rating": 13.012073095578378,
-   "checkpoint": "lab/runs/2026-11-12-pilots-v8/fighters_pay1_v8/checkpoints/ppo_bc_351.pt",
-   "sha256": "c41a780f8c0a2833d0765c32ad9adcd1876ed71f2ddbb789a9c7aab2383a55e1",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/fighters_pay1_v8_351/c41a780f8c0a2833d0765c32ad9adcd1876ed71f2ddbb789a9c7aab2383a55e1.pt",
-   "note": "fighters_pay1_1317 trained a fourth night, and one of the first two pilots here that can see a go-to order's deadline. It reaches a go-to point a little more often than its parent, still under a third of the time, and fights a little worse.",
-   "follows": {
-    "go_to": 0.31,
-    "attack": 0.26,
-    "defend": 0.33
+    "go_to": 0.22,
+    "attack": 0.14,
+    "defend": 0.11
    }
   },
   {
    "id": "followers_1323",
    "family": "followers",
-   "rating": 12.761456303394626,
+   "rating": 15.142439566609415,
    "checkpoint": "lab/runs/2026-11-01-pilot-families/followers/checkpoints/ppo_bc_1323.pt",
    "sha256": "1f50f4a24159d2a2b15b57da3b9f7195d22000960ad1561bb398a80a981fdae7",
    "url": "https://storage.tcgarvin.com/rl-fighter/pilots/followers_1323/1f50f4a24159d2a2b15b57da3b9f7195d22000960ad1561bb398a80a981fdae7.pt",
@@ -122,20 +56,86 @@
    }
   },
   {
-   "id": "fighters_1832",
+   "id": "fighters_pay1_462",
    "family": "fighters",
-   "rating": 12.439728965999757,
-   "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters/checkpoints/ppo_bc_1832.pt",
-   "sha256": "8fcdbfb7b0718700d45503c1f5cc6c5234654a1ed40001da97375776da88a790",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/fighters_1832/8fcdbfb7b0718700d45503c1f5cc6c5234654a1ed40001da97375776da88a790.pt",
-   "note": "fighters_1338 trained a fourth night with each shot costing twice as much, under the new crash rules. It holds the trigger less than its parent and takes far less crash damage.",
+   "rating": 15.02701600856366,
+   "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters_pay1/checkpoints/ppo_bc_462.pt",
+   "sha256": "638b4394aa6e465c1e9ada826bb10d73ad72cc347bddfad906d497b374d1597c",
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/fighters_pay1_462/638b4394aa6e465c1e9ada826bb10d73ad72cc347bddfad906d497b374d1597c.pt",
+   "note": "f995_701 retrained at a third of the order pay. It fights better than fighters_506 and follows orders less.",
    "follows": {
-    "go_to": 0.26,
-    "attack": 0.65,
-    "defend": 0.67
+    "go_to": 0.2,
+    "attack": 0.25,
+    "defend": 0.21
+   }
+  },
+  {
+   "id": "followers_school_600",
+   "family": "followers",
+   "rating": 14.522282418299948,
+   "checkpoint": "lab/runs/2026-11-14-goto-school/followers_school/checkpoints/ppo_bc_600.pt",
+   "sha256": "3bc59822262ec0343fa6aea628a275b86c0d3da13acef34101437dcbbc584fad",
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/followers_school_600/3bc59822262ec0343fa6aea628a275b86c0d3da13acef34101437dcbbc584fad.pt",
+   "note": "followers_v8_352 after a night of go-to school, with go-to drills as most of its training. In a squad it makes seven go-to deadlines in ten where its parent made five, and it follows attack and defend orders as well as any pilot here. Sent somewhere alone, it still fights first.",
+   "follows": {
+    "go_to": 0.7,
+    "attack": 0.86,
+    "defend": 0.89
+   }
+  },
+  {
+   "id": "f995_400",
+   "family": "history",
+   "rating": 14.305442066128533,
+   "checkpoint": "lab/runs/2026-11-01-fighters-v2/f995/checkpoints/ppo_bc_400.pt",
+   "sha256": "c208c3aa979d5fbd10f7bb324194e628e9ba5054e3976865f30362186109b883",
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/f995_400/c208c3aa979d5fbd10f7bb324194e628e9ba5054e3976865f30362186109b883.pt",
+   "note": "The same training run as f995_701, 301 updates earlier. Beats it in convoy escort.",
+   "follows": {}
+  },
+  {
+   "id": "followers_pay3_810",
+   "family": "followers",
+   "rating": 13.786711017180226,
+   "checkpoint": "lab/runs/2026-11-14-goto-school/followers_pay3/checkpoints/ppo_bc_810.pt",
+   "sha256": "53f35ac92e152e6206b1451c7cb56d74bedcf18c6424436872bc92a957e24977",
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/followers_pay3_810/53f35ac92e152e6206b1451c7cb56d74bedcf18c6424436872bc92a957e24977.pt",
+   "note": "The school pilot's twin: the same night with its usual drills and only a higher pay for making a go-to deadline. It gained less than half as much on go-to orders, and fights about as well.",
+   "follows": {
+    "go_to": 0.59,
+    "attack": 0.75,
+    "defend": 0.73
+   }
+  },
+  {
+   "id": "fighters_pay1_v8_351",
+   "family": "fighters",
+   "rating": 13.655198589435564,
+   "checkpoint": "lab/runs/2026-11-12-pilots-v8/fighters_pay1_v8/checkpoints/ppo_bc_351.pt",
+   "sha256": "c41a780f8c0a2833d0765c32ad9adcd1876ed71f2ddbb789a9c7aab2383a55e1",
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/fighters_pay1_v8_351/c41a780f8c0a2833d0765c32ad9adcd1876ed71f2ddbb789a9c7aab2383a55e1.pt",
+   "note": "fighters_pay1_1317 trained a fourth night, and one of the first two pilots here that can see a go-to order's deadline. It reaches a go-to point a little more often than its parent, still under a third of the time, and fights a little worse.",
+   "follows": {
+    "go_to": 0.31,
+    "attack": 0.26,
+    "defend": 0.33
+   }
+  },
+  {
+   "id": "followers_v8_352",
+   "family": "followers",
+   "rating": 12.764213896545893,
+   "checkpoint": "lab/runs/2026-11-12-pilots-v8/followers_v8/checkpoints/ppo_bc_352.pt",
+   "sha256": "4a012bb278b1c6bf5f4847fe1ab3b910338eba394412f61e6d079275dd610b22",
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/followers_v8_352/4a012bb278b1c6bf5f4847fe1ab3b910338eba394412f61e6d079275dd610b22.pt",
+   "note": "followers_1793 trained a fifth night, and one of the first two pilots here that can see a go-to order's deadline. It has not yet learned to fly by it: alone it still fights first. It adds more wins than its parent.",
+   "follows": {
+    "go_to": 0.51,
+    "attack": 0.72,
+    "defend": 0.76
    }
   }
  ],
  "rated_by": "war",
- "war": "lab/population/2026-11-sim6/war/first-v8-night/war.json"
+ "war": "lab/population/2026-11-sim6/war/goto-school/war.json"
 }

@@ -1,0 +1,39 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "fighters_v8_500",
+ "family": "fighters",
+ "founder": "f995_701",
+ "parent": "fighters_v8_362",
+ "relation": "fork",
+ "fork_update": 362,
+ "settings_changed": {
+  "sim_version": 8,
+  "obs_dim": 587,
+  "goto_timed_bonus": 1.0,
+  "goto_miss_penalty": 1.0
+ },
+ "checkpoint": "lab/runs/2026-11-14-goto-school/fighters_v8/checkpoints/ppo_bc_500.pt",
+ "sha256": "afd862961a494a749ec8ad33818a7708da28bb734d7975f68325de52f20f0f36",
+ "status": "active",
+ "archived_reason": "",
+ "archived_date": "",
+ "note": "Go-to school, unchanged: fighters_v8_362 a second night on the first v8 night's settings.",
+ "ratings": [],
+ "drills": [
+  {
+   "phase": "goto-school",
+   "date": "2026-11-14",
+   "scores": {
+    "goto_arrival": 0.5009242144177449,
+    "goto_lift": 0.2530756774125814,
+    "attack_target_hit": 0.91796875,
+    "attack_side": 0.875,
+    "attack_flip": 0.7578125,
+    "defend_more_on_named": 0.880859375,
+    "defend_side": 0.90234375,
+    "defend_flip": 0.8125
+   },
+   "passed": false
+  }
+ ]
+}

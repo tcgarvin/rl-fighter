@@ -180,7 +180,9 @@ cargo test -p sim --test drills
 # eval splits go-to by deadline, slack band and what the ships that were late did (go-to
 # numbers from before v8 are not comparable). Trainer keys (PPOConfig, --set):
 # goto_timed_bonus (1.0, pay for arriving by the deadline), goto_miss_penalty (1.0, charged
-# once on a miss); logs drill_goto_timed_ships / drill_goto_missed. A 583-input pilot takes
+# once on a miss); logs drill_goto_timed_ships / drill_goto_missed. roster_overrides key
+# drill_goto_solo_share (0): the chance a go-to drill is one ship alone whatever it drew.
+# A 583-input pilot takes
 # the new inputs with --init <ckpt> --set obs_dim=587 --set new_input_lr_mult=3; --set
 # obs_dim=583 trains it blind to them. The deadline sweep (rlf.eval.goto_sweep/1, report
 # beside it): one ship, the same starts flown at slack 0.8 to 8 and with no deadline;

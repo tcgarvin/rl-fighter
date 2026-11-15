@@ -1,0 +1,45 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "followers_school_600",
+ "family": "followers",
+ "founder": "transit_300",
+ "parent": "followers_v8_352",
+ "relation": "fork",
+ "fork_update": 352,
+ "settings_changed": {
+  "sim_version": 8,
+  "obs_dim": 587,
+  "goto_timed_bonus": 3.0,
+  "goto_miss_penalty": 3.0,
+  "drill_share": 0.7,
+  "drill_weights": [
+   6,
+   1,
+   1
+  ]
+ },
+ "checkpoint": "lab/runs/2026-11-14-goto-school/followers_school/checkpoints/ppo_bc_600.pt",
+ "sha256": "3bc59822262ec0343fa6aea628a275b86c0d3da13acef34101437dcbbc584fad",
+ "status": "active",
+ "archived_reason": "",
+ "archived_date": "",
+ "note": "Go-to school: followers_v8_352 one night on with go-to drills as most of its training and a deadline worth 3.",
+ "ratings": [],
+ "drills": [
+  {
+   "phase": "goto-school",
+   "date": "2026-11-14",
+   "scores": {
+    "goto_arrival": 0.6986301369863014,
+    "goto_lift": 0.5102739726027398,
+    "attack_target_hit": 0.947265625,
+    "attack_side": 0.92578125,
+    "attack_flip": 0.85546875,
+    "defend_more_on_named": 0.876953125,
+    "defend_side": 0.947265625,
+    "defend_flip": 0.89453125
+   },
+   "passed": true
+  }
+ ]
+}

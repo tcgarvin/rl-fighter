@@ -206,6 +206,11 @@ to show what a pilot does when it cannot make it.
 extra number is drawn, so the draws are unchanged). A family's `commander_p` splits what is
 left after drills, so the Fighters row of section 4 is `drill_share: 0.1, commander_p: 0.333`.
 
+`drill_goto_solo_share` (default 0, since 2026-11-14): the chance that a go-to drill is one
+ship alone whatever squad size it drew. Squads are 1 to 4 ships evenly, so at 0 a quarter
+of go-to drills and a tenth of go-to ships are alone; at 0.6, seven drills in ten are. At 0
+no extra number is drawn. It is a training setting: the drill eval and the sweep keep 0.
+
 - A drill env's enemies are the script and the learner is team 0, the ordered team. It is
   held out of the opponent quota (`OpponentAssigner.force_scripted`), so the band shares
   still describe matches.
@@ -348,6 +353,50 @@ them to fly by the deadline.
 
 `followers_v8_352` and `fighters_pay1_v8_351` joined the live ten on WAR. Nobody was
 archived. Next: `lab/runs/2026-11-14-goto-school`.
+
+**Go-to school, 2026-11-14** (`lab/runs/2026-11-14-goto-school`; sweeps in
+`lab/population/2026-11-sim6/sweep/goto-school/`). Three lines from 01:30:
+`followers_school` (drill share 0.7, go-to weighted 6 of 8, a deadline worth 3),
+`followers_pay3` (the first night's drills, a deadline worth 3) and `fighters_v8` unchanged.
+`fighters_v8` died at 04:31 and `followers_school` at 05:09 on the route fault below, so
+their pilots are from updates 500 and 600.
+
+| Pilot | Updates | Drill go-to, in time | Tight | In a squad | Alone | Sweep, slack 2 | Attack, defend flip | WAR |
+|---|---|---|---|---|---|---|---|---|
+| `followers_v8_352` | parent | 0.51 | 0.30 | 0.51 | 0.41 | 0.06 | 0.72, 0.76 | +12.8 |
+| `followers_school_600` | 248 | 0.70 | 0.60 | 0.72 | 0.41 | 0.12 | 0.86, 0.89 | +14.5 |
+| `followers_pay3_810` | 458 | 0.59 | 0.46 | 0.61 | 0.39 | 0.09 | 0.75, 0.73 | +13.8 |
+| `fighters_v8_362` | parent | 0.42 | 0.33 | 0.43 | 0.24 | 0.05 | 0.73, 0.76 | +12.6 |
+| `fighters_v8_500` | 138 | 0.50 | 0.42 | 0.51 | 0.32 | 0.08 | 0.76, 0.81 | +9.4 |
+
+- **More go-to drills teach a squad the deadline; pay alone does less.** School gained 0.19
+  in 248 updates, pay 0.08 in 458, and the unchanged line 0.08 in 138, so part of every
+  gain is time. `drill_goto_missed` fell all night on every arm (school 0.33 to 0.25 first
+  quarter to last) and had not levelled off.
+- **A ship alone did not move.** "Alone" is about 40 ships a pilot (each ±0.15), but the
+  sweep agrees: in time at slack 1.5 and over 0.26 to 0.31 for school, 0.32 for pay, 0.19 to
+  0.25 for `fighters_v8`. Against a parked enemy school makes 0.02 at slack 2. One go-to
+  drill in four is a lone ship, which is one go-to ship in ten.
+- **School reads the deadline and it does not help it alone.** Seeing it, it covers half
+  the distance sooner (18 s against 28 s with the inputs zeroed, slack 1.5) and deals less
+  on the way (44 against 58 at slack 2), and is in time no more often (0.31 against 0.34).
+  `fighters_v8_500` is in time more often seeing (0.25 against 0.21).
+- **School's attack and defend flips rose** though it flew fewer of those drills than its
+  twin (about 1,200 against 1,600). `followers_school_600` meets every bar of the gate.
+- **No cost in combat.** All three beat their parents head to head (0.53, 0.53, 0.59).
+  `fighters_v8_500` rates 3.2 below its parent all the same; that split is still not
+  explained.
+
+`followers_school_600` and `followers_pay3_810` joined the live ten on WAR;
+`fighters_pay1_849` and `fighters_1832` left it. Nobody was archived. Next:
+`lab/runs/2026-11-14-goto-school-2` (school again, school with lone ships, school on the
+`fighters_pay1` line).
+
+**The route fault (fixed 2026-11-14).** A go-to route is placed by trial, and a far one
+fits the arena on about one draw in eight. At 64 tries a far drill failed once in about
+6,700, which raised in the sampler and stopped the trainer. `ROUTE_PLACEMENT_TRIES` is now
+4,096; a seed that found its route within 64 tries draws the same route. Night scripts
+since restart an arm that dies, from its last checkpoint.
 
 ### Obeying only in drills: what a pilot can see
 

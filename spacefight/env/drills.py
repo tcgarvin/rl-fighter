@@ -145,6 +145,10 @@ START_SPEED_FRAC = 0.5
 WARD_MAX_SPEED = 3.0
 ENEMY_START_SPEED_FRAC = 0.3
 MAX_PLACEMENT_TRIES = 64
+# A far go-to route fits the arena on about one draw in eight, so 64 tries failed once
+# in about 6,700 far drills, which stopped two training runs in one night. A seed that
+# found its route within 64 tries draws the same route as before.
+ROUTE_PLACEMENT_TRIES = 4096
 # Bearings tried for a parked ship's place on the rim.
 PARKED_BEARINGS = 72
 
@@ -367,17 +371,28 @@ class DrillGenerator:
         assets_dir: Directory holding ``hulls/``, for the speed caps.
         arena_radius: The drills' arena, metres (default: the shared rule's for a drill's
             ship count, which is the same for every drill today).
+        goto_solo_share: Chance that a go-to drill is one ship alone whatever squad
+            size it drew (a lone ship is the case pilots fail most). At 0 no extra
+            number is drawn, so a seed's drill is what it always was. A training
+            setting: the drill eval keeps 0.
 
     Raises:
         FileNotFoundError: No hull YAML under ``assets_dir``.
         KeyError: A drill hull missing from the assets.
+        ValueError: ``goto_solo_share`` outside [0, 1].
     """
 
     def __init__(
         self,
         assets_dir: Path = DEFAULT_ASSETS,
         arena_radius: float = arena_radius_for(12),
+        goto_solo_share: float = 0.0,
     ) -> None:
+        if not 0.0 <= goto_solo_share <= 1.0:
+            raise ValueError(
+                f"goto_solo_share must be in [0, 1], got {goto_solo_share}"
+            )
+        self.goto_solo_share = goto_solo_share
         caps = load_hull_speed_caps(assets_dir)
         self.speed_caps = {h: caps[h] for h in (*FLEET_HULLS, WARD_HULL)}
         self.arena_radius = arena_radius
@@ -554,7 +569,7 @@ class DrillGenerator:
         low, high = span
         start_limit = START_LIMIT * self.scale
         point_limit = POINT_LIMIT * self.scale
-        for _ in range(MAX_PLACEMENT_TRIES):
+        for _ in range(ROUTE_PLACEMENT_TRIES):
             distance = float(rng.uniform(low, high)) * self.scale
             x = float(rng.uniform(-start_limit, start_limit))
             y0 = float(rng.uniform(-start_limit, start_limit))
@@ -571,6 +586,8 @@ class DrillGenerator:
         start, point = self._route(rng, GOTO_FAR if far else GOTO_NEAR)
         radius = float(rng.uniform(*GOTO_RADIUS)) * self.scale
         n = int(rng.integers(1, MAX_PILOTS + 1))
+        if self.goto_solo_share > 0 and rng.random() < self.goto_solo_share:
+            n = 1
         pilot_hulls = _strike_hulls(rng, n)
         pilot_starts = []
         distances = []
