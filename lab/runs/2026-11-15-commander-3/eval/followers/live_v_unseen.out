@@ -1,0 +1,6 @@
+deathmatch: a scores 0.449 over 384
+carrier_battle: a scores 0.365 over 384
+convoy_escort: a scores 0.513 over 384
+a live/commander_197 v b unseen: 0.442
+a orders: 0.6 a ship-minute, median 6.0 s, 6% under 5 s, ordered 6% of the time
+b orders: 4.1 a ship-minute, median 12.0 s, 23% under 5 s, ordered 99% of the time

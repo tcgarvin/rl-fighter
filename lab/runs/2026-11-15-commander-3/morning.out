@@ -1,0 +1,66 @@
+followers: lab/runs/2026-11-15-commander-3/followers/checkpoints/commander_233.pt
+followers_ent01: lab/runs/2026-11-15-commander-3/followers_ent01/checkpoints/commander_231.pt
+live: lab/runs/2026-11-15-commander-3/live/checkpoints/commander_197.pt
+07:01:24 eval followers followers_ent01_v_unseen
+07:01:24 eval followers followers_v_unseen
+07:16:43 eval live live_v_unseen
+07:16:54 eval followers followers_v_random
+07:31:55 eval followers followers_v_scripted
+07:37:19 eval followers followers_ent01_v_random
+07:45:44 eval followers followers_ent01_v_scripted
+07:54:29 eval live live_v_random
+08:00:50 eval live live_v_scripted
+08:16:31 eval live followers_v_unseen
+08:21:14 eval live followers_ent01_v_unseen
+08:33:17 eval followers live_v_unseen
+08:38:27 eval followers followers_v_followers_ent01
+08:51:19 eval followers followers_v_live
+08:55:22 eval live followers_v_live
+pilots: followers
+ followers_ent01/commander_231 v random                         0.504 +-0.015 over 1152  (deathma 0.52 carrier 0.47 convoy_ 0.52)
+                                 a orders: 6.1/ship-min, median 5.0 s, 6% under 5 s, ordered 48%
+                                 b orders: 4.1/ship-min, median 10.0 s, 7% under 5 s, ordered 62%
+ followers_ent01/commander_231 v scripted                       0.592 +-0.014 over 1152  (deathma 0.51 carrier 0.64 convoy_ 0.62)
+                                 a orders: 6.1/ship-min, median 5.0 s, 6% under 5 s, ordered 48%
+                                 b orders: 4.6/ship-min, median 10.0 s, 27% under 5 s, ordered 99%
+ followers_ent01/commander_231 v unseen                         0.340 +-0.014 over 1152  (deathma 0.37 carrier 0.29 convoy_ 0.37)
+                                 a orders: 6.2/ship-min, median 5.0 s, 5% under 5 s, ordered 48%
+                                 b orders: 4.2/ship-min, median 10.0 s, 25% under 5 s, ordered 99%
+       followers/commander_233 v followers_ent01/commander_231  0.671 +-0.014 over 1152  (deathma 0.62 carrier 0.72 convoy_ 0.67)
+                                 a orders: 0.4/ship-min, median 5.0 s, 9% under 5 s, ordered 4%
+                                 b orders: 6.2/ship-min, median 5.0 s, 6% under 5 s, ordered 48%
+       followers/commander_233 v live/commander_197             0.495 +-0.015 over 1152  (deathma 0.50 carrier 0.51 convoy_ 0.47)
+                                 a orders: 0.4/ship-min, median 5.0 s, 8% under 5 s, ordered 3%
+                                 b orders: 0.4/ship-min, median 6.0 s, 7% under 5 s, ordered 4%
+       followers/commander_233 v random                         0.665 +-0.014 over 1152  (deathma 0.60 carrier 0.72 convoy_ 0.68)
+                                 a orders: 0.5/ship-min, median 5.0 s, 8% under 5 s, ordered 4%
+                                 b orders: 4.2/ship-min, median 10.0 s, 7% under 5 s, ordered 61%
+       followers/commander_233 v scripted                       0.755 +-0.013 over 1152  (deathma 0.63 carrier 0.86 convoy_ 0.78)
+                                 a orders: 0.4/ship-min, median 5.0 s, 8% under 5 s, ordered 4%
+                                 b orders: 4.8/ship-min, median 10.0 s, 26% under 5 s, ordered 99%
+       followers/commander_233 v unseen                         0.484 +-0.015 over 1152  (deathma 0.48 carrier 0.46 convoy_ 0.51)
+                                 a orders: 0.4/ship-min, median 5.0 s, 8% under 5 s, ordered 4%
+                                 b orders: 4.3/ship-min, median 10.0 s, 23% under 5 s, ordered 99%
+            live/commander_197 v unseen                         0.442 +-0.015 over 1152  (deathma 0.45 carrier 0.36 convoy_ 0.51)
+                                 a orders: 0.6/ship-min, median 6.0 s, 6% under 5 s, ordered 6%
+                                 b orders: 4.1/ship-min, median 12.0 s, 23% under 5 s, ordered 99%
+pilots: live
+ followers_ent01/commander_231 v unseen                         0.395 +-0.014 over 1152  (deathma 0.39 carrier 0.34 convoy_ 0.45)
+                                 a orders: 6.2/ship-min, median 5.0 s, 6% under 5 s, ordered 48%
+                                 b orders: 4.7/ship-min, median 10.0 s, 27% under 5 s, ordered 99%
+       followers/commander_233 v live/commander_197             0.487 +-0.015 over 1152  (deathma 0.51 carrier 0.50 convoy_ 0.45)
+                                 a orders: 0.4/ship-min, median 5.0 s, 8% under 5 s, ordered 3%
+                                 b orders: 0.3/ship-min, median 6.0 s, 6% under 5 s, ordered 4%
+       followers/commander_233 v unseen                         0.503 +-0.015 over 1152  (deathma 0.50 carrier 0.51 convoy_ 0.50)
+                                 a orders: 0.4/ship-min, median 5.0 s, 8% under 5 s, ordered 3%
+                                 b orders: 4.9/ship-min, median 10.0 s, 27% under 5 s, ordered 99%
+            live/commander_197 v random                         0.607 +-0.014 over 1152  (deathma 0.60 carrier 0.65 convoy_ 0.58)
+                                 a orders: 0.5/ship-min, median 6.0 s, 8% under 5 s, ordered 6%
+                                 b orders: 4.3/ship-min, median 10.0 s, 8% under 5 s, ordered 61%
+            live/commander_197 v scripted                       0.641 +-0.014 over 1152  (deathma 0.60 carrier 0.64 convoy_ 0.68)
+                                 a orders: 0.5/ship-min, median 6.0 s, 6% under 5 s, ordered 6%
+                                 b orders: 5.0/ship-min, median 8.0 s, 28% under 5 s, ordered 99%
+            live/commander_197 v unseen                         0.491 +-0.015 over 1152  (deathma 0.48 carrier 0.44 convoy_ 0.56)
+                                 a orders: 0.5/ship-min, median 6.0 s, 6% under 5 s, ordered 5%
+                                 b orders: 4.8/ship-min, median 8.0 s, 27% under 5 s, ordered 99%
+09:11:21 done: morning (status 0)

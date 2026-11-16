@@ -19,7 +19,7 @@
       <header class="pilot-head commander-head">
         <p class="kicker">How the commander works</p>
         <h1>A second network gives the orders</h1>
-        <p class="commander-status"><span class="commander-status__dot"></span>On the live page since 2026-11-08, about level with the script</p>
+        <p class="commander-status"><span class="commander-status__dot"></span>On the live page since 2026-11-08; its orders still cost more than they help</p>
         <p class="lede">
           Above the pilots sits a commander: a network that runs a whole team and decides, once a
           second, which ships fly together, what each squad should do, where the carrier
@@ -931,8 +931,10 @@
             Commanders and pilots are meant to take turns: commanders train over frozen
             pilots, then pilots train under frozen commanders
             (<a class="code-link" href="https://github.com/tcgarvin/rl-fighter/blob/main/docs/PILOT_TRAINING.md"><code>docs/PILOT_TRAINING.md</code></a>).
-            This is the first commander phase. The scripted commander stays in the stable
-            of opponents until learned ones beat it.
+            There have been three commander phases. In the third the learner also met a side
+            whose pilots see no orders at all, in half its matches: the only way to beat that
+            side is to give orders that help
+            (<a href="/notebook/#2026-11-15-commander-3">the third phase</a>).
           </p>
         </section>
 
@@ -940,12 +942,13 @@
           <h2>What it isn't (yet)</h2>
           <ul>
             <li>
-              <strong>Better than the script.</strong> After one night the learned
-              commanders are about level with it, and so is one that gives random orders:
-              most of today's pilots ignore orders, so orders barely change a match. They
-              run on the live page beside the script all the same
+              <strong>Better than no orders.</strong> The learned commanders on the live
+              page beat the script, but a side whose pilots get no orders beats them all:
+              today's pilots fly worse under an order, more so the bigger the fleet. Given
+              the choice, the third phase's commanders learned to give almost none. The
+              first phase's three run on the live page beside the script all the same
               (<a href="/?commands=1"><code>?commands=1</code></a> draws their orders), and
-              the next pilots are trained to follow.
+              the next pilots are to be trained to fight well under one.
             </li>
             <li>
               <strong>In charge of the transports.</strong> Convoy transports stay on their

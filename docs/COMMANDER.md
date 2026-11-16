@@ -288,7 +288,11 @@ strike craft's pilot from the live list. Missions and rosters as on the live pag
 scripted commander with its orders hidden from its own pilots, so a side that launches
 as the script does and is otherwise not commanded. On 2026-11-15 that side beat the
 scripted commander 0.75 to 0.25 over pilots that follow orders, and every learned
-commander we had. A learner that beats it gives orders worth more than no orders.
+commander we had. A learner that beats it gives orders worth more than no orders. In the
+third phase none did: with half their matches against it, two fresh commanders learned to
+keep ships under an order only 3 to 6% of the time and ended level with it; one with
+`ent_coef` 0.01 kept ordering about half the time and lost 0.34 to 0.66
+(`lab/runs/2026-11-15-commander-3/results.md`).
 
 **Keep prior** (`TrainConfig.keep_prior`, default 0.8): a fresh actor's order and squad
 heads start with a bias toward "keep", so an untrained commander keeps with about that
