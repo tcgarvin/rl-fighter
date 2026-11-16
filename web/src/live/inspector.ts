@@ -46,7 +46,7 @@ const signed = (v: number): string => `${v >= 0 ? "+" : ""}${Math.round(v)}`;
 
 /** The pilot's score as viewers read it: wins over the script, or combat-rating points. */
 function ratingText(info: PilotEntry): string {
-  if (info.rated_by === "war") return `${signed(info.rating)} wins per 100 matches over the script`;
+  if (info.rated_by === "war") return `${signed(info.rating)} wins/100 over the script`;
   return `Rated ${signed(info.rating)}`;
 }
 
@@ -136,45 +136,41 @@ export class Inspector {
     if (this.title.innerHTML !== html) this.title.innerHTML = html;
   }
 
+  // Kept to the pilot's sentence and two short lines, so the outputs fit without scrolling.
   private pilotFacts(match: LiveMatch, i: number, entry: string): HTMLElement[] {
     const pilot = match.pilot(i);
     const m = pilot.policy.manifest;
     const info = pilot.entry;
-    const shape = [m.layers[0]!.in, ...m.layers.map((l) => l.out)].join(" → ");
+    const shape = [m.layers[0]!.in, ...m.layers.map((l) => l.out)].join("→");
     const facts: HTMLElement[] = [];
     if (info?.note) facts.push(el("p", "ins-note", info.note));
-    facts.push(el("p", "ins-fact", `Net: ${shape} · ${m.weights_floats.toLocaleString("en-GB")} weights`));
-    if (info) {
-      facts.push(el("p", "ins-fact", `${ratingText(info)} · family ${info.family} · trained in sim ${info.sim_version}`));
-    }
-    facts.push(el("p", "ins-fact", this.followText(pilot.obsDim, info?.follows)));
+    const who = info ? `${ratingText(info)} · family ${info.family} · ` : "";
+    facts.push(el("p", "ins-fact", `${who}net ${shape}`));
+    const drills = el("p", "ins-fact", this.followText(pilot.obsDim, info?.follows));
     if (entry) {
-      const p = el("p", "ins-fact");
       const a = el("a", "", "Meet the pilots →") as HTMLAnchorElement;
       a.href = `/notebook/#${encodeURIComponent(entry)}`;
-      p.append(a);
-      facts.push(p);
+      drills.append(" · ", a);
     }
+    facts.push(drills);
     return facts;
   }
 
   private followText(obsDim: number, follows: { go_to?: number; attack?: number; defend?: number } | undefined): string {
-    if (obsDim < ORDER_OBS_DIM) return "Orders: this net has no inputs for them.";
-    if (!follows || follows.go_to === undefined) return "Orders: never drilled.";
-    return `Order drills: go-to ${percent(follows.go_to)} · attack ${percent(follows.attack ?? 0)} · defend ${percent(follows.defend ?? 0)}`;
+    if (obsDim < ORDER_OBS_DIM) return "Can't read orders";
+    if (!follows || follows.go_to === undefined) return "Orders never drilled";
+    return `Drills: go-to ${percent(follows.go_to)} · attack ${percent(follows.attack ?? 0)} · defend ${percent(follows.defend ?? 0)}`;
   }
 
-  /** Who gives this side its orders; a learned commander's note too. */
+  /** Who gives this side its orders, in one line. */
   private commanderFacts(match: LiveMatch, team: number): HTMLElement[] {
     const c = match.commanders[team === 0 ? 0 : 1];
-    const what = c.net ? "a neural net, deciding once a second" : "the sim's script";
-    const facts = [el("p", "ins-fact", `${TEAM_WORDS[team]} commander: ${commanderName(c)} · ${what}`)];
-    if (c.net && c.entry.note) facts.push(el("p", "ins-fact", c.entry.note));
-    return facts;
+    const what = c.net ? "neural net, once a second" : "the sim's script";
+    return [el("p", "ins-fact", `${TEAM_WORDS[team]} commander: ${commanderName(c)} (${what})`)];
   }
 
   private scriptFacts(): HTMLElement[] {
-    return [el("p", "ins-note", "No neural net here. Carriers and freighters are flown by a script in the sim, so each output below is a decision, not a set of odds.")];
+    return [el("p", "ins-fact", "No neural net: the sim's script flies it, so each bar is its choice, not odds.")];
   }
 
   private buildRows(rows: OutputRow[], strike: boolean): void {
@@ -215,7 +211,7 @@ export class Inspector {
     setText(this.line, this.statusText(match, i, ship, max));
     if (this.more.hidden) return;
     const r = match.records[i]!;
-    setText(this.record, `This match: ${plural(r.shots, "shot")} · ${plural(r.hits, "hit")} · ${Math.round(r.damage)} hull damage ·${plural(r.kills, "kill")}`);
+    setText(this.record, `This match: ${plural(r.shots, "shot")} · ${plural(r.hits, "hit")} · ${Math.round(r.damage)} hull damage · ${plural(r.kills, "kill")}`);
     const w = match.watched;
     if (w.tick < 0 || match.watching !== i) return;
     const logits = match.watchedScripted ? null : w.logits;

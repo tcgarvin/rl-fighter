@@ -141,10 +141,12 @@ body.details #meta-details {
   padding: 10px 0;
 }
 
+/* The buttons keep the bottom right, alone on a wrapped line or not. */
 #controls {
   pointer-events: auto;
   display: flex;
   gap: 8px;
+  margin-left: auto;
 }
 
 #commands-toggle,
@@ -303,7 +305,7 @@ body.inspecting #cmdlog {
 }
 
 .ins-note {
-  margin: 8px 0 4px;
+  margin: 6px 0 2px;
   font-size: 12px;
   line-height: 1.45;
   color: var(--fg);
@@ -316,7 +318,7 @@ body.inspecting #cmdlog {
 
 .ins-fact a {
   display: inline-block;
-  padding: 8px 0;
+  padding: 4px 0;
   color: var(--fg);
   text-underline-offset: 3px;
 }
@@ -500,10 +502,13 @@ body.inspecting #cmdlog {
 }
 
 /* ---- The command log (behind "Show commands"): ambient lines; a tap opens it. ---- */
+/* A row of its own above the caption and buttons, so showing it moves neither sideways:
+   the right margin fills the rest of the line. */
 #cmdlog {
   display: none;
-  flex: 1 0 100%;
-  max-width: 420px;
+  flex: none;
+  width: min(420px, 100%);
+  margin-right: calc(100% - min(420px, 100%));
   pointer-events: auto;
   cursor: pointer;
   font-family: var(--mono);
@@ -622,6 +627,8 @@ body.commands #cmdlog {
 
 /* Open: a readable panel over the lower screen; the battle keeps its framing. */
 #cmdlog.open {
+  width: auto;
+  margin-right: 0;
   position: fixed;
   z-index: 4;
   left: var(--pad-left);

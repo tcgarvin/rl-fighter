@@ -3,7 +3,7 @@
 // the rendered image (a scale and shift applied after the projection) instead of
 // moving the camera, so perspective, parallax and the backdrop's relation to the ships
 // never change; zooming in on a ship by a planet enlarges the planet with it. The crop
-// eases to frame every live ship inside the band the HUD leaves free.
+// eases to frame every live ship inside the rectangle the HUD leaves free.
 //
 // The view is set by one world axis, the match's main line (the teams' approach, sim
 // +x; a convoy's route): portrait screens look along it, so it runs up the screen's
@@ -17,7 +17,7 @@ export const FOV = 32;
 // Metres: a merge at point-blank range isn't framed absurdly close.
 const MIN_FRAME_SPAN = 150;
 const FRAME_MARGIN = 28;
-// Fraction of the half-width a ship may use before the view pulls back.
+// Fraction of the free rectangle's half-width a ship may use before the view pulls back.
 const SAFE_NDC_X = 0.88;
 // 1/s; about two thirds of the way to the target in 0.7 s.
 const EASE_RATE = 1.5;
@@ -49,6 +49,14 @@ export interface Bounds {
   maxY: number;
 }
 
+/** A rectangle of the screen in CSS pixels from its top-left corner (top < bottom). */
+export interface SafeRect {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
 export function emptyBounds(): Bounds {
   return { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
 }
@@ -69,7 +77,7 @@ export class FitCamera {
   x = 0;
   y = 0;
   extent = 300;
-  /** Digital crop: the base view's NDC point at the band's centre, and the scale. */
+  /** Digital crop: the base view's NDC point at the free rectangle's centre, and the scale. */
   private u = 0;
   private v = 0;
   private zoom = 1;
@@ -78,8 +86,8 @@ export class FitCamera {
   private shakeTime = 0;
   private initialized = false;
   private placed = false;
-  /** NDC rows the HUD leaves clear (top > bottom). */
-  private band = { top: 0.8, bottom: -0.8 };
+  /** The NDC rectangle the HUD leaves clear (top > bottom, right > left). */
+  private band = { left: -1, right: 1, top: 0.8, bottom: -0.8 };
   /** The stage the fixed camera takes in whole: axis-frame box, sim metres. */
   private stage: Bounds = { minX: -400, maxX: 400, minY: -400, maxY: 400 };
   private readonly corner = new THREE.Vector3();
@@ -133,10 +141,12 @@ export class FitCamera {
     return [f * this.ax - g * this.ay, f * this.ay + g * this.ax];
   }
 
-  /** Keep the action between `topPx` (below the top HUD) and `bottomPx` (above the bottom HUD). */
-  setSafeBand(width: number, height: number, topPx: number, bottomPx: number): void {
-    this.band.top = 1 - (2 * topPx) / height;
-    this.band.bottom = 1 - (2 * bottomPx) / height;
+  /** Keep the action inside the CSS-pixel rectangle the HUD leaves free. */
+  setSafeRect(width: number, height: number, rect: SafeRect): void {
+    this.band.left = (2 * rect.left) / width - 1;
+    this.band.right = (2 * rect.right) / width - 1;
+    this.band.top = 1 - (2 * rect.top) / height;
+    this.band.bottom = 1 - (2 * rect.bottom) / height;
     const aspect = width / height;
     if (aspect !== this.camera.aspect) {
       this.camera.aspect = aspect;
@@ -207,9 +217,10 @@ export class FitCamera {
           Math.max(b.maxY + FRAME_MARGIN, cg + half),
         ];
     const [x0, x1, y0, y1] = this.projectBox(box);
-    const bandHalf = Math.max(0.2, (this.band.top - this.band.bottom) / 2);
+    const bandHalfX = SAFE_NDC_X * Math.max(0.2, (this.band.right - this.band.left) / 2);
+    const bandHalfY = Math.max(0.2, (this.band.top - this.band.bottom) / 2);
     const zoom = THREE.MathUtils.clamp(
-      Math.min(SAFE_NDC_X / Math.max(1e-4, (x1 - x0) / 2), bandHalf / Math.max(1e-4, (y1 - y0) / 2)),
+      Math.min(bandHalfX / Math.max(1e-4, (x1 - x0) / 2), bandHalfY / Math.max(1e-4, (y1 - y0) / 2)),
       MIN_ZOOM,
       MAX_ZOOM,
     );
@@ -229,18 +240,19 @@ export class FitCamera {
     this.applyCrop();
   }
 
-  /** Scale about (u, v) and move it to the band's centre, in clip space (so times w). */
+  /** Scale about (u, v) and move it to the free rectangle's centre, in clip space (so times w). */
   private applyCrop(): void {
     const z = this.zoom;
-    const bandCenter = (this.band.top + this.band.bottom) / 2;
+    const centerX = (this.band.left + this.band.right) / 2;
+    const centerY = (this.band.top + this.band.bottom) / 2;
     // The jolt moves the whole picture (the crop), ships and backdrop alike.
     const t = this.shakeTime;
     const jolt = this.shakeAmount > 0.002 ? this.shakeAmount * SHAKE_MAX : 0;
     const dx = jolt * (0.6 * Math.sin(t * 47) + 0.4 * Math.sin(t * 71 + 1.3));
     const dy = jolt * (0.6 * Math.sin(t * 53 + 0.7) + 0.4 * Math.sin(t * 83));
     this.crop.set(
-      z, 0, 0, dx - z * this.u,
-      0, z, 0, dy + bandCenter - z * this.v,
+      z, 0, 0, dx + centerX - z * this.u,
+      0, z, 0, dy + centerY - z * this.v,
       0, 0, 1, 0,
       0, 0, 0, 1,
     );

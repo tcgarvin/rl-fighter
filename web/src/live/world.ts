@@ -17,7 +17,7 @@ import { createEffects, jumpOutOffset, JUMP_OUT_DURATION } from "../render/effec
 import { createEnvironment } from "../render/environment.js";
 import { renderHullThumbnails } from "../render/thumbs.js";
 import { HULLS } from "../render/hulls.js";
-import { FitCamera, TYPICAL_ZOOM, emptyBounds, growBounds, type Bounds } from "./camera.ts";
+import { FitCamera, TYPICAL_ZOOM, emptyBounds, growBounds, type Bounds, type SafeRect } from "./camera.ts";
 import type { LiveMatch } from "./match.ts";
 import { RenderScale } from "./pacing.ts";
 import { JUMP_DEPARTED, SIM_HZ, type HullInfo, type ShipState, type SimEvent } from "./sim.ts";
@@ -80,8 +80,9 @@ const SHAKE_PER_RADIUS = 2.4;
 const BENCH_WARMUP = 40;
 const BENCH_BLOCKS = 6;
 // Inspecting a ship: the box framed around it, at least FOCUS_MIN_SPAN metres across and
-// FOCUS_HULLS of its lengths: about three times a fight's usual zoom, with room around it.
-const FOCUS_MIN_SPAN = 90;
+// FOCUS_HULLS of its lengths: a fighter fills about a fifth of the frame, with room to
+// see what it is shooting at.
+const FOCUS_MIN_SPAN = 60;
 const FOCUS_HULLS = 2.2;
 
 /** The render-side hull spec (render/hulls.js, overlaid with the sim's YAML mounts). */
@@ -372,8 +373,8 @@ export class World {
     return renderHullThumbnails({ THREE, hullgeo, treatment, hulls }) as Record<string, [string, string]>;
   }
 
-  /** Fit the viewport and the HUD's free band; the GPU buffers resize only on a real change. */
-  resize(width: number, height: number, safeTopPx: number, safeBottomPx: number): void {
+  /** Fit the viewport and the HUD's free rectangle; the GPU buffers resize only on a real change. */
+  resize(width: number, height: number, safe: SafeRect): void {
     const ratio = fullPixelRatio() * this.pace.scale;
     if (width !== this.size.width || height !== this.size.height || ratio !== this.renderer.getPixelRatio()) {
       this.size = { width, height };
@@ -381,7 +382,7 @@ export class World {
       this.renderer.setSize(width, height);
       treatment.onResize(width, height);
     }
-    this.cam.setSafeBand(width, height, safeTopPx, safeBottomPx);
+    this.cam.setSafeRect(width, height, safe);
   }
 
   /** A faint ring at the arena radius (leaving it drains hull). Rebuilt only on change. */

@@ -26,9 +26,10 @@ import { mountNav } from "../shell/nav";
 import "./live.css";
 import { mulberry32 } from "./policy.js";
 import { fetchManifest, loadBundle, type Bundle, type BundleManifest, type LiveCommander } from "./bundle.ts";
+import type { SafeRect } from "./camera.ts";
 import { CommandLog } from "./cmdlog.ts";
 import { Hud, type Tally } from "./hud.ts";
-import { pickShip, type OnScreen } from "./inspect.ts";
+import { inspectFrame, pickShip, type OnScreen } from "./inspect.ts";
 import { Inspector } from "./inspector.ts";
 import { LiveMatch, assignCommanders } from "./match.ts";
 import { MISSION_TAGS, availableMissions, defaultRosters, missionBrief, missionFor, missionRoster, parseMission, type DefaultRosters, type MissionName } from "./missions.ts";
@@ -88,7 +89,8 @@ const hud = new Hud();
 const muster = new Muster(document.getElementById("muster")!);
 const pinnedScale = params.has("scale") ? Math.min(1, Math.max(0.5, Number(params.get("scale")) || 1)) : null;
 const world = new World(document.body, pinnedScale, { lights: params.get("lights") !== "0", shadows: params.get("shadows") !== "0" });
-const inspector = new Inspector(document.getElementById("inspect")!);
+const inspectPanel = document.getElementById("inspect")!;
+const inspector = new Inspector(inspectPanel);
 const reticle = document.getElementById("reticle")!;
 const cmdlog = new CommandLog(document.getElementById("cmdlog")!, (hull) => (world.spec(hull)?.bays ?? []).map((b) => b.id.replace(/^bay\./, "")));
 
@@ -119,14 +121,34 @@ let thrusterCounts: number[] = [];
 let selected = -1;
 let goneFor = 0;
 
-// ---- Layout: the HUD sits under the nav; the camera frames the band between. ----
+// ---- Layout: the HUD sits under the nav; the camera frames the band between, or an
+// inspected ship in the room the panel leaves (beside it on a wide screen). ----
 function layout(): void {
   const w = window.innerWidth;
   const h = window.innerHeight;
-  document.documentElement.style.setProperty("--nav-bottom", `${Math.round(nav.getBoundingClientRect().bottom)}px`);
-  const top = hud.top.getBoundingClientRect().bottom + HUD_CLEARANCE;
-  const bottom = hud.bottom.getBoundingClientRect().top - HUD_CLEARANCE;
-  world.resize(w, h, top, Math.max(top + 100, bottom));
+  const navBottom = nav.getBoundingClientRect().bottom;
+  document.documentElement.style.setProperty("--nav-bottom", `${Math.round(navBottom)}px`);
+  const bottomHud = hud.bottom.getBoundingClientRect();
+  const panel = inspectPanel.getBoundingClientRect();
+  let safe: SafeRect;
+  if (selected >= 0 && !inspectPanel.hidden && panel.height > 0) {
+    safe = inspectFrame(
+      {
+        screen: { left: bottomHud.left, right: bottomHud.right, top: navBottom + HUD_CLEARANCE, bottom: bottomHud.bottom },
+        status: hud.status.getBoundingClientRect(),
+        perf: hud.perf.getBoundingClientRect(),
+        panel,
+        controls: hud.controls.getBoundingClientRect(),
+      },
+      HUD_CLEARANCE,
+    );
+  } else {
+    const top = hud.top.getBoundingClientRect().bottom + HUD_CLEARANCE;
+    safe = { left: 0, right: w, top, bottom: bottomHud.top - HUD_CLEARANCE };
+  }
+  safe.bottom = Math.max(safe.top + 100, safe.bottom);
+  safe.right = Math.max(safe.left + 100, safe.right);
+  world.resize(w, h, safe);
 }
 window.addEventListener("resize", layout);
 

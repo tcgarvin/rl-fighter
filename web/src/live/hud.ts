@@ -51,7 +51,9 @@ export class Hud {
   private readonly metaEl = el("meta");
   private readonly metaDetailsEl = el("meta-details");
   private readonly missionEl = el("mission");
-  private readonly perfEl = el("perf");
+  readonly status = el("status");
+  readonly perf = el("perf");
+  readonly controls = el("controls");
   private readonly bannerEl = el("banner");
   private readonly captionEl = el("caption");
   private readonly tagsEl = el("tags");
@@ -162,7 +164,7 @@ export class Hud {
     const free = Math.max(0, 100 * (1 - tick / TICK_BUDGET_MS));
     // With details: the share of full resolution the picture is drawn at to hold the frame rate.
     const split = details ? `\nsim ${sim.toFixed(2)} · nn ${nn.toFixed(2)}\nres ${(renderScale * 100).toFixed(0)}%` : "";
-    this.perfEl.textContent = `tick ${tick.toFixed(1)} / ${TICK_BUDGET_MS.toFixed(0)} ms\n${free.toFixed(0)}% free · ${this.fps.toFixed(0)} fps${split}`;
+    this.perf.textContent = `tick ${tick.toFixed(1)} / ${TICK_BUDGET_MS.toFixed(0)} ms\n${free.toFixed(0)}% free · ${this.fps.toFixed(0)} fps${split}`;
   }
 
   /** One (hidden) tag per ship of a new match. */

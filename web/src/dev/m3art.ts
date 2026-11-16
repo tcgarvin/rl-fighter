@@ -426,7 +426,7 @@ function layout(): void {
   renderer.setSize(w, h);
   treatment.onResize(w, h);
   // The live page's HUD leaves roughly this band free.
-  cam.setSafeBand(w, h, w < 600 ? 110 : 90, h - (w < 600 ? 120 : 90));
+  cam.setSafeRect(w, h, { left: 0, right: w, top: w < 600 ? 110 : 90, bottom: h - (w < 600 ? 120 : 90) });
 }
 
 /** ?close=<metres>: a fixed close shot of that width, at the live camera's pitch. */

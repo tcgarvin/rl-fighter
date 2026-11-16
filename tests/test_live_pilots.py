@@ -424,3 +424,42 @@ def test_a_tap_finds_the_ship_and_outputs_read_as_odds() -> None:
     assert got["net"] == pytest.approx([0.2, 0.6, 0.2])
     # The script has no odds: its choice has all of them.
     assert got["script"] == [0, 0, 1]
+
+
+FRAME = """
+import { inspectFrame } from "./web/src/live/inspect.ts";
+const r = (left, top, right, bottom) => ({ left, top, right, bottom });
+// A laptop at 120-150% zoom: the panel bottom left, the buttons bottom right.
+const wide = inspectFrame({
+  screen: r(16, 62, 1259, 628), status: r(16, 62, 240, 135), perf: r(1130, 62, 1259, 95),
+  panel: r(16, 295, 576, 628), controls: r(932, 584, 1259, 628),
+}, 10);
+// A phone: the panel spans the width, so only the room above it is left.
+const phone = inspectFrame({
+  screen: r(16, 62, 374, 832), status: r(16, 62, 200, 128), perf: r(300, 62, 374, 90),
+  panel: r(16, 414, 374, 780), controls: r(47, 788, 374, 832),
+}, 10);
+console.log(JSON.stringify({ wide, phone }));
+"""
+
+
+def test_an_inspected_ship_is_framed_beside_the_panel_when_there_is_room() -> None:
+    result = subprocess.run(
+        [
+            "node",
+            "--experimental-strip-types",
+            "--no-warnings",
+            "--input-type=module",
+            "-e",
+            FRAME,
+        ],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    got = json.loads(result.stdout)
+    # Beside the panel, under the perf readout (the status ends left of it), above the buttons.
+    assert got["wide"] == {"left": 586, "top": 105, "right": 1259, "bottom": 574}
+    # Above the panel, below the whole top HUD.
+    assert got["phone"] == {"left": 16, "top": 138, "right": 374, "bottom": 404}

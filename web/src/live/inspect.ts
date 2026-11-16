@@ -95,3 +95,41 @@ export function rowOdds(row: OutputRow, logits: Float32Array | null, action: Int
 
 /** What each power choice asks for (SIM_SPEC §5.2): shields, engines, weapons. */
 export const POWER_NAMES = ["even", "shields", "engines", "weapons", "shields + engines", "shields + weapons", "engines + weapons"];
+
+/** A screen rectangle in CSS px (top < bottom). */
+export interface Rect {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/** The HUD's pieces that the inspected ship must keep clear of, in CSS px. */
+export interface InspectLayout {
+  /** The whole screen less the page's side and bottom padding, below the nav. */
+  screen: Rect;
+  /** The match status (top left) and the perf readout (top right). */
+  status: Rect;
+  perf: Rect;
+  /** The inspector panel and the toggle buttons. */
+  panel: Rect;
+  controls: Rect;
+}
+
+/**
+ * Where to frame the inspected ship: above the panel (the whole width, under the top HUD)
+ * or, on a wide screen, beside it, from its right edge to the screen's (under whatever
+ * of the top HUD reaches that far, above the buttons). The ship's frame is square, so the
+ * choice is the one with the longer short side. `clear` is kept from every HUD edge.
+ */
+export function inspectFrame(l: InspectLayout, clear: number): Rect {
+  const topHud = Math.max(l.status.bottom, l.perf.bottom);
+  const above: Rect = { left: l.screen.left, right: l.screen.right, top: topHud + clear, bottom: l.panel.top - clear };
+  const left = l.panel.right + clear;
+  const overlaps = (r: Rect): boolean => r.right > left && r.bottom > r.top;
+  const besideTop = Math.max(l.screen.top, ...[l.status, l.perf].filter(overlaps).map((r) => r.bottom + clear));
+  const besideBottom = overlaps(l.controls) ? l.controls.top - clear : l.screen.bottom;
+  const beside: Rect = { left, right: l.screen.right, top: besideTop, bottom: besideBottom };
+  const room = (r: Rect): number => Math.min(r.right - r.left, r.bottom - r.top);
+  return room(beside) > room(above) ? beside : above;
+}
