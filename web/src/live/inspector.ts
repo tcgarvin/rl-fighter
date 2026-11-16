@@ -1,7 +1,7 @@
 // The ship inspector: tap a ship and the camera comes in on it (world.setFocus) while this
 // panel says who it is. "Details" opens the rest: which net, what it was trained to do,
 // and each control in small boxes: a bar for what the ship is doing (thrust and each power
-// system as columns, each turret's aim and trigger as a row) with a thin line per tick
+// system as columns, each gun's aim as a row, its trigger a lamp) with a thin line per tick
 // where that tick's command would take it, fading over half a second, so a steady net
 // draws one bright line and a wavering one a smear. A toggle swaps them for the odds the
 // net gave each choice on the last tick, with numbers. The views are built once per ship;
@@ -35,6 +35,8 @@ const LINE_FADE = 0.5;
 const SHOT_FLASH = 0.3;
 // The brightest a single line starts; overlapping lines add up toward solid.
 const LINE_ALPHA = 0.6;
+// A trigger lamp's light per tick held: about half a second held lights it full.
+const LAMP_ALPHA = 0.22;
 
 // The odds view's groups, and what each choice of theirs is.
 const GROUPS: Array<{ kind: OutputKind; title: string; legend: string }> = [
@@ -282,12 +284,12 @@ export class Inspector {
         const line = el("div", "ins-turret");
         line.append(el("span", "ins-label", (aim ?? fire)!.label));
         if (aim) line.append(this.gauge(aim, false, 0, "ins-aim"));
-        if (fire) line.append(this.gauge(fire, false, 0, "ins-trigger"));
+        if (fire) line.append(this.gauge(fire, false, 0, "ins-lamp"));
         return line;
       });
       const anyAim = rows.some((r) => r.kind === "slew");
-      const box = this.box("Guns", anyAim ? "aim · trigger, fire at right" : "trigger, fire at right", ...lines);
-      box.classList.add("ins-box--guns");
+      const box = this.box("Guns", anyAim ? "aim · lit: firing · ring: shot" : "lit: firing · ring: shot", ...lines);
+      if (anyAim) box.classList.add("ins-box--guns");
       view.append(box);
     }
     return view;
@@ -394,6 +396,10 @@ export class Inspector {
       const ctx = c.getContext("2d");
       if (!ctx) continue;
       ctx.clearRect(0, 0, w, h);
+      if (g.row.kind === "fire") {
+        this.drawLamp(ctx, g, match, now, w, h, lineW);
+        continue;
+      }
       const along = g.vertical ? h : w;
       const across = g.vertical ? w : h;
       const inset = g.vertical ? 0 : Math.round(across * 0.2);
@@ -410,7 +416,7 @@ export class Inspector {
       ctx.fillStyle = this.palette.track;
       fill(0, 1);
       ctx.fillStyle = this.palette.state;
-      this.drawState(g, match, ship, now, fill, (2 * lineW + 1) / along);
+      this.drawState(g, ship, fill, (2 * lineW + 1) / along);
       // Lines add up where they overlap: one command held reads bright, a dither dim and spread.
       ctx.globalCompositeOperation = "lighter";
       ctx.fillStyle = this.palette.accent;
@@ -428,7 +434,37 @@ export class Inspector {
     }
   }
 
-  private drawState(g: Gauge, match: LiveMatch, ship: ShipState, now: number, fill: (a: number, b: number) => void, mark: number): void {
+  /**
+   * A trigger as a lamp: each tick the net held it adds light that fades over half a
+   * second, so steady fire glows solid and a stray tap flickers; a ring flashes per shot.
+   */
+  private drawLamp(ctx: CanvasRenderingContext2D, g: Gauge, match: LiveMatch, now: number, w: number, h: number, ring: number): void {
+    const pad = 2 * ring;
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = this.palette.track;
+    ctx.fillRect(pad, pad, w - 2 * pad, h - 2 * pad);
+    ctx.globalCompositeOperation = "lighter";
+    ctx.fillStyle = this.palette.accent;
+    for (const tick of match.watchHistory) {
+      if (tick.tick < 0 || tick.row[g.row.column]! <= 0) continue;
+      const age = (now - tick.tick) / SIM_HZ;
+      if (age < 0 || age >= LINE_FADE) continue;
+      ctx.globalAlpha = LAMP_ALPHA * (1 - age / LINE_FADE);
+      ctx.fillRect(pad, pad, w - 2 * pad, h - 2 * pad);
+    }
+    ctx.globalCompositeOperation = "source-over";
+    const shot = match.watchedShots[g.row.mount] ?? -1;
+    const age = shot < 0 ? Infinity : (now + 1 - shot) / SIM_HZ;
+    if (age < SHOT_FLASH) {
+      ctx.globalAlpha = 1 - age / SHOT_FLASH;
+      ctx.strokeStyle = this.palette.state;
+      ctx.lineWidth = ring;
+      ctx.strokeRect(ring / 2, ring / 2, w - ring, h - ring);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  private drawState(g: Gauge, ship: ShipState, fill: (a: number, b: number) => void, mark: number): void {
     const ctx = g.canvas.getContext("2d")!;
     switch (g.row.kind) {
       case "throttle":
@@ -443,15 +479,9 @@ export class Inspector {
         fill(p, p + mark);
         break;
       }
-      case "fire": {
-        const shot = match.watchedShots[g.row.mount] ?? -1;
-        const age = shot < 0 ? Infinity : (now + 1 - shot) / SIM_HZ;
-        if (age < SHOT_FLASH) {
-          ctx.globalAlpha = 0.7 * (1 - age / SHOT_FLASH);
-          fill(0, 1);
-        }
+      case "fire":
+        // A lamp (drawLamp).
         break;
-      }
       case "power":
         ctx.globalAlpha = 0.45;
         fill(0, Math.min(1, (ship.power[g.system] ?? 0) / POWER_FULL));
@@ -469,7 +499,7 @@ export class Inspector {
         return travel ? turretAsk(angles[g.row.mount] ?? 0, head, travel) : null;
       }
       case "fire":
-        return head > 0 ? 1 : 0;
+        return null;
       case "power":
         return Math.min(1, powerTarget(head, twoWay)[g.system]! / POWER_FULL);
     }
