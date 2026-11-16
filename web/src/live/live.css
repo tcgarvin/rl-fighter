@@ -382,16 +382,88 @@ body.inspecting #cmdlog {
   height: 10px;
 }
 
-/* The ship view (the default): a canvas per control; the odds bars wait for the toggle. */
-.ins-ship {
-  flex: 1;
+/* The ship view (the default): boxes of gauges that wrap to the panel's width. */
+#inspect:not(.odds) .ins-oddsview,
+#inspect.odds .ins-shipview {
+  display: none;
+}
+
+.ins-shipview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 4px;
+}
+
+.ins-box {
+  flex: 0 1 auto;
   min-width: 0;
+  padding: 4px 8px 5px;
+  border: 1px solid var(--line);
+}
+
+.ins-box--guns {
+  flex: 1 1 200px;
+}
+
+.ins-box-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ins-accent, var(--fg));
+}
+
+.ins-box-head .ins-legend {
+  font-size: 9px;
+}
+
+.ins-cols {
+  display: flex;
+  gap: 4px;
+}
+
+.ins-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 26px;
+}
+
+.ins-vbar {
+  width: 12px;
+  height: 40px;
+}
+
+.ins-col-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--fg-soft);
+  white-space: nowrap;
+}
+
+.ins-turret {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 16px;
+  font-size: 10px;
+}
+
+.ins-aim {
+  flex: 2 1 0;
+  min-width: 40px;
   height: 14px;
 }
 
-#inspect:not(.odds) .ins-bar,
-#inspect.odds .ins-ship {
-  display: none;
+.ins-trigger {
+  flex: 1 1 0;
+  min-width: 24px;
+  height: 14px;
 }
 
 .ins-explain {

@@ -1,10 +1,11 @@
 // The ship inspector: tap a ship and the camera comes in on it (world.setFocus) while this
 // panel says who it is. "Details" opens the rest: which net, what it was trained to do,
-// and each control: a bar for what the ship is doing (thrust, turret angle, shots, power
-// split) with a thin line per tick where that tick's command would take it, fading over
-// half a second, so a steady net draws one bright line and a wavering one a smear. A
-// toggle swaps the bars for the odds the net gave each choice on the last tick. The rows
-// are built once per ship; the bars redraw every frame, the numbers a few times a second.
+// and each control in small boxes: a bar for what the ship is doing (thrust and each power
+// system as columns, each turret's aim and trigger as a row) with a thin line per tick
+// where that tick's command would take it, fading over half a second, so a steady net
+// draws one bright line and a wavering one a smear. A toggle swaps them for the odds the
+// net gave each choice on the last tick, with numbers. The views are built once per ship;
+// the bars redraw every frame, the odds a few times a second.
 
 import { TEAM_CLASSES, TEAM_NAMES, TEAM_WORDS, escapeHtml } from "./teams.ts";
 import { JUMP_CHARGING, JUMP_DEPARTED, ROLE_CARRIER, type ShipState } from "./sim.ts";
@@ -35,21 +36,34 @@ const SHOT_FLASH = 0.3;
 // The brightest a single line starts; overlapping lines add up toward solid.
 const LINE_ALPHA = 0.6;
 
-const GROUPS: Array<{ kind: OutputKind; title: string; odds: string; ship: string }> = [
-  { kind: "throttle", title: "Thrusters", odds: "less · hold · more", ship: "thrust, off to full" },
-  { kind: "slew", title: "Turret aim", odds: "left · hold · right", ship: "angle across its arc" },
-  { kind: "fire", title: "Trigger", odds: "hold · fire", ship: "a flash per shot · fire at the right" },
-  { kind: "power", title: "Power", odds: "the seven splits", ship: "shields · engines · weapons" },
+// The odds view's groups, and what each choice of theirs is.
+const GROUPS: Array<{ kind: OutputKind; title: string; legend: string }> = [
+  { kind: "throttle", title: "Thrusters", legend: "less · hold · more" },
+  { kind: "slew", title: "Turret aim", legend: "left · hold · right" },
+  { kind: "fire", title: "Trigger", legend: "hold · fire" },
+  { kind: "power", title: "Power", legend: "the seven splits" },
 ];
+// The ship view's power bars run from empty to this share (the most a two-way hull gives
+// one system), so the splits' 20 / 33 / 40 / 60 / 80% read well apart.
+const POWER_FULL = 0.8;
+const SYSTEMS = ["shields", "engines", "weapons"];
 
-interface RowView {
+/** One row of the odds view. */
+interface OddsRow {
   row: OutputRow;
-  /** The odds view. */
   segments: HTMLElement[];
-  /** The ship view. */
-  canvas: HTMLCanvasElement;
   value: HTMLElement;
   drawn: number;
+}
+
+/** One bar of the ship view: a control's state and its recent commands. */
+interface Gauge {
+  canvas: HTMLCanvasElement;
+  row: OutputRow;
+  /** Thrust and power fill upward; aim and trigger run left to right. */
+  vertical: boolean;
+  /** Power: the system this bar is (0 shields, 1 engines, 2 weapons). */
+  system: number;
 }
 
 interface Palette {
@@ -102,8 +116,8 @@ export class Inspector {
   private readonly more = el("div", "ins-more");
   private readonly record = el("p", "ins-fact");
   private readonly explain = el("span");
-  private readonly legends: Array<{ node: HTMLElement; odds: string; ship: string }> = [];
-  private rows: RowView[] = [];
+  private oddsRows: OddsRow[] = [];
+  private gauges: Gauge[] = [];
   private ship = -1;
   private untilRefresh = 0;
   private readonly odds = new Float64Array(MAX_CHOICES);
@@ -142,7 +156,6 @@ export class Inspector {
     this.root.classList.toggle("odds", on);
     this.modeBtn.textContent = on ? "Show the ship" : "Show the odds";
     this.explain.textContent = on ? "Bars: last tick's odds, the pick outlined · " : "Bars: the ship now · lines: each tick's command, fading over ½ s · ";
-    for (const l of this.legends) l.node.textContent = on ? l.odds : l.ship;
     this.untilRefresh = 0;
   }
 
@@ -161,7 +174,7 @@ export class Inspector {
     const facts = strike ? this.pilotFacts(match, i, entry) : this.scriptFacts();
     this.more.replaceChildren(...facts, ...this.commanderFacts(match, ship.team), this.record);
     const heads = match.pilot(i).policy.manifest.heads;
-    this.buildRows(outputRows(heads, match.validHeads(i), thrusters, turrets.map((t) => t.id)), strike, ship.power[0] === 0);
+    this.buildViews(outputRows(heads, match.validHeads(i), thrusters, turrets.map((t) => t.id)), strike, ship.power[0] === 0);
     this.setOdds(this.showOdds);
     this.setTitle(match, i, "");
     this.refresh(match, i);
@@ -171,7 +184,8 @@ export class Inspector {
     this.ship = -1;
     this.root.hidden = true;
     this.more.replaceChildren();
-    this.rows = [];
+    this.oddsRows = [];
+    this.gauges = [];
   }
 
   /** Whether the details show; the button says which. */
@@ -232,34 +246,92 @@ export class Inspector {
   }
 
   private scriptFacts(): HTMLElement[] {
-    return [el("p", "ins-fact", "No neural net here: the sim's script flies it (its odds are all or nothing).")];
+    return [el("p", "ins-fact", "No neural net: the sim's script flies it.")];
   }
 
-  private buildRows(rows: OutputRow[], strike: boolean, twoWay: boolean): void {
-    this.rows = [];
-    this.legends.length = 0;
+  private buildViews(rows: OutputRow[], strike: boolean, twoWay: boolean): void {
+    this.oddsRows = [];
+    this.gauges = [];
     const intro = el("p", "ins-fact ins-explain");
     intro.append(this.explain, this.modeBtn);
-    this.more.append(intro);
+    // The record stays at the end of the panel, under the outputs.
+    this.more.append(intro, this.buildShipView(rows, twoWay), this.buildOddsView(rows, strike), this.record);
+  }
+
+  /** Boxes that wrap to the panel's width: thrust columns, power columns, a row per turret. */
+  private buildShipView(rows: OutputRow[], twoWay: boolean): HTMLElement {
+    const view = el("div", "ins-shipview");
+    const thrust = rows.filter((r) => r.kind === "throttle");
+    if (thrust.length) {
+      const cols = el("div", "ins-cols");
+      for (const row of thrust) cols.append(this.column(row, row.label, 0));
+      view.append(this.box("Thrust", "", cols));
+    }
+    const power = rows.find((r) => r.kind === "power");
+    if (power) {
+      const cols = el("div", "ins-cols");
+      // A hull with no shield splits its power two ways.
+      for (const k of twoWay ? [1, 2] : [0, 1, 2]) cols.append(this.column(power, SYSTEMS[k]!, k));
+      view.append(this.box("Power", "", cols));
+    }
+    const mounts = [...new Set(rows.filter((r) => r.kind === "slew" || r.kind === "fire").map((r) => r.mount))].sort((a, b) => a - b);
+    if (mounts.length) {
+      const lines = mounts.map((mount) => {
+        const aim = rows.find((r) => r.kind === "slew" && r.mount === mount);
+        const fire = rows.find((r) => r.kind === "fire" && r.mount === mount);
+        const line = el("div", "ins-turret");
+        line.append(el("span", "ins-label", (aim ?? fire)!.label));
+        if (aim) line.append(this.gauge(aim, false, 0, "ins-aim"));
+        if (fire) line.append(this.gauge(fire, false, 0, "ins-trigger"));
+        return line;
+      });
+      const anyAim = rows.some((r) => r.kind === "slew");
+      const box = this.box("Guns", anyAim ? "aim · trigger, fire at right" : "trigger, fire at right", ...lines);
+      box.classList.add("ins-box--guns");
+      view.append(box);
+    }
+    return view;
+  }
+
+  private box(title: string, legend: string, ...content: HTMLElement[]): HTMLElement {
+    const box = el("div", "ins-box");
+    const head = el("div", "ins-box-head");
+    head.append(el("span", "", title));
+    if (legend) head.append(el("span", "ins-legend", legend));
+    box.append(head, ...content);
+    return box;
+  }
+
+  private column(row: OutputRow, label: string, system: number): HTMLElement {
+    const col = el("div", "ins-col");
+    col.append(this.gauge(row, true, system, "ins-vbar"), el("span", "ins-col-label", label));
+    return col;
+  }
+
+  private gauge(row: OutputRow, vertical: boolean, system: number, className: string): HTMLCanvasElement {
+    const canvas = document.createElement("canvas");
+    canvas.className = className;
+    this.gauges.push({ canvas, row, vertical, system });
+    return canvas;
+  }
+
+  /** The net's odds on the last tick, a row per output with its number beside it. */
+  private buildOddsView(rows: OutputRow[], strike: boolean): HTMLElement {
+    const view = el("div", "ins-oddsview");
     for (const group of GROUPS) {
       const members = rows.filter((r) => r.kind === group.kind);
       if (!members.length) continue;
       const heading = el("p", "ins-group");
-      const legend = el("span", "ins-legend");
-      // A script has no odds to label; its ship view reads the same as a pilot's.
-      // A hull with no shield splits its power two ways.
-      const ship = group.kind === "power" && twoWay ? "engines · weapons" : group.ship;
-      this.legends.push({ node: legend, odds: strike ? group.odds : "", ship });
-      heading.append(el("span", "", group.title), legend);
+      // A script has no odds to label.
+      heading.append(el("span", "", group.title), el("span", "ins-legend", strike ? group.legend : ""));
       const grid = el("div", `ins-rows ins-rows--${group.kind}`);
-      for (const row of members) grid.append(this.buildRow(row));
-      this.more.append(heading, grid);
+      for (const row of members) grid.append(this.oddsRow(row));
+      view.append(heading, grid);
     }
-    // The record stays at the end of the panel, under the outputs.
-    this.more.append(this.record);
+    return view;
   }
 
-  private buildRow(row: OutputRow): HTMLElement {
+  private oddsRow(row: OutputRow): HTMLElement {
     const node = el("div", "ins-row");
     const bar = el("span", "ins-bar");
     const segments = Array.from({ length: row.choices }, (_, c) => {
@@ -267,12 +339,10 @@ export class Inspector {
       bar.append(seg);
       return seg;
     });
-    const canvas = document.createElement("canvas");
-    canvas.className = "ins-ship";
     const value = el("span", "ins-value");
     if (row.label) node.append(el("span", "ins-label", row.label));
-    node.append(bar, canvas, value);
-    this.rows.push({ row, segments, canvas, value, drawn: -1 });
+    node.append(bar, value);
+    this.oddsRows.push({ row, segments, value, drawn: -1 });
     return node;
   }
 
@@ -286,26 +356,24 @@ export class Inspector {
     const r = match.records[i]!;
     setText(this.record, `This match: ${plural(r.shots, "shot")} · ${plural(r.hits, "hit")} · ${Math.round(r.damage)} hull damage · ${plural(r.kills, "kill")}`);
     const w = match.watched;
-    if (w.tick < 0 || match.watching !== i) return;
+    if (!this.showOdds || w.tick < 0 || match.watching !== i) return;
     const logits = match.watchedScripted ? null : w.logits;
-    for (const view of this.rows) {
+    for (const view of this.oddsRows) {
       rowOdds(view.row, logits, w.row, this.odds);
       const drawn = w.row[view.row.column]!;
-      if (this.showOdds) {
-        view.segments.forEach((seg, c) => {
-          seg.style.flexGrow = this.odds[c]!.toFixed(3);
-        });
-        if (drawn !== view.drawn) {
-          view.segments[view.drawn]?.classList.remove("drawn");
-          view.segments[drawn]?.classList.add("drawn");
-          view.drawn = drawn;
-        }
+      view.segments.forEach((seg, c) => {
+        seg.style.flexGrow = this.odds[c]!.toFixed(3);
+      });
+      if (drawn !== view.drawn) {
+        view.segments[view.drawn]?.classList.remove("drawn");
+        view.segments[drawn]?.classList.add("drawn");
+        view.drawn = drawn;
       }
-      setText(view.value, this.valueText(match, view.row, ship, drawn));
+      setText(view.value, this.valueText(view.row, ship, drawn));
     }
   }
 
-  /** Every row's bar: the control's state, then each recent command's fading line over it. */
+  /** Every gauge: the control's state, then each recent command's fading line over it. */
   private drawShip(match: LiveMatch): void {
     if (match.watching !== this.ship) return;
     const ship = match.ships[this.ship]!;
@@ -313,8 +381,9 @@ export class Inspector {
     const now = match.tick - 1;
     const dpr = window.devicePixelRatio || 1;
     const twoWay = ship.power[0] === 0;
-    for (const view of this.rows) {
-      const c = view.canvas;
+    const lineW = Math.max(1, Math.round(dpr));
+    for (const g of this.gauges) {
+      const c = g.canvas;
       const w = Math.round(c.clientWidth * dpr);
       const h = Math.round(c.clientHeight * dpr);
       if (w <= 0 || h <= 0) continue;
@@ -325,114 +394,99 @@ export class Inspector {
       const ctx = c.getContext("2d");
       if (!ctx) continue;
       ctx.clearRect(0, 0, w, h);
-      const top = Math.round(h * 0.2);
-      const band = h - 2 * top;
+      const along = g.vertical ? h : w;
+      const across = g.vertical ? w : h;
+      const inset = g.vertical ? 0 : Math.round(across * 0.2);
+      // A span [a, b] of the bar (0 its empty end) across its track, or a line across all of it.
+      const fill = (a: number, b: number, full = false): void => {
+        const lo = Math.round(a * along);
+        const len = Math.max(0, Math.round(b * along) - lo);
+        const c0 = full ? 0 : inset;
+        const span = full ? across : across - 2 * inset;
+        if (g.vertical) ctx.fillRect(c0, along - lo - len, span, len);
+        else ctx.fillRect(lo, c0, len, span);
+      };
       ctx.globalAlpha = 1;
       ctx.fillStyle = this.palette.track;
-      ctx.fillRect(0, top, w, band);
-      this.drawState(ctx, view.row, match, ship, w, top, band, now, dpr);
+      fill(0, 1);
+      ctx.fillStyle = this.palette.state;
+      this.drawState(g, match, ship, now, fill, (2 * lineW + 1) / along);
       // Lines add up where they overlap: one command held reads bright, a dither dim and spread.
       ctx.globalCompositeOperation = "lighter";
       ctx.fillStyle = this.palette.accent;
-      const lineW = Math.max(1, Math.round(dpr));
+      const thick = lineW / along;
       for (const tick of match.watchHistory) {
         if (tick.tick < 0) continue;
         const age = (now - tick.tick) / SIM_HZ;
         if (age < 0 || age >= LINE_FADE) continue;
         ctx.globalAlpha = LINE_ALPHA * (1 - age / LINE_FADE);
-        for (const x of this.asked(view.row, tick.row[view.row.column]!, tick.throttles, tick.turretAngles, twoWay)) {
-          ctx.fillRect(Math.round(x * (w - lineW)), 0, lineW, h);
-        }
+        const p = this.asked(g, tick.row[g.row.column]!, tick.throttles, tick.turretAngles, twoWay);
+        if (p !== null) fill(p * (1 - thick), p * (1 - thick) + thick, true);
       }
       ctx.globalCompositeOperation = "source-over";
       ctx.globalAlpha = 1;
     }
   }
 
-  private drawState(ctx: CanvasRenderingContext2D, row: OutputRow, match: LiveMatch, ship: ShipState, w: number, top: number, band: number, now: number, dpr: number): void {
-    ctx.fillStyle = this.palette.state;
-    switch (row.kind) {
+  private drawState(g: Gauge, match: LiveMatch, ship: ShipState, now: number, fill: (a: number, b: number) => void, mark: number): void {
+    const ctx = g.canvas.getContext("2d")!;
+    switch (g.row.kind) {
       case "throttle":
         ctx.globalAlpha = 0.45;
-        ctx.fillRect(0, top, Math.round(w * (ship.throttles[row.mount] ?? 0)), band);
+        fill(0, ship.throttles[g.row.mount] ?? 0);
         break;
       case "slew": {
-        const travel = this.travel[row.mount];
+        const travel = this.travel[g.row.mount];
         if (!travel) break;
-        const mark = Math.max(2, Math.round(3 * dpr));
+        const p = turretPosition(ship.turretAngles[g.row.mount] ?? 0, travel) * (1 - mark);
         ctx.globalAlpha = 0.8;
-        ctx.fillRect(Math.round(turretPosition(ship.turretAngles[row.mount] ?? 0, travel) * (w - mark)), top, mark, band);
+        fill(p, p + mark);
         break;
       }
       case "fire": {
-        const shot = match.watchedShots[row.mount] ?? -1;
+        const shot = match.watchedShots[g.row.mount] ?? -1;
         const age = shot < 0 ? Infinity : (now + 1 - shot) / SIM_HZ;
         if (age < SHOT_FLASH) {
           ctx.globalAlpha = 0.7 * (1 - age / SHOT_FLASH);
-          ctx.fillRect(0, top, w, band);
+          fill(0, 1);
         }
         break;
       }
-      case "power": {
-        // Shields, engines, weapons, left to right, in three tones split by a gap.
-        let x = 0;
-        const gap = Math.max(1, Math.round(dpr));
-        [0.55, 0.35, 0.2].forEach((alpha, k) => {
-          const share = ship.power[k] ?? 0;
-          const width = Math.round(w * share);
-          ctx.globalAlpha = alpha;
-          if (width > gap) ctx.fillRect(x, top, width - gap, band);
-          x += width;
-        });
+      case "power":
+        ctx.globalAlpha = 0.45;
+        fill(0, Math.min(1, (ship.power[g.system] ?? 0) / POWER_FULL));
         break;
-      }
     }
   }
 
-  /** Where one tick's command would take its control, 0..1 along the bar (power: two edges). */
-  private asked(row: OutputRow, head: number, throttles: Float32Array, angles: Float32Array, twoWay: boolean): number[] {
-    switch (row.kind) {
+  /** Where one tick's command would take its control, 0..1 along the gauge; null for none. */
+  private asked(g: Gauge, head: number, throttles: Float32Array, angles: Float32Array, twoWay: boolean): number | null {
+    switch (g.row.kind) {
       case "throttle":
-        return [throttleAsk(throttles[row.mount] ?? 0, head)];
+        return throttleAsk(throttles[g.row.mount] ?? 0, head);
       case "slew": {
-        const travel = this.travel[row.mount];
-        return travel ? [turretAsk(angles[row.mount] ?? 0, head, travel)] : [];
+        const travel = this.travel[g.row.mount];
+        return travel ? turretAsk(angles[g.row.mount] ?? 0, head, travel) : null;
       }
       case "fire":
-        return [head > 0 ? 1 : 0];
-      case "power": {
-        const [s, e] = powerTarget(head, twoWay);
-        return twoWay ? [e] : [s, s + e];
-      }
+        return head > 0 ? 1 : 0;
+      case "power":
+        return Math.min(1, powerTarget(head, twoWay)[g.system]! / POWER_FULL);
     }
   }
 
-  /** Beside each bar: what the ship is doing with that output now. */
-  private valueText(match: LiveMatch, row: OutputRow, ship: ShipState, drawn: number): string {
+  /** The odds view's number beside each bar. */
+  private valueText(row: OutputRow, ship: ShipState, drawn: number): string {
     switch (row.kind) {
       case "throttle":
         return percent(ship.throttles[row.mount] ?? 0);
       case "slew":
         return `${Math.round((ship.turretAngles[row.mount] ?? 0) * RAD_TO_DEG)}°`;
       case "fire":
-        return this.showOdds ? percent(this.odds[1] ?? 0) : `${percent(this.fireShare(match, row))} on`;
+        return percent(this.odds[1] ?? 0);
       case "power":
-        if (this.showOdds) return POWER_NAMES[drawn] ?? "";
-        return (ship.power[0] === 0 ? [1, 2] : [0, 1, 2]).map((k) => Math.round((ship.power[k] ?? 0) * 100)).join(" · ");
+        return POWER_NAMES[drawn] ?? "";
     }
-  }
-
-  /** The share of the last half second the net held this trigger down. */
-  private fireShare(match: LiveMatch, row: OutputRow): number {
-    const now = match.tick - 1;
-    let on = 0;
-    let all = 0;
-    for (const t of match.watchHistory) {
-      if (t.tick < 0 || (now - t.tick) / SIM_HZ >= LINE_FADE) continue;
-      all += 1;
-      if (t.row[row.column]! > 0) on += 1;
-    }
-    return all ? on / all : 0;
   }
 
   private stateWord(ship: ShipState): string {
