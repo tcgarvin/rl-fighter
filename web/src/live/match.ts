@@ -101,6 +101,18 @@ export interface WatchedAction {
   row: Int8Array;
 }
 
+/** One tick of the inspected ship: the command chosen and the controls it was chosen from. */
+export interface WatchedTick {
+  /** The tick it was chosen on; -1 for an empty slot. */
+  tick: number;
+  row: Int8Array;
+  throttles: Float32Array;
+  turretAngles: Float32Array;
+}
+
+/** Ticks of command history kept for the inspector: a little over its half-second fade. */
+export const WATCH_HISTORY = 20;
+
 export interface LiveMatchOptions {
   sim: SimModule;
   layout: SimLayout;
@@ -155,9 +167,14 @@ export class LiveMatch {
   /** The last tick's exact split, ms. */
   last = { sim: 0, nn: 0 };
   readonly records: ShipRecord[];
-  /** The inspected ship's slot, whose outputs step() keeps in `watched`, or -1. */
-  watching = -1;
+  /** The inspected ship's slot, whose outputs step() keeps in `watched`, or -1 (setWatching). */
+  private watchingSlot = -1;
   readonly watched: WatchedAction;
+  /** The inspected ship's last WATCH_HISTORY commands, a ring in no particular order. */
+  readonly watchHistory: WatchedTick[];
+  private watchNext = 0;
+  /** The tick each of the inspected ship's turrets last fired on, or -1. */
+  readonly watchedShots = new Int32Array(MAX_TURRETS).fill(-1);
   /** The watched row came from the sim's script, so its logits mean nothing. */
   watchedScripted = false;
   /** Each side's commander. */
@@ -223,6 +240,12 @@ export class LiveMatch {
     this.lastHitBy = Array.from({ length: this.nShips }, () => -1);
     this.records = Array.from({ length: this.nShips }, () => ({ shots: 0, hits: 0, damage: 0, kills: 0 }));
     this.watched = { tick: -1, logits: new Float32Array(o.pilots[0]!.policy.manifest.n_logits), row: new Int8Array(o.layout.actionWidth) };
+    this.watchHistory = Array.from({ length: WATCH_HISTORY }, () => ({
+      tick: -1,
+      row: new Int8Array(o.layout.actionWidth),
+      throttles: new Float32Array(MAX_THRUSTERS),
+      turretAngles: new Float32Array(MAX_TURRETS),
+    }));
     const m = this.match;
     this.headValid = Array.from({ length: this.nShips }, (_, s) => m.head_valid(s));
     // Distinct, reproducible sampling streams per ship.
@@ -370,11 +393,30 @@ export class LiveMatch {
     this.timing.ticks += 1;
   }
 
+  get watching(): number {
+    return this.watchingSlot;
+  }
+
+  /** Inspect ship `i` (or -1): its history starts empty. */
+  setWatching(i: number): void {
+    this.watchingSlot = i;
+    this.watched.tick = -1;
+    for (const h of this.watchHistory) h.tick = -1;
+    this.watchedShots.fill(-1);
+  }
+
   /** Keep the inspected ship's action; the net's logits array is overwritten by the next ship. */
   private watch(row: Int8Array, logits: Float32Array | null): void {
     const w = this.watched;
     w.tick = this.wasm.tick();
     w.row.set(row);
+    const ship = this.ships[this.watchingSlot]!;
+    const h = this.watchHistory[this.watchNext]!;
+    this.watchNext = (this.watchNext + 1) % WATCH_HISTORY;
+    h.tick = w.tick;
+    h.row.set(row);
+    h.throttles.set(ship.throttles.subarray(0, MAX_THRUSTERS));
+    h.turretAngles.set(ship.turretAngles.subarray(0, MAX_TURRETS));
     if (logits) w.logits.set(logits);
     else w.logits.fill(0);
     this.watchedScripted = logits === null;
@@ -388,6 +430,8 @@ export class LiveMatch {
 
   private record(e: SimEvent): void {
     if (e.kind === "fire" || e.kind === "beam") {
+      // A beam names no turret; the beam hulls carry one.
+      if (e.a === this.watchingSlot) this.watchedShots[e.kind === "fire" ? e.b : 0] = this.wasm.tick();
       const r = this.records[e.a];
       if (r) r.shots += 1;
     } else if (e.kind === "hit" || e.kind === "shieldHit") {

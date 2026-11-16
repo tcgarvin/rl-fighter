@@ -133,3 +133,58 @@ export function inspectFrame(l: InspectLayout, clear: number): Rect {
   const room = (r: Rect): number => Math.min(r.right - r.left, r.bottom - r.top);
   return room(beside) > room(above) ? beside : above;
 }
+
+// ---- The ship view: each control's state, and where each tick's command would take it. ----
+
+/** A command's line is drawn where it would take its control this far on, seconds. */
+export const ASK_LOOKAHEAD = 0.25;
+/** Thrust level per second of "more" or "less" (crates/sim/src/physics.rs RAMP_RATE). */
+const RAMP_RATE = 5;
+const DEG = Math.PI / 180;
+
+const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
+
+/** A turret's travel, from the hull catalogue: degrees and degrees per second. */
+export interface TurretTravel {
+  rest: number;
+  arc: number;
+  slew: number;
+}
+
+/** Where a thruster command takes its level (0..1): "more" full, "less" off, "hold" stays. */
+export function throttleAsk(level: number, head: number): number {
+  return clamp01(level + (head - 1) * RAMP_RATE * ASK_LOOKAHEAD);
+}
+
+/** A turret angle (radians) along its bar: 0 the left (counter-clockwise) end of the arc. */
+export function turretPosition(angle: number, t: TurretTravel): number {
+  if (!(t.arc > 0)) return 0.5;
+  return clamp01((t.rest + t.arc / 2 - angle / DEG) / t.arc);
+}
+
+/** Where a slew command (left, hold, right) takes the turret, along its bar. */
+export function turretAsk(angle: number, head: number, t: TurretTravel): number {
+  const sign = head === 0 ? 1 : head === 1 ? 0 : -1;
+  return turretPosition(angle + sign * t.slew * DEG * ASK_LOOKAHEAD, t);
+}
+
+// [shields, engines, weapons] by power head (crates/sim/src/power.rs POWER_TARGETS).
+const POWER_TARGETS: ReadonlyArray<readonly [number, number, number]> = [
+  [1 / 3, 1 / 3, 1 / 3],
+  [0.6, 0.2, 0.2],
+  [0.2, 0.6, 0.2],
+  [0.2, 0.2, 0.6],
+  [0.4, 0.4, 0.2],
+  [0.4, 0.2, 0.4],
+  [0.2, 0.4, 0.4],
+];
+const TWO_WAY_CAP = 0.8;
+
+/** The split a power choice aims at; a hull with no shield splits two ways (power.rs). */
+export function powerTarget(choice: number, twoWay: boolean): [number, number, number] {
+  const t = POWER_TARGETS[choice] ?? POWER_TARGETS[0]!;
+  if (!twoWay) return [t[0], t[1], t[2]];
+  if (choice === 0) return [0, 0.5, 0.5];
+  const e = Math.min(TWO_WAY_CAP, Math.max(1 - TWO_WAY_CAP, t[1] / (t[1] + t[2])));
+  return [0, e, 1 - e];
+}

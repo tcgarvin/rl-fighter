@@ -221,6 +221,14 @@ body.inspecting #cmdlog {
   font-variant-numeric: tabular-nums;
 }
 
+/* Wide screens frame the ship beside the panel (inspectFrame), so it may stand taller,
+   up to the status in the top left. */
+@media (min-width: 900px) and (min-aspect-ratio: 4/3) {
+  #inspect {
+    max-height: min(72vh, 100vh - 230px);
+  }
+}
+
 .ins-head {
   display: flex;
   align-items: center;
@@ -372,6 +380,36 @@ body.inspecting #cmdlog {
   gap: 2px;
   min-width: 0;
   height: 10px;
+}
+
+/* The ship view (the default): a canvas per control; the odds bars wait for the toggle. */
+.ins-ship {
+  flex: 1;
+  min-width: 0;
+  height: 14px;
+}
+
+#inspect:not(.odds) .ins-bar,
+#inspect.odds .ins-ship {
+  display: none;
+}
+
+.ins-explain {
+  margin-top: 8px;
+}
+
+.ins-mode {
+  appearance: none;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 3px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .ins-bar i {

@@ -17,7 +17,8 @@
 // overriding the viewer's remembered choice), warmup (fast-forward that many sim
 // seconds into the first match, for screenshots), inspect (a ship slot to inspect once the
 // first match is on; screenshots), outputs (1/0: open or close the inspector's details,
-// overriding the viewer's remembered choice), speed (run time N× faster, for soak tests),
+// overriding the viewer's remembered choice), odds (1/0: its bars show the net's odds or
+// the ship, likewise), speed (run time N× faster, for soak tests),
 // scale (hold the render scale at 0.5..1 instead of letting it follow the frame's cost;
 // screenshots), lights and shadows (0 leaves out the blasts' point lights or the hulls'
 // shadows, to tell apart a fault seen on one device), debug (expose window.rlfLive stats).
@@ -56,6 +57,8 @@ const ROSTER_SALT = 0x5bd1e995;
 const COMMANDS_KEY = "rlf.live.showCommands";
 // The viewer's "details" choice in the ship inspector (closed by default).
 const OUTPUTS_KEY = "rlf.live.shipOutputs";
+// Whether the inspector's bars show the net's odds rather than the ship (off by default).
+const ODDS_KEY = "rlf.live.shipOdds";
 // A press that travels further than this (CSS px) isn't a tap.
 const TAP_SLOP = 12;
 // A destroyed or departed ship stays inspected this long, seconds, so the end is seen.
@@ -90,7 +93,7 @@ const muster = new Muster(document.getElementById("muster")!);
 const pinnedScale = params.has("scale") ? Math.min(1, Math.max(0.5, Number(params.get("scale")) || 1)) : null;
 const world = new World(document.body, pinnedScale, { lights: params.get("lights") !== "0", shadows: params.get("shadows") !== "0" });
 const inspectPanel = document.getElementById("inspect")!;
-const inspector = new Inspector(inspectPanel);
+const inspector = new Inspector(inspectPanel, params.has("odds") ? params.get("odds") !== "0" : readStoredFlag(ODDS_KEY));
 const reticle = document.getElementById("reticle")!;
 const cmdlog = new CommandLog(document.getElementById("cmdlog")!, (hull) => (world.spec(hull)?.bays ?? []).map((b) => b.id.replace(/^bay\./, "")));
 
@@ -360,12 +363,12 @@ function select(i: number): void {
   selected = i;
   goneFor = 0;
   const m = match;
-  if (m) m.watching = i;
+  if (m) m.setWatching(i);
   world.setFocus(i);
   document.body.classList.toggle("inspecting", i >= 0);
   if (i >= 0 && m) {
     const hull = world.spec(m.hullNames[i]!);
-    inspector.open(m, i, hull?.thrusters.map((t) => t.id) ?? [], hull?.turrets.map((t) => t.id) ?? [], bundle.manifest.pilots_entry ?? "");
+    inspector.open(m, i, hull?.thrusters.map((t) => t.id) ?? [], hull?.turrets ?? [], bundle.manifest.pilots_entry ?? "");
     inspector.setOutputs(showOutputs);
   } else {
     inspector.close();
@@ -386,8 +389,12 @@ function setOutputs(on: boolean): void {
 }
 
 function readStoredOutputs(): boolean {
+  return readStoredFlag(OUTPUTS_KEY);
+}
+
+function readStoredFlag(key: string): boolean {
   try {
-    return localStorage.getItem(OUTPUTS_KEY) === "1";
+    return localStorage.getItem(key) === "1";
   } catch {
     // Storage blocked (private mode, sandboxed preview): the default holds.
     return false;
@@ -443,6 +450,14 @@ function updateInspected(realDt: number): void {
   });
   inspector.outputsBtn.addEventListener("click", () => setOutputs(!showOutputs));
   inspector.closeBtn.addEventListener("click", () => select(-1));
+  inspector.modeBtn.addEventListener("click", () => {
+    inspector.setOdds(!inspector.oddsShown);
+    try {
+      localStorage.setItem(ODDS_KEY, inspector.oddsShown ? "1" : "0");
+    } catch {
+      // Not remembered across visits, but the toggle still works for this one.
+    }
+  });
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && selected >= 0) select(-1);
   });

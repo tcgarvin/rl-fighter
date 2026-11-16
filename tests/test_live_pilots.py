@@ -463,3 +463,38 @@ def test_an_inspected_ship_is_framed_beside_the_panel_when_there_is_room() -> No
     assert got["wide"] == {"left": 586, "top": 105, "right": 1259, "bottom": 574}
     # Above the panel, below the whole top HUD.
     assert got["phone"] == {"left": 16, "top": 138, "right": 374, "bottom": 404}
+
+
+SHIP_VIEW = """
+import { powerTarget, throttleAsk, turretAsk, turretPosition } from "./web/src/live/inspect.ts";
+const flak = { rest: 0, arc: 180, slew: 120 };
+const deg = Math.PI / 180;
+console.log(JSON.stringify({
+  throttle: [throttleAsk(0.4, 0), throttleAsk(0.4, 1), throttleAsk(0.4, 2)],
+  turret: [turretPosition(90 * deg, flak), turretPosition(0, flak), turretPosition(-90 * deg, flak)],
+  slew: [turretAsk(0, 0, flak), turretAsk(0, 1, flak), turretAsk(0, 2, flak)],
+  fixed: turretPosition(0.3, { rest: 0, arc: 0, slew: 0 }),
+  power: [powerTarget(1, false), powerTarget(0, true), powerTarget(2, true), powerTarget(3, true)],
+}));
+"""
+
+
+def test_the_ship_view_puts_each_command_where_it_would_take_its_control() -> None:
+    result = subprocess.run(
+        ["node", "--experimental-strip-types", "--no-warnings", "--input-type=module", "-e", SHIP_VIEW],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    got = json.loads(result.stdout)
+    # "Less" and "more" reach the ends within a quarter second (0 to full in 0.2 s); hold stays.
+    assert got["throttle"] == pytest.approx([0.0, 0.4, 1.0])
+    # Left (counter-clockwise) is the bar's left end.
+    assert got["turret"] == pytest.approx([0.0, 0.5, 1.0])
+    # 120 deg/s for a quarter second: 30 degrees of a 180 degree arc either way.
+    assert got["slew"] == pytest.approx([1 / 3, 0.5, 2 / 3])
+    assert got["fixed"] == 0.5
+    # As crates/sim/src/power.rs: three-way targets, and two-way capped at 0.8.
+    want = [[0.6, 0.2, 0.2], [0, 0.5, 0.5], [0, 0.75, 0.25], [0, 0.25, 0.75]]
+    assert [split == pytest.approx(w) for split, w in zip(got["power"], want)] == [True] * 4
