@@ -159,6 +159,13 @@ def run(args: argparse.Namespace) -> dict:
         if not ckpt.is_file():
             raise FileNotFoundError(f"no checkpoint at {ckpt}")
         pilots = [(args.name or ckpt.stem, ckpt)]
+        if args.unseen_checkpoint:
+            uckpt = Path(args.unseen_checkpoint)
+            if not uckpt.is_file():
+                raise FileNotFoundError(f"no checkpoint at {uckpt}")
+            pilots.append((args.unseen_name or uckpt.stem, uckpt))
+    elif args.unseen_checkpoint:
+        raise ValueError("--unseen-checkpoint needs --checkpoint")
     else:
         pilots = live_pilot_checkpoints(Path(args.pilots))
     stable = PilotStable(pilots, n, env.n_ships, args.seed + 1, ASSETS)
@@ -169,6 +176,12 @@ def run(args: argparse.Namespace) -> dict:
     S = env.n_ships
     side = np.where(team == ord_team[:, None], 0, 1)  # 0 ordered, 1 unseen
     side[~strike] = -1
+    if args.unseen_checkpoint:
+        # Pilot 0 flies every ordered strike craft, pilot 1 every unseen one: an
+        # ordered learner measured against a fixed free pilot, not against itself.
+        stable.assign[side == 0] = 0
+        stable.assign[side == 1] = 1
+        assign = stable.assign.copy()
     hull_name = np.empty((n, S), dtype=object)
     rule = ExternalRule(args.rule, n)
     torch.manual_seed(args.seed)
@@ -506,6 +519,11 @@ def main() -> int:
         "--checkpoint", help="one pilot flies every ship (instead of --pilots)"
     )
     p.add_argument("--name", help="its id in the output (default: the file's stem)")
+    p.add_argument(
+        "--unseen-checkpoint",
+        help="with --checkpoint: this pilot flies the unseen side instead",
+    )
+    p.add_argument("--unseen-name", help="its id in the output")
     p.add_argument("--out", type=Path, required=True)
     args = p.parse_args()
     torch.set_num_threads(args.threads)
