@@ -267,6 +267,8 @@ LOG_KEYS: tuple[str, ...] = (
     "reward_team",
     "reward_order",
     "reward_order_weighted",
+    "reward_order_drill",
+    "reward_order_match",
     "order_reward_weight",
     "has_order_share",
     "beta_rows_share",
@@ -509,6 +511,11 @@ class PPOConfig:
     # Where it runs is no part of what the run is: "cpu" is left out of ``to_dict``,
     # so configs and checkpoints of CPU runs are what they were before the key.
     update_device: str = "cpu"
+    # Order pay on the rows of matches that are not drills is multiplied by this
+    # (after order_reward_weight); drill rows keep their full order pay, which is what
+    # fixes what an order means. Go-to shaping is part of the sim's order pay, so it
+    # scales too. 1.0 (the default) is left out of ``to_dict``, like update_device.
+    match_order_pay_scale: float = 1.0
 
     @classmethod
     def preset(cls, init: str, **overrides: object) -> PPOConfig:
@@ -591,6 +598,12 @@ class PPOConfig:
         if not 0 <= self.obs_dim <= OBS_DIM:
             raise ValueError(f"obs_dim must be in 0..={OBS_DIM}, got {self.obs_dim}")
         self._check_goto_pay()
+        scale = self.match_order_pay_scale
+        if not (math.isfinite(scale) and scale >= 0.0):
+            raise ValueError(
+                "match_order_pay_scale must be finite and >= 0, "
+                f"got {self.match_order_pay_scale}"
+            )
         if self.beta_rows not in BETA_ROWS:
             raise ValueError(
                 f"beta_rows must be one of {BETA_ROWS}, got {self.beta_rows}"
@@ -690,10 +703,12 @@ class PPOConfig:
 
     def to_dict(self) -> dict[str, object]:
         """Plain-type dict (yaml / checkpoint meta); ``update_device`` only when it
-        is not "cpu"."""
+        is not "cpu", ``match_order_pay_scale`` only when it is not 1.0."""
         data = dataclasses.asdict(self)
         if data["update_device"] == "cpu":
             del data["update_device"]
+        if data["match_order_pay_scale"] == 1.0:
+            del data["match_order_pay_scale"]
         return data
 
     @classmethod
@@ -1111,6 +1126,8 @@ class RolloutStorage:
         self.transit = np.zeros((length, rows), dtype=np.bool_)
         # The row's team has its orders hidden: it earns no order pay.
         self.order_hidden = np.zeros((length, rows), dtype=np.bool_)
+        # The row's match (before the step) is a drill: its order pay is never scaled.
+        self.drill = np.zeros((length, rows), dtype=np.bool_)
         # The frozen anchor's per-head log-softmax of each learner row (rollout
         # cache; zero rows wide without an anchor).
         self.anchor_logp = np.zeros(
@@ -1914,6 +1931,7 @@ class SpikeTrainer:
             store.side[b] = own
             if self.drills_on:
                 drill_rows = np.repeat(self.drill_ledger.running, n_ships)
+                store.drill[b] = drill_rows
                 tally.side_rows += int(own.sum())
                 tally.drill_rows += int((own & drill_rows).sum())
                 if self.drill_ledger.any_goto_running():
@@ -2100,6 +2118,10 @@ class SpikeTrainer:
         order = store.order_reward[b]
         order[:] = info.order_rewards.reshape(rows)
         order[store.order_hidden[b]] = 0.0
+        if cfg.match_order_pay_scale != 1.0:
+            # Matches that are not drills pay a share of the order pay (the logged
+            # reward_order is what was paid).
+            order[~store.drill[b]] *= np.float32(cfg.match_order_pay_scale)
         store.rewards[b] = store.team_reward[b] + cfg.order_reward_weight * order
 
     # -- GAE + batch ---------------------------------------------------------
@@ -2247,6 +2269,12 @@ class SpikeTrainer:
             "reward_order": mean(store.order_reward),
             "reward_order_weighted": self.config.order_reward_weight
             * mean(store.order_reward),
+            # The same pay split by drill and match rows (both over every row, so
+            # they add up to reward_order_weighted).
+            "reward_order_drill": self.config.order_reward_weight
+            * mean(np.where(store.drill, store.order_reward, 0.0)),
+            "reward_order_match": self.config.order_reward_weight
+            * mean(np.where(store.drill, 0.0, store.order_reward)),
             "reward_damage_dealt": mean(store.dealt),
             "reward_damage_taken": -mean(store.taken),
             "reward_fire_cost": mean(store.fire_cost),

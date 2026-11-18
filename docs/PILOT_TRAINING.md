@@ -551,6 +551,24 @@ which pays 0 (a miss costs 0.004). Nothing in the pay makes another enemy worse 
 shot. `hide_damage_when_ordered` would, but it is off in every current config, and drills
 refuse it.
 
+**Experiment: less order pay in matches (`match_order_pay_scale`, 2026-11-18, training
+only).** Mixed matches did not make an order cheap (`lab/runs/2026-11-18-mixed-orders`).
+The next guess is that order pay in matches (a hit on the attack target pays double) keeps
+an ordered pilot dueling its target while the fleet fight is lost. The trainer key
+`match_order_pay_scale` (float, **default 1.0**, must be finite and >= 0) multiplies the
+order pay on every row of a match that is not a drill, after the hidden-orders rule and
+before `order_reward_weight`; drill rows keep their full order pay, since that is what
+fixes what an order means. All of the sim's `order_rewards` scale: attack and defend hit
+pay, the defend ward terms, and go-to pay (the potential shaping toward the point, the
+arrival bonus, the deadline bonus and the miss charge). The script pull on transit rows
+(`beta_rows: transit`) is not pay and is untouched. The drill / match split is the env's
+match before the step (`DrillLedger.running`), stored per row (`storage.drill`). At 1.0
+the reward is computed as before and the key is left out of `config.yaml` and the
+checkpoint meta (like `update_device`). Logs: `reward_order_drill` and
+`reward_order_match`, the weighted order pay actually paid on drill and match rows, each
+a mean over all the learner side's rows like `reward_order`, so the two add up to
+`reward_order_weighted` (`tests/test_match_order_pay.py`).
+
 ### Preset `pilots_v1`
 
 `spacefight/env/rosters.py`; `orders_v1` still works, so old configs resume. Per match:

@@ -84,3 +84,34 @@ eval_before.sh`).
   shows in `win_mixed_ordered`.
 - Not tested here: a rating. If an arm passes, it goes into the population's WAR like
   any other member.
+
+## Part 2: order pay in matches
+
+Prepared 2026-11-18, 07:45, on Beast. The laptop session chose it; training stops at 19:00.
+
+**Why.** The laptop's cross-pilot measure (`eval_cross/`, each checkpoint against
+`followers_school_1052` flying free, 3 v 3, 1,152 matches) found mixed matches did not
+make an order cheap: with nearest orders control 725 scored 0.28, mixed 725 0.21,
+mixed_all 725 0.16, mixed 2250 0.19, mixed_all 2250 0.18. `mixed` and `mixed_all` were
+stopped at updates 2459 and 2548.
+
+**Question.** Does order pay in matches (under an attack order a hit on the target pays
+double a hit on anyone else) keep an ordered pilot dueling its target? Drills keep their
+order pay: it is what fixes what an order means.
+
+**The new key.** `match_order_pay_scale` (trainer, default 1.0, `docs/PILOT_TRAINING.md`
+§3): order pay on the rows of matches that are not drills is multiplied by it; drill rows
+are unchanged. Go-to shaping is part of the sim's order pay, so it scales too. Logs
+`reward_order_drill` and `reward_order_match`.
+
+| Arm | drill_share | commander_p | mixed_p | match_order_pay_scale | Where |
+|---|---|---|---|---|---|
+| `pay0` | 0.3 | 0.667 | 1.0 | 0.0 | Beast, `update_device=cuda:0`, 3 + 3 threads |
+| `pay025` | 0.3 | 0.667 | 1.0 | 0.25 | Beast, `update_device=cuda:1`, 3 + 3 threads |
+
+Fresh from `followers_school_1052` with `--init`, everything else as `mixed_all`. The
+comparison is `mixed_all` (pay 1.0) at the same update.
+
+**Measures and bars.** As part 1, plus the cross-pilot measure (`eval_cross.sh`): an
+arm that lifts its nearest-orders score against free `followers_school_1052` clearly
+above `mixed_all`'s at the same update has answered yes; the drill gate must still pass.

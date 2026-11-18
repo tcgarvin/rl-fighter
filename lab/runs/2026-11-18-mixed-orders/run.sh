@@ -4,6 +4,9 @@
 #   control    drill_share 0.3, commander_p 0.667, mixed_p 0.0
 #   mixed      drill_share 0.3, commander_p 0.667, mixed_p 0.5
 #   mixed_all  drill_share 0.3, commander_p 0.667, mixed_p 1.0
+# Part 2 (plan.md "Part 2: order pay in matches"), as mixed_all except the pay scale:
+#   pay0       mixed_all + match_order_pay_scale 0.0
+#   pay025     mixed_all + match_order_pay_scale 0.25
 # plus checkpoint_every 25, the thread counts and update_device below, and n_updates.
 # An arm that dies before the deadline is started again from its last checkpoint (or
 # from scratch, from the init, if it had none yet), up to MAX_RESTARTS times. Stops by
@@ -15,13 +18,17 @@
 #   Laptop: ARMS=control SIM_THREADS=6 TORCH_THREADS=6 DEADLINE="2026-11-18 15:00" \
 #               nohup setsid lab/runs/2026-11-18-mixed-orders/run.sh \
 #               > lab/runs/2026-11-18-mixed-orders/run_laptop.out 2>&1 &
+#   Beast, part 2: ARMS="pay0 pay025" DEADLINE="2026-11-18 19:00" nohup setsid \
+#               lab/runs/2026-11-18-mixed-orders/run.sh \
+#               > lab/runs/2026-11-18-mixed-orders/run_beast2.out 2>&1 &
 #   SMOKE=1 ARMS="control mixed mixed_all" lab/runs/2026-11-18-mixed-orders/run.sh
 #       (tiny sizes, 2 updates a checkpoint, into smoke/)
 #
 # Env: ARMS (default "mixed mixed_all"), DEADLINE (a `date -d` string, required outside
 # SMOKE), N_UPDATES (6000, an upper bound; the deadline ends the run), SIM_THREADS and
 # TORCH_THREADS (3 each; per arm SIM_THREADS_<arm>, TORCH_THREADS_<arm>), DEVICE_<arm>
-# (update_device; defaults control=cpu, mixed=cuda:0, mixed_all=cuda:1), MAX_RESTARTS (3).
+# (update_device; defaults control=cpu, mixed=cuda:0, mixed_all=cuda:1, pay0=cuda:0,
+# pay025=cuda:1), MAX_RESTARTS (3).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
@@ -50,8 +57,15 @@ arm_mixed_p() {
     case $1 in
         control) echo 0.0 ;;
         mixed) echo 0.5 ;;
-        mixed_all) echo 1.0 ;;
+        mixed_all|pay0|pay025) echo 1.0 ;;
         *) echo "unknown arm $1" >&2; exit 2 ;;
+    esac
+}
+arm_pay_scale() {  # match_order_pay_scale; empty = the default (1.0, not set)
+    case $1 in
+        pay0) echo 0.0 ;;
+        pay025) echo 0.25 ;;
+        *) echo "" ;;
     esac
 }
 arm_device() {
@@ -60,6 +74,8 @@ arm_device() {
         control) default=cpu ;;
         mixed) default=cuda:0 ;;
         mixed_all) default=cuda:1 ;;
+        pay0) default=cuda:0 ;;
+        pay025) default=cuda:1 ;;
         *) echo "unknown arm $1" >&2; exit 2 ;;
     esac
     echo "${!var:-$default}"
@@ -89,8 +105,9 @@ EOF
 
 declare -A pid_of restarts n_updates
 start_arm() {
-    local arm=$1 dir=$RUN/$1 mixed_p device sim torch overrides
+    local arm=$1 dir=$RUN/$1 mixed_p pay_scale device sim torch overrides
     mixed_p=$(arm_mixed_p "$arm")
+    pay_scale=$(arm_pay_scale "$arm")
     device=$(arm_device "$arm")
     sim=$(arm_threads "$arm" SIM)
     torch=$(arm_threads "$arm" TORCH)
@@ -101,6 +118,9 @@ start_arm() {
         --set update_device="$device"
         --set roster_overrides="$overrides"
     )
+    if [[ -n $pay_scale ]]; then
+        args+=(--set match_order_pay_scale="$pay_scale")
+    fi
     if [[ $SMOKE == 1 ]]; then
         args+=(--set n_envs=8 --set n_steps=32 --set minibatch=256 --set checkpoint_every=2)
     else
@@ -120,7 +140,7 @@ start_arm() {
             "${sets[@]}" "${args[@]}" >>"$RUN/$arm.out" 2>&1 &
     fi
     pid_of[$arm]=$!
-    echo "$(date +%H:%M:%S) $arm pid ${pid_of[$arm]} (mixed_p $mixed_p, $device, $sim+$torch threads)"
+    echo "$(date +%H:%M:%S) $arm pid ${pid_of[$arm]} (mixed_p $mixed_p${pay_scale:+, match pay $pay_scale}, $device, $sim+$torch threads)"
 }
 
 mkdir -p "$RUN"
