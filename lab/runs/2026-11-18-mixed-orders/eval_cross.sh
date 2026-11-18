@@ -21,7 +21,7 @@ for spec in "$@"; do
   name=${spec%%=*}; ckpt=${spec#*=}
   run nearest "$name" "$ckpt" base1052 "$BASE" &
   run none "$name" "$ckpt" base1052 "$BASE" &
-  run nearest base1052 "$BASE" "$name" "$ckpt" &
+  [[ ${SKIP_REVERSE:-0} == 1 ]] || run nearest base1052 "$BASE" "$name" "$ckpt" &
 done
 wait
 grep -h "ordered side" "$OUT"/*.out
