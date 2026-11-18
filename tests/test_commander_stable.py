@@ -216,6 +216,17 @@ def test_the_sampler_draws_shown_sides_and_leaves_hidden_sides_and_drills() -> N
     assert commander_label(shown, 1) == SCRIPTED
 
 
+def test_a_mixed_match_commands_only_its_shown_side_from_the_stable() -> None:
+    """``mixed_p``: the hidden side keeps the script underneath, as in a hidden match."""
+    shown = Roster.of(["fighter"], ["strafer"], mission=CARRIER_BATTLE)
+    mixed = replace(shown, hide_orders=(False, True))
+    got = StableSampler(ListSampler([mixed]), _two(1.0), seed=0).sample()
+    assert got.hide_orders == (False, True)
+    assert got.commanders == (LEARNED, SCRIPTED)
+    assert got.commander_ids[0] == "net" and not got.commander_ids[1]
+    assert [commander_label(got, t) for t in (0, 1)] == ["net", NO_COMMANDER]
+
+
 def test_sides_draw_independently_by_weight_and_the_inner_draws_are_unchanged() -> None:
     distribution = resolve_distribution("pilots_v1")
     plain = make_sampler(distribution, 11)

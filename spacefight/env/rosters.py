@@ -47,7 +47,8 @@ default, with ``default_roster_share``, else one of the others uniformly. Both t
 have ``scripted`` commanders. With ``commander_p`` their orders are shown; otherwise
 they are hidden from both teams (``Roster.hide_orders``), which is "no commander": the
 script's logistics still run, because a carrier or a convoy cannot play without them.
-The condition is always the same on both sides.
+The condition is the same on both sides, except under the experimental ``mixed_p``
+(training only, default 0): a share of the shown matches hide one side's orders.
 
 Order drills (``docs/PILOT_TRAINING.md`` §2): with ``drill_share`` a ``PilotsDistribution``
 also draws drills from ``spacefight.env.drills``. A drill is a ``Roster`` like any other,
@@ -689,6 +690,10 @@ class PilotsDistribution:
         mission_weights: Weights of ``MISSIONS`` (deathmatch, carrier, convoy).
         commander_p: Chance a match has orders shown on both sides (else hidden from
             both).
+        mixed_p: Experimental (``docs/PILOT_TRAINING.md`` §3, training only): of the
+            matches ``commander_p`` would show on both sides, the share that instead
+            hides one side's orders, the side drawn at random per match. 0 draws no
+            extra number, so the draws are those of a distribution without it.
         default_roster_share: Chance a carrier or convoy plays the mission's first
             roster (else one of the others, uniformly).
         draft_hulls: Hulls a deathmatch drafts.
@@ -711,6 +716,7 @@ class PilotsDistribution:
     kind: str = PILOTS_KIND
     mission_weights: tuple[float, ...] = (0.4, 0.3, 0.3)
     commander_p: float = 0.5
+    mixed_p: float = 0.0
     default_roster_share: float = 0.5
     draft_hulls: tuple[str, ...] = FLEET_HULLS
     draft_min_per_side: int = 2
@@ -730,6 +736,7 @@ class PilotsDistribution:
             raise ValueError("mission_weights must be >= 0 with a positive sum")
         for name in (
             "commander_p",
+            "mixed_p",
             "default_roster_share",
             "drill_share",
             "drill_goto_solo_share",
@@ -1060,7 +1067,8 @@ class PilotsRosterSampler:
 
     def sample(self) -> Roster:
         """One roster (the env pads it to ``max_ships``). With ``drill_share`` 0 no
-        extra number is drawn, so the draws are those of a distribution without drills.
+        extra number is drawn, so the draws are those of a distribution without drills;
+        likewise ``mixed_p`` 0 draws nothing for mixed matches.
         """
         d, rng = self.distribution, self.rng
         if self.drills is not None and rng.random() < d.drill_share:
@@ -1069,6 +1077,9 @@ class PilotsRosterSampler:
         mission = MISSIONS[int(rng.choice(len(MISSIONS), p=p / p.sum()))]
         roster = self._draft() if mission == DEATHMATCH else self._live_roster(mission)
         hidden = not bool(rng.random() < d.commander_p)
+        if not hidden and d.mixed_p > 0 and rng.random() < d.mixed_p:
+            side = int(rng.integers(2))
+            return replace(roster, hide_orders=(side == 0, side == 1))
         return replace(roster, hide_orders=(hidden, hidden))
 
     def sample_many(self, n: int) -> list[Roster]:

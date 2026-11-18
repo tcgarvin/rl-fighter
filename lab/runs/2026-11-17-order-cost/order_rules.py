@@ -7,7 +7,13 @@ cost is the script's target choice or following any order. Run from the repo roo
 One side (the "ordered" side) gets orders its pilots see, from one of these rules; the
 other side is always the eval's ``unseen`` side (the scripted commander, its orders
 hidden from its own pilots). The same pilots fly both sides, drawn ship by ship from
-``--pilots``; every rule plays the same seeds, rosters and pilot draws.
+``--pilots``, or every ship by the one pilot ``--checkpoint`` names; every rule plays
+the same seeds and rosters (and, for one pilot list, the same pilot draws), so scores
+pair match by match across rules and across pilots. One pilot, e.g. a learner's
+checkpoint:
+
+    PYTHONPATH=. .venv/bin/python lab/runs/2026-11-17-order-cost/order_rules.py \
+        --rule nearest --k 3 --checkpoint <ckpt.pt> --out k3_nearest.json
 
 Rules for the ordered side (all attack orders, given on the sim's slow tick, every 2 s
 from t = 2 s):
@@ -148,7 +154,13 @@ def run(args: argparse.Namespace) -> dict:
             hide_orders=tuple(hide),
         )
     env.reset()
-    pilots = live_pilot_checkpoints(Path(args.pilots))
+    if args.checkpoint:
+        ckpt = Path(args.checkpoint)
+        if not ckpt.is_file():
+            raise FileNotFoundError(f"no checkpoint at {ckpt}")
+        pilots = [(args.name or ckpt.stem, ckpt)]
+    else:
+        pilots = live_pilot_checkpoints(Path(args.pilots))
     stable = PilotStable(pilots, n, env.n_ships, args.seed + 1, ASSETS)
     stable.draw(env, range(n))
     assign = stable.assign.copy()
@@ -434,6 +446,7 @@ def run(args: argparse.Namespace) -> dict:
         "seed": args.seed,
         "window_s": args.window,
         "pilots": [p for p, _ in pilots],
+        "checkpoints": [str(c) for _, c in pilots],
         "secs": round(secs, 1),
         "score": float(score.mean()),
         "score_se": float(score.std(ddof=1) / math.sqrt(n)),
@@ -489,6 +502,10 @@ def main() -> int:
     p.add_argument("--threads", type=int, default=8)
     p.add_argument("--window", type=float, default=30.0)
     p.add_argument("--pilots", default=str(DEFAULT_PILOTS))
+    p.add_argument(
+        "--checkpoint", help="one pilot flies every ship (instead of --pilots)"
+    )
+    p.add_argument("--name", help="its id in the output (default: the file's stem)")
     p.add_argument("--out", type=Path, required=True)
     args = p.parse_args()
     torch.set_num_threads(args.threads)

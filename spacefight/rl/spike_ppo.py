@@ -107,6 +107,12 @@ external commanders. Unset, nothing here runs and the draws are unchanged. Logs:
 by ``commander_label`` (``no_commander`` for hidden orders), and
 ``commander_decisions``.
 
+Mixed-condition matches (``pilots_v1``'s experimental ``mixed_p``): one side's orders
+shown, the other's hidden. Order pay is dropped per team (``order_hidden_rows``), so
+only the shown side earns it. Logs: ``win_mixed_ordered`` / ``win_mixed_hidden`` (the
+learner's score, draws ½, by its side's condition) with ``episodes_mixed_*``, and
+``win_by_condition`` / ``episodes_by_condition`` over ``shown``, ``hidden``, ``mixed``.
+
 Value-only rows (``value_only_rows``). GAE runs down every learner row, and only a
 match end is a terminal: a ship's last steps bootstrap from the critic's value of its
 row after it died, and the terminal term reaches dead ships too (SIM_SPEC §8). So the
@@ -335,6 +341,12 @@ LOG_KEYS: tuple[str, ...] = (
     "episodes_by_commander",
     "win_by_commander",
     "win_by_enemy_commander",
+    "episodes_by_condition",
+    "win_by_condition",
+    "win_mixed_ordered",
+    "win_mixed_hidden",
+    "episodes_mixed_ordered",
+    "episodes_mixed_hidden",
     "hull_samples",
     "hull_hit_rate",
     "hull_damage_dealt",
@@ -1196,6 +1208,13 @@ class EpisodeTally:
     by_enemy_commander: dict[str, list[int]] = field(default_factory=dict)
     # Learned commander decisions submitted during the rollout.
     commander_decisions: int = 0
+    # Mixed-condition matches (one side's orders shown, the other's hidden; the
+    # experimental ``mixed_p``) -> [wins, draws, losses] of the learner, by whether its
+    # side was the ordered or the hidden one; and every match by condition.
+    mixed: dict[str, list[int]] = field(
+        default_factory=lambda: {"ordered": [0, 0, 0], "hidden": [0, 0, 0]}
+    )
+    by_condition: dict[str, list[int]] = field(default_factory=dict)
 
     def add(
         self,
@@ -1206,12 +1225,18 @@ class EpisodeTally:
         n_ships: int,
         learner_team: int,
         commanders: tuple[str, str],
+        hide_orders: tuple[bool, bool] = (False, False),
     ) -> None:
         """Record one finished episode; winner is the sim's (0, 1, -1 draw),
-        ``learner_team`` the learner's side of it and ``commanders`` each team's
-        commander label."""
+        ``learner_team`` the learner's side of it, ``commanders`` each team's
+        commander label and ``hide_orders`` the roster's (``Roster.hide_orders``)."""
         name = KIND_NAMES[OpponentKind(kind)]
         slot = 0 if winner == learner_team else (1 if winner == -1 else 2)
+        condition = match_condition(hide_orders)
+        self.by_condition.setdefault(condition, [0, 0, 0])[slot] += 1
+        if condition == "mixed":
+            own = "hidden" if hide_orders[learner_team] else "ordered"
+            self.mixed[own][slot] += 1
         self.outcomes[name][slot] += 1
         for label in commanders:
             self.commander_sides[label] = self.commander_sides.get(label, 0) + 1
@@ -1287,7 +1312,24 @@ class EpisodeTally:
         }
         out["win_by_commander"] = _score_by(self.by_commander)
         out["win_by_enemy_commander"] = _score_by(self.by_enemy_commander)
+        out["episodes_by_condition"] = {
+            key: sum(counts) for key, counts in sorted(self.by_condition.items())
+        }
+        out["win_by_condition"] = _score_by(self.by_condition)
+        for own, counts in self.mixed.items():
+            total = sum(counts)
+            out[f"win_mixed_{own}"] = (
+                (counts[0] + 0.5 * counts[1]) / total if total else None
+            )
+            out[f"episodes_mixed_{own}"] = total
         return out
+
+
+def match_condition(hide_orders: tuple[bool, bool]) -> str:
+    """``shown`` (both sides see their orders), ``hidden`` (neither) or ``mixed``."""
+    if hide_orders[0] != hide_orders[1]:
+        return "mixed"
+    return "hidden" if hide_orders[0] else "shown"
 
 
 def _score_by(tallies: dict[str, list[int]]) -> dict[str, float]:
@@ -1973,6 +2015,7 @@ class SpikeTrainer:
                         roster.n_ships,
                         learner_team,
                         (commander_label(roster, 0), commander_label(roster, 1)),
+                        roster.hide_orders,
                     )
                 self._note_commanders(done_envs)
                 self.opponents.record_results(done_envs, info.winner, self.learner_team)

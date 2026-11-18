@@ -121,6 +121,35 @@ def test_condition_is_always_the_same_on_both_sides() -> None:
         assert r.hide_orders[0] == r.hide_orders[1]
 
 
+@pytest.mark.parametrize("drill_share", [0.0, 0.3])
+def test_mixed_p_zero_leaves_every_draw_and_the_generator_as_they_were(
+    drill_share: float,
+) -> None:
+    extra = {"drill_share": drill_share, "max_ships": MAX_SHIPS}
+    plain = _sampler(seed=5, commander_p=0.667, **extra)
+    zero = _sampler(seed=5, commander_p=0.667, mixed_p=0.0, **extra)
+    assert plain.sample_many(400) == zero.sample_many(400)
+    assert plain.rng.bit_generator.state == zero.rng.bit_generator.state
+
+
+@pytest.mark.parametrize("mixed_p", [0.5, 1.0])
+def test_mixed_p_hides_one_random_side_of_that_share_of_shown_matches(
+    mixed_p: float,
+) -> None:
+    sampler = _sampler(
+        seed=3, commander_p=0.667, mixed_p=mixed_p, drill_share=0.3, max_ships=MAX_SHIPS
+    )
+    rosters = [r for r in sampler.sample_many(6000) if r.drill is None]
+    counts = Counter(r.hide_orders for r in rosters)
+    n = len(rosters)
+    assert counts[True, True] / n == pytest.approx(0.333, abs=0.03)
+    mixed = counts[True, False] + counts[False, True]
+    assert mixed / n == pytest.approx(0.667 * mixed_p, abs=0.03)
+    assert counts[False, False] / n == pytest.approx(0.667 * (1 - mixed_p), abs=0.03)
+    assert counts[True, False] / mixed == pytest.approx(0.5, abs=0.05)
+    assert all(r.commanders == (SCRIPTED, SCRIPTED) for r in rosters)
+
+
 @pytest.mark.parametrize("mission", [CARRIER_BATTLE, CONVOY_ESCORT])
 def test_mission_rosters_are_live_rosters_with_the_page_s_shares(mission: str) -> None:
     fleets = live_fleets(mission)
@@ -291,6 +320,8 @@ def _sides(rosters: Counter[str]) -> Counter[str]:
     "overrides",
     [
         {"commander_p": 1.5},
+        {"mixed_p": -0.1},
+        {"mixed_p": 1.5},
         {"default_roster_share": -0.1},
         {"mission_weights": (1.0, 1.0)},
         {"mission_weights": (0.0, 0.0, 0.0)},
@@ -567,6 +598,67 @@ def test_order_pay_is_kept_on_shown_rows_and_dropped_on_hidden_rows(
     hidden = trainer.storage.order_hidden[: len(pay)]
     assert pay[hidden].any(), "the sim pays hidden rows: this test needs some"
     assert pay[~hidden].any(), "and shown rows"
+
+
+def test_mixed_matches_pay_order_pay_per_team_and_log_each_side(
+    tmp_path: Path,
+) -> None:
+    """In a mixed match the shown team's rows keep their order pay and the hidden
+    team's lose it; the logs split the learner's mixed matches by its side."""
+    config = _config(
+        n_updates=1,
+        n_envs=8,
+        n_steps=64,
+        roster_overrides={"commander_p": 1.0, "mixed_p": 1.0},
+    )
+    trainer = SpikeTrainer(config, tmp_path / "run")
+    assert all(r.hide_orders[0] != r.hide_orders[1] for r in trainer.env.rosters)
+    n = trainer.n_envs
+    shown_pay: list[float] = []
+    original = trainer._record_step
+
+    def spy(b, rewards, dones, info) -> None:  # type: ignore[no-untyped-def]
+        raw = info.order_rewards.reshape(-1).copy()
+        original(b, rewards, dones, info)
+        store = trainer.storage
+        hidden = store.order_hidden[b]
+        np.testing.assert_array_equal(store.order_reward[b][~hidden], raw[~hidden])
+        assert not store.order_reward[b][hidden].any()
+        # Per team, not per match: each match has one hidden team and one shown.
+        team = store.team[b].reshape(n, -1)
+        by_slot = hidden.reshape(n, -1)
+        for i in range(n):
+            t0, t1 = by_slot[i][team[i] == 0], by_slot[i][team[i] == 1]
+            assert t0.size and t1.size
+            assert t0.all() != t1.all() and t0.all() == t0.any()
+        shown_pay.append(float(np.abs(raw[~hidden]).sum()))
+
+    trainer._record_step = spy  # type: ignore[method-assign]
+    row = trainer.run_update()
+    assert sum(shown_pay) > 0, "the shown side earned order pay"
+    for key in ("win_mixed_ordered", "win_mixed_hidden"):
+        assert key in row
+    assert row["episodes_mixed_ordered"] + row["episodes_mixed_hidden"] == row[
+        "episodes_by_condition"
+    ].get("mixed", 0)
+
+
+def test_tally_splits_mixed_matches_by_the_learner_s_side() -> None:
+    from spacefight.rl.spike_ppo import EpisodeTally
+
+    tally = EpisodeTally()
+    labels = (SCRIPTED, SCRIPTED)
+    # kind 0 is any opponent kind; class and ships do not matter here.
+    tally.add(0, 0, 10, "x", 4, 0, labels, (False, True))  # ordered, won
+    tally.add(0, -1, 10, "x", 4, 1, labels, (False, True))  # hidden, draw
+    tally.add(0, 0, 10, "x", 4, 1, labels, (True, False))  # ordered, lost
+    tally.add(0, 1, 10, "x", 4, 0, labels, (True, True))  # hidden both, lost
+    tally.add(0, 0, 10, "x", 4, 0, labels)  # shown both, won
+    out = tally.log_fields()
+    assert out["win_mixed_ordered"] == 0.5 and out["episodes_mixed_ordered"] == 2
+    assert out["win_mixed_hidden"] == 0.5 and out["episodes_mixed_hidden"] == 1
+    assert out["episodes_by_condition"] == {"hidden": 1, "mixed": 3, "shown": 1}
+    assert out["win_by_condition"]["shown"] == 1.0
 
 
 def test_gamma_outside_the_range_is_rejected_by_the_config() -> None:

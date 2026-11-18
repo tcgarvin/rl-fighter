@@ -521,6 +521,36 @@ and runs with order pay trained at 0.99.
 config keeps its own discount; at 0.99 the pay is exactly what it was. `f995`'s config
 (0.995, order pay off) would log a different `reward_order` if resumed but train the same.
 
+**Experiment: mixed-condition matches (`mixed_p`, 2026-11-18, training only).** The
+order-cost measure (`lab/runs/2026-11-17-order-cost/results.md`) found that following an
+attack order costs a fleet fight whatever enemy it names, against pilots whose orders are
+hidden; no pilot has trained in that matchup, because of the rule above. To test whether
+training in it fixes the cost, `pilots_v1` has a key `mixed_p` (in `roster_overrides`,
+**default 0, off**): of the matches `commander_p` would show on both sides, a share
+`mixed_p` hides one side's orders instead, the side drawn at random per match. The learner
+plays either side (`learner_side: random`); the match result is paid as usual, order pay
+only to the side that sees its orders (`order_hidden_rows` is per team). The hidden side
+keeps its scripted commander underneath, as a no-commander match does; with
+`commander_stable` only the shown side draws from the stable. At 0 the sampler draws no
+extra number, so every draw is what it was. **The rule above is unchanged** for every eval,
+round robin, WAR and rating, which keep both sides on the same condition; this key is a
+training experiment until a run says otherwise (`lab/runs/2026-11-18-mixed-orders`). Logs:
+`win_mixed_ordered` / `win_mixed_hidden` (the learner's score, draws half, in mixed
+matches by its side's condition) with `episodes_mixed_ordered` / `episodes_mixed_hidden`,
+and `win_by_condition` / `episodes_by_condition` (`shown`, `hidden`, `mixed`) for every
+match.
+
+**What a hit on another enemy pays under an attack order** (checked 2026-11-18,
+`crates/sim/src/reward.rs`, `spacefight/rl/spike_ppo.py`). Team reward pays every hit on
+any enemy the same, 0.01 a hull point and 0.005 a shield point, order or not. Order pay
+adds the same again only for hits on the ordered target (`order_reward_weight` 1). A shot
+costs 0.002 in the sim, plus `extra_fire_cost` (0.002 in the followers' configs). So under
+an attack order a gauss hit on another enemy pays +0.05 on hull (+0.025 on shield). That
+is the same as an unordered hit, half a hit on the target, and well above holding fire,
+which pays 0 (a miss costs 0.004). Nothing in the pay makes another enemy worse than no
+shot. `hide_damage_when_ordered` would, but it is off in every current config, and drills
+refuse it.
+
 ### Preset `pilots_v1`
 
 `spacefight/env/rosters.py`; `orders_v1` still works, so old configs resume. Per match:
@@ -531,6 +561,7 @@ config keeps its own discount; at 0.99 the pay is exactly what it was. `f995`'s 
 | Carrier, convoy | `rlf_sim.mission_rosters` at run time: the first 0.5, the others evenly, as the page |
 | Deathmatch | The page's draft: 2 to 4 of the cheapest hull's worth of credits, the same budget a side, each side spending it independently |
 | Condition | `commander_p`, default 0.5: both teams' orders shown, else hidden from both |
+| Mixed (experiment) | `mixed_p`, default 0: of the shown matches, the share with one random side's orders hidden |
 
 A family sets its own share with `roster_overrides`, e.g. `commander_p: 0.3`.
 `tests/test_pilots_rosters.py` runs the page's own `missionRoster` in Node and compares its
