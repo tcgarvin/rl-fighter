@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -26,6 +27,8 @@ from tools.live_commanders import (
     publish,
     write_registry,
 )
+
+NODE = shutil.which("node")
 
 REPO = Path(__file__).resolve().parents[1]
 SHA = "b" * 64
@@ -282,6 +285,7 @@ console.log(JSON.stringify({ draws, many, mixed, alone: assignCommanders(["scrip
 """
 
 
+@pytest.mark.skipif(NODE is None, reason="node is not on PATH")
 def test_each_side_draws_its_commander_uniformly_and_repeats_for_a_seed() -> None:
     result = subprocess.run(
         [

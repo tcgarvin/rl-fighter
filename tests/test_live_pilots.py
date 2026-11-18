@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 from dataclasses import replace
 from pathlib import Path
@@ -30,6 +31,8 @@ from tools.live_pilots import (
     registry_rated_by,
     select_members,
 )
+
+NODE = shutil.which("node")
 
 REPO = Path(__file__).resolve().parents[1]
 SHA = "a" * 64
@@ -205,6 +208,7 @@ console.log(JSON.stringify({ draws, many, alone: assignPilots(["only"], 3, 1) })
 """
 
 
+@pytest.mark.skipif(NODE is None, reason="node is not on PATH")
 def test_pilots_are_drawn_ship_by_ship_evenly_and_repeat_for_a_seed() -> None:
     result = subprocess.run(
         [
@@ -395,6 +399,7 @@ console.log(JSON.stringify({
 """
 
 
+@pytest.mark.skipif(NODE is None, reason="node is not on PATH")
 def test_a_tap_finds_the_ship_and_outputs_read_as_odds() -> None:
     result = subprocess.run(
         [
@@ -443,6 +448,7 @@ console.log(JSON.stringify({ wide, phone }));
 """
 
 
+@pytest.mark.skipif(NODE is None, reason="node is not on PATH")
 def test_an_inspected_ship_is_framed_beside_the_panel_when_there_is_room() -> None:
     result = subprocess.run(
         [
@@ -479,6 +485,7 @@ console.log(JSON.stringify({
 """
 
 
+@pytest.mark.skipif(NODE is None, reason="node is not on PATH")
 def test_the_ship_view_puts_each_command_where_it_would_take_its_control() -> None:
     result = subprocess.run(
         ["node", "--experimental-strip-types", "--no-warnings", "--input-type=module", "-e", SHIP_VIEW],
