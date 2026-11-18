@@ -1,0 +1,5 @@
+near250 k=2: ordered side 0.411 +- 0.026 over 1152 (177 draws), 153.6 s
+scripted k=3: ordered side 0.235 +- 0.024 over 1152 (7 draws), 216.3 s
+near250 k=3: ordered side 0.330 +- 0.027 over 1152 (4 draws), 211.2 s
+nearest k=3: ordered side 0.250 +- 0.025 over 1152 (5 draws), 208.1 s
+none k=3: ordered side 0.461 +- 0.028 over 1152 (41 draws), 190.4 s

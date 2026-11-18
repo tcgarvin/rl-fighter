@@ -1,0 +1,8 @@
+scripted k=2: ordered side 0.333 +- 0.026 over 1152 (121 draws), 156.9 s
+scripted k=3: ordered side 0.242 +- 0.025 over 1152 (7 draws), 213.5 s
+nearest k=2: ordered side 0.404 +- 0.026 over 1152 (151 draws), 152.7 s
+nearest k=3: ordered side 0.220 +- 0.024 over 1152 (4 draws), 213.6 s
+focus k=2: ordered side 0.292 +- 0.024 over 1152 (124 draws), 159.7 s
+none k=2: ordered side 0.498 +- 0.026 over 1152 (199 draws), 155.6 s
+focus k=3: ordered side 0.219 +- 0.024 over 1152 (3 draws), 214.1 s
+none k=3: ordered side 0.521 +- 0.029 over 1152 (6 draws), 186.2 s
