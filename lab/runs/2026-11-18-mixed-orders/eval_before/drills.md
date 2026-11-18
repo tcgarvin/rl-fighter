@@ -1,0 +1,71 @@
+# Order drills: followers_school_1052
+
+**Gate: pass.** followers_school_1052 passed the drill gate: every bar met.
+
+Pilot `policy:ppo_bc_1052.pt`, seed 500000, sim version 8. Overall: 0.87 +/- 0.02 (229/262) (go-to arrivals (shown) and attack and defend swap-test flips).
+
+## Go-to (64 drills, ship by ship)
+
+- Arrival by the deadline, order shown: 0.85 +/- 0.03 (114/134; 19 killed first, not counted)
+- Same seeds, order hidden: 0.18 +/- 0.03 (24/134; 19 killed first, not counted)
+- Lift from seeing the order: +0.67
+- Near: 0.76 +/- 0.05 (55/72; 7 killed first, not counted)
+- Far: 0.95 +/- 0.03 (59/62; 12 killed first, not counted)
+- Enemies around the route: 0.77 +/- 0.05 (56/73; 12 killed first, not counted)
+- Deadline in the order: 0.85 (79/93)
+- No deadline (judged by 2x + 10 s): 0.85 (35/41)
+
+The go-to drill changed with SIM_VERSION 8: three orders in four carry a deadline (slack 2 to 8) that the sim pays and charges by, and the match clock no longer gives the deadline away. Go-to numbers from before are not comparable, and the go-to bars were set on the old drills.
+
+| Slack | In time |
+|---|---|
+| tight (under 2.5) | 0.81 (21/26) |
+| medium (2.5 to 4.5) | 0.81 (30/37) |
+| loose (over 4.5) | 0.93 (28/30) |
+
+Ships not killed before their deadline, order shown:
+
+| | All | Deadline | None | Solo |
+|---|---|---|---|---|
+| Ships | 134 | 93 | 41 | 11 |
+| In time | 0.85 | 0.85 | 0.85 | 0.64 |
+| Near miss (within 60 m) | 0.11 | 0.10 | 0.15 | 0.18 |
+| At the enemy instead | 0.04 | 0.05 | 0.00 | 0.18 |
+| Neither | 0.00 | 0.00 | 0.00 | 0.00 |
+
+## Attack (64 swap pairs)
+
+- Any damage on the named target: 0.96 +/- 0.02 (123/128)
+- Swap test, flipped, groups busy with a freighter: 0.93 +/- 0.04 (42/45)
+- Swap test, flipped, groups flying at the pilots: 0.74 +/- 0.10 (14/19)
+- Damage on the named target per pilot: 68.4 +/- 6.6 (n=128)
+- On other enemies per pilot (not judged): 56.1 +/- 5.7 (n=128)
+- Chose the named side: 0.94 +/- 0.02 (120/128)
+- Chose the other side: 0.03 +/- 0.02 (4/128)
+- Chose neither: 0.03 +/- 0.02 (4/128)
+- Swap test, flipped with the order: 0.88 +/- 0.04 (56/64)
+- Swap test, one side whatever was named: 0.06 +/- 0.03 (4/64)
+
+## Defend (64 swap pairs)
+
+- Named ward's attackers took more than the other's: 0.95 +/- 0.02 (121/128)
+- On the named ward's attackers per pilot: 86.1 +/- 7.0 (n=128)
+- On the other's per pilot: 5.3 +/- 2.0 (n=128)
+- Chose the named side: 0.96 +/- 0.02 (123/128)
+- Chose the other side: 0.02 +/- 0.01 (2/128)
+- Chose neither: 0.02 +/- 0.01 (3/128)
+- Swap test, flipped with the order: 0.92 +/- 0.03 (59/64)
+- Swap test, one side whatever was named: 0.03 +/- 0.02 (2/64)
+
+## Bars
+
+| Bar | Measured | Bar value |
+|---|---|---|
+| goto_arrival | 0.851 | met |
+| goto_lift | 0.672 | met |
+| attack_target_hit | 0.961 | met |
+| attack_side | 0.938 | met |
+| attack_flip | 0.875 | met |
+| defend_more_on_named | 0.945 | met |
+| defend_side | 0.961 | met |
+| defend_flip | 0.922 | met |
