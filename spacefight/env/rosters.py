@@ -53,7 +53,9 @@ The condition is the same on both sides, except under the experimental ``mixed_p
 Order drills (``docs/PILOT_TRAINING.md`` §2): with ``drill_share`` a ``PilotsDistribution``
 also draws drills from ``spacefight.env.drills``. A drill is a ``Roster`` like any other,
 with a start layout, the orders it opens with, its own clock and drill rules; ``drill``
-tells the trainer and the logs what it is.
+tells the trainer and the logs what it is. With ``drill_attack_pool_share`` (training only,
+default 0) that share of the attack drills are kite drills, whose enemies the trainer has
+learned pilots fly (``DrillTag.kite``).
 """
 
 from __future__ import annotations
@@ -221,6 +223,8 @@ class DrillTag:
         deadlines: Go-to: per pilot, the tick its arrival is judged by
             (``DrillSpec.deadlines``); empty: any arrival counts.
         timed: Go-to: the order itself carries a deadline (SIM_VERSION 8).
+        kite: Attack: a kite drill (``spacefight.env.drills``): the trainer has pilots
+            from its opponent pool fly the enemy team, whose orders are hidden.
 
     Raises:
         ValueError: ``deadlines`` is neither empty nor one per pilot.
@@ -233,6 +237,7 @@ class DrillTag:
     other_group: tuple[int, ...] = ()
     deadlines: tuple[int, ...] = ()
     timed: bool = False
+    kite: bool = False
 
     def __post_init__(self) -> None:
         if self.deadlines and len(self.deadlines) != len(self.pilots):
@@ -707,6 +712,10 @@ class PilotsDistribution:
             defend) among the drills.
         drill_goto_solo_share: Chance that a go-to drill is one ship alone whatever
             squad size it drew (``DrillGenerator``); 0 leaves every drill as it was.
+        drill_attack_pool_share: Training only: the share of attack drills that are
+            kite drills (``spacefight.env.drills``), their enemies flown by pilots from
+            the trainer's opponent pool with their orders hidden. 0 draws no extra
+            number, so the draws are those of a distribution without it.
 
     Raises:
         ValueError: Bad weights, shares or draft sizes, or a live roster or a drill
@@ -726,6 +735,7 @@ class PilotsDistribution:
     drill_share: float = 0.0
     drill_weights: tuple[float, ...] = (1.0, 1.0, 1.0)
     drill_goto_solo_share: float = 0.0
+    drill_attack_pool_share: float = 0.0
 
     def __post_init__(self) -> None:
         if self.kind != PILOTS_KIND:
@@ -740,6 +750,7 @@ class PilotsDistribution:
             "default_roster_share",
             "drill_share",
             "drill_goto_solo_share",
+            "drill_attack_pool_share",
         ):
             if not 0.0 <= getattr(self, name) <= 1.0:
                 raise ValueError(f"{name} must be in [0, 1], got {getattr(self, name)}")
@@ -832,8 +843,8 @@ def resolve_distribution(spec: str | Mapping[str, object]) -> Distribution:
 class DrillSource(Protocol):
     """Makes drill rosters (``spacefight.env.drills.DrillGenerator``)."""
 
-    def roster(self, kind: str, seed: int) -> Roster:
-        """The ``kind`` drill of ``seed``."""
+    def roster(self, kind: str, seed: int, kite: bool = False) -> Roster:
+        """The ``kind`` drill of ``seed``; ``kite``: an attack's kite variant."""
         ...
 
 
@@ -1087,13 +1098,23 @@ class PilotsRosterSampler:
         return [self.sample() for _ in range(n)]
 
     def _drill(self) -> Roster:
-        """A fresh drill: a kind by ``drill_weights``, the rest from a drawn seed."""
+        """A fresh drill: a kind by ``drill_weights``, then for an attack whether it
+        is a kite drill (only with ``drill_attack_pool_share``), the rest from a drawn
+        seed."""
         d, rng = self.distribution, self.rng
         if self.drills is None:
             raise RuntimeError("_drill called without drill_share")
         p = np.asarray(d.drill_weights, dtype=np.float64)
         kind = DRILL_KINDS[int(rng.choice(len(DRILL_KINDS), p=p / p.sum()))]
-        return self.drills.roster(kind, int(rng.integers(2**62)))
+        kite = (
+            kind == DRILL_ATTACK
+            and d.drill_attack_pool_share > 0
+            and bool(rng.random() < d.drill_attack_pool_share)
+        )
+        seed = int(rng.integers(2**62))
+        if kite:
+            return self.drills.roster(kind, seed, kite=True)
+        return self.drills.roster(kind, seed)
 
     def _live_roster(self, mission: str) -> Roster:
         """``fromSim`` in ``web/src/live/missions.ts``."""

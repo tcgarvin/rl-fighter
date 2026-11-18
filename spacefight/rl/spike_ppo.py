@@ -94,6 +94,15 @@ share of go-to drill ships that arrived in time (a ship killed on the way counts
 against it), ``drill_goto_missed`` the share of ships under a deadline that were alive
 when it passed without them, and ``drill_goto_timed_ships`` how many that is of.
 
+Kite drills (``pilots_v1``'s ``drill_attack_pool_share``, a training variant of the attack
+drill): the enemy team of such an attack drill (``DrillTag.kite``) is flown by a pool
+entry, drawn as a snapshot match's enemy is (``OpponentAssigner.force_snapshot``), still
+outside the quota, and its result is not recorded for PFSP. Its orders are hidden from
+it. The order, its pay and the pass rule are the attack drill's. The logs keep it apart:
+``drill_success["attack_kite"]`` beside ``["attack"]``, and ``drill_sides`` per attack,
+kite and defend drill: pass rate, share of pilots lost, damage on and from the target per
+drill, and the share in which the pilots hit neither group ("chose neither").
+
 Commander stable (``docs/PILOT_TRAINING.md`` §3, ``spacefight.commander.stable``). With
 ``commander_stable`` set, each side of every match that is not a drill and shows its
 orders draws its commander per episode from the stable (``scripted``, ``random``, the
@@ -145,6 +154,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
+import rlf_sim
 import torch
 import torch.nn as nn
 import yaml  # type: ignore[import-untyped]
@@ -156,6 +166,7 @@ from spacefight.commander.stable import StableSampler, commander_label, resolve_
 from spacefight.env.drills import DrillLedger, DrillOutcome
 from spacefight.env.rosters import (
     CONVOY_ESCORT,
+    DRILL_GOTO,
     Roster,
     Sampler,
     capital_hull_ids,
@@ -236,6 +247,8 @@ ARENA_PENALTY = -0.002
 # The obs's first float is the observer's own ``present`` flag: a dead or not yet
 # present ship gets the all-zero vector (crates/sim/src/obs.rs).
 _PRESENT_COL = 0
+# ``env.end_reason`` of a match that ended with a team wiped out.
+_ELIMINATED = rlf_sim.END_REASONS.index("eliminated")
 _ARENA_MARGIN_COL = OBS_LAYOUT["self"][0] + 19
 _MAIN_ENGINE_LEVEL_COL = OBS_LAYOUT["thrusters"][0] + 6
 _FIRE_COL = HEAD_GROUPS["fire"].start
@@ -338,6 +351,7 @@ LOG_KEYS: tuple[str, ...] = (
     "drill_success",
     "drill_goto_timed_ships",
     "drill_goto_missed",
+    "drill_sides",
     "commander_decisions",
     "commander_share",
     "episodes_by_commander",
@@ -577,6 +591,12 @@ class PPOConfig:
                 raise ValueError(
                     "drills cannot run with hide_damage_when_ordered: a hit on another "
                     "enemy must pay what it always does"
+                )
+            pool_share = self.roster_distribution().get("drill_attack_pool_share", 0.0)
+            if pool_share and not self.pool_seed:
+                raise ValueError(
+                    "drill_attack_pool_share needs pool_seed: kite drills' enemies "
+                    "are flown from the pool from the first update"
                 )
         OpponentSchedule(self.opponent_bands)
         if self.learner_side not in LEARNER_SIDES:
@@ -1215,6 +1235,10 @@ class EpisodeTally:
     # alive when it passed without them.
     goto_timed_ships: int = 0
     goto_missed: int = 0
+    # Attack (standard and kite) and defend drills, by ``DrillOutcome.kind``: [drills,
+    # passes, pilots, pilots lost, damage on the target, damage from the target, drills
+    # in which the pilots landed nothing on either group].
+    sides: dict[str, list[float]] = field(default_factory=dict)
     # Rows on the learner's side, and how many of them were in drills.
     side_rows: int = 0
     drill_rows: int = 0
@@ -1274,12 +1298,29 @@ class EpisodeTally:
         tally[2] += 1
         self.goto_timed_ships += outcome.timed_ships
         self.goto_missed += outcome.missed
+        if outcome.kind == DRILL_GOTO:
+            return
+        row = self.sides.setdefault(outcome.kind, [0.0] * 7)
+        for k, value in enumerate(
+            (
+                1,
+                outcome.successes,
+                outcome.pilots,
+                outcome.pilots_lost,
+                outcome.target_damage,
+                outcome.damage_from_target,
+                outcome.chose_neither,
+            )
+        ):
+            row[k] += float(value)
 
     def log_fields(self) -> dict[str, object]:
         """``vs_<kind>_{win,draw,loss,episodes}``, ``episodes``, mean length, mean
         ships per match, and the win rate (draws ½) against the script per roster
         size class; the drills' share of the rollout, their episodes and success
-        rate per kind, and the go-to ships under a deadline with the share that
+        rate per kind (kite drills as ``attack_kite``), the attack and defend drills'
+        pass rate, pilots lost, damage on and from the target and "chose neither"
+        rate per kind (``drill_sides``), and the go-to ships under a deadline with the share that
         missed it (null with none)."""
         out: dict[str, object] = {}
         out["drill_rows_share"] = (
@@ -1291,6 +1332,19 @@ class EpisodeTally:
         out["drill_success"] = {
             kind: counts[0] / counts[1] if counts[1] else None
             for kind, counts in sorted(self.drills.items())
+        }
+        out["drill_sides"] = {
+            kind: {
+                "episodes": int(n),
+                "pass": passes / n,
+                "pilots_lost": lost / pilots if pilots else None,
+                "target_damage": dealt / n,
+                "damage_from_target": taken / n,
+                "chose_neither": neither / n,
+            }
+            for kind, (n, passes, pilots, lost, dealt, taken, neither) in sorted(
+                self.sides.items()
+            )
         }
         out["drill_goto_timed_ships"] = self.goto_timed_ships
         out["drill_goto_missed"] = (
@@ -1522,6 +1576,7 @@ class SpikeTrainer:
         if self.drills_on:
             drill_envs, match_envs = self._split_drills(np.arange(self.n_envs))
             self.opponents.assign_all(self.next_update, len(self.pool), drill_envs)
+            self._force_kite_opponents(drill_envs)
             self._draw_learner_sides(match_envs)
             self._note_new_matches(np.arange(self.n_envs))
         else:
@@ -1607,6 +1662,18 @@ class SpikeTrainer:
         )
         return envs[is_drill], envs[~is_drill]
 
+    def _force_kite_opponents(self, drill_envs: NDArray[np.integer]) -> None:
+        """Of ``drill_envs`` (already forced to the script), the kite drills fight a
+        pool entry instead (``OpponentAssigner.force_snapshot``)."""
+        rosters = self.env.rosters
+        kite = [
+            int(i)
+            for i in drill_envs
+            if (tag := rosters[int(i)].drill) is not None and tag.kite
+        ]
+        if kite:
+            self.opponents.force_snapshot(kite, len(self.pool))
+
     def _note_new_matches(self, envs: NDArray[np.integer]) -> None:
         """Open ``envs``' new matches in the drill ledger."""
         for i in envs:
@@ -1619,6 +1686,7 @@ class SpikeTrainer:
         script with the learner on the ordered team, outside the quota."""
         drill_envs, match_envs = self._split_drills(envs)
         self.opponents.force_scripted(drill_envs)
+        self._force_kite_opponents(drill_envs)
         self.opponents.assign(match_envs, update, len(self.pool))
         self._draw_learner_sides(match_envs)
         self.learner_team[drill_envs] = 0
@@ -2016,6 +2084,15 @@ class SpikeTrainer:
             self._forget_present(dones)
             if self.drills_on:
                 self.drill_ledger.add_hits(info.hits, info.hit_count)
+                self.drill_ledger.see_deaths(
+                    info.prev_alive,
+                    np.asarray(info.alive, dtype=np.bool_),
+                    np.asarray(dones, dtype=np.bool_),
+                    np.asarray(env.end_reason) == _ELIMINATED,
+                    info.hits,
+                    info.hit_count,
+                    info.collision_damage,
+                )
             done_envs = np.flatnonzero(dones)
             if done_envs.size:
                 lengths = info.prev_tick[done_envs].astype(np.int64) + 1

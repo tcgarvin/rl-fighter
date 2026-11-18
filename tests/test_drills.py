@@ -847,7 +847,9 @@ def test_the_ledger_books_hits_on_the_named_target_and_each_group() -> None:
     assert ledger.target_damage[1] == pytest.approx(5.0)
     assert ledger.group_damage[1].tolist() == pytest.approx([5.0, 2.0])
     assert ledger.total_damage[1] == pytest.approx(7.0)
-    assert ledger.finish(1) == DrillOutcome(DRILL_ATTACK, 1, 1)
+    assert ledger.finish(1) == DrillOutcome(
+        DRILL_ATTACK, 1, 1, pilots=1, target_damage=5.0, damage_from_target=0.0
+    )
     with pytest.raises(ValueError, match="not running"):
         ledger.finish(1)
 
@@ -871,7 +873,9 @@ def test_the_ledger_counts_arrivals_in_time_and_missed_deadlines() -> None:
     ledger.see_tracks(
         seen["arrived"], seen["missed"], np.array([alive]), np.array([501])
     )
-    assert ledger.finish(0) == DrillOutcome(DRILL_GOTO, 1, 3, timed_ships=3, missed=1)
+    assert ledger.finish(0) == DrillOutcome(
+        DRILL_GOTO, 1, 3, timed_ships=3, missed=1, pilots=3
+    )
     with pytest.raises(ValueError, match="deadlines for"):
         DrillTag(DRILL_GOTO, (0, 1), deadlines=(500,))
 
@@ -885,11 +889,11 @@ def test_the_ledger_judges_a_go_to_without_a_deadline_by_the_tick_it_is_given() 
     # Both first show as arrived at tick 600: in time for the second ship only.
     ledger.see_tracks(nothing, nothing, alive, np.array([500]))
     ledger.see_tracks(late, nothing, alive, np.array([600]))
-    assert ledger.finish(0) == DrillOutcome(DRILL_GOTO, 1, 2)
+    assert ledger.finish(0) == DrillOutcome(DRILL_GOTO, 1, 2, pilots=2)
     # With no deadlines on the tag (a hand-built drill) any arrival counts.
     ledger.begin(0, DrillTag(DRILL_GOTO, (0, 1)))
     ledger.see_tracks(late, nothing, alive, np.array([5000]))
-    assert ledger.finish(0) == DrillOutcome(DRILL_GOTO, 2, 2)
+    assert ledger.finish(0) == DrillOutcome(DRILL_GOTO, 2, 2, pilots=2)
 
 
 # -- the eval's measurements --------------------------------------------------------------

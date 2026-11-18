@@ -228,6 +228,35 @@ no extra number is drawn. It is a training setting: the drill eval and the sweep
   new_input_lr_mult=3` (zero columns that step three times as far); with `--set
   obs_dim=583` it trains blind to them, as a control.
 
+**Kite drills (2026-11-18, training only): `drill_attack_pool_share`** (default 0, and at 0
+no extra number is drawn, so the draws are unchanged). A training variant of the attack
+drill, for the cost of orders in fleet fights (`lab/runs/2026-11-17-order-cost`): an
+ordered pilot keeps closing on a side that falls back and loses the duel with its target,
+and no drill showed it a target that falls back, since every drill enemy is the script and
+most attack targets are busy with a freighter. The key is the share of attack drills that
+are kite drills. The meaning of the drill is unchanged.
+
+- **Layout:** the `charging` one, always. No freighters, so nothing holds the named target
+  and it has room to fall back; two groups of 1 to 3 on opposite sides, 260 to 340 m out,
+  one member of one group named. The clock is 60 s instead of 30 s, room for a chase. A
+  kite drill is the standard charging attack drill of its seed but for the clock (a test
+  pins it).
+- **Enemies:** the whole enemy team is flown by one frozen pool entry, drawn as a snapshot
+  match's enemy is (`pool_seed_p`, PFSP), with its orders hidden (it has none in this
+  layout anyway). The env is still held out of the opponent quota
+  (`OpponentAssigner.force_snapshot`), and its result (a drill is always a draw) is not
+  fed to PFSP. A run with it needs `pool_seed`.
+- **Same order, same pass, same pay:** the attack order on the named target, passed by any
+  damage on it, paid by the sim's attack-order pay. Death is not newly charged.
+- **The drill eval and gate do not play kite drills**; they stay on the standard,
+  script-enemy drills.
+- **Logs:** a kite drill is logged as `attack_kite` in `drill_episodes` and
+  `drill_success`, apart from `attack`. `drill_sides` gives, per `attack`, `attack_kite`
+  and `defend`: episodes, pass rate, `pilots_lost` (share of the ordered pilots killed),
+  `target_damage` and `damage_from_target` (per drill) and `chose_neither` (share of drills
+  in which the pilots hit neither group: a pilot that hangs back). A pilot killed on the
+  very step a drill ends on the clock is not counted in `pilots_lost`.
+
 ### Drill eval
 
 `spacefight/eval/drills.py`, JSON `rlf.eval.drills/1` and a plain report beside it. Fixed

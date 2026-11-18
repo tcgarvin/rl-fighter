@@ -25,8 +25,10 @@ and ``SELF`` keep their band shares; only frozen-pool draws are weighted. The de
 ``"uniform"`` draws exactly what it always did from the same generator, so old configs
 and resumes are unchanged.
 
-Order drills (``docs/PILOT_TRAINING.md`` section 2) always fight the script. A drill env is
-held out of the quota (``force_scripted``), so the band shares still describe the matches.
+Order drills (``docs/PILOT_TRAINING.md`` section 2) fight the script. A drill env is held
+out of the quota (``force_scripted``), so the band shares still describe the matches. A
+kite drill (``DrillTag.kite``) is held out the same way but fights a frozen pool entry,
+drawn as a snapshot match's is (``force_snapshot``); its result is not recorded.
 
 Each env keeps its opponent for a whole episode and is reassigned when it resets.
 Assignment is by quota, not by independent draws: a resetting env takes the kind
@@ -358,6 +360,26 @@ class OpponentAssigner:
         self.snapshot[ids] = NO_SNAPSHOT
         self.forced[ids] = True
 
+    def force_snapshot(
+        self, env_ids: Sequence[int] | NDArray[np.integer], pool_size: int
+    ) -> None:
+        """``env_ids`` fight a pool entry this episode, outside the quota, each drawn
+        as a snapshot env's is (``seed_p``, uniform or PFSP). The next ``assign`` of an
+        env puts it back in.
+
+        Raises:
+            ValueError: An empty pool.
+        """
+        ids = np.asarray(env_ids, dtype=np.int64)
+        if len(ids) == 0:
+            return
+        if pool_size <= 0:
+            raise ValueError("no pool entry to fly a kite drill's enemies")
+        self.kinds[ids] = OpponentKind.SNAPSHOT
+        self.forced[ids] = True
+        for env in ids:
+            self.snapshot[env] = self._draw_snapshot(pool_size)
+
     def assign(self, env_ids: NDArray[np.integer], update: int, pool_size: int) -> None:
         """Reassign ``env_ids`` (envs that just reset) to the most-needed kinds.
 
@@ -426,7 +448,7 @@ class OpponentAssigner:
         if self.enemy_sampling == SAMPLING_UNIFORM:
             return
         for env in env_ids:
-            if self.kinds[env] != OpponentKind.SNAPSHOT:
+            if self.kinds[env] != OpponentKind.SNAPSHOT or self.forced[env]:
                 continue
             won = winner[env]
             score = 0.5 if won < 0 else float(won == learner_team[env])

@@ -46,6 +46,14 @@ Kinds:
   freighters and the groups fly straight at the pilots.
 - ``defend``: two freighters on opposite sides, each attacked by its own group, one named.
 
+**Kite drills** (``generate(DRILL_ATTACK, seed, kite=True)``, a training variant of the
+attack drill; ``docs/PILOT_TRAINING.md`` §2). The ``charging`` layout, always: no
+freighters, so the named target has no task to hold it and room to fall back, and a longer
+clock (``KITE_CLOCK_TICKS``, 60 s). The enemy team's orders are hidden from its pilots
+(``Roster.hide_orders``), and the trainer has learned pilots from its opponent pool fly
+it instead of the script (``DrillTag.kite``). The order, the pass condition (damage on
+the named target) and the pay are the attack drill's. The drill eval never plays one.
+
 **Variety** is the point, since drills replace random orders as the protection against
 overfitting to one commander: hull mix, squad size 1 to 4, side and go-to distances, go-to
 radius, starting speed and heading. The whole layout gets a random rotation and, half the
@@ -105,6 +113,10 @@ NO_SLACK = 0.0
 GOTO_CLOCK_EXTRA_TICKS = (30, 600)
 # Attack and defend clock: long enough for a gunship (24 m/s) to cross to either side.
 SIDE_CLOCK_TICKS = 900
+# A kite drill's clock: room for a chase of a target that falls back.
+KITE_CLOCK_TICKS = 1800
+# The training log's name for a kite drill (``DrillOutcome.kind``); not a ``DRILL_KINDS``.
+DRILL_ATTACK_KITE = "attack_kite"
 
 WARD_HULL = "freighter"
 MAX_PILOTS = 4
@@ -224,6 +236,8 @@ class DrillSpec:
         side_axis: World unit vector from side 0 toward side 1; ``(0, 0)`` for a go-to.
         enemy_orders: The orders that set each group on its freighter.
         charging: Attack only: no freighters, the groups fly at the pilots.
+        kite: Attack only: a kite drill (module docstring): ``charging``, the longer
+            clock, the enemy team's orders hidden and learned pilots flying it.
         point: Go-to point.
         radius: Go-to radius.
         deadline_tick: Go-to: the deadline the order carries (SIM_VERSION 8), one tick
@@ -251,6 +265,7 @@ class DrillSpec:
     side_axis: tuple[float, float] = (0.0, 0.0)
     enemy_orders: tuple[OpeningOrder, ...] = ()
     charging: bool = False
+    kite: bool = False
     point: tuple[float, float] = (0.0, 0.0)
     radius: float = 0.0
     deadline_tick: int = NO_DEADLINE
@@ -316,11 +331,12 @@ class DrillSpec:
             ),
             deadlines=self.deadlines,
             timed=self.timed,
+            kite=self.kite,
         )
         return Roster(
             teams=self.teams,
             commanders=(EXTERNAL, EXTERNAL),
-            hide_orders=(hidden, False),
+            hide_orders=(hidden, self.kite),
             start_layout=self.layout,
             opening_orders=(self.order(), *self.enemy_orders),
             time_limit_s=self.clock_ticks / TICK_HZ,
@@ -400,22 +416,31 @@ class DrillGenerator:
         self.arena_radius = arena_radius
         self.scale = arena_radius / REFERENCE_RADIUS
 
-    def generate(self, kind: str, seed: int) -> DrillSpec:
+    def generate(self, kind: str, seed: int, kite: bool = False) -> DrillSpec:
         """The ``kind`` drill of ``seed``: the same arguments give the same spec.
 
+        Args:
+            kind: One of ``DRILL_KINDS``.
+            seed: The drill's seed.
+            kite: An attack only: the kite variant (module docstring). The same seed
+                draws the same numbers; the layout is the charging one whatever the
+                charging draw said, and the clock is ``KITE_CLOCK_TICKS``.
+
         Raises:
-            ValueError: An unknown kind.
+            ValueError: An unknown kind, or ``kite`` on a kind other than attack.
         """
         if kind not in DRILL_KINDS:
             raise ValueError(f"unknown drill kind {kind!r}; known: {DRILL_KINDS}")
+        if kite and kind != DRILL_ATTACK:
+            raise ValueError(f"only an attack drill has a kite variant, not {kind!r}")
         rng = np.random.default_rng([seed, DRILL_KINDS.index(kind), 0xD1711])
         if kind == DRILL_GOTO:
             return self._goto(seed, rng)
-        return self._sides(kind, seed, rng)
+        return self._sides(kind, seed, rng, kite)
 
-    def roster(self, kind: str, seed: int) -> Roster:
-        """The match of ``generate(kind, seed)``."""
-        return self.generate(kind, seed).roster()
+    def roster(self, kind: str, seed: int, kite: bool = False) -> Roster:
+        """The match of ``generate(kind, seed, kite)``."""
+        return self.generate(kind, seed, kite).roster()
 
     def generate_many(self, kind: str, n: int, base_seed: int) -> tuple[DrillSpec, ...]:
         """``n`` drills of ``kind`` from consecutive seeds."""
@@ -436,12 +461,15 @@ class DrillGenerator:
             starts.append(frame.start(x, y, speed, heading))
         return hulls, starts
 
-    def _sides(self, kind: str, seed: int, rng: np.random.Generator) -> DrillSpec:
+    def _sides(
+        self, kind: str, seed: int, rng: np.random.Generator, kite: bool = False
+    ) -> DrillSpec:
         frame = _Frame(rng)
         center_y = float(rng.uniform(-40.0, 40.0)) * self.scale
         pilot_hulls, pilot_starts = self._pilots(rng, frame, center_y)
         n_pilots = len(pilot_hulls)
         charging = kind == DRILL_ATTACK and bool(rng.random() < CHARGING_P)
+        charging = charging or kite
         group_hulls: list[tuple[str, ...]] = []
         group_starts: list[list[ShipStart]] = []
         ward_starts: list[ShipStart] = []
@@ -486,7 +514,7 @@ class DrillGenerator:
                 *group_starts[1],
             ),
             pilots=tuple(range(n_pilots)),
-            clock_ticks=SIDE_CLOCK_TICKS,
+            clock_ticks=KITE_CLOCK_TICKS if kite else SIDE_CLOCK_TICKS,
             arena_radius=self.arena_radius,
             named_side=int(rng.integers(2)),
             side_targets=targets,
@@ -494,6 +522,7 @@ class DrillGenerator:
             side_axis=frame.point(1.0, 0.0),
             enemy_orders=enemy_orders,
             charging=charging,
+            kite=kite,
         )
 
     def _ward_position(
@@ -822,6 +851,11 @@ class DrillOutcome:
         timed_ships: Go-to whose order carried a deadline: the pilots; else 0.
         missed: Of ``timed_ships``, those alive when their deadline passed without
             them (the ones the sim charged).
+        pilots: The ordered pilots.
+        pilots_lost: Of them, those killed (``DrillLedger.see_deaths``).
+        target_damage: Attack: the pilots' damage on the named target.
+        damage_from_target: Attack: the named target's damage on the pilots.
+        chose_neither: Attack and defend: the pilots landed nothing on either group.
     """
 
     kind: str
@@ -829,6 +863,11 @@ class DrillOutcome:
     trials: int
     timed_ships: int = 0
     missed: int = 0
+    pilots: int = 0
+    pilots_lost: int = 0
+    target_damage: float = 0.0
+    damage_from_target: float = 0.0
+    chose_neither: bool = False
 
 
 class DrillLedger:
@@ -853,6 +892,10 @@ class DrillLedger:
         self.named_slot = np.full(n_envs, -1, dtype=np.int64)
         self.side_of = np.full((n_envs, n_ships), _NOT_A_GROUP, dtype=np.int8)
         self.target_damage = np.zeros(n_envs, dtype=np.float64)
+        # The named target's damage on the pilots.
+        self.damage_from_target = np.zeros(n_envs, dtype=np.float64)
+        # [N, S] pilots killed (``see_deaths``).
+        self.lost = np.zeros((n_envs, n_ships), dtype=np.bool_)
         # [N, 2] the pilots' damage on the named group's ships and on the other's.
         self.group_damage = np.zeros((n_envs, 2), dtype=np.float64)
         self.total_damage = np.zeros(n_envs, dtype=np.float64)
@@ -873,6 +916,8 @@ class DrillLedger:
         self.side_of[env] = _NOT_A_GROUP
         self.named_slot[env] = -1
         self.target_damage[env] = 0.0
+        self.damage_from_target[env] = 0.0
+        self.lost[env] = False
         self.group_damage[env] = 0.0
         self.total_damage[env] = 0.0
         self.arrived[env] = False
@@ -898,6 +943,14 @@ class DrillLedger:
         env_ids, k = np.nonzero(np.arange(hits.shape[1]) < count[:, None])
         rows = hits[env_ids, k]
         shooter = rows[:, _HIT_SHOOTER]
+        on_pilot = (shooter == self.named_slot[env_ids]) & self.pilot[
+            env_ids, rows[:, _HIT_TARGET]
+        ]
+        np.add.at(
+            self.damage_from_target,
+            env_ids[on_pilot],
+            rows[on_pilot, _HIT_DAMAGE] / float(rlf_sim.HIT_DAMAGE_SCALE),
+        )
         by_pilot = self.pilot[env_ids, shooter]
         if not by_pilot.any():
             return
@@ -935,6 +988,48 @@ class DrillLedger:
         self.arrived |= rows & arrived & in_time
         self.missed |= rows & missed & alive
 
+    def see_deaths(
+        self,
+        prev_alive: NDArray[np.bool_],
+        alive: NDArray[np.bool_],
+        dones: NDArray[np.bool_],
+        eliminated: NDArray[np.bool_],
+        hits: NDArray[np.int32],
+        hit_count: NDArray[np.int32],
+        collision_damage: NDArray[np.float32],
+    ) -> None:
+        """Note the pilots killed on one step. Call after the step and before
+        ``finish`` and ``begin``.
+
+        A running match's deaths are its ships alive before the step and not after. A
+        match that ended shows the next one's ships after the step, so for it: a drill
+        that ended because a team was wiped out (``eliminated``) counts its pilots left
+        as killed when every one of them was hurt on the step (a hit or a collision)
+        and not every enemy left was. A pilot killed on the last step of a drill that
+        ends on the clock, or with the enemy gone, is not counted.
+
+        Args:
+            prev_alive: ``StepInfo.prev_alive``, ``[N, S]``.
+            alive: ``StepInfo.alive``, ``[N, S]`` (the next match's for a done env).
+            dones: ``[N]`` the envs whose match ended on the step.
+            eliminated: ``[N]`` of those, the ones that ended by a team wiped out.
+            hits: ``StepInfo.hits``.
+            hit_count: ``StepInfo.hit_count``.
+            collision_damage: ``StepInfo.collision_damage``, ``[N, S]``.
+        """
+        rows = self.running[:, None] & self.pilot & prev_alive
+        self.lost |= rows & ~dones[:, None] & ~alive
+        for env in np.flatnonzero(dones & eliminated & self.running):
+            left = rows[env]
+            if not left.any():
+                continue
+            hurt = collision_damage[env] > 0.0
+            hurt[hits[env, : int(hit_count[env]), _HIT_TARGET]] = True
+            enemies = (self.side_of[env] != _NOT_A_GROUP) & prev_alive[env]
+            enemies_hurt = bool(enemies.any()) and bool(hurt[enemies].all())
+            if hurt[left].all() and not enemies_hurt:
+                self.lost[env] |= left
+
     def any_goto_running(self) -> bool:
         """Whether a go-to drill is being played."""
         return bool(self.goto.any())
@@ -946,7 +1041,8 @@ class DrillLedger:
         carries one, else by the old rule for that ship (``DrillSpec.deadlines``). A ship
         killed on the way counts as not arrived here; the eval sets those aside. An attack
         counts whether any damage landed on the named target, and a defend whether the
-        named ward's attackers took more than the other's. These are running signals for
+        named ward's attackers took more than the other's; a kite drill is an attack
+        under the kind ``DRILL_ATTACK_KITE``, by the same rule. These are running signals for
         a training log; the side chosen and the swap test need the eval
         (``spacefight.eval.drills``).
 
@@ -959,15 +1055,36 @@ class DrillLedger:
         self.running[env] = False
         self.goto[env] = False
         self.tags[env] = None
+        pilots = len(tag.pilots)
+        lost = int(self.lost[env].sum())
         if tag.kind == DRILL_GOTO:
             return DrillOutcome(
                 tag.kind,
                 int(self.arrived[env].sum()),
-                len(tag.pilots),
-                timed_ships=len(tag.pilots) if tag.timed else 0,
+                pilots,
+                timed_ships=pilots if tag.timed else 0,
                 missed=int(self.missed[env].sum()),
+                pilots=pilots,
+                pilots_lost=lost,
             )
+        neither = not bool(self.group_damage[env].any())
         if tag.kind == DRILL_ATTACK:
-            return DrillOutcome(tag.kind, int(self.target_damage[env] > 0.0), 1)
+            return DrillOutcome(
+                DRILL_ATTACK_KITE if tag.kite else tag.kind,
+                int(self.target_damage[env] > 0.0),
+                1,
+                pilots=pilots,
+                pilots_lost=lost,
+                target_damage=float(self.target_damage[env]),
+                damage_from_target=float(self.damage_from_target[env]),
+                chose_neither=neither,
+            )
         more = self.group_damage[env, 0] > self.group_damage[env, 1]
-        return DrillOutcome(tag.kind, int(more), 1)
+        return DrillOutcome(
+            tag.kind,
+            int(more),
+            1,
+            pilots=pilots,
+            pilots_lost=lost,
+            chose_neither=neither,
+        )
