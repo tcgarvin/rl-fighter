@@ -598,6 +598,30 @@ How the plan's words came out in code:
   steps/s against 1,691 for the 12-slot carrier and 1,938 for the 12-slot convoy. That is
   a first number; measure again on a free machine before planning a night around it.
 
+### Where the PPO update runs: `update_device`
+
+`--set update_device=cuda:0` (or `cuda`, `cuda:1`; default `cpu`) runs the PPO epochs on
+a GPU. For each update the actor, critic, KL anchor, their Adam state and the batch move
+to the device, and the nets and Adam state come back afterwards. The rollout stays on the
+CPU, and a checkpoint holds CPU tensors only, so it loads on a machine without CUDA. A run
+can resume on either device. A run that asks for cuda where there is none stops at start
+and says `--set update_device=cpu`.
+
+- **Same update:** minibatch order comes from the CPU RNG on any device. On a 1080 Ti,
+  one update's weights match the CPU's within 6e-8 and its losses within 1e-5 relative
+  (`tests/test_update_device.py`).
+- **CPU runs are unchanged:** `cpu` is left out of `config.yaml` and the checkpoint's
+  meta, so a CPU run writes the same config bytes and the same checkpoint tensors as it
+  did before the key. Any other value is recorded, and changing it on resume keeps a
+  `config_before_<N>.yaml` like any other key.
+- **Speed, Beast** (followers_school from update 1052, about 108k rows, 4 sim + 4 torch
+  threads, box shared with another job): CPU 19.0 s an update (PPO 12.8 s), cuda:0 8.1 s
+  (PPO 1.8 s: 0.27 s of it copies the batch over, 0.02 s moves the nets and Adam state).
+  Two arms at once on cuda:0 and cuda:1: 12.6 and 13.2 s each, about 0.155 updates a
+  second for the box. With PPO on the GPU, the CPU rollout is most of an update.
+- **Commander trainer:** no such key. Its learning step is about 11% of an update (4.3 s
+  of 39.8 at 4 threads on Beast), so a GPU would save at most that.
+
 ## 4. Families
 
 Every neural pilot descends from the script: v1 began as a clone of it (BC, DAgger, then

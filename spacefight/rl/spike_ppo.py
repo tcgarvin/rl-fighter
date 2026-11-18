@@ -491,6 +491,12 @@ class PPOConfig:
     # The actor is also frozen while update < this (an absolute update, so a resumed
     # run can let its critic settle; 0 = no such freeze).
     actor_frozen_until: int = 0
+    # Where the PPO update runs ("cpu", "cuda", "cuda:1"): the nets, their optimiser
+    # state and the batch move there for the update and back after it, so the rollout
+    # and checkpoints stay on the CPU (a checkpoint does not say where it was trained).
+    # Where it runs is no part of what the run is: "cpu" is left out of ``to_dict``,
+    # so configs and checkpoints of CPU runs are what they were before the key.
+    update_device: str = "cpu"
 
     @classmethod
     def preset(cls, init: str, **overrides: object) -> PPOConfig:
@@ -586,6 +592,14 @@ class PPOConfig:
                 f"beta_heads must be one of {tuple(HEAD_SETS)}, got {self.beta_heads}"
             )
         self._check_commander_stable()
+        try:
+            device = torch.device(self.update_device)
+        except RuntimeError as err:
+            raise ValueError(f"update_device {self.update_device!r}: {err}") from None
+        if device.type not in ("cpu", "cuda"):
+            raise ValueError(
+                f"update_device must be cpu or cuda[:N], got {self.update_device!r}"
+            )
 
     def _check_goto_pay(self) -> None:
         """The pay of a go-to with a deadline.
@@ -663,8 +677,12 @@ class PPOConfig:
         return resolve_distribution(base).to_dict()
 
     def to_dict(self) -> dict[str, object]:
-        """Plain-type dict (yaml / checkpoint meta)."""
-        return dataclasses.asdict(self)
+        """Plain-type dict (yaml / checkpoint meta); ``update_device`` only when it
+        is not "cpu"."""
+        data = dataclasses.asdict(self)
+        if data["update_device"] == "cpu":
+            del data["update_device"]
+        return data
 
     @classmethod
     def from_dict(cls, data: dict[str, object]) -> PPOConfig:
@@ -805,7 +823,7 @@ class PPOBatch:
     def acting_rows(self) -> torch.Tensor:
         """[B] bool: the rows that train the actor."""
         if self.acting is None:
-            return torch.ones(self.size, dtype=torch.bool)
+            return torch.ones(self.size, dtype=torch.bool, device=self.rows.device)
         return self.acting
 
     @property
@@ -815,16 +833,29 @@ class PPOBatch:
 
     def minibatches(self, minibatch: int) -> list[torch.Tensor]:
         """Row indices of ``ceil(B / minibatch)`` minibatches of whole groups, in a
-        fresh random order (torch's global RNG)."""
+        fresh random order (torch's global CPU RNG, wherever the batch is, so an
+        update draws the same order on any device)."""
         groups = torch.unique(self.rows[:, 0])
         n_chunks = max(1, min(int(groups.numel()), -(-self.size // minibatch)))
-        member = torch.zeros(self.obs.shape[0], dtype=torch.bool)
+        member = torch.zeros(self.obs.shape[0], dtype=torch.bool, device=groups.device)
         out = []
-        for chunk in groups[torch.randperm(groups.numel())].tensor_split(n_chunks):
+        order = torch.randperm(groups.numel()).to(groups.device)
+        for chunk in groups[order].tensor_split(n_chunks):
             member[:] = False
             member[chunk] = True
             out.append(torch.nonzero(member[self.rows[:, 0]]).squeeze(1))
         return out
+
+    def to(self, device: torch.device) -> PPOBatch:
+        """The batch with every tensor on ``device`` (itself when already there)."""
+        if self.rows.device == device:
+            return self
+        moved: dict[str, object] = {}
+        for item in dataclasses.fields(self):
+            value = getattr(self, item.name)
+            if isinstance(value, (torch.Tensor, HeadMasks)):
+                moved[item.name] = value.to(device)
+        return dataclasses.replace(self, **moved)  # type: ignore[arg-type]
 
     def group_view(
         self, idx: torch.Tensor
@@ -1307,12 +1338,18 @@ class SpikeTrainer:
 
     Raises:
         FileNotFoundError: ``resume`` without a checkpoint, or a missing init file.
+        RuntimeError: A cuda ``update_device`` where CUDA is not available.
     """
 
     def __init__(self, config: PPOConfig, run_dir: Path, resume: bool = False) -> None:
         self.config = config
         self.run_dir = run_dir
         self._stop_requested = False
+        if config.update_device != "cpu" and not torch.cuda.is_available():
+            raise RuntimeError(
+                f"update_device {config.update_device} but CUDA is not available "
+                "here; --set update_device=cpu"
+            )
         torch.set_num_threads(config.torch_threads)
         torch.set_flush_denormal(True)
         torch.manual_seed(config.seed)
@@ -1712,17 +1749,7 @@ class SpikeTrainer:
         )
         metrics: dict[str, float | None] = dict.fromkeys(PPO_METRIC_KEYS)
         if batch.n_acting:
-            metrics.update(
-                ppo_update(
-                    self.actor,
-                    self.critic,
-                    self.actor_opt,
-                    self.critic_opt,
-                    batch,
-                    settings,
-                    self.anchor,
-                )
-            )
+            metrics.update(self._ppo_update(batch, settings))
         else:
             # Every row masked (only possible when n_steps is shorter than the
             # arrival + control lock at episode start): no gradient step, the
@@ -1773,6 +1800,48 @@ class SpikeTrainer:
         with self.log_path.open("a") as handle:
             handle.write(json.dumps(ordered) + "\n")
         return ordered
+
+    def _ppo_update(
+        self, batch: PPOBatch, settings: UpdateSettings
+    ) -> dict[str, float]:
+        """``ppo_update`` on ``config.update_device``: elsewhere than the CPU, the
+        nets (the anchor too) and their optimiser state go there for the update and
+        come back after it, so rollout and checkpoints see CPU tensors only."""
+        device = torch.device(self.config.update_device)
+        if device.type == "cpu":
+            return ppo_update(
+                self.actor,
+                self.critic,
+                self.actor_opt,
+                self.critic_opt,
+                batch,
+                settings,
+                self.anchor,
+            )
+        nets = [n for n in (self.actor, self.critic, self.anchor) if n is not None]
+        opts = (self.actor_opt, self.critic_opt)
+        try:
+            # Module.to keeps the Parameter objects, so the optimisers (and
+            # NewInputAdam's boosted weights) still hold the nets' parameters.
+            for net in nets:
+                net.to(device)
+            for opt in opts:
+                optimiser_to(opt, device)
+            return ppo_update(
+                self.actor,
+                self.critic,
+                self.actor_opt,
+                self.critic_opt,
+                batch.to(device),
+                settings,
+                self.anchor,
+            )
+        finally:
+            cpu = torch.device("cpu")
+            for net in nets:
+                net.to(cpu)
+            for opt in opts:
+                optimiser_to(opt, cpu)
 
     # -- rollout -------------------------------------------------------------
 
@@ -2245,6 +2314,15 @@ class NewInputAdam(torch.optim.Adam):
             new = weight[:, self.start :]
             new.copy_(old + self.mult * (new - old))
         return loss
+
+
+def optimiser_to(opt: torch.optim.Optimizer, device: torch.device) -> None:
+    """Move ``opt``'s state tensors to ``device`` in place, except Adam's ``step``
+    counters, which stay on the CPU (where a non-capturable Adam keeps them)."""
+    for state in opt.state.values():
+        for key, value in state.items():
+            if key != "step" and isinstance(value, torch.Tensor):
+                state[key] = value.to(device)
 
 
 def _pairs(flat: NDArray[np.int64], n_ships: int) -> torch.Tensor:

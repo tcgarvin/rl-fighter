@@ -197,6 +197,10 @@ cargo test -p sim --test drills
 uv run python -m spacefight.eval.goto_sweep --a <checkpoint.pt|script|nodeadline:<ckpt>> \
     --name <pilot> --out sweep.json [--seeds-per-cell 6] [--threads 4] [--seed 700000]
 uv run python -m pytest tests/test_goto_sweep.py tests/test_goto_deadline_train.py -v
+# PPO update on a GPU (pilot trainer; docs/PILOT_TRAINING.md "update_device"): --set
+# update_device=cuda:0 moves the nets, Adam state and batch over for the update only;
+# rollout and checkpoints stay on the CPU, so a run resumes on any device. Default cpu.
+uv run python -m pytest tests/test_update_device.py -v
 
 # Pilot population (docs/PILOT_TRAINING.md sections 4-6): records in lab/population/<season>/
 # members/ (rlf.population.member/1; weights stay out of git), all-pairs no-commander round
