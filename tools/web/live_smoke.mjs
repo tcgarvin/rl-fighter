@@ -9,18 +9,20 @@
 // exits non-zero if a match does not finish with a proper end reason,
 // a ship's state goes non-finite, an event kind is unknown, a mission's defining
 // events never happen (no launch in a carrier battle, no convoy jump-out or kill in a
-// convoy escort), a learned commander never decides, or a mean tick blows the 30 Hz
-// budget. The TS sources need Node's type stripping:
+// convoy escort, no launch or no station-assault ending in a station assault), a
+// learned commander never decides, or a mean tick blows the 30 Hz budget. The TS
+// sources need Node's type stripping:
 //
 //   node --experimental-strip-types tools/web/live_smoke.mjs <bundle-dir> [matches=4]
-//        [--seed 1] [--modes draft,carrier_battle,convoy_escort,2v2,3v3,4v4]
+//        [--seed 1] [--modes draft,carrier_battle,convoy_escort,station_assault,2v2,3v3,4v4]
 //        [--hulls fighter,strafer,gunship] [--commanders <azure>,<ember>|draw]
 //        [--pairing ship|side]
 //
 // --modes cycles what each match stages: a mission name (carrier_battle,
-// convoy_escort; the page's ?mission=) or a deathmatch roster mode (as ?fleets=;
-// "draft" uses the manifest's roster rules). The default puts the three missions
-// first, so the bundle build's 4 smoke matches cover every one. --hulls overrides
+// convoy_escort, station_assault; the page's ?mission=) or a deathmatch roster mode
+// (as ?fleets=; "draft" uses the manifest's roster rules). The default puts the four
+// missions first, so the bundle build's 4 smoke matches cover every one (the station
+// assault, which the page plays only when pinned, is skipped by a bundle without it). --hulls overrides
 // which strike craft are drafted, to exercise fleets before a champion is certified.
 // --commanders pins each side's commander by id (as the page's ?commander=); "draw"
 // draws them as the page does. By default a bundle with a learned commander cycles
@@ -46,7 +48,7 @@ if (!bundleDir) {
   process.exit(2);
 }
 const seed0 = Number(flags.seed ?? 1);
-const modes = (flags.modes ?? "draft,carrier_battle,convoy_escort,2v2,3v3,4v4").split(",");
+const modes = (flags.modes ?? "draft,carrier_battle,convoy_escort,station_assault,2v2,3v3,4v4").split(",");
 
 const { mulberry32 } = await importRepo("web/src/live/policy.js");
 const { LiveMatch, assignCommanders, parsePairing } = await importRepo("web/src/live/match.ts");
@@ -112,6 +114,10 @@ for (let i = 0; i < Number(nArg); i++) {
   const seed = seed0 + i;
   const mode = modes[i % modes.length];
   const mission = parseMission(mode) ?? "deathmatch";
+  if (!available.includes(mission) && mission === "station_assault" && !flags.modes) {
+    console.log(`live smoke: match ${i} skipped: this bundle has no station assault (sim_version ${bundle.layout.simVersion})`);
+    continue;
+  }
   if (!available.includes(mission)) {
     console.error(`live smoke: FAIL this bundle cannot stage ${mission} (it has ${available.join(", ")})`);
     failed = true;
@@ -127,7 +133,7 @@ for (let i = 0; i < Number(nArg); i++) {
     const side = match.sidePilots?.[match.ships[s].team];
     if (id && side && id !== side.id) sidePilotWrong.push(s);
   }
-  const b = missionBrief(mission, match.convoy);
+  const b = missionBrief(mission, match.convoy, match.timeLimitTicks);
   const brief = stripTags(`${b.headline ? `${b.headline} ` : ""}${b.brief}`);
   let simTotal = 0;
   let nnTotal = 0;
@@ -169,6 +175,11 @@ for (let i = 0; i < Number(nArg); i++) {
   if (match.simReason === "not_over") fail("over, but the sim reports no end reason");
   if (bundle.layout.simVersion >= 4 && counts.matchEnd !== 1) fail(`${counts.matchEnd} MatchEnd events (want 1)`);
   if (mission === "carrier_battle" && counts.launch === 0) fail("no bay launch in a carrier battle");
+  if (mission === "station_assault") {
+    if (counts.launch === 0) fail("no bay launch in a station assault");
+    if (!["station_destroyed", "assault_repelled", "time_limit"].includes(match.simReason)) fail(`a station assault ended by ${match.simReason}`);
+    if (!roster.fleets[1].includes("bomber")) fail("the attackers have no bomber");
+  }
   const c = match.convoy;
   if (mission === "convoy_escort" && (!c || c.escaped + c.destroyed === 0) && match.simReason !== "eliminated") fail("no freighter escaped or died");
   const w = match.winner;
@@ -178,8 +189,8 @@ for (let i = 0; i < Number(nArg); i++) {
   worstMean = Math.max(worstMean, meanSim + meanNn);
   const values = match.teamValues().map((v) => v.toFixed(0)).join("/");
   const extra =
-    mission === "carrier_battle"
-      ? `; carriers ${match.teams.map((t) => `${Math.round((100 * Math.max(0, t.hp)) / Math.max(1, t.maxHp))}%`).join("/")}, hangars ${match.teams.map((t) => t.hangar).join("/")}`
+    mission === "carrier_battle" || mission === "station_assault"
+      ? `; ${mission === "station_assault" ? "station/carrier" : "carriers"} ${match.teams.map((t) => `${Math.round((100 * Math.max(0, t.hp)) / Math.max(1, t.maxHp))}%`).join("/")}, hangars ${match.teams.map((t) => t.hangar).join("/")}`
       : mission === "convoy_escort" && c
         ? `; convoy ${c.escaped} escaped / ${c.destroyed} destroyed of ${c.total} (need ${c.toEscape} / ${c.toDestroy})`
         : "";

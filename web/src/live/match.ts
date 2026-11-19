@@ -38,7 +38,7 @@ const VALUE_SHIELD_WEIGHT = 0.5;
 export type Fleets = [string[], string[]];
 
 /** Why a finished match ended, for the result banner. */
-export type EndReason = "eliminated" | "mutual" | "time" | "carrier" | "convoy_through" | "convoy_destroyed";
+export type EndReason = "eliminated" | "mutual" | "time" | "carrier" | "convoy_through" | "convoy_destroyed" | "station_destroyed" | "assault_repelled";
 
 const REASONS: Partial<Record<SimEndReason, EndReason>> = {
   eliminated: "eliminated",
@@ -46,6 +46,8 @@ const REASONS: Partial<Record<SimEndReason, EndReason>> = {
   carrier_destroyed: "carrier",
   convoy_through: "convoy_through",
   convoy_destroyed: "convoy_destroyed",
+  station_destroyed: "station_destroyed",
+  assault_repelled: "assault_repelled",
 };
 
 export interface Timing {

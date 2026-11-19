@@ -82,6 +82,8 @@ def render_geometry(spec: dict[str, Any]) -> dict[str, Any]:
     shield = spec.get("shield")
     return {
         "speed_cap": float(spec["speed_cap"]),
+        # SIM_VERSION 9: a hull that never moves (the station assault's station).
+        "static": bool(spec.get("static", False)),
         "shield_radius": float(shield["radius"]) if shield else 0.0,
         "collision": [_pick(c, ("pos", "r")) for c in spec.get("collision") or []],
         "thrusters": [

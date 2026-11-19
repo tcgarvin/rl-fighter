@@ -8,20 +8,40 @@
 // rosters are the sim's too (`missionRostersJson`, balanced by the mission survey);
 // missionRoster() picks one, and only an older wasm without them falls back to the
 // drafts in FALLBACK_ROSTERS.
+//
+// The station assault (SIM_VERSION 9) is staged only when pinned (?mission=station): the
+// live pilots fly its bombers badly (lab/runs/2026-11-19-station-bomber), so it stays
+// out of the rotation until they have trained with them.
 
 import type { Rng } from "./policy.js";
 import { chooseRoster, draftSide, draftableHulls, type Roster, type RosterMode, type RosterRules } from "./roster.ts";
-import { ROLE_CARRIER, ROLE_TRANSPORT, type ConvoyState, type HullInfo, type SimModule } from "./sim.ts";
+import { ROLE_CARRIER, ROLE_TRANSPORT, SIM_HZ, type ConvoyState, type HullInfo, type SimModule } from "./sim.ts";
 import { TEAM_WORDS, teamSpan } from "./teams.ts";
 
-/** The sim's mission kind names (SIM_SPEC §10.3), in rotation order. */
-export const MISSIONS = ["deathmatch", "carrier_battle", "convoy_escort"] as const;
+/** The sim's mission kind names (SIM_SPEC §10.3), in kind order (`mission_kind()`). */
+export const MISSIONS = ["deathmatch", "carrier_battle", "convoy_escort", "station_assault"] as const;
 export type MissionName = (typeof MISSIONS)[number];
+
+/** The missions the page rotates through, in order; the others play only when pinned. */
+export const ROTATION: readonly MissionName[] = ["deathmatch", "carrier_battle", "convoy_escort"];
+
+/** The first sim version with the station assault, its station and its bombers. */
+export const STATION_SIM_VERSION = 9;
+
+/**
+ * Strike hulls a mission is built around, flown as the sim's roster names them even
+ * where the champion is not certified for them: a station assault without its bombers
+ * would be a carrier battle against a turret.
+ */
+const MISSION_STRIKE_HULLS: Partial<Record<MissionName, readonly string[]>> = {
+  station_assault: ["bomber"],
+};
 
 export const MISSION_TITLES: Record<MissionName, string> = {
   deathmatch: "Team deathmatch",
   carrier_battle: "Carrier battle",
   convoy_escort: "Convoy escort",
+  station_assault: "Station assault",
 };
 
 /** Short labels for the status line. */
@@ -29,6 +49,7 @@ export const MISSION_TAGS: Record<MissionName, string> = {
   deathmatch: "DEATHMATCH",
   carrier_battle: "CARRIER BATTLE",
   convoy_escort: "CONVOY",
+  station_assault: "STATION ASSAULT",
 };
 
 const ALIASES: Record<string, MissionName> = {
@@ -41,6 +62,9 @@ const ALIASES: Record<string, MissionName> = {
   convoy: "convoy_escort",
   convoy_escort: "convoy_escort",
   escort: "convoy_escort",
+  station: "station_assault",
+  station_assault: "station_assault",
+  assault: "station_assault",
 };
 
 /** One of the sim's default rosters for a mission (sim::spec::MissionRosterView). */
@@ -58,12 +82,14 @@ function isFleet(x: unknown): x is string[] {
 
 /**
  * Read the sim's default rosters (`missionRostersJson`), checked at the boundary. A
- * wasm without the call (before WP-S2) gives none, and the page drafts its own.
+ * wasm without the call (before WP-S2) gives none, and the page drafts its own; one
+ * before SIM_VERSION 9 has no station assault to ask about.
  */
-export function defaultRosters(sim: Pick<SimModule, "missionRostersJson">): DefaultRosters {
+export function defaultRosters(sim: Pick<SimModule, "missionRostersJson" | "sim_version">): DefaultRosters {
   const out: DefaultRosters = {};
   if (typeof sim.missionRostersJson !== "function") return out;
   for (const mission of MISSIONS) {
+    if (mission === "station_assault" && sim.sim_version() < STATION_SIM_VERSION) continue;
     const raw: unknown = JSON.parse(sim.missionRostersJson(mission));
     if (!Array.isArray(raw)) throw new Error(`missionRostersJson(${mission}) is not an array`);
     out[mission] = raw.map((r: unknown, i) => {
@@ -83,11 +109,12 @@ const DEFAULT_ROSTER_SHARE = 0.5;
 
 /**
  * Pick one of the sim's rosters for a match and keep it flyable: a strike craft the
- * champion is not certified for (an older champion's replay) is swapped for one it is.
+ * champion is not certified for (an older champion's replay) is swapped for one it is,
+ * except the hulls the mission is built around (`kept`).
  */
-function fromSim(list: MissionRosterSpec[], rules: RosterRules, info: Record<string, HullInfo>, rng: Rng): Roster {
+function fromSim(list: MissionRosterSpec[], rules: RosterRules, info: Record<string, HullInfo>, rng: Rng, kept: readonly string[] = []): Roster {
   const r = rng() < DEFAULT_ROSTER_SHARE || list.length === 1 ? list[0]! : list[1 + Math.floor(rng() * (list.length - 1))]!;
-  const flyable = draftableHulls(rules, info);
+  const flyable = [...draftableHulls(rules, info), ...kept.filter((h) => info[h])];
   const swap = (hull: string): string => {
     const role = info[hull]?.role;
     if (!info[hull]) throw new Error(`the sim's roster ${r.name} names hull ${hull}, which is not in the catalogue`);
@@ -116,30 +143,42 @@ export function parseMission(param: string | null): MissionName | null {
   return ALIASES[(param ?? "").toLowerCase()] ?? null;
 }
 
-/** The first catalogue hull with YAML role `role`, if any (catalogue order: by name). */
-export function hullWithRole(info: Record<string, HullInfo>, role: string): string | null {
-  return Object.keys(info).find((name) => info[name]!.role === role) ?? null;
+/**
+ * The first catalogue hull with YAML role `role`, if any (catalogue order: by name);
+ * `fixed` picks among the static hulls (the station) instead of the mobile ones.
+ */
+export function hullWithRole(info: Record<string, HullInfo>, role: string, fixed = false): string | null {
+  return Object.keys(info).find((name) => info[name]!.role === role && Boolean(info[name]!.geometry?.static) === fixed) ?? null;
 }
 
 /**
  * The missions this bundle can stage: every mission needs a v4 sim; the carrier battle
- * a carrier-role hull and the convoy a transport-role hull in the catalogue, and both
- * the renderer's model for it (`drawable`).
+ * a carrier-role hull and the convoy a transport-role hull in the catalogue, and the
+ * station assault (v9) a static carrier-role hull, a mobile carrier and a bomber, each
+ * with the renderer's model for it (`drawable`).
  */
 export function availableMissions(simVersion: number, info: Record<string, HullInfo>, drawable: (hull: string) => boolean): MissionName[] {
   const out: MissionName[] = ["deathmatch"];
   if (simVersion < 4) return out;
+  const has = (hull: string | null): boolean => hull !== null && hull in info && drawable(hull);
   const carrier = hullWithRole(info, ROLE_CARRIER);
-  const freighter = hullWithRole(info, ROLE_TRANSPORT);
-  if (carrier && drawable(carrier)) out.push("carrier_battle");
-  if (freighter && drawable(freighter)) out.push("convoy_escort");
+  if (has(carrier)) out.push("carrier_battle");
+  if (has(hullWithRole(info, ROLE_TRANSPORT))) out.push("convoy_escort");
+  const strike = MISSION_STRIKE_HULLS.station_assault ?? [];
+  if (simVersion >= STATION_SIM_VERSION && has(carrier) && has(hullWithRole(info, ROLE_CARRIER, true)) && strike.every(has)) {
+    out.push("station_assault");
+  }
   return out;
 }
 
-/** The pinned mission if this bundle can stage it, else the rotation's pick for `seed`. */
+/**
+ * The pinned mission if this bundle can stage it, else the rotation's pick for `seed`
+ * among the available missions that rotate.
+ */
 export function missionFor(seed: number, available: MissionName[], pinned: MissionName | null): MissionName {
   if (pinned && available.includes(pinned)) return pinned;
-  return available[Math.abs(Math.trunc(seed)) % available.length]!;
+  const rotating = available.filter((m) => ROTATION.includes(m));
+  return rotating[Math.abs(Math.trunc(seed)) % rotating.length]!;
 }
 
 function between([lo, hi]: [number, number], rng: Rng): number {
@@ -169,7 +208,9 @@ export function missionRoster(
 ): Roster {
   if (mission === "deathmatch") return chooseRoster(mode, rules, info, rng);
   const list = rosters[mission];
-  if (list && list.length > 0) return fromSim(list, rules, info, rng);
+  if (list && list.length > 0) return fromSim(list, rules, info, rng, MISSION_STRIKE_HULLS[mission]);
+  // Every wasm with the station assault has its rosters.
+  if (mission === "station_assault") throw new Error("station assault: the sim gave no roster for it");
   const R = FALLBACK_ROSTERS;
   if (mission === "carrier_battle") {
     const carrier = hullWithRole(info, ROLE_CARRIER);
@@ -194,9 +235,18 @@ export interface Brief {
 
 /**
  * The mission brief at the muster. `convoy` is the sim's convoy view at tick 0, so the
- * numbers are the sim's thresholds, not ours.
+ * numbers are the sim's thresholds, not ours; `timeLimitTicks` is the match's clock.
  */
-export function missionBrief(mission: MissionName, convoy: ConvoyState | null): Brief {
+export function missionBrief(mission: MissionName, convoy: ConvoyState | null, timeLimitTicks = 0): Brief {
+  if (mission === "station_assault") {
+    const clock = timeLimitTicks > 0 ? `${Math.round(timeLimitTicks / SIM_HZ)}&nbsp;s` : "the clock";
+    return {
+      headline: "Take the station, or&nbsp;hold&nbsp;it.",
+      brief:
+        `${teamSpan(1, TEAM_WORDS[1])} jumps in with a carrier and bombers: the station falls, ${TEAM_WORDS[1]} wins. ` +
+        `${teamSpan(0, TEAM_WORDS[0])} holds it for ${clock}, or wipes out the attack.`,
+    };
+  }
   if (mission === "carrier_battle") {
     return { headline: "Destroy the enemy carrier.", brief: "Each carrier launches its wing from its bays. Lose yours and you lose the&nbsp;match." };
   }

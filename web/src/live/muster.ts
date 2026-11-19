@@ -18,6 +18,12 @@ const ROLE_LINES: Record<string, string> = {
   carrier: "launches the wing",
   transport: "unarmed · cargo",
 };
+// Hulls that share a role with another but fight differently (a bomber flies in the
+// gunship's class; the station is its side's carrier).
+const HULL_LINES: Record<string, string> = {
+  bomber: "slow · torpedo",
+  station: "immobile · 6 turrets",
+};
 const MAX_CARDS = 4;
 // Leaves time for the fade-out before the fleets jump.
 const FADE_OUT = 0.35;
@@ -119,7 +125,7 @@ export class Muster {
     node.append(
       img,
       el("div", "m-name", hull.toUpperCase() + (count > 1 ? ` <span class="m-x">×${count}</span>` : "")),
-      el("div", "m-role", ROLE_LINES[info?.role ?? ""] ?? info?.role ?? ""),
+      el("div", "m-role", HULL_LINES[hull] ?? ROLE_LINES[info?.role ?? ""] ?? info?.role ?? ""),
       el("div", "m-stats", stats),
     );
     return node;

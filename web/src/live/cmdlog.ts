@@ -70,7 +70,12 @@ export class CommandLog {
       const t = m.teams[team];
       if (t.carrier < 0) continue;
       const inSpace = m.ships.filter((s) => s.team === team && s.role === "strike" && !s.docked).length;
-      this.line(team, `${this.who(team)} › carrier under way · ${inSpace} jumping in, ${t.hangar} in the hangar`, "", 0);
+      // A station assault's team 0 holds a station, its picket already on station.
+      const text =
+        m.mission === "station_assault" && team === 0
+          ? `station holding · ${inSpace} on picket, ${t.hangar} in the hangar`
+          : `carrier under way · ${inSpace} jumping in, ${t.hangar} in the hangar`;
+      this.line(team, `${this.who(team)} › ${text}`, "", 0);
     }
   }
 

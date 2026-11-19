@@ -315,14 +315,16 @@ function convoyDistance(match: LiveMatch): number | null {
 }
 
 function missionPanel(match: LiveMatch): string {
-  if (match.mission === "carrier_battle") {
+  if (match.mission === "carrier_battle" || match.mission === "station_assault") {
+    // A station assault's team 0 "carrier" is its station (the sim's team view).
+    const station = match.mission === "station_assault";
     return [0, 1]
       .map((team) => {
         const t = match.teams[team]!;
         const p = t.carrier >= 0 ? pct(t.hp, t.maxHp) : 0;
         const hangar = t.hangar > 0 ? `${t.hangar} in hangar` : "hangar empty";
         return (
-          `<div class="mrow ${TEAM_CLASSES[team]}${p === 0 ? " down" : ""}"><span class="mlabel">${TEAM_NAMES[team]} CARRIER</span>` +
+          `<div class="mrow ${TEAM_CLASSES[team]}${p === 0 ? " down" : ""}"><span class="mlabel">${TEAM_NAMES[team]} ${station && team === 0 ? "STATION" : "CARRIER"}</span>` +
           `<span class="mbar"><i style="width:${p}%"></i></span><span class="mval">${p}%</span><span class="mnote">${hangar}</span></div>`
         );
       })
@@ -357,6 +359,10 @@ export function resultText(match: LiveMatch): [string, string] {
       return [title, c ? `Convoy through — ${c.escaped} of ${c.total} escaped · ${secs}` : `Convoy through · ${secs}`];
     case "convoy_destroyed":
       return [title, c ? `Convoy destroyed — ${c.destroyed} of ${c.total} lost · ${secs}` : `Convoy destroyed · ${secs}`];
+    case "station_destroyed":
+      return [title, `${word(0)}'s station destroyed · ${secs}`];
+    case "assault_repelled":
+      return [title, `Assault repelled — ${word(1)}'s carrier and wing destroyed · ${secs}`];
     case "mutual":
       return [title, `Both fleets destroyed · ${secs}`];
     case "eliminated": {
@@ -366,6 +372,9 @@ export function resultText(match: LiveMatch): [string, string] {
     }
     case "time": {
       if (c) return [title, `Time limit — the convoy didn't get through · ${c.escaped} of ${c.total} escaped`];
+      if (match.mission === "station_assault") {
+        return [title, `Time limit — the station held at ${teamSpan(0, `${pct(match.teams[0].hp, match.teams[0].maxHp)}%`)}`];
+      }
       if (match.mission === "carrier_battle") {
         const [a, b] = match.teams.map((t) => pct(t.hp, t.maxHp));
         if (a !== b) return [title, `Time limit — carriers at ${teamSpan(0, `${a}%`)} and ${teamSpan(1, `${b}%`)}`];

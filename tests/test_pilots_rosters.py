@@ -42,6 +42,7 @@ from spacefight.env.rosters import (  # noqa: E402
     PilotsRosterSampler,
     Roster,
     capital_hull_ids,
+    hull_names_by_id,
     load_hull_costs,
     make_sampler,
     resolve_distribution,
@@ -75,8 +76,8 @@ EXTRAS_ORDER_COL = 7
 NODE = shutil.which("node")
 
 
-# The missions the live page plays (``web/src/live/missions.ts``); the station assault
-# (SIM_VERSION 9) is not among them yet.
+# The missions the live page rotates through (``web/src/live/missions.ts``); the
+# station assault (SIM_VERSION 9) plays there only when pinned (?mission=station).
 LIVE_MISSIONS = tuple(m for m in MISSIONS if m != STATION_ASSAULT)
 
 
@@ -298,6 +299,97 @@ def test_draws_match_the_live_page_s_own_code() -> None:
         assert _distance(ours, theirs) < 0.13
         assert _distance(_size_pairs(ours), _size_pairs(theirs)) < 0.03
         assert _distance(_sides(ours), _sides(theirs)) < 0.04
+
+
+@pytest.mark.skipif(NODE is None, reason="node is not on PATH")
+def test_live_page_stages_the_station_assault_only_when_pinned() -> None:
+    """The page's ``missions.ts``: a v9 catalogue can stage the station assault, the
+    rotation never picks it, a pin does, and its roster keeps the sim's bombers though
+    the champion is certified only for the v1 hulls."""
+    info = load_catalogue(Path(ASSETS))["info"]
+    payload = {
+        "info": info,
+        "rules": {
+            "hulls": ["fighter", "gunship", "strafer"],
+            "min_per_side": 1,
+            "max_per_side": 4,
+            "budget": 40,
+        },
+        "rosters": {STATION_ASSAULT: rlf_sim.mission_rosters(STATION_ASSAULT)},
+    }
+    script = """
+    import { availableMissions, missionFor, missionRoster, parseMission } from "./web/src/live/missions.ts";
+    let text = "";
+    for await (const chunk of process.stdin) text += chunk;
+    const { info, rules, rosters } = JSON.parse(text);
+    const v9 = availableMissions(9, info, () => true);
+    const rotated = new Set(Array.from({ length: 64 }, (_, seed) => missionFor(seed, v9, null)));
+    const roster = missionRoster("station_assault", { kind: "draft" }, rules, info, () => 0.3, rosters);
+    console.log(JSON.stringify({
+      v8: availableMissions(8, info, () => true),
+      v9,
+      undrawable: availableMissions(9, info, (h) => h !== "bomber"),
+      rotated: [...rotated].sort(),
+      pinned: missionFor(7, v9, parseMission("station")),
+      fleets: roster.fleets,
+    }));
+    """
+    done = subprocess.run(
+        [
+            str(NODE),
+            "--experimental-strip-types",
+            "--no-warnings",
+            "--input-type=module",
+            "-e",
+            script,
+        ],
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+        cwd=REPO,
+        timeout=120,
+    )
+    assert done.returncode == 0, done.stderr
+    page = json.loads(done.stdout)
+    assert STATION_ASSAULT not in page["v8"]
+    assert page["v9"] == [*LIVE_MISSIONS, STATION_ASSAULT]
+    assert STATION_ASSAULT not in page["undrawable"]
+    assert page["rotated"] == sorted(LIVE_MISSIONS)
+    assert page["pinned"] == STATION_ASSAULT
+    sim_default = rlf_sim.mission_rosters(STATION_ASSAULT)[0]["fleets"]
+    assert page["fleets"] == [list(team) for team in sim_default]
+    assert "bomber" in page["fleets"][1]
+
+
+@pytest.mark.skipif(NODE is None, reason="node is not on PATH")
+def test_live_page_numbers_hulls_as_the_sim_does() -> None:
+    """``simHullOrder`` (``web/src/live/sim.ts``), by which the page names each ship's
+    hull id, lists the catalogue in the sim's id order (v9: the legacy hulls first)."""
+    pairs = [[name, ""] for name in load_catalogue(Path(ASSETS))["info"]]
+    script = """
+    import { simHullOrder } from "./web/src/live/sim.ts";
+    let text = "";
+    for await (const chunk of process.stdin) text += chunk;
+    console.log(JSON.stringify(simHullOrder(JSON.parse(text)).map(([name]) => name)));
+    """
+    done = subprocess.run(
+        [
+            str(NODE),
+            "--experimental-strip-types",
+            "--no-warnings",
+            "--input-type=module",
+            "-e",
+            script,
+        ],
+        input=json.dumps(pairs),
+        capture_output=True,
+        text=True,
+        cwd=REPO,
+        timeout=60,
+    )
+    assert done.returncode == 0, done.stderr
+    assert json.loads(done.stdout) == hull_names_by_id(Path(ASSETS))
+    assert [name for name, _ in pairs] != hull_names_by_id(Path(ASSETS))
 
 
 def _distance(a: Counter[str], b: Counter[str]) -> float:

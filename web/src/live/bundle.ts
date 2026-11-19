@@ -8,7 +8,7 @@
 
 import { createPolicy, type Policy, type PolicyManifest } from "./policy.js";
 import { createCommander, type Commander, type CommanderManifest, type FlatLayoutEntry } from "./commander.js";
-import { pilotObsDim, simLayout, type Catalogue, type MatchSettings, type SimLayout, type SimModule } from "./sim.ts";
+import { ROLE_CARRIER, ROLE_TRANSPORT, pilotObsDim, simHullOrder, simLayout, type Catalogue, type MatchSettings, type SimLayout, type SimModule } from "./sim.ts";
 import type { RosterRules } from "./roster.ts";
 
 export const BUNDLE_SCHEMA = "rlf.bundle/1";
@@ -199,19 +199,21 @@ export function commanderDirs(manifest: BundleManifest): string[] {
  * Put loaded parts together and check they agree: the manifest's sim version against
  * the wasm, every policy against the wasm's layout (createPolicy), every learned
  * commander against its commander interface (createCommander), and the catalogue by
- * building and freeing a one-ship-a-side match of every rostered hull. `pilotFiles` holds
- * each listed pilot's export by its `dir`, all but the champion's; `commanderFiles` each
- * learned commander's.
+ * building and freeing a one-ship-a-side match of every strike hull in it. The bundle's
+ * catalogue lists hulls by name; the returned one lists them in the sim's id order
+ * (simHullOrder), which each probe checks. `pilotFiles` holds each listed pilot's export
+ * by its `dir`, all but the champion's; `commanderFiles` each learned commander's.
  */
 export function assembleBundle(
   manifest: BundleManifest,
   sim: SimModule,
   policyManifest: PolicyManifest,
   weights: ArrayBuffer,
-  catalogue: Catalogue,
+  byName: Catalogue,
   pilotFiles: Record<string, PolicyFiles> = {},
   commanderFiles: Record<string, CommanderFiles> = {},
 ): Bundle {
+  const catalogue: Catalogue = { ...byName, hulls: simHullOrder(byName.hulls) };
   const layout = simLayout(sim);
   if (layout.simVersion !== manifest.sim_version) throw new Error(`bundle says sim_version ${manifest.sim_version}, its wasm is ${layout.simVersion}`);
   const pilot = manifest.pilot_sim_version ?? manifest.sim_version;
@@ -230,8 +232,15 @@ export function assembleBundle(
   if (pilots.length === 0) pilots.push({ id: manifest.champion.id, policy: champion, obsDim, entry: null });
   for (const hull of manifest.roster.hulls) {
     if (!catalogue.info[hull]) throw new Error(`roster hull ${hull} is not in the catalogue`);
+  }
+  // Capital ships fly only in missions, so the strike hulls stand in for the order check.
+  const strike = catalogue.hulls.map(([name]) => name).filter((n) => ![ROLE_CARRIER, ROLE_TRANSPORT].includes(catalogue.info[n]?.role ?? ""));
+  for (const hull of new Set([...manifest.roster.hulls, ...strike])) {
     const probe = new sim.WasmMatch(catalogue.hulls, catalogue.weapons, JSON.stringify({ seed: 0, ...manifest.match, fleets: [[hull], [hull]] }));
+    const id = new Float32Array(sim.wasm_memory().buffer, probe.ships_ptr(), probe.ships_len())[11]!;
     probe.free();
+    const named = catalogue.hulls[id]?.[0];
+    if (named !== hull) throw new Error(`the sim numbers hull ${hull} ${id}, which this page reads as ${named ?? "nothing"}: the hull order (simHullOrder) is out of date`);
   }
   const commanders = assembleCommanders(manifest, sim, commanderFiles);
   return { manifest, sim, layout, pilots, commanders, catalogue };

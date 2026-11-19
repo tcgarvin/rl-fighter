@@ -221,8 +221,9 @@ fighter/bomber cards are whole flights (×3 and ×2); a carrier brings an air wi
 there are four mission types: team deathmatch, flagship duel, hold the beacon, and
 station assault (attackers against a pre-placed, turreted, immobile station).
 
-**Station assault** (SIM_VERSION 9, in the sim and its bindings; not yet on the live
-page). Team 0 defends a static station (the `station` hull: six turrets, two bays, no
+**Station assault** (SIM_VERSION 9, in the sim and its bindings; on the live page only
+when pinned, `?mission=station`, and not in the rotation until the pilots have trained
+with bombers). Team 0 defends a static station (the `station` hull: six turrets, two bays, no
 engines) with a picket of two strike craft and a garrison it launches; team 1 arrives
 from the far side with a carrier and a wing that includes **bombers** (the `bomber`
 hull: a slow anchor-class strike craft with a fixed forward torpedo rack). The attacker

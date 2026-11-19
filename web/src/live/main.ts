@@ -9,7 +9,8 @@
 // scripted one, or a learned net that decides once a second).
 //
 // URL parameters: seed (pin the match seeds), mission (deathmatch, carrier or convoy:
-// every match is that mission; default: rotate), commander (an id from the stable for
+// every match is that mission; default: rotate; station: the station assault, which
+// plays only when pinned), commander (an id from the stable for
 // both sides, or two ids, Azure's then Ember's, comma-separated; default: a draw per
 // side per match), fleets (duel or NvM for deathmatch,
 // implies it; default: a random draft), champion (replay a past champion), details
@@ -239,7 +240,7 @@ function startMatch(): void {
   hud.setCaption(bundle.manifest, bundleBase !== CURRENT_BUNDLE, next.ships.some((s) => s.role !== "strike"), commanders, next.sidePilots);
   hud.updateMission(next, showCommanderRow(next));
   cmdlog.newMatch(matchNumber, next);
-  const brief = missionBrief(mission, next.convoy);
+  const brief = missionBrief(mission, next.convoy, next.timeLimitTicks);
   muster.show({ number: matchNumber, mission, brief, roster, info: bundle.catalogue.info, thumbnails, duration: MUSTER_SECONDS });
   document.body.classList.add("mustering");
 }

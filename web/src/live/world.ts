@@ -522,7 +522,9 @@ export class World {
       if (e.kind === "death" && ship && view) {
         view.charge?.cancel();
         view.charge = null;
-        const major = fate(m.seed, e.a, 0) < MAJOR_CHANCE;
+        // A station (a hull that cannot move) always goes up: its loss ends the match,
+        // and a hulk that never moved would just sit there.
+        const major = view.hull.speedCap === 0 || fate(m.seed, e.a, 0) < MAJOR_CHANCE;
         const spin = fate(m.seed, e.a, 1) - 0.5;
         view.wreck = {
           x: e.x,

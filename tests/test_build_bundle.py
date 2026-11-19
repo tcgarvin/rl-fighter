@@ -97,6 +97,10 @@ def test_catalogue_carries_every_hull_and_the_card_info(tmp_path: Path) -> None:
     carrier = catalogue["info"]["carrier"]["geometry"]
     assert [b["id"] for b in carrier["bays"]] == ["bay.port", "bay.starboard"]
     assert carrier["shield_radius"] > 0 and len(carrier["collision"]) == 3
+    # The page tells the station assault's station from a carrier by this flag.
+    assert carrier["static"] is False and geometry["static"] is False
+    station = catalogue["info"]["station"]
+    assert station["role"] == "carrier" and station["geometry"]["static"] is True
     assert "gauss" in catalogue["weapons"]
 
 

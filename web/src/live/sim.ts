@@ -26,7 +26,10 @@ export interface WasmMatch {
   // v4 (SIM_SPEC §10.2): missions and the commander layer.
   ship_ext_ptr(): number;
   ship_ext_len(): number;
+  /** MISSION_KINDS index (v9: 3, the station assault). */
   mission_kind(): number;
+  /** v9: the mission kind the nets read: a station assault's is 1 or 2 (its spec's `"as"`). */
+  obs_mission_kind?(): number;
   end_reason(): number;
   command_due(): boolean;
   submit_commands(team: number, json: string): void;
@@ -144,7 +147,24 @@ export function pilotObsDim(layout: SimLayout, version: number): number {
   return dim;
 }
 
-/** `{ hulls: [[name, yaml]], weapons: yaml, info }`, from tools/build_bundle.py. */
+/** The hulls of SIM_VERSION 4 to 8 in their id order (sim::data::LEGACY_HULL_ORDER). */
+const LEGACY_HULL_ORDER = ["carrier", "fighter", "freighter", "gunship", "strafer"];
+
+/**
+ * `hulls` in the sim's id order (sim::data::hull_order): the legacy hulls first, in
+ * their order, then every other hull by name. The sim numbers a catalogue this way
+ * whatever order it is passed in, so a ship's `hull` indexes this list; before v9 (no
+ * other hulls) it is plain name order. assembleBundle checks it against the wasm.
+ */
+export function simHullOrder<T extends [string, string]>(hulls: readonly T[]): T[] {
+  const rank = (name: string): number => {
+    const i = LEGACY_HULL_ORDER.indexOf(name);
+    return i < 0 ? LEGACY_HULL_ORDER.length : i;
+  };
+  return [...hulls].sort((a, b) => rank(a[0]) - rank(b[0]) || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+}
+
+/** `{ hulls: [[name, yaml]], weapons: yaml, info }`, from tools/build_bundle.py (hulls by name). */
 export interface Catalogue {
   hulls: Array<[string, string]>;
   weapons: string;
@@ -163,6 +183,8 @@ export interface HullInfo {
 /** A hull YAML's drawable parts, body frame (+x forward, +y port), metres. */
 export interface HullGeometry {
   speed_cap: number;
+  /** v9: never moves (the station); absent in older bundles. */
+  static?: boolean;
   shield_radius: number;
   collision: Array<{ pos: [number, number]; r: number }>;
   thrusters: Array<{ id: string; pos: [number, number]; dir: [number, number]; max_force: number }>;
@@ -190,8 +212,20 @@ export const JUMP_DEPARTED = 2;
 export const ORDER_KINDS = ["none", "attack", "defend", "goto"] as const;
 export type OrderKind = (typeof ORDER_KINDS)[number];
 
-/** `EndReason` codes (SIM_SPEC §5.8). */
-export const END_REASONS = ["not_over", "eliminated", "time_limit", "carrier_destroyed", "convoy_through", "convoy_destroyed"] as const;
+/** `MissionKind` codes (SIM_SPEC §10.3; v9 adds the station assault). */
+export const MISSION_KINDS = ["deathmatch", "carrier_battle", "convoy_escort", "station_assault"] as const;
+
+/** `EndReason` codes (SIM_SPEC §5.8; v9: 6 and 7, the station assault's). */
+export const END_REASONS = [
+  "not_over",
+  "eliminated",
+  "time_limit",
+  "carrier_destroyed",
+  "convoy_through",
+  "convoy_destroyed",
+  "station_destroyed",
+  "assault_repelled",
+] as const;
 export type SimEndReason = (typeof END_REASONS)[number];
 
 export interface MatchSettings {
@@ -221,7 +255,7 @@ export interface ShipState {
   alive: boolean;
   present: boolean;
   team: number;
-  /** Index into the catalogue's (sorted) hull list. */
+  /** Index into the catalogue's hull list, in the sim's id order (simHullOrder). */
   hull: number;
   throttles: Float32Array;
   turretAngles: Float32Array;
