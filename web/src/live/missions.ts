@@ -9,9 +9,10 @@
 // missionRoster() picks one, and only an older wasm without them falls back to the
 // drafts in FALLBACK_ROSTERS.
 //
-// The station assault (SIM_VERSION 9) is staged only when pinned (?mission=station): the
-// live pilots fly its bombers badly (lab/runs/2026-11-19-station-bomber), so it stays
-// out of the rotation until they have trained with them.
+// The station assault (SIM_VERSION 9) rotates with the others on a bundle that has it
+// (the owner's call, 2026-11-19: all the live pilots, no special selection), though the
+// live pilots fly its bombers badly and the attacker wins only 0.36 to 0.39 with them
+// (lab/runs/2026-11-19-station-bomber).
 
 import type { Rng } from "./policy.js";
 import { chooseRoster, draftSide, draftableHulls, type Roster, type RosterMode, type RosterRules } from "./roster.ts";
@@ -23,7 +24,7 @@ export const MISSIONS = ["deathmatch", "carrier_battle", "convoy_escort", "stati
 export type MissionName = (typeof MISSIONS)[number];
 
 /** The missions the page rotates through, in order; the others play only when pinned. */
-export const ROTATION: readonly MissionName[] = ["deathmatch", "carrier_battle", "convoy_escort"];
+export const ROTATION: readonly MissionName[] = ["deathmatch", "carrier_battle", "convoy_escort", "station_assault"];
 
 /** The first sim version with the station assault, its station and its bombers. */
 export const STATION_SIM_VERSION = 9;

@@ -275,10 +275,9 @@ Keep it current when training scenarios change.
 
 The project is moving to a Rust sim + three.js web client; `docs/DESIGN.md` is the
 source of truth for that direction. The website (`web/`, Vite + TypeScript) serves the
-live page at `/`: matches that loop forever, rotating team deathmatch, carrier battle
-and convoy escort (`web/src/live/missions.ts`: rotation, rosters, briefs; `?mission=
-deathmatch|carrier|convoy` pins one, `?mission=station` plays the station assault, which
-is not in the rotation yet; `?commands=1` shows the commander layer), each
+live page at `/`: matches that loop forever, rotating team deathmatch, carrier battle,
+convoy escort and station assault (`web/src/live/missions.ts`: rotation, rosters, briefs;
+`?mission=deathmatch|carrier|convoy|station` pins one; `?commands=1` shows the commander layer), each
 strike craft flown by a pilot picked at random from `lab/live_pilots.json`, each side's
 commander drawn from `lab/live_commanders.json` (a learned one runs `web/src/live/
 commander.js` in the sim's `learned` mode, `?commander=<id>` forces it) and capital
