@@ -32,7 +32,12 @@ from numpy.typing import NDArray
 HERE = Path(__file__).resolve().parent
 MISSIONS = ("deathmatch", "carrier_battle", "convoy_escort")
 WAR = (
-    HERE.parents[1] / "population" / "2026-11-sim6" / "war" / "goto-school-2" / "war.json"
+    HERE.parents[1]
+    / "population"
+    / "2026-11-sim6"
+    / "war"
+    / "goto-school-2"
+    / "war.json"
 )
 MIXED = "mixed"
 ROW_ORDER = ("scripted", "unseen", "c1_shaped", "c1_outcome")
@@ -44,7 +49,29 @@ def load_cells(root: Path) -> dict[str, dict[str, dict[str, Any]]]:
     for mission in MISSIONS:
         for path in sorted((root / mission).glob("*.json")):
             out.setdefault(path.stem, {})[mission] = json.loads(path.read_text())
-    return {k: v for k, v in out.items() if len(v) == len(MISSIONS)}
+    done = {k: v for k, v in out.items() if len(v) == len(MISSIONS)}
+    return truncate(done)
+
+
+PER_MATCH = ("score", "a_team", "roster", "counts", "end_reason")
+
+
+def truncate(
+    cells: dict[str, dict[str, dict[str, Any]]],
+) -> dict[str, dict[str, dict[str, Any]]]:
+    """Every cell cut to its mission's smallest ``n``: the first matches, which have the
+    same rosters, sides and side-b pilots in every cell (a block of all rosters on both
+    sides repeats, and the pilot draw is made in env order)."""
+    for mission in MISSIONS:
+        n = min(c[mission]["n"] for c in cells.values())
+        for c in cells.values():
+            cell = c[mission]
+            if cell["n"] > n:
+                for key in PER_MATCH:
+                    cell[key] = cell[key][:n]
+                cell["n_played"] = cell["n"]
+                cell["n"] = n
+    return cells
 
 
 def check_paired(cells: Mapping[str, Mapping[str, Mapping[str, Any]]]) -> None:
@@ -64,7 +91,9 @@ def check_paired(cells: Mapping[str, Mapping[str, Mapping[str, Any]]]) -> None:
                 raise ValueError(f"{mission}/{name} does not pair with the other cells")
 
 
-def scores(cell: Mapping[str, Mapping[str, Any]], idx: Sequence[NDArray[np.int64]]) -> float:
+def scores(
+    cell: Mapping[str, Mapping[str, Any]], idx: Sequence[NDArray[np.int64]]
+) -> float:
     """A cell's score over the resampled match indices ``idx`` (one array a mission)."""
     return float(
         np.mean([np.asarray(cell[m]["score"])[i].mean() for m, i in zip(MISSIONS, idx)])
@@ -155,10 +184,7 @@ def analyze(root: Path, war_path: Path, n_boot: int, seed: int) -> dict[str, Any
     observed = extras(full)
     rng = np.random.default_rng(seed)
     boot = np.stack(
-        [
-            extras([rng.integers(0, n[m], n[m]) for m in MISSIONS])
-            for _ in range(n_boot)
-        ]
+        [extras([rng.integers(0, n[m], n[m]) for m in MISSIONS]) for _ in range(n_boot)]
     )
     se = boot.std(axis=0, ddof=1)
     k = len(rows) * len(pilots)
@@ -218,17 +244,12 @@ def analyze(root: Path, war_path: Path, n_boot: int, seed: int) -> dict[str, Any
         },
         "by_mission": {
             m: [
-                [
-                    float(np.mean(cells[f"grid__{r}__{p}"][m]["score"]))
-                    for p in pilots
-                ]
+                [float(np.mean(cells[f"grid__{r}__{p}"][m]["score"])) for p in pilots]
                 for r in rows
             ]
             for m in MISSIONS
         },
-        "secs": {
-            m: float(sum(c[m]["secs"] for c in cells.values())) for m in MISSIONS
-        },
+        "secs": {m: float(sum(c[m]["secs"] for c in cells.values())) for m in MISSIONS},
     }
     if war is not None:
         out["war"] = str(war_path.relative_to(HERE.parents[2]))
@@ -291,9 +312,7 @@ def tables(a: Mapping[str, Any]) -> str:
         mix = a["mixed"].get(r)
         mixed = f"{mix['score']:.3f}" if mix else ""
         lines.append(
-            f"| `{r}` | "
-            + " | ".join(cells)
-            + f" | {a['row_mean'][i]:.3f} | {mixed} |"
+            f"| `{r}` | " + " | ".join(cells) + f" | {a['row_mean'][i]:.3f} | {mixed} |"
         )
     lines.append(
         "| Column mean | "
@@ -327,9 +346,7 @@ def tables(a: Mapping[str, Any]) -> str:
     lines.append("|---" * (len(rows) + 1) + "|")
     for m, g in a["by_mission"].items():
         lines.append(
-            f"| {m} | "
-            + " | ".join(f"{np.mean(row):.3f}" for row in g)
-            + " |"
+            f"| {m} | " + " | ".join(f"{np.mean(row):.3f}" for row in g) + " |"
         )
     if "war_grid" in a:
         lines += [
@@ -348,9 +365,7 @@ def tables(a: Mapping[str, Any]) -> str:
             ]
             mix = a["war_mixed"].get(r)
             lines.append(
-                f"| `{r}` | "
-                + " | ".join(cells)
-                + f" | {mix:.3f} |"
+                f"| `{r}` | " + " | ".join(cells) + f" | {mix:.3f} |"
                 if mix is not None
                 else f"| `{r}` | " + " | ".join(cells) + " | |"
             )
