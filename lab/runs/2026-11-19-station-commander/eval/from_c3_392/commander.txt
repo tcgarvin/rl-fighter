@@ -1,0 +1,1 @@
+/home/timg/code/rl-fighter/.claude/worktrees/agent-a1bd89d3e723473a8/lab/runs/2026-11-19-station-commander/from_c3/checkpoints/commander_392.pt
