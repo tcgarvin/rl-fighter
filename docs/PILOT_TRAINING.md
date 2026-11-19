@@ -609,8 +609,13 @@ a mean over all the learner side's rows like `reward_order`, so the two add up t
 | Deathmatch | The page's draft: 2 to 4 of the cheapest hull's worth of credits, the same budget a side, each side spending it independently |
 | Condition | `commander_p`, default 0.5: both teams' orders shown, else hidden from both |
 | Mixed (experiment) | `mixed_p`, default 0: of the shown matches, the share with one random side's orders hidden |
+| Station reading | `station_as_convoy_share`, default 0: the share of station assaults the nets read as a convoy escort (station side the defender), else as a carrier battle |
+| Bombers (training only) | `bomber_share`, default 0: in a deathmatch, carrier battle or convoy, each strike slot of either team is a bomber with this chance (a swapped draft side's cost moves by the hull difference); a station assault keeps the sim's roster, which has three bombers. `drill_bomber_share`, default 0: the same for each pilot slot of an attack or defend drill (go-to drills keep their hulls, whose speeds set the deadline) |
 
 A family sets its own share with `roster_overrides`, e.g. `commander_p: 0.3`.
+Each of the three SIM_VERSION 9 keys draws nothing at 0, so a config without them draws
+exactly as before (`tests/test_station_mix.py`). Training logs a station assault as
+`station_assault/defend` or `/attack` by the learner's side, as a convoy.
 `tests/test_pilots_rosters.py` runs the page's own `missionRoster` in Node and compares its
 draws with the sampler's.
 

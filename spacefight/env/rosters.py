@@ -789,6 +789,19 @@ class PilotsDistribution:
             kite drills (``spacefight.env.drills``), their enemies flown by pilots from
             the trainer's opponent pool with their orders hidden. 0 draws no extra
             number, so the draws are those of a distribution without it.
+        station_as_convoy_share: Chance a station assault reads to the nets as a
+            convoy escort (``Roster.station_as`` ``"convoy"``), else as a carrier
+            battle. 0 draws no extra number (every assault reads as a carrier battle,
+            the sim's default).
+        bomber_share: Training only: in a deathmatch, carrier battle or convoy, each
+            strike slot (a ``FLEET_HULLS`` hull, either team) becomes a bomber with this
+            chance, drawn slot by slot. A draft keeps its size, so a swapped side's cost
+            moves by the hull's cost difference. A station assault keeps the sim's
+            roster, which has bombers of its own. 0 draws no extra number.
+        drill_bomber_share: Training only: in an attack or defend drill, each pilot
+            slot becomes a bomber with this chance (one draw per pilot, after the
+            drill's seed). Go-to drills are untouched: their deadlines come from the
+            drawn hulls' speeds. 0 draws no extra number.
 
     Raises:
         ValueError: Bad weights, shares or draft sizes, or a live roster or a drill
@@ -809,6 +822,9 @@ class PilotsDistribution:
     drill_weights: tuple[float, ...] = (1.0, 1.0, 1.0)
     drill_goto_solo_share: float = 0.0
     drill_attack_pool_share: float = 0.0
+    station_as_convoy_share: float = 0.0
+    bomber_share: float = 0.0
+    drill_bomber_share: float = 0.0
 
     def __post_init__(self) -> None:
         if self.kind != PILOTS_KIND:
@@ -825,6 +841,9 @@ class PilotsDistribution:
             "drill_share",
             "drill_goto_solo_share",
             "drill_attack_pool_share",
+            "station_as_convoy_share",
+            "bomber_share",
+            "drill_bomber_share",
         ):
             if not 0.0 <= getattr(self, name) <= 1.0:
                 raise ValueError(f"{name} must be in [0, 1], got {getattr(self, name)}")
@@ -1155,7 +1174,8 @@ class PilotsRosterSampler:
     def sample(self) -> Roster:
         """One roster (the env pads it to ``max_ships``). With ``drill_share`` 0 no
         extra number is drawn, so the draws are those of a distribution without drills;
-        likewise ``mixed_p`` 0 draws nothing for mixed matches.
+        likewise ``mixed_p``, ``station_as_convoy_share`` and ``bomber_share`` at 0
+        draw nothing.
         """
         d, rng = self.distribution, self.rng
         if self.drills is not None and rng.random() < d.drill_share:
@@ -1163,6 +1183,13 @@ class PilotsRosterSampler:
         p = np.asarray(d.mission_weights, dtype=np.float64)
         mission = MISSIONS[int(rng.choice(len(MISSIONS), p=p / p.sum()))]
         roster = self._draft() if mission == DEATHMATCH else self._live_roster(mission)
+        if mission == STATION_ASSAULT:
+            if d.station_as_convoy_share > 0 and (
+                rng.random() < d.station_as_convoy_share
+            ):
+                roster = replace(roster, station_as=STATION_AS_CONVOY)
+        elif d.bomber_share > 0:
+            roster = self._with_bombers(roster)
         hidden = not bool(rng.random() < d.commander_p)
         if not hidden and d.mixed_p > 0 and rng.random() < d.mixed_p:
             side = int(rng.integers(2))
@@ -1189,8 +1216,29 @@ class PilotsRosterSampler:
         )
         seed = int(rng.integers(2**62))
         if kite:
-            return self.drills.roster(kind, seed, kite=True)
-        return self.drills.roster(kind, seed)
+            roster = self.drills.roster(kind, seed, kite=True)
+        else:
+            roster = self.drills.roster(kind, seed)
+        if d.drill_bomber_share > 0 and kind != DRILL_GOTO and roster.drill is not None:
+            team0 = list(roster.teams[0])
+            for slot in roster.drill.pilots:
+                if rng.random() < d.drill_bomber_share:
+                    team0[slot] = BOMBER
+            roster = replace(roster, teams=(tuple(team0), roster.teams[1]))
+        return roster
+
+    def _with_bombers(self, roster: Roster) -> Roster:
+        """``roster`` with each strike slot a bomber with chance ``bomber_share``
+        (one draw per strike slot, team 0 first, in slot order)."""
+        share, rng = self.distribution.bomber_share, self.rng
+        teams = tuple(
+            tuple(
+                BOMBER if h in FLEET_HULLS and rng.random() < share else h
+                for h in team
+            )
+            for team in roster.teams
+        )
+        return replace(roster, teams=(teams[0], teams[1]))
 
     def _live_roster(self, mission: str) -> Roster:
         """``fromSim`` in ``web/src/live/missions.ts``."""

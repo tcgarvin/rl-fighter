@@ -334,6 +334,9 @@ def test_convoys_cannot_swap_sides_and_classes_name_the_learner_side() -> None:
     assert episode_class(convoy, 1) == "convoy_escort/attack"
     fleet = Roster.of(["fighter"], ["strafer", "gunship"])
     assert episode_class(fleet, 1) == "1v2"
+    station = Roster.of(["station", "fighter"], ["carrier", "bomber"], mission="station_assault")
+    assert episode_class(station, 0) == "station_assault/defend"
+    assert episode_class(station, 1) == "station_assault/attack"
 
 
 def test_orders_env_pads_mission_rosters_to_twelve_slots() -> None:

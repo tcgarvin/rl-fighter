@@ -100,6 +100,12 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="only this team flies the pilots (the other the script)",
     )
+    p.add_argument(
+        "--pilots-other",
+        type=Path,
+        default=None,
+        help="with --pilots-team: a pilot list the other team flies (default: script)",
+    )
     p.add_argument("--time-limit-s", type=float, default=None)
     p.add_argument(
         "--checkpoint-root",
@@ -163,8 +169,16 @@ def main(argv: list[str] | None = None) -> int:
     if pool is not None:
         pool.draw(team.shape)
     learned_rows = ~capital & (team >= 0)
+    other: PilotPool | None = None
+    other_rows = np.zeros_like(learned_rows)
     if pool is not None and args.pilots_team is not None:
+        other_rows = learned_rows & (team == 1 - args.pilots_team)
         learned_rows &= team == args.pilots_team
+        if args.pilots_other is not None:
+            other = PilotPool(args.pilots_other, args.seed + 1, args.checkpoint_root)
+            other.draw(team.shape)
+    elif args.pilots_other is not None:
+        raise SystemExit("--pilots-other needs --pilots and --pilots-team")
     station = 0  # team 0's first slot
 
     n, s = team.shape
@@ -181,6 +195,8 @@ def main(argv: list[str] | None = None) -> int:
         actions = env.scripted_actions().copy()
         if pool is not None:
             pool.act(env, learned_rows & running[:, None], actions)
+        if other is not None:
+            other.act(env, other_rows & running[:, None], actions)
         prev_alive = env.raw.alive.copy()
         _, _, dones, info = env.step(actions)
         for i in np.flatnonzero(running & (info.hit_count > 0)):
@@ -273,6 +289,7 @@ def report(
         "commanders": list(args.commanders),
         "pilots": str(args.pilots) if args.pilots else "script",
         "pilots_team": args.pilots_team,
+        "pilots_other": str(args.pilots_other) if args.pilots_other else None,
         "attacker_win_rate": float(score.mean()),
         "attacker_win_ci95": 1.96 * se,
         "draw_rate": float(draw.mean()),

@@ -167,6 +167,7 @@ from spacefight.env.drills import DrillLedger, DrillOutcome
 from spacefight.env.rosters import (
     CONVOY_ESCORT,
     DRILL_GOTO,
+    STATION_ASSAULT,
     Roster,
     Sampler,
     capital_hull_ids,
@@ -1413,8 +1414,9 @@ def _score_by(tallies: dict[str, list[int]]) -> dict[str, float]:
 
 def episode_class(roster: Roster, learner_team: int) -> str:
     """The class an episode is tallied under: the roster's class, with the
-    learner's side for a convoy (``convoy_escort/defend`` or ``/attack``)."""
-    if roster.mission == CONVOY_ESCORT:
+    learner's side for a convoy (``convoy_escort/defend`` or ``/attack``) and for a
+    station assault (team 0 holds the station: ``station_assault/defend``)."""
+    if roster.mission in (CONVOY_ESCORT, STATION_ASSAULT):
         return f"{roster.klass}/{'defend' if learner_team == 0 else 'attack'}"
     return roster.klass
 
