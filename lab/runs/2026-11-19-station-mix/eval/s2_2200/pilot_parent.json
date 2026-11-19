@@ -1,0 +1,9 @@
+{
+ "schema": "rlf.live_pilots/1",
+ "pilots": [
+  {
+   "id": "parent_1052",
+   "checkpoint": "/home/timg/code/rl-fighter/lab/runs/2026-11-14-goto-school-2/followers_school/checkpoints/ppo_bc_1052.pt"
+  }
+ ]
+}

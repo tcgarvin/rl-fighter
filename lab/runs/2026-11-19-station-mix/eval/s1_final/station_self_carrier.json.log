@@ -1,0 +1,91 @@
+{
+ "schema": "rlf.lab.station/1",
+ "sim_version": 9,
+ "n": 256,
+ "seed": 900000,
+ "roster": [
+  [
+   "station",
+   "fighter",
+   "strafer",
+   "fighter",
+   "gunship",
+   "fighter",
+   "strafer"
+  ],
+  [
+   "carrier",
+   "fighter",
+   "bomber",
+   "fighter",
+   "bomber",
+   "strafer",
+   "bomber",
+   "fighter",
+   "gunship"
+  ]
+ ],
+ "station_as": "carrier",
+ "jump_in": null,
+ "commanders": [
+  "scripted",
+  "scripted"
+ ],
+ "pilots": "lab/runs/2026-11-19-station-mix/eval/s1_final/pilot_cand.json",
+ "pilots_team": null,
+ "pilots_other": null,
+ "attacker_win_rate": 0.73828125,
+ "attacker_win_ci95": 0.05395284111886782,
+ "draw_rate": 0.0,
+ "end_reasons": {
+  "station_destroyed": 0.73828125,
+  "assault_repelled": 0.26171875
+ },
+ "length_median_s": 52.06666666666666,
+ "length_p10_s": 36.11666666666667,
+ "length_p90_s": 110.6,
+ "station_damage_by_hull_per_match": {
+  "bomber": 861.328125,
+  "carrier": 87.671875,
+  "fighter": 398.73046875,
+  "gunship": 357.6328125,
+  "strafer": 171.5625
+ },
+ "survival": {
+  "defender": {
+   "fighter": 0.421875,
+   "gunship": 0.3203125,
+   "strafer": 0.45703125,
+   "station": 0.26171875
+  },
+  "attacker": {
+   "carrier": 0.71875,
+   "fighter": 0.38671875,
+   "gunship": 0.3046875,
+   "strafer": 0.43359375,
+   "bomber": 0.2838541666666667
+  }
+ },
+ "damage_dealt_per_ship": {
+  "defender": {
+   "fighter": 223.33658854166666,
+   "fighter_vs_capital": 144.78515625,
+   "gunship": 200.111328125,
+   "gunship_vs_capital": 22.9296875,
+   "strafer": 268.4853515625,
+   "strafer_vs_capital": 135.703125,
+   "station": 759.955078125
+  },
+  "attacker": {
+   "carrier": 285.78125,
+   "fighter": 200.23763020833334,
+   "fighter_vs_capital": 132.91015625,
+   "gunship": 425.369140625,
+   "gunship_vs_capital": 357.6328125,
+   "strafer": 247.880859375,
+   "strafer_vs_capital": 171.5625,
+   "bomber": 405.17578125,
+   "bomber_vs_capital": 287.109375
+  }
+ }
+}

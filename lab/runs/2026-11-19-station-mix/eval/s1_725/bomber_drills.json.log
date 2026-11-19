@@ -1,0 +1,4 @@
+attack/as_drawn {'n': 128, 'rate': 1.0} chose_named {'successes': 120, 'n': 128, 'rate': 0.9375, 'se': 0.02139541240254555}
+attack/bombers {'n': 128, 'rate': 0.3359375} chose_named {'successes': 117, 'n': 128, 'rate': 0.9140625, 'se': 0.024772755652276997}
+defend/as_drawn {'n': 128, 'rate': 0.890625} chose_named {'successes': 120, 'n': 128, 'rate': 0.9375, 'se': 0.02139541240254555}
+defend/bombers {'n': 128, 'rate': 0.4140625} chose_named {'successes': 120, 'n': 128, 'rate': 0.9375, 'se': 0.02139541240254555}

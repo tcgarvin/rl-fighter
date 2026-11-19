@@ -1,0 +1,92 @@
+{
+ "schema": "rlf.lab.station/1",
+ "sim_version": 9,
+ "n": 256,
+ "seed": 900000,
+ "roster": [
+  [
+   "station",
+   "fighter",
+   "strafer",
+   "fighter",
+   "gunship",
+   "fighter",
+   "strafer"
+  ],
+  [
+   "carrier",
+   "fighter",
+   "bomber",
+   "fighter",
+   "bomber",
+   "strafer",
+   "bomber",
+   "fighter",
+   "gunship"
+  ]
+ ],
+ "station_as": "carrier",
+ "jump_in": null,
+ "commanders": [
+  "scripted",
+  "scripted"
+ ],
+ "pilots": "lab/runs/2026-11-19-station-mix/eval/s2_725/pilot_cand.json",
+ "pilots_team": 1,
+ "pilots_other": "lab/runs/2026-11-19-station-mix/eval/s2_725/pilot_parent.json",
+ "attacker_win_rate": 0.53515625,
+ "attacker_win_ci95": 0.06121809064644072,
+ "draw_rate": 0.0,
+ "end_reasons": {
+  "time_limit": 0.1796875,
+  "station_destroyed": 0.53515625,
+  "assault_repelled": 0.28515625
+ },
+ "length_median_s": 108.5,
+ "length_p10_s": 66.61666666666667,
+ "length_p90_s": 150.0,
+ "station_damage_by_hull_per_match": {
+  "bomber": 356.8359375,
+  "carrier": 289.75,
+  "fighter": 536.5234375,
+  "gunship": 296.73046875,
+  "strafer": 238.8515625
+ },
+ "survival": {
+  "defender": {
+   "fighter": 0.044270833333333336,
+   "gunship": 0.21875,
+   "strafer": 0.07421875,
+   "station": 0.46484375
+  },
+  "attacker": {
+   "carrier": 0.7109375,
+   "fighter": 0.07421875,
+   "gunship": 0.1796875,
+   "strafer": 0.14453125,
+   "bomber": 0.13932291666666666
+  }
+ },
+ "damage_dealt_per_ship": {
+  "defender": {
+   "fighter": 157.45768229166666,
+   "fighter_vs_capital": 36.712239583333336,
+   "gunship": 366.400390625,
+   "gunship_vs_capital": 222.609375,
+   "strafer": 307.728515625,
+   "strafer_vs_capital": 114.57421875,
+   "station": 914.328125
+  },
+  "attacker": {
+   "carrier": 556.1484375,
+   "fighter": 258.10546875,
+   "fighter_vs_capital": 178.84114583333334,
+   "gunship": 364.4140625,
+   "gunship_vs_capital": 296.73046875,
+   "strafer": 374.537109375,
+   "strafer_vs_capital": 238.8515625,
+   "bomber": 257.6171875,
+   "bomber_vs_capital": 118.9453125
+  }
+ }
+}

@@ -1,0 +1,44 @@
+13:05:45 lab/runs/2026-11-19-station-mix/eval/s2_2200/station_self_carrier.json
+  111 s
+13:07:36 lab/runs/2026-11-19-station-mix/eval/s2_2200/station_attack_carrier.json
+  114 s
+13:09:30 lab/runs/2026-11-19-station-mix/eval/s2_2200/station_defend_carrier.json
+  166 s
+13:12:16 lab/runs/2026-11-19-station-mix/eval/s2_2200/station_self_convoy.json
+  118 s
+13:14:14 lab/runs/2026-11-19-station-mix/eval/s2_2200/station_attack_convoy.json
+  116 s
+13:16:10 lab/runs/2026-11-19-station-mix/eval/s2_2200/station_defend_convoy.json
+  152 s
+13:18:42 lab/runs/2026-11-19-station-mix/eval/s2_2200/swap_dm.json
+  117 s
+13:20:39 lab/runs/2026-11-19-station-mix/eval/s2_2200/swap_carrier.json
+  510 s
+13:29:09 lab/runs/2026-11-19-station-mix/eval/s2_2200/bomber_drills.json
+  35 s
+13:29:44 lab/runs/2026-11-19-station-mix/eval/s2_2200/missions.json
+  134 s
+13:31:58 lab/runs/2026-11-19-station-mix/eval/s2_2200/fleet.json
+  20 s
+13:32:18 lab/runs/2026-11-19-station-mix/eval/s2_2200/drills.json
+  30 s
+13:32:48 done: lab/runs/2026-11-19-station-mix/eval/s2_2200
+# lab/runs/2026-11-19-station-mix/eval/s2_2200
+station self as carrier: attacker win                       0.844 ± 0.045    ends {'time_limit': 0.00390625, 'station_destroyed': 0.84375, 'assault_repelled': 0.15234375}
+station attack as carrier: attacker win                     0.801 ± 0.049    ends {'time_limit': 0.01171875, 'station_destroyed': 0.80078125, 'assault_repelled': 0.1875}
+station defend as carrier: attacker win                     0.152 ± 0.044    ends {'time_limit': 0.3359375, 'station_destroyed': 0.15234375, 'assault_repelled': 0.51171875}
+station self as convoy: attacker win                        0.797 ± 0.049    ends {'time_limit': 0.0234375, 'station_destroyed': 0.796875, 'assault_repelled': 0.1796875}
+station attack as convoy: attacker win                      0.816 ± 0.048    ends {'time_limit': 0.015625, 'station_destroyed': 0.81640625, 'assault_repelled': 0.16796875}
+station defend as convoy: attacker win                      0.168 ± 0.046    ends {'time_limit': 0.3203125, 'station_destroyed': 0.16796875, 'assault_repelled': 0.51171875}
+(a) station attacker win, cand attacking 1052               0.809 ± 0.034    bar >= 0.45: PASS
+(a) station defender win, cand defending vs 1052            0.840            ± 0.032
+(a) station attacker win, cand both sides                   0.820 ± 0.033    script 0.55; 1052's own in eval_before
+(b) bomber dmg to capital a bomber (self / attacking 1052)  331 / 310        script 305, live pilots 36
+(b) bomber swap delta, dm                                   +0.130 ± 0.057   bomber slot dmg capital/strike 0/120; bar > -0.15: PASS
+(b) bomber swap delta, carrier                              -0.035 ± 0.054   bomber slot dmg capital/strike 105/234
+drills in bombers: attack target_hit                        0.516            as drawn 0.898
+drills in bombers: defend more_on_named                     0.633            as drawn 0.844
+(c) carrier_battle win vs 1052                              0.302            team0 0.292 team1 0.312; bar >= 0.45: FAIL
+(c) convoy_escort win vs 1052                               0.323            team0 0.260 team1 0.385; bar >= 0.45: FAIL
+(c) 3v3 fleet win vs 1052                                   0.323            n 48; bar >= 0.45: FAIL
+(c) drill gate                                              fail             goto_arrival 0.880 goto_lift 0.684 attack_target_hit 0.898 attack_side 0.875 attack_flip 0.781 defend_more_on_named 0.844 defend_side 0.914 defend_flip 0.828

@@ -1,0 +1,92 @@
+{
+ "schema": "rlf.lab.station/1",
+ "sim_version": 9,
+ "n": 256,
+ "seed": 900000,
+ "roster": [
+  [
+   "station",
+   "fighter",
+   "strafer",
+   "fighter",
+   "gunship",
+   "fighter",
+   "strafer"
+  ],
+  [
+   "carrier",
+   "fighter",
+   "bomber",
+   "fighter",
+   "bomber",
+   "strafer",
+   "bomber",
+   "fighter",
+   "gunship"
+  ]
+ ],
+ "station_as": "convoy",
+ "jump_in": null,
+ "commanders": [
+  "scripted",
+  "scripted"
+ ],
+ "pilots": "lab/runs/2026-11-19-station-mix/eval/s2_final/pilot_cand.json",
+ "pilots_team": null,
+ "pilots_other": null,
+ "attacker_win_rate": 0.8125,
+ "attacker_win_ci95": 0.04790692569359638,
+ "draw_rate": 0.0,
+ "end_reasons": {
+  "time_limit": 0.015625,
+  "station_destroyed": 0.8125,
+  "assault_repelled": 0.171875
+ },
+ "length_median_s": 55.36666666666667,
+ "length_p10_s": 41.46666666666667,
+ "length_p90_s": 116.61666666666667,
+ "station_damage_by_hull_per_match": {
+  "bomber": 1083.984375,
+  "carrier": 81.734375,
+  "fighter": 352.34375,
+  "gunship": 272.6953125,
+  "strafer": 159.87890625
+ },
+ "survival": {
+  "defender": {
+   "fighter": 0.19791666666666666,
+   "gunship": 0.4609375,
+   "strafer": 0.3828125,
+   "station": 0.1875
+  },
+  "attacker": {
+   "carrier": 0.82421875,
+   "fighter": 0.2682291666666667,
+   "gunship": 0.4765625,
+   "strafer": 0.421875,
+   "bomber": 0.5546875
+  }
+ },
+ "damage_dealt_per_ship": {
+  "defender": {
+   "fighter": 144.18619791666666,
+   "fighter_vs_capital": 54.440104166666664,
+   "gunship": 147.333984375,
+   "gunship_vs_capital": 64.62890625,
+   "strafer": 277.775390625,
+   "strafer_vs_capital": 100.69921875,
+   "station": 656.517578125
+  },
+  "attacker": {
+   "carrier": 293.921875,
+   "fighter": 175.80729166666666,
+   "fighter_vs_capital": 117.44791666666667,
+   "gunship": 328.212890625,
+   "gunship_vs_capital": 272.6953125,
+   "strafer": 269.23828125,
+   "strafer_vs_capital": 159.87890625,
+   "bomber": 516.40625,
+   "bomber_vs_capital": 361.328125
+  }
+ }
+}

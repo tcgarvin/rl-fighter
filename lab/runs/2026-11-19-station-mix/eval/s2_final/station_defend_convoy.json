@@ -1,0 +1,92 @@
+{
+ "schema": "rlf.lab.station/1",
+ "sim_version": 9,
+ "n": 256,
+ "seed": 900000,
+ "roster": [
+  [
+   "station",
+   "fighter",
+   "strafer",
+   "fighter",
+   "gunship",
+   "fighter",
+   "strafer"
+  ],
+  [
+   "carrier",
+   "fighter",
+   "bomber",
+   "fighter",
+   "bomber",
+   "strafer",
+   "bomber",
+   "fighter",
+   "gunship"
+  ]
+ ],
+ "station_as": "convoy",
+ "jump_in": null,
+ "commanders": [
+  "scripted",
+  "scripted"
+ ],
+ "pilots": "lab/runs/2026-11-19-station-mix/eval/s2_final/pilot_cand.json",
+ "pilots_team": 0,
+ "pilots_other": "lab/runs/2026-11-19-station-mix/eval/s2_final/pilot_parent.json",
+ "attacker_win_rate": 0.19140625,
+ "attacker_win_ci95": 0.04828688930515593,
+ "draw_rate": 0.0,
+ "end_reasons": {
+  "time_limit": 0.25390625,
+  "station_destroyed": 0.19140625,
+  "assault_repelled": 0.5546875
+ },
+ "length_median_s": 124.06666666666666,
+ "length_p10_s": 86.68333333333334,
+ "length_p90_s": 150.0,
+ "station_damage_by_hull_per_match": {
+  "bomber": 129.4921875,
+  "carrier": 309.171875,
+  "fighter": 371.58203125,
+  "gunship": 284.296875,
+  "strafer": 166.30078125
+ },
+ "survival": {
+  "defender": {
+   "fighter": 0.06640625,
+   "gunship": 0.390625,
+   "strafer": 0.09375,
+   "station": 0.80859375
+  },
+  "attacker": {
+   "carrier": 0.4453125,
+   "fighter": 0.009114583333333334,
+   "gunship": 0.05859375,
+   "strafer": 0.02734375,
+   "bomber": 0.045572916666666664
+  }
+ },
+ "damage_dealt_per_ship": {
+  "defender": {
+   "fighter": 206.708984375,
+   "fighter_vs_capital": 66.54296875,
+   "gunship": 388.443359375,
+   "gunship_vs_capital": 286.8984375,
+   "strafer": 367.7607421875,
+   "strafer_vs_capital": 145.833984375,
+   "station": 954.2421875
+  },
+  "attacker": {
+   "carrier": 724.796875,
+   "fighter": 180.5859375,
+   "fighter_vs_capital": 123.86067708333333,
+   "gunship": 377.064453125,
+   "gunship_vs_capital": 284.296875,
+   "strafer": 301.798828125,
+   "strafer_vs_capital": 166.30078125,
+   "bomber": 144.7265625,
+   "bomber_vs_capital": 43.1640625
+  }
+ }
+}

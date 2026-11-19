@@ -1,0 +1,3 @@
+05:34:18 mix_s1 pid 73356 (seed 191, cuda:0, 3+3 threads)
+05:34:18 mix_s2 pid 73366 (seed 192, cuda:1, 3+3 threads)
+14:00:11 done: PPO

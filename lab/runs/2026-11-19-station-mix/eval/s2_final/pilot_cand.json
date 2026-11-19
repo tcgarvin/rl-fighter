@@ -1,0 +1,9 @@
+{
+ "schema": "rlf.live_pilots/1",
+ "pilots": [
+  {
+   "id": "s2_final",
+   "checkpoint": "/home/timg/code/rl-fighter/lab/runs/2026-11-19-station-mix/mix_s2/checkpoints/ppo_bc_2447.pt"
+  }
+ ]
+}

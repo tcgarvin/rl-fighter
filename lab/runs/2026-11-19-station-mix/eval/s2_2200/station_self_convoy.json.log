@@ -1,0 +1,92 @@
+{
+ "schema": "rlf.lab.station/1",
+ "sim_version": 9,
+ "n": 256,
+ "seed": 900000,
+ "roster": [
+  [
+   "station",
+   "fighter",
+   "strafer",
+   "fighter",
+   "gunship",
+   "fighter",
+   "strafer"
+  ],
+  [
+   "carrier",
+   "fighter",
+   "bomber",
+   "fighter",
+   "bomber",
+   "strafer",
+   "bomber",
+   "fighter",
+   "gunship"
+  ]
+ ],
+ "station_as": "convoy",
+ "jump_in": null,
+ "commanders": [
+  "scripted",
+  "scripted"
+ ],
+ "pilots": "lab/runs/2026-11-19-station-mix/eval/s2_2200/pilot_cand.json",
+ "pilots_team": null,
+ "pilots_other": null,
+ "attacker_win_rate": 0.796875,
+ "attacker_win_ci95": 0.04938132870832862,
+ "draw_rate": 0.0,
+ "end_reasons": {
+  "time_limit": 0.0234375,
+  "station_destroyed": 0.796875,
+  "assault_repelled": 0.1796875
+ },
+ "length_median_s": 64.08333333333334,
+ "length_p10_s": 45.71666666666667,
+ "length_p90_s": 125.55,
+ "station_damage_by_hull_per_match": {
+  "bomber": 956.8359375,
+  "carrier": 126.109375,
+  "fighter": 414.296875,
+  "gunship": 295.44140625,
+  "strafer": 154.37109375
+ },
+ "survival": {
+  "defender": {
+   "fighter": 0.20963541666666666,
+   "gunship": 0.3046875,
+   "strafer": 0.296875,
+   "station": 0.203125
+  },
+  "attacker": {
+   "carrier": 0.80078125,
+   "fighter": 0.22916666666666666,
+   "gunship": 0.4140625,
+   "strafer": 0.44921875,
+   "bomber": 0.3802083333333333
+  }
+ },
+ "damage_dealt_per_ship": {
+  "defender": {
+   "fighter": 182.080078125,
+   "fighter_vs_capital": 87.38932291666667,
+   "gunship": 151.935546875,
+   "gunship_vs_capital": 55.609375,
+   "strafer": 275.888671875,
+   "strafer_vs_capital": 131.830078125,
+   "station": 781.826171875
+  },
+  "attacker": {
+   "carrier": 366.5234375,
+   "fighter": 207.40885416666666,
+   "fighter_vs_capital": 138.09895833333334,
+   "gunship": 358.763671875,
+   "gunship_vs_capital": 295.44140625,
+   "strafer": 255.99609375,
+   "strafer_vs_capital": 154.37109375,
+   "bomber": 474.8046875,
+   "bomber_vs_capital": 318.9453125
+  }
+ }
+}

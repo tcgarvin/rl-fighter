@@ -1,0 +1,37 @@
+{
+ "schema": "rlf.lab.swap/1",
+ "sim_version": 9,
+ "mission": "carrier_battle",
+ "n": 516,
+ "seed": 910000,
+ "pilots": "lab/runs/2026-11-19-station-mix/eval/s1_2200/pilot_cand.json",
+ "base": {
+  "x_score": 0.49806201550387597,
+  "x_score_ci95": 0.04318363524498519,
+  "end_reasons": {
+   "time_limit": 0.001937984496124031,
+   "carrier_destroyed": 0.998062015503876
+  },
+  "length_median_s": 81.28333333333333,
+  "slot_damage_to_capital": 137.9825581395349,
+  "slot_damage_to_strike": 124.79554263565892
+ },
+ "swap": {
+  "x_score": 0.41472868217054265,
+  "x_score_ci95": 0.04255132747816611,
+  "end_reasons": {
+   "time_limit": 0.009689922480620155,
+   "carrier_destroyed": 0.9903100775193798
+  },
+  "length_median_s": 83.18333333333334,
+  "slot_damage_to_capital": 76.16279069767442,
+  "slot_damage_to_strike": 211.4825581395349
+ },
+ "delta": -0.08333333333333333,
+ "delta_ci95": 0.05396041836807644,
+ "delta_by_roster": {
+  "wing of 8": -0.029069767441860465,
+  "wing of 6": -0.11627906976744186,
+  "wing of 9": -0.10465116279069768
+ }
+}
