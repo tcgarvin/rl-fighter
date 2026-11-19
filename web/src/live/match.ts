@@ -1,5 +1,6 @@
 // One live match: the WASM sim stepped one 30 Hz tick at a time, each strike craft
-// flown by a pilot picked for it at random and every capital ship (carrier, freighter)
+// flown by a pilot picked for it at random (or, with pairing "side", one pilot picked
+// per side that all its strike craft fly) and every capital ship (carrier, freighter)
 // by the sim's own script (SIM_SPEC §11). Each side's commander is drawn from the
 // bundle's stable: the scripted one runs inside the sim's step; a learned one decides
 // here, once a second, on the ticks the sim says it is due (docs/COMMANDER.md).
@@ -59,11 +60,33 @@ export interface Timing {
 const PILOT_SALT = 0x70696c6f;
 // Keeps the commander draw apart from the pilot draw.
 const COMMANDER_SALT = 0x636d6472;
+// Keeps the side-by-side pilot draw apart from the others.
+const SIDE_PILOT_SALT = 0x73696465;
+
+/**
+ * How strike craft get their pilots: "ship" draws one per ship, "side" one per side that
+ * all its strike craft fly, so a side is one commander and one pilot (?pairing=side).
+ */
+export type PilotPairing = "ship" | "side";
+/** The pairing without ?pairing=. */
+export const DEFAULT_PAIRING: PilotPairing = "ship";
+
+/** `?pairing=ship|side`; anything else is the default. */
+export function parsePairing(value: string | null): PilotPairing {
+  return value === "side" || value === "ship" ? value : DEFAULT_PAIRING;
+}
 
 /** One pilot per ship, each drawn alone from `pilots`, the same for the same seed. */
 export function assignPilots<P>(pilots: readonly P[], nShips: number, seed: number): P[] {
   const rng = mulberry32(Math.imul(seed | 0, 0x2545f491) ^ PILOT_SALT);
   return Array.from({ length: nShips }, () => pilots[Math.floor(rng() * pilots.length)]!);
+}
+
+/** Each side's pilot, drawn alone and uniformly from `pilots`, the same for the same seed. */
+export function assignSidePilots<P>(pilots: readonly P[], seed: number): [P, P] {
+  const rng = mulberry32(Math.imul(seed | 0, 0x165667b1) ^ SIDE_PILOT_SALT);
+  const pick = (): P => pilots[Math.floor(rng() * pilots.length)]!;
+  return [pick(), pick()];
 }
 
 /** Each side's commander, drawn alone and uniformly from `stable`, the same for the same seed. */
@@ -126,6 +149,8 @@ export interface LiveMatchOptions {
   mission?: MissionName;
   /** Each side's commander (assignCommanders over Bundle.commanders); default: both scripted. */
   commanders?: [LiveCommander, LiveCommander];
+  /** How strike craft get pilots; default DEFAULT_PAIRING. */
+  pairing?: PilotPairing;
 }
 
 function emptyShip(i: number): ShipState {
@@ -179,6 +204,9 @@ export class LiveMatch {
   watchedScripted = false;
   /** Each side's commander. */
   readonly commanders: [LiveCommander, LiveCommander];
+  readonly pairing: PilotPairing;
+  /** With pairing "side", the pilot all of each side's strike craft fly; else null. */
+  readonly sidePilots: readonly [LivePilot, LivePilot] | null;
   readonly commanderStats: [CommanderStats, CommanderStats] = [
     { decisions: 0, commands: 0, ms: 0, worstMs: 0 },
     { decisions: 0, commands: 0, ms: 0, worstMs: 0 },
@@ -186,7 +214,7 @@ export class LiveMatch {
 
   private readonly sim: SimModule;
   private readonly layout: SimLayout;
-  private readonly shipPilots: LivePilot[];
+  private shipPilots: LivePilot[];
   private match: WasmMatch | null;
   private readonly headValid: Uint8Array[];
   private readonly rngs: Rng[];
@@ -210,6 +238,10 @@ export class LiveMatch {
     this.settings = o.settings;
     this.mission = o.mission ?? "deathmatch";
     this.nShips = o.fleets[0].length + o.fleets[1].length;
+    this.pairing = o.pairing ?? DEFAULT_PAIRING;
+    this.sidePilots = this.pairing === "side" ? assignSidePilots(o.pilots, o.seed) : null;
+    // The ship-by-ship draw; with sides, replaced by each ship's side's pilot once the
+    // ships (and so their teams) are read below.
     this.shipPilots = assignPilots(o.pilots, this.nShips, o.seed);
     this.v4 = typeof o.sim.arenaRadiusForMission === "function";
     const deathmatch = this.mission === "deathmatch";
@@ -252,6 +284,8 @@ export class LiveMatch {
     this.rngs = Array.from({ length: this.nShips }, (_, s) => mulberry32(Math.imul(o.seed | 0, 0x9e3779b1) + s * 40503 + 1));
     this.teams = [this.emptyTeam(), this.emptyTeam()];
     this.readShips();
+    const sides = this.sidePilots;
+    if (sides) this.shipPilots = this.ships.map((ship) => sides[ship.team === 1 ? 1 : 0]);
     this.readMission();
     this.maxHp = this.ships.map((s) => s.hp);
     this.hullNames = this.ships.map((s) => o.catalogue.hulls[s.hull]?.[0] ?? "unknown");

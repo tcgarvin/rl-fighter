@@ -234,6 +234,53 @@ def test_pilots_are_drawn_ship_by_ship_evenly_and_repeat_for_a_seed() -> None:
     assert data["alone"] == ["only"] * 3
 
 
+SIDES = """
+import { assignPilots, assignSidePilots, parsePairing, DEFAULT_PAIRING } from "./web/src/live/match.ts";
+const pool = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"];
+const sides = [];
+for (let seed = 0; seed < 4000; seed++) sides.push(assignSidePilots(pool, seed));
+console.log(JSON.stringify({
+  sides,
+  again: assignSidePilots(pool, 17),
+  ships: assignPilots(pool, 20, 7),
+  pairings: [parsePairing(null), parsePairing("side"), parsePairing("ship"), parsePairing("x")],
+  fallback: DEFAULT_PAIRING,
+}));
+"""
+
+
+@pytest.mark.skipif(NODE is None, reason="node is not on PATH")
+def test_a_side_draw_is_one_pilot_a_side_and_the_ship_draw_is_unchanged() -> None:
+    result = subprocess.run(
+        [
+            "node",
+            "--experimental-strip-types",
+            "--no-warnings",
+            "--input-type=module",
+            "-e",
+            SIDES,
+        ],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    data = json.loads(result.stdout)
+    sides = data["sides"]
+    assert data["again"] == sides[17], "the same seed draws the same sides"
+    for t in (0, 1):
+        counts = {k: 0 for k in "abcdefghij"}
+        for pair in sides:
+            counts[pair[t]] += 1
+        assert all(320 < n < 480 for n in counts.values()), counts
+    differ = sum(a != b for a, b in sides) / len(sides)
+    assert 0.86 < differ < 0.94, "the two sides draw alone"
+    # The ship-by-ship draw as it was before side draws existed (seed 7, 20 ships).
+    assert "".join(data["ships"]) == "cheabdieechiefdhagce"
+    assert data["pairings"] == ["ship", "side", "ship", "ship"]
+    assert data["fallback"] == "ship", "pilots are drawn ship by ship by default"
+
+
 class _FakeStore:
     def put(self, local: Path, key: str) -> str:
         return f"https://x/{key}"
@@ -488,7 +535,14 @@ console.log(JSON.stringify({
 @pytest.mark.skipif(NODE is None, reason="node is not on PATH")
 def test_the_ship_view_puts_each_command_where_it_would_take_its_control() -> None:
     result = subprocess.run(
-        ["node", "--experimental-strip-types", "--no-warnings", "--input-type=module", "-e", SHIP_VIEW],
+        [
+            "node",
+            "--experimental-strip-types",
+            "--no-warnings",
+            "--input-type=module",
+            "-e",
+            SHIP_VIEW,
+        ],
         cwd=REPO,
         capture_output=True,
         text=True,
@@ -504,4 +558,6 @@ def test_the_ship_view_puts_each_command_where_it_would_take_its_control() -> No
     assert got["fixed"] == 0.5
     # As crates/sim/src/power.rs: three-way targets, and two-way capped at 0.8.
     want = [[0.6, 0.2, 0.2], [0, 0.5, 0.5], [0, 0.75, 0.25], [0, 0.25, 0.75]]
-    assert [split == pytest.approx(w) for split, w in zip(got["power"], want)] == [True] * 4
+    assert [split == pytest.approx(w) for split, w in zip(got["power"], want)] == [
+        True
+    ] * 4

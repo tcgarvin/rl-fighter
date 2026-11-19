@@ -1,13 +1,14 @@
 // The DOM layer over the canvas: the running tally, match status, the perf readout
 // (sim + inference ms per tick against the 33 ms budget), the mission panel (carrier
 // hull per side, or the convoy's progress, and which commander runs each side once the
-// stable holds a learned one), the caption, the result banner with the
+// stable holds a learned one; with ?pairing=side, each side's commander and its one
+// pilot, a row a side), the caption, the result banner with the
 // reason the match ended and, behind the "Technical details" toggle, per-ship numbers next to each hull.
 // The "Show commands" toggle's state lives on <body class="commands">.
 
 import { JUMP_CHARGING, JUMP_DEPARTED, SIM_HZ, TICK_BUDGET_MS } from "./sim.ts";
 import type { LiveMatch } from "./match.ts";
-import { commanderName, type BundleManifest, type LiveCommander } from "./bundle.ts";
+import { commanderName, type BundleManifest, type LiveCommander, type LivePilot } from "./bundle.ts";
 import { TEAM_CLASSES, TEAM_NAMES, TEAM_WORDS, escapeHtml, teamSpan } from "./teams.ts";
 
 export { TEAM_CLASSES, TEAM_NAMES };
@@ -93,14 +94,32 @@ export class Hud {
   /**
    * The caption under the battle; `replay` marks a past champion (?champion=),
    * `capitals` a match with scripted carriers or freighters in it, and `commanders`
-   * each side's commander this match.
+   * each side's commander this match, and `sidePilots` the one pilot each side drew
+   * (?pairing=side), or null when pilots are drawn ship by ship.
    */
-  setCaption(manifest: BundleManifest, replay = false, capitals = false, commanders: readonly LiveCommander[] = []): void {
+  setCaption(
+    manifest: BundleManifest,
+    replay = false,
+    capitals = false,
+    commanders: readonly LiveCommander[] = [],
+    sidePilots: readonly [LivePilot, LivePilot] | null = null,
+  ): void {
     const c = manifest.champion;
     const mixed = manifest.roster.hulls.length > 1 ? " One net flies every hull." : "";
     const craft = capitals ? "fighter" : "ship";
     const scripts = scriptsSentence(capitals, commanders);
     const nPilots = manifest.pilots?.length ?? 1;
+    if (!replay && nPilots > 1 && sidePilots) {
+      const name = (t: 0 | 1) => teamSpan(t, escapeHtml(sidePilots[t].id));
+      const who =
+        sidePilots[0].id === sidePilots[1].id
+          ? `both sides' by ${name(0)}`
+          : `every ${TEAM_WORDS[0]} ${craft} by ${name(0)}, every ${TEAM_WORDS[1]} one by ${name(1)}`;
+      const lead = `Each side here is flown by one of ${nPilots} neural networks, drawn at random a side at a time: ${who}. They fly by thruster and trigger, trained overnight. Tap a ship to look closer. `;
+      const entry = manifest.pilots_entry ? `#${encodeURIComponent(manifest.pilots_entry)}` : "";
+      this.captionEl.innerHTML = lead + scripts + `<a href="/notebook/${entry}">Meet the pilots&nbsp;→</a>`;
+      return;
+    }
     if (!replay && nPilots > 1) {
       const lead = `Each ${craft} here is flown by one of ${nPilots} neural networks, picked at random ship by ship, flying by thruster and trigger, trained overnight. Tap a ship to look closer. `;
       const entry = manifest.pilots_entry ? `#${encodeURIComponent(manifest.pilots_entry)}` : "";
@@ -134,7 +153,8 @@ export class Hud {
    * progress; and, with `commanders`, which commander runs each side.
    */
   updateMission(match: LiveMatch | null, commanders = false): void {
-    const html = match ? missionPanel(match) + (commanders ? commanderRow(match) : "") : "";
+    const who = match?.sidePilots ? sideRows(match, commanders) : commanders && match ? commanderRow(match) : "";
+    const html = match ? missionPanel(match) + who : "";
     if (html === this.missionHtml) return;
     this.missionHtml = html;
     this.missionEl.innerHTML = html;
@@ -238,6 +258,21 @@ export class Hud {
 function commanderRow(match: LiveMatch): string {
   const side = (t: 0 | 1) => teamSpan(t, `${TEAM_NAMES[t]} ${escapeHtml(commanderName(match.commanders[t]))}`);
   return `<div class="mrow msub"><span class="mlabel">CMD</span>${side(0)} · ${side(1)}</div>`;
+}
+
+/**
+ * With a pilot a side (?pairing=side): a short row per side in its colour, its pilot and,
+ * with `commanders`, its commander first. A row a side keeps the longest pilot id inside
+ * a 390 px phone.
+ */
+function sideRows(match: LiveMatch, commanders: boolean): string {
+  const pilots = match.sidePilots;
+  if (!pilots) return "";
+  const row = (t: 0 | 1) => {
+    const cmd = commanders ? `${escapeHtml(commanderName(match.commanders[t]))} · ` : "";
+    return `<div class="mrow msub"><span class="mlabel">${teamSpan(t, TEAM_NAMES[t])}</span>${cmd}${escapeHtml(pilots[t].id)}</div>`;
+  };
+  return row(0) + row(1);
 }
 
 /** What the caption says is scripted, and which commander is a net. */

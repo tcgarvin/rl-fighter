@@ -4,6 +4,11 @@ the live page draws them. Capital ships fly the sim's scripts.
 
 A stable may also put the script pilot in the draw (``include_script``), as the WAR
 measurement does: then the script flies a strike craft as often as any other pilot.
+
+The draw mode ``side`` (``PILOT_DRAW_SIDE``) draws one pilot per team instead, and all
+that team's strike craft fly it, so each side is one commander and one pilot (the live
+page's ``?pairing=side``). A draw may also pin a team's pilot. The default, ``ship``,
+draws exactly what it always did.
 """
 
 from __future__ import annotations
@@ -21,6 +26,12 @@ from spacefight.eval.controllers import Policy
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LIVE_PILOTS = REPO_ROOT / "lab" / "live_pilots.json"
+# Draw modes: a pilot per strike craft, or one per team that all its strike craft fly.
+PILOT_DRAW_SHIP = "ship"
+PILOT_DRAW_SIDE = "side"
+PILOT_DRAWS = (PILOT_DRAW_SHIP, PILOT_DRAW_SIDE)
+# A team whose pilot is not pinned (``PilotStable.draw``'s ``pinned``).
+UNPINNED = -1
 
 
 def live_pilot_checkpoints(
@@ -45,10 +56,12 @@ def live_pilot_checkpoints(
 
 
 class PilotStable:
-    """Frozen pilots, one drawn per strike-craft slot for each match.
+    """Frozen pilots, drawn for every strike-craft slot of each match: one per slot
+    (``ship``), or one per team (``side``).
 
     Attributes:
         ids: Pilot ids, index order.
+        mode: ``PILOT_DRAW_SHIP`` or ``PILOT_DRAW_SIDE``.
         assign: [N, S] int64: the pilot index flying each slot, or ``script`` (=
             ``len(ids)``) for capital ships and empty slots, and for strike craft the
             script pilot was drawn to fly.
@@ -63,6 +76,7 @@ class PilotStable:
         seed: int,
         assets_dir: Path,
         include_script: bool = False,
+        mode: str = PILOT_DRAW_SHIP,
     ) -> None:
         """Load every pilot's policy.
 
@@ -74,12 +88,17 @@ class PilotStable:
             assets_dir: Sim assets, for which hulls are capital ships.
             include_script: Also draw the script pilot for strike craft, uniformly with
                 the others. Off, the draw is exactly what it always was.
+            mode: ``ship`` draws a pilot per strike craft (as it always did), ``side``
+                one per team, flown by all its strike craft.
 
         Raises:
-            ValueError: No neural pilot.
+            ValueError: No neural pilot, or an unknown mode.
         """
         if not pilots:
             raise ValueError("a pilot stable needs at least one pilot")
+        if mode not in PILOT_DRAWS:
+            raise ValueError(f"pilot draw must be one of {PILOT_DRAWS}, got {mode!r}")
+        self.mode = mode
         self.ids = [pid for pid, _ in pilots]
         self.policies = [Policy(path, sample=True) for _, path in pilots]
         self.script = len(self.ids)
@@ -88,14 +107,51 @@ class PilotStable:
         self._capital = np.asarray(capital_hull_ids(assets_dir), dtype=np.int64)
         self._rng = np.random.default_rng(seed)
 
-    def draw(self, env: RustVecEnv, envs: Sequence[int] | NDArray[np.integer]) -> None:
-        """Draw a pilot for every strike craft of ``envs``' current matches."""
+    def draw(
+        self,
+        env: RustVecEnv,
+        envs: Sequence[int] | NDArray[np.integer],
+        pinned: NDArray[np.integer] | None = None,
+    ) -> None:
+        """Draw a pilot for every strike craft of ``envs``' current matches.
+
+        Args:
+            env: The env whose current matches are drawn for (its ``hull_id``, and
+                ``team`` in side mode or with pins).
+            envs: The envs to draw.
+            pinned: Optional ``[len(envs), 2]`` pilot index of each env's team 0 and
+                team 1 (an index into ``ids``, or ``script``), or ``UNPINNED`` to draw.
+                The draw is made as without pins and then a pinned team's strike craft
+                are overwritten, so the unpinned team flies the same pilots it would
+                have without them.
+
+        Raises:
+            ValueError: ``pinned`` has the wrong shape or an index out of range.
+        """
+        envs = list(envs)
+        if pinned is not None:
+            pinned = np.asarray(pinned, dtype=np.int64)
+            if pinned.shape != (len(envs), 2):
+                raise ValueError(f"pinned must be [{len(envs)}, 2], got {pinned.shape}")
+            if pinned.min() < UNPINNED or pinned.max() > self.script:
+                raise ValueError(f"pinned pilots must be in -1..{self.script}")
         choices = len(self.ids) + int(self.include_script)
-        for i in envs:
+        for k, i in enumerate(envs):
             hull = env.hull_id[int(i)]
             strike = (hull >= 0) & ~np.isin(hull, self._capital)
             row = np.full(hull.shape, self.script, dtype=np.int64)
-            row[strike] = self._rng.integers(0, choices, int(strike.sum()))
+            if self.mode == PILOT_DRAW_SHIP:
+                row[strike] = self._rng.integers(0, choices, int(strike.sum()))
+            else:
+                side = self._rng.integers(0, choices, 2)
+                team = np.asarray(env.team[int(i)])
+                for t in (0, 1):
+                    row[strike & (team == t)] = side[t]
+            if pinned is not None:
+                team = np.asarray(env.team[int(i)])
+                for t in (0, 1):
+                    if pinned[k, t] != UNPINNED:
+                        row[strike & (team == t)] = pinned[k, t]
             self.assign[int(i)] = row
 
     def strike_mask(self, env: RustVecEnv) -> NDArray[np.bool_]:

@@ -32,7 +32,9 @@ def test_unseen_is_the_script_with_its_orders_hidden() -> None:
 
 
 def _fake_evaluate(seen: dict[str, Any]):
-    def evaluate(a: str, b: str, n: int, seed: int, threads: int, pilots: Path):
+    def evaluate(
+        a: str, b: str, n: int, seed: int, threads: int, pilots: Path, **_: Any
+    ) -> dict[str, Any]:
         seen.update(a=a, b=b, n=n, pilots=pilots)
         orders = {"orders_ended": 0}
         return {"a": a, "b": b, "score_a": 0.5, "orders_a": orders, "orders_b": orders}

@@ -2,13 +2,19 @@
 strike craft flown by a pilot drawn from the live list, both sides drawn the same way.
 
     uv run python -m spacefight.commander.eval --a <commander.pt|scripted|random|unseen> \
-        --b scripted --n-per-mission 192 --out eval.json [--pilots <list.json>]
+        --b scripted --n-per-mission 192 --out eval.json [--pilots <list.json>] \
+        [--pilot-draw ship|side] [--pilot-a <id>] [--pilot-b <id>]
 
 Each mission plays ``n_per_mission`` matches: its live rosters (deathmatch: drafts as on
 the live page) in turn, ``a`` on each side half the time. Pilots are drawn with a fixed
 seed, so two evals with the same seed fly the same pilots. ``--pilots`` names another list
 of the same schema (ids and checkpoints are all it needs), to ask what a commander is
 worth over pilots that follow orders more, or less, than the live ten.
+
+``--pilot-draw side`` draws one pilot per side instead of one per ship, so each side is a
+commander and a pilot (the live page's ``?pairing=side``); ``--pilot-a`` / ``--pilot-b``
+pin a side's pilot by id (all its strike craft fly it), whatever the draw. The other
+side's draw is the same as without the pin.
 
 ``unseen`` is the scripted commander with its orders hidden from its own pilots (the
 sim's hidden-order mode): it launches and moves its capital ships as the script does, and
@@ -34,7 +40,14 @@ from numpy.typing import NDArray
 
 from spacefight.commander.decide import decide_learned
 from spacefight.commander.io import check_sim_layout
-from spacefight.commander.pilots import LIVE_PILOTS, PilotStable, live_pilot_checkpoints
+from spacefight.commander.pilots import (
+    LIVE_PILOTS,
+    PILOT_DRAW_SHIP,
+    PILOT_DRAWS,
+    UNPINNED,
+    PilotStable,
+    live_pilot_checkpoints,
+)
 from spacefight.commander.policy import CommanderActor, load_commander
 from spacefight.commander.train import LEARNED, MISSIONS
 from spacefight.env.rosters import (
@@ -57,6 +70,8 @@ TICK_HZ = 30
 SHORT_ORDER_S = 5.0
 # The scripted commander with its orders hidden from its own pilots.
 UNSEEN = "unseen"
+# A side whose pilot is drawn, not pinned (``--pilot-a`` / ``--pilot-b``).
+DRAWN = "draw"
 
 
 @dataclass
@@ -226,6 +241,8 @@ def play_matches(
     n_threads: int,
     pilots: Sequence[tuple[str, Path]],
     include_script: bool = False,
+    pilot_draw: str = PILOT_DRAW_SHIP,
+    pinned_pilots: NDArray[np.int64] | None = None,
 ) -> MatchesPlayed:
     """Play one match of ``mission`` per roster, as on the live page.
 
@@ -243,6 +260,9 @@ def play_matches(
         n_threads: Sim threads.
         pilots: The neural pilots.
         include_script: Put the script pilot in the draw.
+        pilot_draw: ``ship`` (a pilot per strike craft) or ``side`` (one per team).
+        pinned_pilots: Optional [n, 2] pilot index (into ``pilots``) flying each
+            match's team 0 and team 1, or ``UNPINNED`` to draw (``PilotStable.draw``).
 
     Raises:
         ValueError: ``side_commander`` does not fit ``rosters`` and ``commanders``.
@@ -275,9 +295,15 @@ def play_matches(
         )
     env.reset()
     stable = PilotStable(
-        pilots, n, env.n_ships, seed + 1, ASSETS, include_script=include_script
+        pilots,
+        n,
+        env.n_ships,
+        seed + 1,
+        ASSETS,
+        include_script=include_script,
+        mode=pilot_draw,
     )
-    stable.draw(env, range(n))
+    stable.draw(env, range(n), pinned_pilots)
     # The env moves on to a new match when one ends, so the start is kept now.
     assign = stable.assign.copy()
     strike = stable.strike_mask(env).copy()
@@ -316,9 +342,15 @@ def play_mission(
     seed: int,
     n_threads: int,
     pilots: list[tuple[str, Path]],
+    pilot_draw: str = PILOT_DRAW_SHIP,
+    pilot_a: int = UNPINNED,
+    pilot_b: int = UNPINNED,
 ) -> tuple[dict[str, Any], list[OrderStats]]:
     """Play ``n`` matches of ``mission``: ``a``'s score, how they ended and what each
-    side's ships were ordered; and the two sides' ``OrderStats`` (a, then b)."""
+    side's ships were ordered; and the two sides' ``OrderStats`` (a, then b).
+
+    ``pilot_a`` / ``pilot_b`` pin the pilot (an index into ``pilots``) flying all of
+    ``a``'s / ``b``'s strike craft; ``UNPINNED`` draws it by ``pilot_draw``."""
     rosters = mission_rosters(mission, 24, seed)
     block = 2 * len(rosters)
     if n % block:
@@ -328,8 +360,22 @@ def play_mission(
     a_team = (index // len(rosters)) % 2
     # Commander 0 is a, 1 is b: a on its team, b on the other.
     side = np.stack([a_team != 0, a_team != 1], axis=1).astype(np.int64)
+    pinned = None
+    if pilot_a != UNPINNED or pilot_b != UNPINNED:
+        # Team 0's pilot is a's where a is team 0, else b's; team 1's the other.
+        pinned = np.where(
+            np.stack([a_team == 0, a_team == 1], axis=1), pilot_a, pilot_b
+        ).astype(np.int64)
     played = play_matches(
-        [rosters[e] for e in entry], mission, (a, b), side, seed, n_threads, pilots
+        [rosters[e] for e in entry],
+        mission,
+        (a, b),
+        side,
+        seed,
+        n_threads,
+        pilots,
+        pilot_draw=pilot_draw,
+        pinned_pilots=pinned,
     )
     winner = played.winner
     a_won = winner == a_team
@@ -359,23 +405,72 @@ def evaluate(
     n_threads: int = 8,
     live_pilots: Path = LIVE_PILOTS,
     missions: Sequence[str] = MISSIONS,
+    pilot_draw: str = PILOT_DRAW_SHIP,
+    pilot_a: str = DRAWN,
+    pilot_b: str = DRAWN,
+    checkpoint_root: Path = REPO_ROOT,
 ) -> dict[str, Any]:
+    """``a`` against ``b`` over ``missions`` (``rlf.eval.commander/1``).
+
+    Args:
+        a: Side a's commander spec (``Commander.from_spec``).
+        b: Side b's.
+        n_per_mission: Matches per mission.
+        seed: Seed of rosters, sim and pilot draw.
+        n_threads: Sim threads.
+        live_pilots: The ``rlf.live_pilots/1`` list both sides draw from.
+        missions: The missions played.
+        pilot_draw: ``ship`` or ``side`` (``PilotStable``).
+        pilot_a: A pilot id from ``live_pilots`` that flies all of a's strike craft, or
+            ``DRAWN``.
+        pilot_b: The same for b.
+        checkpoint_root: The checkout the list's checkpoint paths are relative to.
+
+    Raises:
+        ValueError: An unknown draw mode, or a pinned pilot not on the list.
+    """
     check_sim_layout(rlf_sim.commander_io())
+    if pilot_draw not in PILOT_DRAWS:
+        raise ValueError(f"pilot draw must be one of {PILOT_DRAWS}, got {pilot_draw!r}")
     ca, cb = Commander.from_spec(a), Commander.from_spec(b)
-    pilots = live_pilot_checkpoints(live_pilots)
+    pilots = live_pilot_checkpoints(live_pilots, checkpoint_root)
+    ids = [p for p, _ in pilots]
+
+    def pin(pilot: str) -> int:
+        if pilot == DRAWN:
+            return UNPINNED
+        if pilot not in ids:
+            raise ValueError(
+                f"pilot {pilot!r} is not on {live_pilots} ({', '.join(ids)})"
+            )
+        return ids.index(pilot)
+
+    pin_a, pin_b = pin(pilot_a), pin(pilot_b)
     out: dict[str, Any] = {
         "schema": "rlf.eval.commander/1",
         "a": ca.label,
         "b": cb.label,
         "seed": seed,
-        "pilots": [p for p, _ in pilots],
+        "pilots": ids,
+        "pilot_draw": pilot_draw,
+        "pilot_a": pilot_a,
+        "pilot_b": pilot_b,
         "missions": {},
     }
     pooled = [OrderStats(), OrderStats()]
     for k, mission in enumerate(missions):
         t0 = time.time()
         res, orders = play_mission(
-            ca, cb, mission, n_per_mission, seed + 1000 * k, n_threads, pilots
+            ca,
+            cb,
+            mission,
+            n_per_mission,
+            seed + 1000 * k,
+            n_threads,
+            pilots,
+            pilot_draw,
+            pin_a,
+            pin_b,
         )
         res["secs"] = round(time.time() - t0, 1)
         out["missions"][mission] = res
@@ -407,10 +502,39 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="the pilots both sides draw from: an rlf.live_pilots/1 list "
         "(default: the live list)",
     )
+    p.add_argument(
+        "--pilot-draw",
+        choices=PILOT_DRAWS,
+        default=PILOT_DRAW_SHIP,
+        help="ship: a pilot drawn per strike craft (default); side: one per side, "
+        "flown by all its strike craft",
+    )
+    p.add_argument(
+        "--pilot-a",
+        default=DRAWN,
+        help="pin the pilot (an id on the list) flying all of a's strike craft",
+    )
+    p.add_argument("--pilot-b", default=DRAWN, help="the same for b")
+    p.add_argument(
+        "--checkpoint-root",
+        type=Path,
+        default=REPO_ROOT,
+        help="the checkout the list's checkpoints are under (from a worktree: the "
+        "main checkout)",
+    )
     args = p.parse_args(argv)
     torch.set_num_threads(args.threads)
     res = evaluate(
-        args.a, args.b, args.n_per_mission, args.seed, args.threads, args.pilots
+        args.a,
+        args.b,
+        args.n_per_mission,
+        args.seed,
+        args.threads,
+        args.pilots,
+        pilot_draw=args.pilot_draw,
+        pilot_a=args.pilot_a,
+        pilot_b=args.pilot_b,
+        checkpoint_root=args.checkpoint_root,
     )
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(res, indent=1) + "\n")
