@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 import torch
 
+from spacefight.commander.policy import CommanderActor, save_commander
 from spacefight.commander.train import (
     LEARNER,
     NOT_LEARNED,
@@ -18,10 +19,13 @@ from spacefight.commander.train import (
     OPP_SNAPSHOT,
     OPP_UNSEEN,
     Assignment,
+    Results,
     TrainConfig,
     Trainer,
     Transition,
+    initial_actor,
 )
+from spacefight.env.rosters import STATION_AS_CARRIER, STATION_AS_CONVOY, STATION_ASSAULT
 
 
 def transition(key, value, reward, done=False, next_value=0.0) -> Transition:
@@ -161,3 +165,55 @@ def test_a_run_with_no_order_changes_logs_no_order_seconds() -> None:
 def test_the_price_of_an_order_must_not_be_negative() -> None:
     with pytest.raises(ValueError, match="order_price"):
         TrainConfig(order_price=-0.001)
+
+
+def test_the_station_convoy_share_must_be_a_probability() -> None:
+    for bad in (-0.1, 1.5):
+        with pytest.raises(ValueError, match="station_convoy_share"):
+            TrainConfig(station_convoy_share=bad)
+
+
+def assignment_drawer(**cfg) -> SimpleNamespace:
+    return SimpleNamespace(
+        cfg=TrainConfig(**cfg),
+        rng=np.random.default_rng(0),
+        pool=[],
+        results=Results(),
+    )
+
+
+def test_a_station_assault_reads_as_a_convoy_at_its_share() -> None:
+    fake = assignment_drawer(
+        mission_weights=(0, 0, 0, 1),
+        opponent_shares=(0, 0, 0, 0, 1),
+        station_convoy_share=0.5,
+    )
+    draws = [Trainer._draw_assignment(fake) for _ in range(2000)]  # type: ignore[arg-type]
+    assert all(a.mission == STATION_ASSAULT for a in draws)
+    convoy = np.mean([a.station_as == STATION_AS_CONVOY for a in draws])
+    assert convoy == pytest.approx(0.5, abs=0.05)
+
+
+def test_no_convoy_share_draws_exactly_as_before() -> None:
+    # The station's reading is drawn only when it can be convoy, so the rng stream
+    # (and every later assignment) is the one a config without the setting gives.
+    mixed = dict(mission_weights=(1, 1, 1, 1), opponent_shares=(0.5, 0, 0, 0, 0.5))
+    plain = assignment_drawer(**mixed)
+    off = assignment_drawer(**mixed, station_convoy_share=0.0)
+    a = [Trainer._draw_assignment(plain) for _ in range(200)]  # type: ignore[arg-type]
+    b = [Trainer._draw_assignment(off) for _ in range(200)]  # type: ignore[arg-type]
+    assert a == b
+    assert all(x.station_as == STATION_AS_CARRIER for x in a)
+    assert plain.rng.random() == off.rng.random()
+
+
+def test_a_run_can_start_from_a_saved_commander(tmp_path) -> None:
+    torch.manual_seed(3)
+    saved = CommanderActor()
+    path = tmp_path / "start.pt"
+    save_commander(path, saved, {"update": 7})
+    actor = initial_actor(TrainConfig(init=str(path)))
+    for name, value in saved.state_dict().items():
+        assert torch.equal(actor.state_dict()[name], value), name
+    fresh = initial_actor(TrainConfig())
+    assert not torch.equal(fresh.state_dict()["order.bias"], saved.state_dict()["order.bias"])

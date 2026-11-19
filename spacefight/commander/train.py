@@ -43,6 +43,7 @@ from spacefight.commander.pilots import (
     LIVE_PILOTS,
     PILOT_DRAW_SHIP,
     PILOT_DRAWS,
+    REPO_ROOT as PILOTS_ROOT,
     PilotStable,
     live_pilot_checkpoints,
 )
@@ -62,6 +63,8 @@ from spacefight.env.rosters import (
     DEATHMATCH,
     RANDOM,
     SCRIPTED,
+    STATION_AS_CARRIER,
+    STATION_AS_CONVOY,
     STATION_ASSAULT,
     PilotsDistribution,
     Roster,
@@ -79,11 +82,14 @@ MISSIONS: Final = (DEATHMATCH, CARRIER_BATTLE, CONVOY_ESCORT)
 # station assault, weight 0 by default: three weights mean exactly the old draws).
 TRAIN_MISSIONS: Final = (*MISSIONS, STATION_ASSAULT)
 WINNER_DRAW: Final = -1
+# A station assault's team 0 defends the station; the log scores each enemy per role.
+STATION_ROLES: Final = ("defender", "attacker")
 TICK_HZ: Final = 30
 
 # Enemy commander kinds.
 OPP_SCRIPTED, OPP_RANDOM, OPP_SELF, OPP_SNAPSHOT, OPP_UNSEEN = range(5)
 OPP_NAMES: Final = ("scripted", "random", "self", "snapshot", "unseen")
+STATION_SIDES: Final = tuple(f"{o}_{r}" for o in OPP_NAMES for r in STATION_ROLES)
 # The controller of a team in a match: not learned, the learner, or snapshot k (>= 2).
 NOT_LEARNED, LEARNER = 0, 1
 FEATURE_KEYS: Final = ("globals", "entities", "valid", *MASK_SHAPES)
@@ -130,6 +136,15 @@ class TrainConfig:
     # How strike craft get pilots: "ship" (one drawn per ship, as the live page does by
     # default) or "side" (one per side that all its strike craft fly, ?pairing=side).
     pilot_draw: str = PILOT_DRAW_SHIP
+    # The chance a station assault reads to the nets as a convoy escort (station side
+    # the convoy defender), else as a carrier battle. 0 draws exactly as before.
+    station_convoy_share: float = 0.0
+    # A commander checkpoint (``save_commander``) the actor starts from instead of a
+    # fresh net (``keep_prior`` then does nothing); the critic starts fresh. "": none.
+    init: str = ""
+    # The checkout that holds the pilots' checkpoints (``live_pilots`` paths resolve
+    # against it; a worktree has no weights). "": this checkout.
+    pilot_root: str = ""
     max_updates: int = 1_000_000
 
     def __post_init__(self) -> None:
@@ -161,6 +176,26 @@ class TrainConfig:
             raise ValueError(
                 f"order_price must not be negative, got {self.order_price}"
             )
+        if not 0.0 <= self.station_convoy_share <= 1.0:
+            raise ValueError(
+                "station_convoy_share must be in [0, 1], "
+                f"got {self.station_convoy_share}"
+            )
+
+
+def initial_actor(cfg: TrainConfig) -> CommanderActor:
+    """The actor a new run starts from: ``cfg.init``'s weights if it names a commander
+    checkpoint, else a fresh net leaning to "keep" (``cfg.keep_prior``).
+
+    Raises:
+        ValueError: ``cfg.init`` is not a commander file of this io version.
+    """
+    actor = CommanderActor()
+    lean_to_keep(actor, cfg.keep_prior)
+    if cfg.init:
+        start, _ = load_commander(Path(cfg.init))
+        actor.load_state_dict(start.state_dict())
+    return actor
 
 
 @dataclass
@@ -172,6 +207,8 @@ class Assignment:
     snapshot: int = -1  # pool index for OPP_SNAPSHOT
     mission: str = DEATHMATCH
     roster: str = ""
+    # What a station assault reads as to the nets (ignored by the other missions).
+    station_as: str = STATION_AS_CARRIER
 
     def controllers(self) -> tuple[int, int]:
         enemy = {
@@ -254,9 +291,10 @@ class Trainer:
         self.own_col = int(own)
         self.strike_cols = slice(int(cls), int(cls) + 3)
         self.ordered_cols = slice(int(order) + 1, int(order) + 4)
-        self.actor = CommanderActor()
-        lean_to_keep(self.actor, cfg.keep_prior)
-        pilots = live_pilot_checkpoints(Path(cfg.live_pilots))
+        self.actor = initial_actor(cfg)
+        pilots = live_pilot_checkpoints(
+            Path(cfg.live_pilots), Path(cfg.pilot_root) if cfg.pilot_root else PILOTS_ROOT
+        )
         self.critic = CommanderCritic(n_pilots=len(pilots))
         self.opt = torch.optim.Adam(
             list(self.actor.parameters()) + list(self.critic.parameters()), lr=cfg.lr
@@ -327,11 +365,18 @@ class Trainer:
         mw = np.asarray(cfg.mission_weights, dtype=np.float64)
         # A trailing zero weight leaves the draw exactly as with three missions.
         mission = TRAIN_MISSIONS[int(self.rng.choice(len(mw), p=mw / mw.sum()))]
+        learner_team = int(self.rng.integers(0, 2))
+        station_as = STATION_AS_CARRIER
+        # Drawn only when it can be convoy, so a share of 0 draws exactly as before.
+        if mission == STATION_ASSAULT and cfg.station_convoy_share > 0:
+            if self.rng.random() < cfg.station_convoy_share:
+                station_as = STATION_AS_CONVOY
         return Assignment(
-            learner_team=int(self.rng.integers(0, 2)),
+            learner_team=learner_team,
             opponent=opp,
             snapshot=snap,
             mission=mission,
+            station_as=station_as,
         )
 
     def _snap_name(self, k: int) -> str:
@@ -350,7 +395,7 @@ class Trainer:
             options = self.mission_rosters[a.mission]
             name, r = options[int(self.rng.integers(0, len(options)))]
             teams, a.roster = r.teams, name
-        return Roster(teams, a.mission, a.modes())
+        return Roster(teams, a.mission, a.modes(), station_as=a.station_as)
 
     def _queue(self, i: int, a: Assignment, store: bool = True) -> None:
         roster = self._roster(a)
@@ -463,6 +508,10 @@ class Trainer:
                     self.match_stats[f"won_{OPP_NAMES[a.opponent]}"] += score
                     self.match_stats[f"n_{a.mission}"] += 1
                     self.match_stats[f"won_{a.mission}"] += score
+                    if a.mission == STATION_ASSAULT:
+                        side = f"{OPP_NAMES[a.opponent]}_{STATION_ROLES[team]}"
+                        self.match_stats[f"n_{side}"] += 1
+                        self.match_stats[f"won_{side}"] += score
             self.match_stats["matches"] += 1
             self.serial[i] += 1
             self.current[i] = self.queued[i]
@@ -646,7 +695,7 @@ class Trainer:
     def _summarise_matches(self) -> dict[str, float]:
         s = self.match_stats
         out: dict[str, float] = {"matches": s["matches"]}
-        for name in (*OPP_NAMES, *TRAIN_MISSIONS):
+        for name in (*OPP_NAMES, *TRAIN_MISSIONS, *STATION_SIDES):
             if s[f"n_{name}"]:
                 out[f"win_{name}"] = round(s[f"won_{name}"] / s[f"n_{name}"], 3)
                 out[f"n_{name}"] = s[f"n_{name}"]

@@ -42,6 +42,13 @@ Rules (``RULES``; the module constants give the numbers):
   strafers attack the bomber nearest the station once one is inside the alarm radius
   (kept until it dies), free otherwise.
 
+``learned`` (added for ``../2026-11-19-station-commander``): a learned commander
+(``--commander <commander.pt>``, ``save_commander``) runs the rule side in the sim's
+``learned`` mode, its decisions sampled as in training; it launches and steers its carrier
+itself. Every rule's output also times the rule side's launches (first launch, the
+station's hull then, hangar empty), and a learned rule counts the strike craft it
+re-orders a minute.
+
 Go-to deadlines (v8) as in ``lab/runs/2026-11-17-order-cost/order_rules.py``: 2 times
 the slowest member's straight-line time to the circle at its speed cap, plus 3 s, from
 the first order; the same point and deadline are re-sent to ships that launch later,
@@ -88,7 +95,8 @@ EXTERNAL = "external"
 END_REASONS = tuple(rlf_sim.END_REASONS)
 ATTACKER_RULES = ("rally_release", "bomber_only", "escort_bombers", "carrier_push")
 DEFENDER_RULES = ("hold_reserve", "hold_late", "hold_never", "intercept_bombers", "hunt_bombers")
-RULES = ("none", "scripted", "unseen") + ATTACKER_RULES + DEFENDER_RULES
+LEARNED = "learned"
+RULES = ("none", "scripted", "unseen", LEARNED) + ATTACKER_RULES + DEFENDER_RULES
 
 # The scripted commander's station constants (scripted/commander.rs).
 WING_BASE = 3
@@ -370,6 +378,9 @@ def build_env(args: argparse.Namespace, rule_team: int) -> tuple[RustVecEnv, tup
     hide = [True, True]
     if args.rule == "scripted":
         hide[rule_team] = False
+    elif args.rule == LEARNED:
+        modes[rule_team] = LEARNED
+        hide[rule_team] = False
     elif args.rule != "unseen":
         modes[rule_team] = EXTERNAL
         hide[rule_team] = False
@@ -435,8 +446,11 @@ def run(args: argparse.Namespace) -> dict:
     pool.draw(team.shape)
     learned = ~capital & (team >= 0)
     rule = Rule(args.rule, rule_team, n) if modes[rule_team] == EXTERNAL else None
+    commander = load_learned(args) if modes[rule_team] == LEARNED else None
     strike = learned
     rule_side = strike & (team == rule_team)
+    launch = LaunchTimes(rs0, rule_team, station)
+    reordered = np.zeros(n)  # strike craft the learned commander re-ordered
 
     time_limit = float(rlf_sim.mission_time_limit_s(STATION_ASSAULT))
     max_steps = int(round(time_limit * TICK_HZ)) + 4
@@ -463,6 +477,8 @@ def run(args: argparse.Namespace) -> dict:
     torch.manual_seed(args.seed)
     t0 = time.time()
     for step in range(max_steps):
+        if commander is not None:
+            reordered += decide(env, commander, rule_team, running)
         due = np.asarray(env.raw.command_due())
         sample = step % SAMPLE_TICKS == SAMPLE_TICKS - 1
         if sample or due.any():
@@ -477,6 +493,7 @@ def run(args: argparse.Namespace) -> dict:
                 if cmds:
                     env.raw.submit_command(int(i), rule_team, cmds)
             if sample:
+                launch.sample(int(i), rs)
                 telemetry(
                     i,
                     rs,
@@ -545,7 +562,101 @@ def run(args: argparse.Namespace) -> dict:
         goto_seen,
         goto_arrived,
         goto_missed,
+        launch.summary(end_tick, reordered if commander is not None else None),
     )
+
+
+def load_learned(args: argparse.Namespace) -> Any:
+    from spacefight.commander.policy import load_commander
+
+    if args.commander is None:
+        raise ValueError("--rule learned needs --commander <commander.pt>")
+    actor, _ = load_commander(args.commander)
+    return actor
+
+
+def decide(env: RustVecEnv, actor: Any, team: int, running: np.ndarray) -> np.ndarray:
+    """Submit the learned team's due decisions (sampled, as in training); the number of
+    strike craft each match's decision re-ordered."""
+    from spacefight.commander.io import CommanderInputs
+    from spacefight.commander.policy import sample_actions
+    from spacefight.commander.train import FEATURE_KEYS
+
+    out = np.zeros(env.n_envs)
+    rows = np.flatnonzero(np.asarray(env.raw.commander_due(team), dtype=bool) & running)
+    if rows.size == 0:
+        return out
+    feats = env.raw.commander_features(team)
+    x = CommanderInputs.from_numpy({k: np.asarray(feats[k])[rows] for k in FEATURE_KEYS})
+    actions = sample_actions(actor, x)
+    changed = env.raw.submit_commander_actions(
+        team, rows.astype(np.int64), actions.numpy().astype(np.int32)
+    )
+    out[rows] = np.asarray(changed, dtype=np.float64)
+    return out
+
+
+class LaunchTimes:
+    """When the rule side's hangar empties, sampled once a second: the first launch (a
+    docked strike craft that is no longer docked), the station's hull then, the
+    hangar empty."""
+
+    def __init__(self, rs0: list[dict], team: int, station: np.ndarray) -> None:
+        self.team = team
+        self.station = station
+        self.docked0 = np.array(
+            [sum(s["team"] == team and s["docked"] for s in r["ships"]) for r in rs0]
+        )
+        n = len(rs0)
+        self.first = np.full(n, -1, dtype=np.int64)
+        self.empty = np.full(n, -1, dtype=np.int64)
+        self.hull_at_first = np.full(n, np.nan)
+
+    def sample(self, i: int, rs: dict) -> None:
+        ships = rs["ships"]
+        docked = sum(s["team"] == self.team and s["alive"] and s["docked"] for s in ships)
+        tick = int(rs["tick"]) + 1
+        if self.first[i] < 0 and docked < self.docked0[i]:
+            st = ships[self.station[i]]
+            self.first[i] = tick
+            self.hull_at_first[i] = st["hp"] / st["max_hp"]
+        if self.empty[i] < 0 and docked == 0 and self.docked0[i] > 0:
+            self.empty[i] = tick
+
+    def summary(self, end_tick: np.ndarray, reordered: np.ndarray | None) -> dict:
+        def median_s(t: np.ndarray) -> float | None:
+            t = t[t >= 0]
+            return float(np.median(t) / TICK_HZ) if t.size else None
+
+        launched = self.first >= 0
+        out: dict[str, Any] = {
+            "docked_at_start_mean": float(self.docked0.mean()),
+            "launched_share": float(launched.mean()),
+            "first_launch_median_s": median_s(self.first),
+            "first_launch_quartiles_s": (
+                [float(q) / TICK_HZ for q in np.percentile(self.first[launched], (25, 75))]
+                if launched.any()
+                else None
+            ),
+            "station_hull_at_first_launch_median": (
+                float(np.nanmedian(self.hull_at_first)) if launched.any() else None
+            ),
+            "hangar_empty_share": float((self.empty >= 0).mean()),
+            "hangar_empty_median_s": median_s(self.empty),
+            "orders_per_minute": None,
+            "per_match": {
+                "first_launch": self.first.tolist(),
+                "hangar_empty": self.empty.tolist(),
+                "station_hull_at_first_launch": [
+                    None if math.isnan(h) else round(float(h), 3) for h in self.hull_at_first
+                ],
+            },
+        }
+        if reordered is not None:
+            minutes = np.maximum(end_tick, 1) / (TICK_HZ * 60.0)
+            out["orders_per_minute"] = float(np.mean(reordered / minutes))
+            out["per_match"]["reordered"] = reordered.astype(int).tolist()
+        return out
 
 
 def telemetry(
@@ -627,6 +738,7 @@ def report(
     goto_seen,
     goto_arrived,
     goto_missed,
+    launches: dict,
 ) -> dict:
     n = winner.size
     att_score = (winner == 1) + 0.5 * (winner == -1)
@@ -649,6 +761,7 @@ def report(
         "sim_version": int(rlf_sim.SIM_VERSION),
         "role": args.role,
         "rule": args.rule,
+        "commander": str(args.commander) if args.commander else None,
         "n": int(n),
         "seed": args.seed,
         "station_as": args.station_as,
@@ -689,6 +802,7 @@ def report(
             "goto_arrived": int(goto_arrived[rule_side].sum()),
             "goto_missed": int(goto_missed[rule_side].sum()),
         },
+        "launches": launches,
         "per_match": {
             "winner": winner.tolist(),
             "reason": reason.tolist(),
@@ -714,6 +828,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--pilots", type=Path, default=REPO / "lab" / "live_pilots.json")
     p.add_argument("--checkpoint-root", type=Path, default=Path("/home/timg/code/rl-fighter"))
     p.add_argument("--out", type=Path, required=True)
+    p.add_argument("--commander", type=Path, default=None, help="--rule learned's commander")
     args = p.parse_args(argv)
     torch.set_num_threads(args.torch_threads)
     res = run(args)

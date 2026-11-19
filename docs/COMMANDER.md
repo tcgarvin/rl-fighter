@@ -318,6 +318,14 @@ The training log (`log.jsonl` in the run directory) also records, per update,
 `order_seconds` (the mean seconds a ship goes between changes of its order) and
 `ordered_share` (the share of ship-seconds spent with an order).
 
+**Station assault** (`TrainConfig.mission_weights`' fourth weight, default 0;
+`station_convoy_share`, default 0, the chance a station assault reads as a convoy escort,
+else as a carrier battle). The log scores each enemy per station role
+(`win_unseen_defender`, `win_unseen_attacker`, ...). **A start** (`TrainConfig.init`,
+default none): a commander checkpoint the actor starts from instead of a fresh net (the
+critic starts fresh). `pilot_root` names the checkout holding the pilots' weights, for a
+run from a worktree. First used by `lab/runs/2026-11-19-station-commander`.
+
 **The pilots a commander trains over** (`TrainConfig.live_pilots`, default the live
 list): a file of the same schema naming other pilots, for example only those that follow
 orders (`lab/runs/2026-11-15-commander-3/pilots_followers.json`). The critic has one
