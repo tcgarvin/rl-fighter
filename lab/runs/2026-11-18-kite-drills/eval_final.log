@@ -1,0 +1,12 @@
+nearest k=3: ordered side 0.421 +- 0.028 over 1152 (5 draws), 891.5 s
+none k=3: ordered side 0.566 +- 0.029 over 1152 (1 draws), 911.9 s
+scripted k=3: ordered side 0.342 +- 0.027 over 1152 (3 draws), 925.0 s
+nearest k=3: ordered side 0.465 +- 0.029 over 1152 (6 draws), 921.5 s
+none k=3: ordered side 0.631 +- 0.028 over 1152 (2 draws), 923.4 s
+scripted k=3: ordered side 0.438 +- 0.029 over 1152 (6 draws), 923.7 s
+nearest k=3: ordered side 0.330 +- 0.027 over 1152 (0 draws), 937.7 s
+none k=3: ordered side 0.565 +- 0.029 over 1152 (3 draws), 926.6 s
+scripted k=3: ordered side 0.426 +- 0.029 over 1152 (3 draws), 928.9 s
+nearest k=3: ordered side 0.622 +- 0.028 over 1152 (2 draws), 945.9 s
+none k=3: ordered side 0.588 +- 0.028 over 1152 (4 draws), 920.1 s
+scripted k=3: ordered side 0.596 +- 0.028 over 1152 (2 draws), 941.3 s

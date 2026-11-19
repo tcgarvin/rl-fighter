@@ -1,0 +1,50 @@
+{
+ "schema": "rlf.lab.swap/1",
+ "sim_version": 9,
+ "mission": "deathmatch",
+ "n": 512,
+ "seed": 910000,
+ "pilots": "lab/runs/2026-11-19-station-mix/eval_before/pilot_cand.json",
+ "base": {
+  "x_score": 0.6904296875,
+  "x_score_ci95": 0.04003947387443196,
+  "end_reasons": {
+   "eliminated": 0.958984375,
+   "time_limit": 0.041015625
+  },
+  "length_median_s": 39.75,
+  "slot_damage_to_capital": 0.0,
+  "slot_damage_to_strike": 74.1005859375
+ },
+ "swap": {
+  "x_score": 0.4140625,
+  "x_score_ci95": 0.04270750674386643,
+  "end_reasons": {
+   "eliminated": 0.984375,
+   "time_limit": 0.015625
+  },
+  "length_median_s": 40.9,
+  "slot_damage_to_capital": 0.0,
+  "slot_damage_to_strike": 31.494140625
+ },
+ "delta": -0.2763671875,
+ "delta_ci95": 0.056595554554250416,
+ "delta_by_roster": {
+  "GFF v FFF": -0.3125,
+  "GFF v FSG": -0.21875,
+  "GFF v SSF": -0.34375,
+  "GFF v GFF": -0.3125,
+  "GFS v FFF": -0.4375,
+  "GFS v FSG": -0.28125,
+  "GFS v SSF": -0.40625,
+  "GFS v GFF": -0.5,
+  "GSS v FFF": -0.03125,
+  "GSS v FSG": -0.296875,
+  "GSS v SSF": -0.03125,
+  "GSS v GFF": -0.40625,
+  "GGF v FFF": -0.375,
+  "GGF v FSG": -0.1875,
+  "GGF v SSF": -0.09375,
+  "GGF v GFF": -0.1875
+ }
+}

@@ -1,0 +1,25 @@
+00:52:42 lab/runs/2026-11-19-station-mix/eval_before/station_self_carrier.json
+  155 s
+00:55:17 lab/runs/2026-11-19-station-mix/eval_before/station_self_convoy.json
+  142 s
+00:57:39 lab/runs/2026-11-19-station-mix/eval_before/swap_dm.json
+  102 s
+00:59:21 lab/runs/2026-11-19-station-mix/eval_before/swap_carrier.json
+  454 s
+01:06:55 lab/runs/2026-11-19-station-mix/eval_before/bomber_drills.json
+  37 s
+01:07:32 lab/runs/2026-11-19-station-mix/eval_before/drills.json
+  35 s
+01:08:07 done: lab/runs/2026-11-19-station-mix/eval_before
+# lab/runs/2026-11-19-station-mix/eval_before
+station self as carrier: attacker win                       0.195 ± 0.049    ends {'time_limit': 0.328125, 'station_destroyed': 0.1953125, 'assault_repelled': 0.4765625}
+station self as convoy: attacker win                        0.258 ± 0.054    ends {'time_limit': 0.265625, 'station_destroyed': 0.2578125, 'assault_repelled': 0.4765625}
+(a) station attacker win, cand attacking 1052               - ± -            bar >= 0.45: n/a
+(a) station defender win, cand defending vs 1052            -                ± -
+(a) station attacker win, cand both sides                   0.227 ± 0.036    script 0.55; 1052's own in eval_before
+(b) bomber dmg to capital a bomber (self / attacking 1052)  38 / -           script 305, live pilots 36
+(b) bomber swap delta, dm                                   -0.276 ± 0.057   bomber slot dmg capital/strike 0/31; bar > -0.15: FAIL
+(b) bomber swap delta, carrier                              -0.212 ± 0.049   bomber slot dmg capital/strike 35/75
+drills in bombers: attack target_hit                        0.156            as drawn 0.961
+drills in bombers: defend more_on_named                     0.203            as drawn 0.945
+(c) drill gate                                              pass             goto_arrival 0.851 goto_lift 0.672 attack_target_hit 0.961 attack_side 0.938 attack_flip 0.875 defend_more_on_named 0.945 defend_side 0.961 defend_flip 0.922
