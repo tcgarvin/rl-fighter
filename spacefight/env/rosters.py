@@ -26,9 +26,12 @@ Every draw shuffles each team's slot order (squads of three form in slot order) 
 swaps the teams with probability ½, so the distribution is symmetric in the teams.
 
 Missions (M3 stage B, preset ``orders_v1``, ``OrdersDistribution``): a roster also
-names its mission (``deathmatch``, ``carrier_battle``, ``convoy_escort``) and each
-team's commander mode (``scripted``, ``random``; SIM_VERSION 5). One draw picks the
-mission by ``mission_weights``; a deathmatch is a draw from the nested fleet preset;
+names its mission (``deathmatch``, ``carrier_battle``, ``convoy_escort``; SIM_VERSION 9
+adds ``station_assault``, whose ``Roster.station_as`` says what the nets read it as) and
+each team's commander mode (``scripted``, ``random``; SIM_VERSION 5). One draw picks the
+mission by ``mission_weights`` (one weight per ``MISSIONS``; a three-weight tuple from a
+config written before v9 means a station weight of 0, and a zero weight draws exactly
+as the shorter tuple did); a deathmatch is a draw from the nested fleet preset;
 a carrier battle is a carrier plus a wing of strike craft a side; a convoy is
 freighters plus escorts (team 0, the sim's convoy side) against a strike force.
 Each team's commander is ``random`` with ``random_commander_p``. Matches pad to
@@ -73,8 +76,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ASSETS = REPO_ROOT / "assets"
 
 # Hulls a fleet pilot flies (strike craft only: carrier and freighter are capital
-# ships flown by scripts, SIM_SPEC §11), and the most ships a side can field.
+# ships flown by scripts, SIM_SPEC §11), and the most ships a side can field. The v9
+# bomber is a strike hull too, but opt-in (``STRIKE_HULLS``): the default rosters and
+# drafts stay those of v8.
 FLEET_HULLS: tuple[str, ...] = ("fighter", "strafer", "gunship")
+BOMBER = "bomber"
+STRIKE_HULLS: tuple[str, ...] = (*FLEET_HULLS, BOMBER)
 MAX_PER_SIDE = 4
 # Slots per match of a fleet roster env: two full sides. The sim allows more
 # (``MAX_SHIPS``, 20 since SIM_VERSION 4, for carrier hangars), but a training env
@@ -89,7 +96,28 @@ MAX_TRAIN_SHIPS = 12
 DEATHMATCH = "deathmatch"
 CARRIER_BATTLE = "carrier_battle"
 CONVOY_ESCORT = "convoy_escort"
-MISSIONS: tuple[str, ...] = (DEATHMATCH, CARRIER_BATTLE, CONVOY_ESCORT)
+STATION_ASSAULT = "station_assault"
+MISSIONS: tuple[str, ...] = (DEATHMATCH, CARRIER_BATTLE, CONVOY_ESCORT, STATION_ASSAULT)
+# What a station assault reads as to the nets (SIM_VERSION 9): a carrier battle for
+# both sides, or a convoy escort with team 0 (the station) the defender.
+STATION_READS_AS: tuple[str, ...] = tuple(rlf_sim.STATION_READS_AS)
+STATION_AS_CARRIER, STATION_AS_CONVOY = "carrier", "convoy"
+
+
+def mission_weights_of(weights: Sequence[float]) -> tuple[float, ...]:
+    """``weights`` with one entry per ``MISSIONS``: a pre-v9 three-weight tuple gets a
+    station-assault weight of 0 (which draws exactly as the three did).
+
+    Raises:
+        ValueError: Neither three weights nor one per mission.
+    """
+    w = tuple(float(x) for x in weights)
+    if len(w) == len(MISSIONS) - 1:
+        w = (*w, 0.0)
+    if len(w) != len(MISSIONS):
+        raise ValueError(f"mission_weights needs one weight per {MISSIONS}, got {w}")
+    return w
+
 # Order drills (``docs/PILOT_TRAINING.md`` §2), in ``drill_weights`` order.
 DRILL_GOTO, DRILL_ATTACK, DRILL_DEFEND = "goto", "attack", "defend"
 # ``OpeningOrder.deadline_tick`` of a go-to without a deadline (SIM_VERSION 8).
@@ -113,8 +141,14 @@ _ABBREV = {
     "gunship": "G",
     "carrier": "C",
     "freighter": "T",
+    "bomber": "B",
+    "station": "X",
 }
-_MISSION_ABBREV = {CARRIER_BATTLE: "carrier", CONVOY_ESCORT: "convoy"}
+_MISSION_ABBREV = {
+    CARRIER_BATTLE: "carrier",
+    CONVOY_ESCORT: "convoy",
+    STATION_ASSAULT: "station",
+}
 
 
 def arena_radius_for(n_ships: int) -> float:
@@ -268,6 +302,9 @@ class Roster:
             drew for it (``spacefight.commander.stable``), which picks the network of a
             ``learned`` team and labels the logs; ``""`` where no stable drew one. The
             sim sees only ``commanders``.
+        station_as: A station assault's obs mapping (SIM_VERSION 9, one of
+            ``STATION_READS_AS``): what its pilots' and commanders' mission one-hots
+            read. Ignored by every other mission.
 
     Raises:
         ValueError: An empty team, more than ``MAX_SHIPS`` ships, an unknown mission
@@ -285,8 +322,13 @@ class Roster:
     time_limit_s: float = 0.0
     drill: DrillTag | None = None
     commander_ids: tuple[str, str] = ("", "")
+    station_as: str = STATION_AS_CARRIER
 
     def __post_init__(self) -> None:
+        if self.station_as not in STATION_READS_AS:
+            raise ValueError(
+                f"station_as must be one of {STATION_READS_AS}, got {self.station_as!r}"
+            )
         if len(self.teams) != 2 or any(len(t) == 0 for t in self.teams):
             raise ValueError(f"a roster needs two non-empty teams, got {self.teams}")
         if self.n_ships > MAX_SHIPS:
@@ -345,6 +387,17 @@ class Roster:
         return len(self.teams[0]) + len(self.teams[1])
 
     @property
+    def mission_spec(self) -> str | dict[str, str] | None:
+        """The mission as the sim takes it (SIM_SPEC §10.3): ``None`` for a
+        deathmatch, the kind name for a carrier battle or a convoy, a spec dict for a
+        station assault (its ``station_as`` mapping)."""
+        if self.mission == DEATHMATCH:
+            return None
+        if self.mission == STATION_ASSAULT:
+            return {"kind": STATION_ASSAULT, "as": self.station_as}
+        return self.mission
+
+    @property
     def arena_radius(self) -> float:
         """Arena radius from the shared rule (per mission since SIM_VERSION 4)."""
         if self.mission == DEATHMATCH:
@@ -371,6 +424,8 @@ class Roster:
         teams = " v ".join("".join(_ABBREV.get(h, h) for h in t) for t in self.teams)
         if self.mission == DEATHMATCH:
             return teams
+        if self.mission == STATION_ASSAULT and self.station_as != STATION_AS_CARRIER:
+            return f"{_MISSION_ABBREV[self.mission]} as {self.station_as}: {teams}"
         return f"{_MISSION_ABBREV[self.mission]}: {teams}"
 
     def fleets(self) -> list[list[str]]:
@@ -487,13 +542,19 @@ def capital_hull_ids(assets_dir: Path = DEFAULT_ASSETS) -> list[int]:
 
 
 def hull_names_by_id(assets_dir: Path = DEFAULT_ASSETS) -> list[str]:
-    """Hull names in hull-id order: the sim's catalogue numbers the hull
-    directories in sorted name order (``Catalogue::load_dir``).
+    """Hull names in hull-id order, the sim's (``Catalogue::load_dir``,
+    ``sim::data::hull_order``): the hulls of ``rlf_sim.LEGACY_HULL_ORDER`` first, in
+    that order (they keep their v4-v8 ids), then every other hull directory by name
+    (SIM_VERSION 9: bomber, station).
 
     Raises:
         FileNotFoundError: No hull directories.
     """
-    names = sorted(p.parent.name for p in (assets_dir / "hulls").glob("*/hull.yaml"))
+    legacy = list(rlf_sim.LEGACY_HULL_ORDER)
+    names = sorted(
+        (p.parent.name for p in (assets_dir / "hulls").glob("*/hull.yaml")),
+        key=lambda n: (legacy.index(n) if n in legacy else len(legacy), n),
+    )
     if not names:
         raise FileNotFoundError(f"no hulls/*/hull.yaml under {assets_dir}")
     return names
@@ -567,7 +628,9 @@ class OrdersDistribution:
 
     Attributes:
         kind: Always ``"orders"`` (tells ``resolve_distribution`` the class apart).
-        mission_weights: Weights of ``MISSIONS`` (deathmatch, carrier, convoy).
+        mission_weights: Weights of ``MISSIONS`` (deathmatch, carrier, convoy,
+            station; three weights mean station 0). A station assault plays the sim's
+            default station roster.
         random_commander_p: Per team, the chance its commander is ``random``
             (else ``scripted``).
         deathmatch: Fleet preset a deathmatch roster is drawn from.
@@ -585,7 +648,7 @@ class OrdersDistribution:
     """
 
     kind: str = ORDERS_KIND
-    mission_weights: tuple[float, ...] = (0.4, 0.3, 0.3)
+    mission_weights: tuple[float, ...] = (0.4, 0.3, 0.3, 0.0)
     random_commander_p: float = 0.5
     deathmatch: str = "fleet_v1"
     strike_hulls: tuple[str, ...] = FLEET_HULLS
@@ -602,8 +665,7 @@ class OrdersDistribution:
     def __post_init__(self) -> None:
         if self.kind != ORDERS_KIND:
             raise ValueError(f"kind must be {ORDERS_KIND!r}, got {self.kind!r}")
-        if len(self.mission_weights) != len(MISSIONS):
-            raise ValueError(f"mission_weights needs one weight per {MISSIONS}")
+        object.__setattr__(self, "mission_weights", mission_weights_of(self.mission_weights))
         if len(self.strike_weights) != len(self.strike_hulls) or not self.strike_hulls:
             raise ValueError("strike_weights needs one weight per strike hull")
         for name in ("mission_weights", "strike_weights"):
@@ -633,6 +695,10 @@ class OrdersDistribution:
             + self.convoy_attackers[1],
             2 * MAX_PER_SIDE,
         )
+        if self.mission_weights[MISSIONS.index(STATION_ASSAULT)] > 0:
+            widest = max(
+                widest, max(r.n_ships for r in live_mission_rosters(STATION_ASSAULT))
+            )
         if widest > self.max_ships:
             raise ValueError(
                 f"rosters reach {widest} ships > max_ships {self.max_ships}"
@@ -692,7 +758,8 @@ class PilotsDistribution:
 
     Attributes:
         kind: Always ``"pilots"`` (tells ``resolve_distribution`` the class apart).
-        mission_weights: Weights of ``MISSIONS`` (deathmatch, carrier, convoy).
+        mission_weights: Weights of ``MISSIONS`` (deathmatch, carrier, convoy,
+            station; three weights mean station 0).
         commander_p: Chance a match has orders shown on both sides (else hidden from
             both).
         mixed_p: Experimental (``docs/PILOT_TRAINING.md`` §3, training only): of the
@@ -723,7 +790,7 @@ class PilotsDistribution:
     """
 
     kind: str = PILOTS_KIND
-    mission_weights: tuple[float, ...] = (0.4, 0.3, 0.3)
+    mission_weights: tuple[float, ...] = (0.4, 0.3, 0.3, 0.0)
     commander_p: float = 0.5
     mixed_p: float = 0.0
     default_roster_share: float = 0.5
@@ -740,8 +807,7 @@ class PilotsDistribution:
     def __post_init__(self) -> None:
         if self.kind != PILOTS_KIND:
             raise ValueError(f"kind must be {PILOTS_KIND!r}, got {self.kind!r}")
-        if len(self.mission_weights) != len(MISSIONS):
-            raise ValueError(f"mission_weights needs one weight per {MISSIONS}")
+        object.__setattr__(self, "mission_weights", mission_weights_of(self.mission_weights))
         if any(w < 0 for w in self.mission_weights) or sum(self.mission_weights) <= 0:
             raise ValueError("mission_weights must be >= 0 with a positive sum")
         for name in (
@@ -998,6 +1064,8 @@ class OrdersRosterSampler:
         teams: tuple[tuple[str, ...], tuple[str, ...]]
         if mission == DEATHMATCH:
             teams = self.fleet.sample().teams
+        elif mission == STATION_ASSAULT:
+            teams = live_mission_rosters(STATION_ASSAULT)[0].teams
         elif mission == CARRIER_BATTLE:
             wing0 = self._strike(self._count(d.carrier_wing))
             if rng.random() < d.wing_mirror_p:

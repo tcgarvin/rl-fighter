@@ -212,21 +212,28 @@ fn static_hull_is_not_integrated() {
     a.power = 3;
     m.set_action(0, a);
     let before = m.ships[0].clone();
-    for _ in 0..30 {
+    m.step(&cat);
+    // v9 (§5 stage 3): a static hull's throttle is locked, but its turrets and power
+    // act, so the station can fight. Before v9 it applied LOCKED whole.
+    assert_eq!(
+        m.applied[0].throttle,
+        ShipAction::LOCKED.throttle,
+        "static hulls keep their thrust locked"
+    );
+    assert_eq!(m.applied[0].fire[0], 1, "static hulls fire");
+    assert_eq!(m.shots_fired[0], 1, "static hulls fire");
+    for _ in 1..30 {
         m.step(&cat);
     }
     let s = &m.ships[0];
     assert_eq!(s.pos, before.pos);
     assert_eq!(s.vel, before.vel);
     assert_eq!(s.heading, before.heading);
-    // v2: a static hull is always locked (§5 stage 3): no fire, power target kept.
     assert_eq!(
-        m.applied[0],
-        ShipAction::LOCKED,
-        "static hulls apply LOCKED"
+        s.power_target,
+        sim::power::target_for(cat.hull(station), 3),
+        "static hulls set their power"
     );
-    assert_eq!(m.shots_fired[0], 0, "static hulls never fire");
-    assert_eq!(s.power_target, before.power_target);
 }
 
 /// Fighter + gunship vs fighter, all present and spread out, delay `d`; ships 0 and 1

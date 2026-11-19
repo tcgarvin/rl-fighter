@@ -3,8 +3,9 @@
 //! checks it against the shipped asset files, so the two cannot drift apart.
 //!
 //! Numbers are ported from `prototypes/story/hulls.js` and the spec tables. Hulls
-//! are sorted by name like the loader (v4: carrier = 0, fighter = 1, freighter = 2,
-//! gunship = 3, strafer = 4);
+//! are in the loader's order (v4: carrier = 0, fighter = 1, freighter = 2,
+//! gunship = 3, strafer = 4; v9 appends bomber = 5, station = 6, after the legacy
+//! hulls, `sim::data::hull_order`);
 //! weapons are in `weapons.yaml` file order (gauss, laser, flak, torpedo).
 
 // Each test binary uses a different subset of these helpers.
@@ -28,6 +29,9 @@ pub const FIGHTER: HullId = 1;
 pub const FREIGHTER: HullId = 2;
 pub const GUNSHIP: HullId = 3;
 pub const STRAFER: HullId = 4;
+/// v9.
+pub const BOMBER: HullId = 5;
+pub const STATION: HullId = 6;
 
 fn v(x: f32, y: f32) -> Vec2 {
     Vec2::new(x, y)
@@ -276,6 +280,68 @@ pub fn freighter_hull() -> HullDef {
     h
 }
 
+/// v9 bomber: anchor role, fixed forward torpedo rack.
+pub fn bomber_hull() -> HullDef {
+    let mut h = hull("bomber", "anchor", 200.0, 22.0, 260.0, 34.0);
+    h.cost = 25;
+    h.shield = Some(ShieldDef {
+        hp: 60.0,
+        regen_rate: 8.0,
+        regen_delay: 4.0,
+        radius: 8.0,
+    });
+    h.collision = vec![circle(3.0, 0.0, 3.0), circle(-2.5, 0.0, 3.4)];
+    h.thrusters = vec![
+        thruster("thruster.main.l", (-6.0, 1.6), (1.0, 0.0), 900.0),
+        thruster("thruster.main.r", (-6.0, -1.6), (1.0, 0.0), 900.0),
+        thruster("thruster.rcs.fl", (3.5, 3.2), (0.0, -1.0), 260.0),
+        thruster("thruster.rcs.fr", (3.5, -3.2), (0.0, 1.0), 260.0),
+        thruster("thruster.rcs.rl", (-3.5, 3.8), (0.0, -1.0), 260.0),
+        thruster("thruster.rcs.rr", (-3.5, -3.8), (0.0, 1.0), 260.0),
+    ];
+    h.turrets = vec![turret("turret.rack", (4.8, 0.0), 0.0, 0.0, 0.0, TORPEDO)];
+    h.impact = vec![armour_arc(-180.0, 180.0, 0.75)];
+    h.derive();
+    h
+}
+
+/// v9 station: static carrier-role hull, six turrets, two bays.
+pub fn station_hull() -> HullDef {
+    let mut h = hull("station", "carrier", 1600.0, 5000.0, 1.0e6, 0.0);
+    h.cost = 200;
+    h.is_static = true;
+    h.shield = Some(ShieldDef {
+        hp: 300.0,
+        regen_rate: 20.0,
+        regen_delay: 5.0,
+        radius: 27.0,
+    });
+    h.collision = vec![circle(0.0, 0.0, 21.0)];
+    h.turrets = vec![
+        turret("turret.flak.0", (16.0, 0.0), 0.0, 220.0, 90.0, FLAK),
+        turret("turret.flak.1", (-8.0, 13.9), 120.0, 220.0, 90.0, FLAK),
+        turret("turret.flak.2", (-8.0, -13.9), -120.0, 220.0, 90.0, FLAK),
+        turret("turret.gauss.0", (8.0, 13.9), 60.0, 220.0, 120.0, GAUSS),
+        turret("turret.gauss.1", (-16.0, 0.0), 180.0, 220.0, 120.0, GAUSS),
+        turret("turret.gauss.2", (8.0, -13.9), -60.0, 220.0, 120.0, GAUSS),
+    ];
+    h.bays = vec![
+        BayDef {
+            id: "bay.port".to_string(),
+            pos: v(0.0, 21.0),
+            dir: v(0.0, 1.0),
+        },
+        BayDef {
+            id: "bay.starboard".to_string(),
+            pos: v(0.0, -21.0),
+            dir: v(0.0, -1.0),
+        },
+    ];
+    h.impact = vec![armour_arc(-180.0, 180.0, 0.5)];
+    h.derive();
+    h
+}
+
 /// Synthetic immobile hull (SIM_SPEC §3.4): no thrusters, one fixed gun, shield.
 pub fn static_hull() -> HullDef {
     let mut h = hull("teststation", "station", 500.0, 5000.0, 1.0e6, 0.0);
@@ -336,15 +402,17 @@ pub fn test_weapons() -> Vec<WeaponDef> {
     let mut flak = weapon("flak", WeaponKind::Flak, 180.0, 230.0, 4.0, 0.09, 3.5);
     flak.burst_radius = 14.0;
     flak.fuse_jitter = 0.4;
-    let mut torpedo = weapon("torpedo", WeaponKind::Torpedo, 95.0, 340.0, 55.0, 3.2, 0.0);
-    torpedo.turn_rate = 40f32.to_radians();
+    // v9: retuned for the bomber's rack (v4-v8: 95 m/s, 340 m, 55, 3.2 s, 40 deg/s).
+    let mut torpedo = weapon("torpedo", WeaponKind::Torpedo, 90.0, 240.0, 150.0, 4.5, 0.0);
+    torpedo.turn_rate = 30f32.to_radians();
     torpedo.lock_cone = 30f32.to_radians();
     torpedo.life_factor = 1.3;
     derive_life(&mut torpedo);
     vec![gauss, laser, flak, torpedo]
 }
 
-/// The five v4 hulls and four weapons, ids as the loader would assign them.
+/// The five v4 hulls, v9's bomber and station, and four weapons, ids as the loader
+/// would assign them.
 pub fn test_catalogue() -> Catalogue {
     Catalogue {
         hulls: vec![
@@ -353,6 +421,8 @@ pub fn test_catalogue() -> Catalogue {
             freighter_hull(),
             gunship_hull(),
             strafer_hull(),
+            bomber_hull(),
+            station_hull(),
         ],
         weapons: test_weapons(),
     }
@@ -430,6 +500,15 @@ pub fn asset_catalogue() -> Catalogue {
         (
             "strafer",
             include_str!("../../../../assets/hulls/strafer/hull.yaml"),
+        ),
+        // v9: listed first among these on purpose, they still take ids 5 and 6.
+        (
+            "station",
+            include_str!("../../../../assets/hulls/station/hull.yaml"),
+        ),
+        (
+            "bomber",
+            include_str!("../../../../assets/hulls/bomber/hull.yaml"),
         ),
     ];
     let weapons = include_str!("../../../../assets/weapons.yaml");

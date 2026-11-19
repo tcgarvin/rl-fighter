@@ -436,11 +436,13 @@ pub fn masks(m: &Match, cat: &Catalogue, team: u8, locks: &CommanderLocks) -> Co
     let team = team & 1;
     let n = m.ships.len();
     let carrier_up = live_carrier(m, team).is_some();
+    // v9: a static carrier (the station) cannot move, so its waypoint head only keeps.
+    let mobile = live_carrier(m, team).is_some_and(|c| !cat.hull(m.ships[c].hull).is_static);
     let (ready, _) = bays(m, cat, team);
     let reserves = reserve_counts(m, team);
     let mut out = CommanderMasks {
         launch: [false; N_LAUNCH_HULLS],
-        waypoint: [carrier_up; N_WAYPOINT_CHOICES],
+        waypoint: [mobile; N_WAYPOINT_CHOICES],
         squad: [[false; N_SQUAD_CHOICES]; N_ENTITIES],
         order: [[false; N_ORDER_CHOICES]; MAX_SQUADS],
         target: [false; N_ENTITIES],
@@ -569,10 +571,13 @@ pub fn features(m: &Match, cat: &Catalogue, team: u8, locks: &CommanderLocks) ->
     }
 
     let g = &mut out.globals;
-    let role = match m.cfg.mission.kind() {
+    // v9: a station assault reads as its `reads_as` (a carrier battle, or a convoy
+    // with team 0 the defender), so the layout is unchanged.
+    let role = match m.cfg.mission.obs_kind() {
         MissionKind::Deathmatch => 0,
         MissionKind::CarrierBattle => 1,
         MissionKind::ConvoyEscort => 2 + t,
+        MissionKind::StationAssault => unreachable!("obs_kind maps a station assault"),
     };
     g[glob::ROLE + role] = 1.0;
     let limit = m.cfg.time_limit_ticks as f32;

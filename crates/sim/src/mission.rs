@@ -17,13 +17,25 @@
 //!   escaped. Team 1 wins once `ceil(n / 2)` transports are destroyed; team 0 wins
 //!   once so many have escaped that this can no longer happen; at the time limit the
 //!   convoy has failed and team 1 wins.
+//! - **Station assault** (v9): team 0 defends a static `carrier`-role hull (the
+//!   station: turrets, bays, no engines) placed on its side; its first `jump_in[0]`
+//!   strike craft start on picket in front of it, the rest in its hangar. Team 1
+//!   attacks from the far side with a mobile carrier, as in a carrier battle: its first
+//!   `jump_in[1]` strike craft jump in, the rest wait docked. Team 1 wins by destroying
+//!   the station; team 0 wins on the clock, or once the attacker's carrier and every
+//!   one of its strike craft are gone. The station sits in `MissionState.carrier[0]`,
+//!   so hangars, launches, the capital-ship script and both commanders treat it as
+//!   team 0's carrier. `StationAssault.reads_as` picks what the nets read: a carrier
+//!   battle for both sides, or a convoy escort (team 0 the defender).
 //!
 //! RNG draw order at setup (changing it is a `SIM_VERSION` bump): deathmatch draws
 //! exactly as v3 (`arrival.rs`). A carrier battle draws, per team in order, the
 //! carrier's `y` offset `range(-CARRIER_Y_JITTER, CARRIER_Y_JITTER)`, then the
 //! jump-in schedule of the ships that jump in (`arrival.rs`, teams with no jump-in
 //! ships draw nothing). A convoy escort places team 0 without drawing and then draws
-//! team 1's jump-in schedule.
+//! team 1's jump-in schedule. A station assault (v9) draws the station's `y`, then the
+//! attacker carrier's `y` (both `range(-CARRIER_Y_JITTER, CARRIER_Y_JITTER)`), then team
+//! 1's jump-in schedule; the picket is placed without drawing.
 
 use crate::actions::ShipAction;
 use crate::arrival;
@@ -85,10 +97,25 @@ pub const ESCORT_OFFSET: f32 = 45.0;
 pub const ESCORT_LEAD: f32 = 20.0;
 pub const ESCORT_SPACING: f32 = 40.0;
 
+/// Station assault (v9): the station sits this fraction of the arena radius out on
+/// team 0's side (`x = -STATION_X_FRAC R`), heading `+x`, at rest.
+pub const STATION_X_FRAC: f32 = 0.35;
+/// The defender's picket: its first `jump_in[0]` strike craft start present at tick 0,
+/// `PICKET_RANGE` m from the station's centre toward the attackers (`+x`), fanned
+/// `PICKET_SPREAD` rad apart, at rest, heading `+x`.
+pub const PICKET_RANGE: f32 = 70.0;
+pub const PICKET_SPREAD: f32 = 0.45;
+/// Default `jump_in` of a station assault: the defender's picket, the attacker's first
+/// wave.
+pub const DEFAULT_STATION_JUMP_IN: [u8; 2] = [2, 3];
+
 /// Default time limits per mission, ticks.
 pub const DEATHMATCH_TIME_LIMIT_TICKS: u32 = 2700;
 pub const CARRIER_BATTLE_TIME_LIMIT_TICKS: u32 = 4500;
 pub const CONVOY_TIME_LIMIT_TICKS: u32 = 3600;
+/// v9: the attacker has this long (150 s, a carrier battle's limit) to destroy the
+/// station.
+pub const STATION_TIME_LIMIT_TICKS: u32 = 4500;
 
 pub fn is_carrier(hull: &HullDef) -> bool {
     hull.role == ROLE_CARRIER
@@ -111,6 +138,8 @@ pub enum MissionKind {
     Deathmatch = 0,
     CarrierBattle = 1,
     ConvoyEscort = 2,
+    /// v9.
+    StationAssault = 3,
 }
 
 impl MissionKind {
@@ -118,12 +147,21 @@ impl MissionKind {
         self as u8
     }
 
-    /// `"deathmatch"`, `"carrier_battle"`, `"convoy_escort"`.
+    /// Every mission, in code order.
+    pub const ALL: [MissionKind; 4] = [
+        MissionKind::Deathmatch,
+        MissionKind::CarrierBattle,
+        MissionKind::ConvoyEscort,
+        MissionKind::StationAssault,
+    ];
+
+    /// `"deathmatch"`, `"carrier_battle"`, `"convoy_escort"`, `"station_assault"`.
     pub fn name(self) -> &'static str {
         match self {
             MissionKind::Deathmatch => "deathmatch",
             MissionKind::CarrierBattle => "carrier_battle",
             MissionKind::ConvoyEscort => "convoy_escort",
+            MissionKind::StationAssault => "station_assault",
         }
     }
 
@@ -132,6 +170,7 @@ impl MissionKind {
             "deathmatch" => Some(MissionKind::Deathmatch),
             "carrier_battle" => Some(MissionKind::CarrierBattle),
             "convoy_escort" => Some(MissionKind::ConvoyEscort),
+            "station_assault" => Some(MissionKind::StationAssault),
             _ => None,
         }
     }
@@ -142,6 +181,7 @@ impl MissionKind {
             MissionKind::Deathmatch => DEATHMATCH_TIME_LIMIT_TICKS,
             MissionKind::CarrierBattle => CARRIER_BATTLE_TIME_LIMIT_TICKS,
             MissionKind::ConvoyEscort => CONVOY_TIME_LIMIT_TICKS,
+            MissionKind::StationAssault => STATION_TIME_LIMIT_TICKS,
         }
     }
 }
@@ -153,9 +193,10 @@ impl MissionKind {
 /// `+0.75 R` across the centre). The WP-S2 mission survey kept it: the missions balance at 450 m (lab/runs/2026-10-30-mission-survey); a change belongs here.
 pub fn arena_radius_for_mission(kind: MissionKind, n_ships: usize) -> f32 {
     match kind {
-        MissionKind::Deathmatch | MissionKind::CarrierBattle | MissionKind::ConvoyEscort => {
-            arena_radius_for(n_ships)
-        }
+        MissionKind::Deathmatch
+        | MissionKind::CarrierBattle
+        | MissionKind::ConvoyEscort
+        | MissionKind::StationAssault => arena_radius_for(n_ships),
     }
 }
 
@@ -223,6 +264,15 @@ const CONVOY_7: &[&str] = &[
 const RAIDERS_6: &[&str] = &[
     "fighter", "fighter", "strafer", "gunship", "fighter", "strafer",
 ];
+// Station assault (v9), balanced script against script
+// (lab/runs/2026-11-19-station-bomber/results.md). The defender's first two strike craft
+// start on picket, the attacker's first three jump in.
+const STATION_GARRISON_6: &[&str] = &[
+    "station", "fighter", "strafer", "fighter", "gunship", "fighter", "strafer",
+];
+const STATION_STRIKE_8: &[&str] = &[
+    "carrier", "fighter", "bomber", "fighter", "bomber", "strafer", "bomber", "fighter", "gunship",
+];
 
 const CARRIER_ROSTERS: &[MissionRoster] = &[
     MissionRoster {
@@ -238,6 +288,10 @@ const CARRIER_ROSTERS: &[MissionRoster] = &[
         fleets: [CARRIER_WING_9, CARRIER_WING_9],
     },
 ];
+const STATION_ROSTERS: &[MissionRoster] = &[MissionRoster {
+    name: "strike of 8",
+    fleets: [STATION_GARRISON_6, STATION_STRIKE_8],
+}];
 const CONVOY_ROSTERS: &[MissionRoster] = &[
     MissionRoster {
         name: "5 freighters",
@@ -261,6 +315,7 @@ pub fn default_rosters(kind: MissionKind) -> &'static [MissionRoster] {
         MissionKind::Deathmatch => &[],
         MissionKind::CarrierBattle => CARRIER_ROSTERS,
         MissionKind::ConvoyEscort => CONVOY_ROSTERS,
+        MissionKind::StationAssault => STATION_ROSTERS,
     }
 }
 
@@ -319,6 +374,67 @@ impl ConvoyEscort {
     }
 }
 
+/// What the nets read a station assault as (v9): the mission one-hot of the pilot obs
+/// and the commander's role one-hot have no station entry (`OBS_DIM` and
+/// `COMMANDER_IO_VERSION` are unchanged), so the mission is shown as one they know.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum StationReadsAs {
+    /// A carrier battle for both sides: symmetric, the station is "my carrier" or "the
+    /// enemy carrier".
+    #[default]
+    Carrier,
+    /// A convoy escort: team 0 reads as the convoy's defender, team 1 as its attacker,
+    /// so the nets see the asymmetry (and, from the convoy, a clock on the defender's
+    /// side), but no transports.
+    Convoy,
+}
+
+impl StationReadsAs {
+    /// `"carrier"`, `"convoy"`.
+    pub fn name(self) -> &'static str {
+        match self {
+            StationReadsAs::Carrier => "carrier",
+            StationReadsAs::Convoy => "convoy",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<StationReadsAs> {
+        match name {
+            "carrier" => Some(StationReadsAs::Carrier),
+            "convoy" => Some(StationReadsAs::Convoy),
+            _ => None,
+        }
+    }
+
+    /// The mission the nets read.
+    pub fn kind(self) -> MissionKind {
+        match self {
+            StationReadsAs::Carrier => MissionKind::CarrierBattle,
+            StationReadsAs::Convoy => MissionKind::ConvoyEscort,
+        }
+    }
+}
+
+/// Station assault parameters (v9).
+#[derive(Clone, Debug, PartialEq)]
+pub struct StationAssault {
+    /// Team 0: strike craft (fleet order) on picket at tick 0, the rest docked in the
+    /// station. Team 1: strike craft that jump in, the rest docked in its carrier.
+    /// Clamped to the wing size.
+    pub jump_in: [u8; 2],
+    /// What the pilot obs and the commander inputs show the mission as.
+    pub reads_as: StationReadsAs,
+}
+
+impl Default for StationAssault {
+    fn default() -> Self {
+        StationAssault {
+            jump_in: DEFAULT_STATION_JUMP_IN,
+            reads_as: StationReadsAs::Carrier,
+        }
+    }
+}
+
 /// What the match is for (SIM_SPEC §5.10).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub enum Mission {
@@ -326,6 +442,8 @@ pub enum Mission {
     Deathmatch,
     CarrierBattle(CarrierBattle),
     ConvoyEscort(ConvoyEscort),
+    /// v9.
+    StationAssault(StationAssault),
 }
 
 impl Mission {
@@ -334,6 +452,17 @@ impl Mission {
             Mission::Deathmatch => MissionKind::Deathmatch,
             Mission::CarrierBattle(_) => MissionKind::CarrierBattle,
             Mission::ConvoyEscort(_) => MissionKind::ConvoyEscort,
+            Mission::StationAssault(_) => MissionKind::StationAssault,
+        }
+    }
+
+    /// The mission the nets read (v9): the kind, except that a station assault reads
+    /// as its `reads_as`. Indexes the pilot obs's mission one-hot and the commander's
+    /// role one-hot, which have one entry per mission before v9.
+    pub fn obs_kind(&self) -> MissionKind {
+        match self {
+            Mission::StationAssault(sa) => sa.reads_as.kind(),
+            other => other.kind(),
         }
     }
 
@@ -345,6 +474,7 @@ impl Mission {
             MissionKind::ConvoyEscort => {
                 Mission::ConvoyEscort(ConvoyEscort::standard(arena_radius))
             }
+            MissionKind::StationAssault => Mission::StationAssault(StationAssault::default()),
         }
     }
 }
@@ -362,6 +492,10 @@ pub enum EndReason {
     ConvoyThrough = 4,
     /// At least half the convoy (rounded up) was destroyed.
     ConvoyDestroyed = 5,
+    /// v9: the attackers destroyed the station.
+    StationDestroyed = 6,
+    /// v9: the attacker's carrier and every one of its strike craft are gone.
+    AssaultRepelled = 7,
 }
 
 impl EndReason {
@@ -377,8 +511,22 @@ impl EndReason {
             EndReason::CarrierDestroyed => "carrier_destroyed",
             EndReason::ConvoyThrough => "convoy_through",
             EndReason::ConvoyDestroyed => "convoy_destroyed",
+            EndReason::StationDestroyed => "station_destroyed",
+            EndReason::AssaultRepelled => "assault_repelled",
         }
     }
+
+    /// Every reason, in code order (the bindings' `END_REASONS`).
+    pub const ALL: [EndReason; 8] = [
+        EndReason::NotOver,
+        EndReason::Eliminated,
+        EndReason::TimeLimit,
+        EndReason::CarrierDestroyed,
+        EndReason::ConvoyThrough,
+        EndReason::ConvoyDestroyed,
+        EndReason::StationDestroyed,
+        EndReason::AssaultRepelled,
+    ];
 }
 
 /// A transport's jump out of the convoy escort.
@@ -435,7 +583,8 @@ pub struct ConvoyStatus {
 #[derive(Clone, Debug, PartialEq)]
 pub struct MissionState {
     pub end_reason: EndReason,
-    /// Per team: the carrier's slot (carrier battle), else `NONE`.
+    /// Per team: the carrier's slot (carrier battle; v9 station assault: team 0's is the
+    /// station), else `NONE`.
     pub carrier: [ShipIdx; 2],
     /// Per team: the tick from which each bay of its carrier may launch again.
     pub bay_ready: [[u32; MAX_BAYS]; 2],
@@ -493,6 +642,36 @@ pub(crate) fn validate(cat: &Catalogue, cfg: &MatchConfig) -> Result<(), SetupEr
                         "carrier battle: team {team} has a transport (convoy ships only fly convoys)"
                     )));
                 }
+            }
+            Ok(())
+        }
+        Mission::StationAssault(_) => {
+            for team in 0..2 {
+                let carriers = count(team, is_carrier);
+                if carriers != 1 {
+                    return Err(mission_error(format!(
+                        "station assault: team {team} needs exactly one carrier-role ship \
+                         (team 0 its station), has {carriers}"
+                    )));
+                }
+                if count(team, is_transport) > 0 {
+                    return Err(mission_error(format!(
+                        "station assault: team {team} has a transport (convoy ships only fly convoys)"
+                    )));
+                }
+            }
+            let stations = |team: usize| count(team, |h| is_carrier(h) && h.is_static);
+            if stations(0) != 1 {
+                return Err(mission_error(
+                    "station assault: team 0's carrier-role ship must be static (the station)"
+                        .to_string(),
+                ));
+            }
+            if stations(1) != 0 {
+                return Err(mission_error(
+                    "station assault: team 1 attacks with a mobile carrier, not a station"
+                        .to_string(),
+                ));
             }
             Ok(())
         }
@@ -561,7 +740,74 @@ impl Match {
             }
             Mission::CarrierBattle(cb) => self.setup_carrier_battle(cat, &cb),
             Mission::ConvoyEscort(ce) => self.setup_convoy(cat, &ce),
+            Mission::StationAssault(sa) => self.setup_station_assault(cat, &sa),
         }
+    }
+
+    /// v9 (module docs): the station and its picket for team 0, a carrier battle side
+    /// for team 1.
+    fn setup_station_assault(&mut self, cat: &Catalogue, sa: &StationAssault) {
+        let radius = self.cfg.arena_radius;
+        let mut jumps = [false; MAX_SHIPS];
+        for team in 0..2u8 {
+            let t = usize::from(team);
+            let attacker = team == 1;
+            let heading = if attacker { PI } else { 0.0 };
+            let x = if attacker {
+                CARRIER_X_FRAC * radius
+            } else {
+                -STATION_X_FRAC * radius
+            };
+            let y = self.rng.range(-CARRIER_Y_JITTER, CARRIER_Y_JITTER);
+            let pos = Vec2::new(x, y);
+            let slots: Vec<usize> = (0..self.ships.len())
+                .filter(|&i| self.ships[i].team == team)
+                .collect();
+            let carrier = *slots
+                .iter()
+                .find(|&&i| is_carrier(cat.hull(self.ships[i].hull)))
+                .expect("validated: one carrier per team");
+            let fwd = Vec2::from_angle(heading);
+            let c = &mut self.ships[carrier];
+            c.pos = pos;
+            c.heading = heading;
+            c.present = true;
+            if attacker {
+                c.vel = fwd * (CARRIER_START_SPEED_FRAC * cat.hull(c.hull).speed_cap);
+                self.command.waypoints[carrier] =
+                    crate::command::Waypoint::At(pos + fwd * CARRIER_HOLD_AHEAD);
+            }
+            self.mission.carrier[t] = carrier as ShipIdx;
+
+            let wing: Vec<usize> = slots.into_iter().filter(|&i| i != carrier).collect();
+            let n_first = usize::from(sa.jump_in[t]).min(wing.len());
+            for (j, &i) in wing[..n_first].iter().enumerate() {
+                if attacker {
+                    jumps[i] = true;
+                } else {
+                    let off = (j as f32 - (n_first as f32 - 1.0) * 0.5) * PICKET_SPREAD;
+                    let s = &mut self.ships[i];
+                    s.pos = pos + Vec2::from_angle(off) * PICKET_RANGE;
+                    s.heading = 0.0;
+                    s.vel = Vec2::ZERO;
+                    s.present = true;
+                }
+            }
+            for &i in &wing[n_first..] {
+                let s = &mut self.ships[i];
+                s.attach = Attach::Docked;
+                s.parent = carrier as ShipIdx;
+                s.pos = pos;
+                s.heading = heading;
+                self.reserves[t].push(i as ShipIdx);
+            }
+        }
+        arrival::schedule_arrivals_where(
+            &mut self.ships,
+            &mut self.rng,
+            self.cfg.arena_radius,
+            |s| jumps[usize::from(s.slot)],
+        );
     }
 
     fn setup_carrier_battle(&mut self, cat: &Catalogue, cb: &CarrierBattle) {
@@ -663,15 +909,16 @@ impl Match {
         self.ships[s].alive && self.mission.jump[s] != JumpState::Departed
     }
 
-    /// Stage 12b (v4): mission rules after deaths. A carrier battle kills the docked
-    /// reserves of a carrier that died (no `Death` events: they were never on the
+    /// Stage 12b (v4): mission rules after deaths. A carrier battle (v9: and a station
+    /// assault, the station counting as a carrier) kills the docked reserves of a
+    /// carrier that died (no `Death` events: they were never on the
     /// field) and empties its hangar. A convoy escort starts the jump charge of every
     /// active transport inside the jump radius (`JumpCharge`) and jumps out those whose
     /// charge is complete (`JumpOut`: not present, levels 0, queue idle, waypoint unset).
     pub(crate) fn step_mission_rules(&mut self) {
         match &self.cfg.mission {
             Mission::Deathmatch => {}
-            Mission::CarrierBattle(_) => {
+            Mission::CarrierBattle(_) | Mission::StationAssault(_) => {
                 for team in 0..2 {
                     let carrier = self.mission.carrier[team];
                     if carrier == NONE || self.ships[usize::from(carrier)].alive {
@@ -792,6 +1039,18 @@ impl Match {
                     (true, false) => Some((0, EndReason::CarrierDestroyed)),
                     _ if time_up => Some((self.carrier_tiebreak(cat), EndReason::TimeLimit)),
                     _ => None,
+                }
+            }
+            Mission::StationAssault(_) => {
+                let station = usize::from(self.mission.carrier[0]);
+                if !self.ships[station].alive {
+                    Some((1, EndReason::StationDestroyed))
+                } else if alive[1] == 0 {
+                    Some((0, EndReason::AssaultRepelled))
+                } else if time_up {
+                    Some((0, EndReason::TimeLimit))
+                } else {
+                    None
                 }
             }
             Mission::ConvoyEscort(_) => {

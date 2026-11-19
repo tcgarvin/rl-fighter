@@ -56,6 +56,7 @@ from spacefight.env.rosters import (
     DEATHMATCH,
     RANDOM,
     SCRIPTED,
+    STATION_ASSAULT,
     PilotsDistribution,
     Roster,
     make_sampler,
@@ -66,7 +67,11 @@ from spacefight.eval.missions import default_rosters
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ASSETS = REPO_ROOT / "assets"
 LEARNED: Final = "learned"
+# The missions the commander evals and the WAR matches play by default.
 MISSIONS: Final = (DEATHMATCH, CARRIER_BATTLE, CONVOY_ESCORT)
+# The missions ``TrainConfig.mission_weights`` draws from (SIM_VERSION 9 adds the
+# station assault, weight 0 by default: three weights mean exactly the old draws).
+TRAIN_MISSIONS: Final = (*MISSIONS, STATION_ASSAULT)
 WINNER_DRAW: Final = -1
 TICK_HZ: Final = 30
 
@@ -112,7 +117,9 @@ class TrainConfig:
     snapshot_every: int = 20
     max_snapshots: int = 10
     checkpoint_every: int = 10
-    mission_weights: tuple[float, float, float] = (1.0, 1.0, 1.0)
+    # One weight per ``TRAIN_MISSIONS``; a three-weight tuple (configs from before
+    # SIM_VERSION 9) gets a station weight of 0, which draws exactly as before.
+    mission_weights: tuple[float, ...] = (1.0, 1.0, 1.0, 0.0)
     live_pilots: str = str(LIVE_PILOTS)
     max_updates: int = 1_000_000
 
@@ -126,6 +133,15 @@ class TrainConfig:
                 f"({', '.join(OPP_NAMES)}), not all zero; got {self.opponent_shares}"
             )
         self.opponent_shares = shares
+        weights = tuple(float(x) for x in self.mission_weights)
+        if len(weights) == len(TRAIN_MISSIONS) - 1:
+            weights = (*weights, 0.0)
+        if len(weights) != len(TRAIN_MISSIONS) or min(weights) < 0 or sum(weights) <= 0:
+            raise ValueError(
+                f"mission_weights needs {len(TRAIN_MISSIONS)} non-negative weights "
+                f"({', '.join(TRAIN_MISSIONS)}), not all zero; got {self.mission_weights}"
+            )
+        self.mission_weights = weights
         if self.decisions_per_update < self.minibatch:
             raise ValueError("decisions_per_update must be at least one minibatch")
         if self.order_price < 0:
@@ -241,7 +257,7 @@ class Trainer:
         self.dm_sampler = make_sampler(
             PilotsDistribution(mission_weights=(1.0, 0.0, 0.0)), cfg.seed + 7
         )
-        self.mission_rosters = {m: default_rosters(m) for m in MISSIONS[1:]}
+        self.mission_rosters = {m: default_rosters(m) for m in TRAIN_MISSIONS[1:]}
         first = self._draw_assignment()
         roster = self._roster(first)
         self.env = RustVecEnv(
@@ -291,7 +307,8 @@ class Trainer:
             w = (1.0 - rates) ** cfg.pfsp_power + cfg.pfsp_floor
             snap = int(self.rng.choice(len(self.pool), p=w / w.sum()))
         mw = np.asarray(cfg.mission_weights, dtype=np.float64)
-        mission = MISSIONS[int(self.rng.choice(3, p=mw / mw.sum()))]
+        # A trailing zero weight leaves the draw exactly as with three missions.
+        mission = TRAIN_MISSIONS[int(self.rng.choice(len(mw), p=mw / mw.sum()))]
         return Assignment(
             learner_team=int(self.rng.integers(0, 2)),
             opponent=opp,
@@ -611,7 +628,7 @@ class Trainer:
     def _summarise_matches(self) -> dict[str, float]:
         s = self.match_stats
         out: dict[str, float] = {"matches": s["matches"]}
-        for name in (*OPP_NAMES, *MISSIONS):
+        for name in (*OPP_NAMES, *TRAIN_MISSIONS):
             if s[f"n_{name}"]:
                 out[f"win_{name}"] = round(s[f"won_{name}"] / s[f"n_{name}"], 3)
                 out[f"n_{name}"] = s[f"n_{name}"]

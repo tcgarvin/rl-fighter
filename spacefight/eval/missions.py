@@ -12,6 +12,10 @@ commander" is ``evaluate(candidate, v1)`` (``lab/runs/2026-10-31-order-pilot``).
 
     python -m spacefight.eval.missions --a ckpt.pt --b v1.pt --out missions.json
     python -m spacefight.eval.missions --a script --b script   # baseline
+    python -m spacefight.eval.missions --missions station_assault --station-as convoy
+
+The station assault (SIM_VERSION 9) is optional, not in the default set; its defenders
+are team 0. ``station_as`` (``carrier`` or ``convoy``) is what the nets read it as.
 
 Metrics (JSON schema ``rlf.eval.mission/1``), per mission and overall:
 
@@ -44,6 +48,8 @@ from spacefight.env.rosters import (
     CARRIER_BATTLE,
     CONVOY_ESCORT,
     SCRIPTED,
+    STATION_AS_CARRIER,
+    STATION_READS_AS,
     Roster,
     capital_hull_ids,
 )
@@ -86,6 +92,8 @@ class MissionEvalConfig:
     commanders: str = SCRIPTED
     reaction_ticks: int = 2
     sim_version: int = int(rlf_sim.SIM_VERSION)
+    # What a station assault reads as to the nets (``STATION_READS_AS``).
+    station_as: str = STATION_AS_CARRIER
 
 
 @dataclass
@@ -118,6 +126,7 @@ def build_mission_env(
     reaction_ticks: int = 2,
     assets_dir: Path = ASSETS,
     hide_a: bool = False,
+    station_as: str = STATION_AS_CARRIER,
 ) -> MissionEnv:
     """The env of one mission (module docstring for the layout).
 
@@ -125,6 +134,8 @@ def build_mission_env(
         hide_a: Hide side ``a``'s orders from its pilots' obs (SIM_VERSION 6, the
             order eval's hidden pass); the other side, the rewards and the scripts
             are unaffected, and the matches are otherwise the same for a seed.
+        station_as: A station assault's obs mapping (``STATION_READS_AS``); ignored
+            by the other missions.
 
     Raises:
         ValueError: ``n`` is not a positive multiple of twice the roster count.
@@ -156,7 +167,7 @@ def build_mission_env(
         hide = (hide_a and a_team[i] == 0, hide_a and a_team[i] == 1)
         env.set_next_roster(
             i,
-            Roster(roster.teams, mission, modes),
+            Roster(roster.teams, mission, modes, station_as=station_as),
             hide_orders=hide if hide_a else None,
         )
     env.reset()
@@ -336,6 +347,7 @@ def run_mission(
         n_threads,
         cfg.reaction_ticks,
         assets_dir,
+        station_as=cfg.station_as,
     )
     return play_mission_env(a, b, mission, me)
 
@@ -468,6 +480,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     p.add_argument("--n-per-mission", type=int, default=516)
     p.add_argument("--seed", type=int, default=DEFAULT_SEED)
     p.add_argument("--commanders", default=SCRIPTED, help="scripted or random")
+    p.add_argument(
+        "--station-as",
+        default=STATION_AS_CARRIER,
+        choices=STATION_READS_AS,
+        help="what a station assault reads as to the nets (SIM_VERSION 9)",
+    )
     p.add_argument("--n-threads", type=int, default=12)
     p.add_argument("--argmax", action="store_true")
     p.add_argument("--out", type=Path)
@@ -477,6 +495,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         n_per_mission=args.n_per_mission,
         seed=args.seed,
         commanders=args.commanders,
+        station_as=args.station_as,
     )
     sample = not args.argmax
     result = evaluate(

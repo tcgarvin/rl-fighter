@@ -115,6 +115,12 @@ pub const STAGING_RADIUS: f32 = 60.0;
 pub const FOCUS_REACH: f32 = 300.0;
 /// Deathmatch: a new focus target must be this much more damaged (fraction).
 pub const FOCUS_SWITCH_MARGIN: f32 = 0.2;
+/// Station assault (v9): enemy strike craft within this distance of the station (m;
+/// the turrets reach 230, a bomber's torpedo 240) make the defender scramble.
+pub const STATION_ALARM_RADIUS: f32 = 320.0;
+/// Station assault: the attackers hold at their carrier until every strike craft is
+/// launched and on the field, or until this tick (40 s), then go in together.
+pub const ASSAULT_TICKS: u32 = 1200;
 
 const DEFEND: usize = 0;
 const STRIKE: usize = 1;
@@ -286,8 +292,175 @@ pub fn commands(m: &Match, cat: &Catalogue, team: u8) -> Vec<Command> {
         Mission::CarrierBattle(_) => carrier_battle(m, cat, team, &mut out),
         Mission::ConvoyEscort(ce) if team == 0 => convoy_defence(m, cat, ce, &mut out),
         Mission::ConvoyEscort(ce) => convoy_attack(m, cat, ce, &mut out),
+        Mission::StationAssault(_) if team == 0 => station_defence(m, cat, &mut out),
+        Mission::StationAssault(_) => station_attack(m, cat, &mut out),
     }
     out
+}
+
+/// Active enemy bombers of `team` (`scripted::is_bomber`).
+fn enemy_bombers(m: &Match, cat: &Catalogue, team: u8) -> u32 {
+    mask_of(m, |_, s| {
+        s.team != team && s.active() && super::is_bomber(cat, cat.hull(s.hull))
+    })
+}
+
+/// Launch commands for `team`'s carrier, `n` at most (the sim picks the bays and
+/// refuses what they cannot do); the launched ships join `wing`.
+fn launch(m: &Match, team: u8, n: usize, wing: &mut u32, out: &mut Vec<Command>) {
+    let reserves = &m.reserves[usize::from(team)];
+    for &slot in &reserves[..n.min(reserves.len())] {
+        out.push(Command::Launch {
+            hull: None,
+            bay: None,
+        });
+        *wing |= 1 << slot;
+    }
+}
+
+/// Station assault, the defender (v9). *Launches*: keep `WING_BASE` strike craft in
+/// space, one more every `WING_GROWTH_TICKS`, paced like a carrier's; scramble one
+/// per bay per slow tick while any enemy strike craft is within `STATION_ALARM_RADIUS`
+/// of the station. *Squads*: squad 0 **defends** the station (half the wing), squad 1
+/// **intercepts**: the enemy bomber nearest the station, else the enemy strike craft
+/// nearest it, else (no enemy strike craft on the field) the enemy carrier, whose loss
+/// takes its hangar with it. The station has no waypoint: it cannot move.
+fn station_defence(m: &Match, cat: &Catalogue, out: &mut Vec<Command>) {
+    let station = usize::from(m.mission.carrier[0]);
+    if !m.ships[station].active() {
+        return;
+    }
+    let at = m.ships[station].pos;
+    let enemy_strike = enemy_strike(m, cat, 0);
+    let alarmed = within(m, enemy_strike, at, STATION_ALARM_RADIUS) > 0;
+    let mut wing = own_wing(m, cat, 0);
+    let bays = cat.hull(m.ships[station].hull).bays.len();
+    let last_launch = m.mission.bay_ready[0][..bays]
+        .iter()
+        .max()
+        .map_or(0, |&r| r.saturating_sub(BAY_COOLDOWN_TICKS));
+    let paced = m.tick >= last_launch + LAUNCH_INTERVAL_TICKS || last_launch == 0;
+    let target = WING_BASE + (m.tick / WING_GROWTH_TICKS) as usize;
+    let launches = if alarmed {
+        bays
+    } else if count(wing) < target && paced {
+        1
+    } else {
+        0
+    };
+    launch(m, 0, launches, &mut wing, out);
+
+    let squads = &m.command.squads[0];
+    let from_station = |s: usize| (m.ships[s].pos - at).length();
+    let (defend, intercept) = split(
+        squads,
+        wing,
+        (DEFEND, INTERCEPT),
+        count(wing).div_ceil(2),
+        from_station,
+    );
+    let defend_order = if defend == 0 {
+        Order::None
+    } else {
+        Order::Defend {
+            ward: station as ShipIdx,
+        }
+    };
+    let foe = m.mission.carrier[1];
+    let bombers = enemy_bombers(m, cat, 0);
+    let intercept_order = if intercept == 0 {
+        Order::None
+    } else if bombers != 0 {
+        sticky_nearest(squads[INTERCEPT].order, bombers, from_station).map_or(Order::None, attack)
+    } else if enemy_strike != 0 {
+        sticky_nearest(squads[INTERCEPT].order, enemy_strike, from_station)
+            .map_or(Order::None, attack)
+    } else if foe != NONE && m.ships[usize::from(foe)].active() {
+        attack(usize::from(foe))
+    } else {
+        Order::None
+    };
+    set_squad(m, 0, DEFEND, defend, defend_order, out);
+    set_squad(m, 0, INTERCEPT, intercept, intercept_order, out);
+}
+
+/// Station assault, the attacker (v9). *Launches*: one per bay per slow tick until the
+/// hangar is empty (the clock is the defender's, so the attacker commits everything).
+/// *Squads*: until the assault starts, every strike craft **defends** the carrier
+/// (they gather round it); the assault starts once the hangar is empty and every
+/// strike craft is on the field, at `ASSAULT_TICKS`, or when the carrier is lost,
+/// and once started it stays started. Then squad 1, the bombers, **attacks** the
+/// station, and squad 0, the rest, **defends** the bomber nearest the station (it
+/// attacks the station itself once no bomber is left). *Carrier waypoint*: it
+/// patrols its own side as in a carrier battle, out of the station's reach.
+fn station_attack(m: &Match, cat: &Catalogue, out: &mut Vec<Command>) {
+    let station = usize::from(m.mission.carrier[0]);
+    if !m.ships[station].active() {
+        return;
+    }
+    let own = usize::from(m.mission.carrier[1]);
+    let carrier_up = m.ships[own].active();
+    let mut wing = own_wing(m, cat, 1);
+    if carrier_up {
+        let bays = cat.hull(m.ships[own].hull).bays.len();
+        launch(m, 1, bays, &mut wing, out);
+    }
+    let bombers = mask_of(m, |i, s| {
+        wing & (1 << i) != 0 && super::is_bomber(cat, cat.hull(s.hull))
+    });
+    let escorts = wing & !bombers;
+    let squads = &m.command.squads[1];
+    let started = matches!(squads[STRIKE].order, Order::Attack { .. })
+        || matches!(squads[DEFEND].order, Order::Attack { .. })
+        || matches!(squads[DEFEND].order, Order::Defend { ward } if usize::from(ward) != own);
+    let gathered = m.reserves[1].is_empty() && slots(wing).all(|s| m.ships[s].present);
+    let go = started || !carrier_up || gathered || m.tick >= ASSAULT_TICKS;
+    let at = m.ships[station].pos;
+    let gather = Order::Defend {
+        ward: own as ShipIdx,
+    };
+    let (strike_order, escort_order) = if !go {
+        (gather, gather)
+    } else {
+        let lead = nearest_by(bombers, |s| (m.ships[s].pos - at).length());
+        let escort = match lead {
+            Some(b) => Order::Defend { ward: b as ShipIdx },
+            None => attack(station),
+        };
+        (attack(station), escort)
+    };
+    let none_if_empty = |mask: u32, order: Order| if mask == 0 { Order::None } else { order };
+    set_squad(
+        m,
+        1,
+        DEFEND,
+        escorts,
+        none_if_empty(escorts, escort_order),
+        out,
+    );
+    set_squad(
+        m,
+        1,
+        STRIKE,
+        bombers,
+        none_if_empty(bombers, strike_order),
+        out,
+    );
+    if carrier_up {
+        // A spent wing (no strike craft, empty hangar): the carrier closes on the
+        // station for a flak duel, as in a carrier battle, so the match ends.
+        let goal = if wing == 0 && m.reserves[1].is_empty() {
+            at
+        } else {
+            let leg = if (m.tick / PATROL_TICKS) % 2 == 0 {
+                1.0
+            } else {
+                -1.0
+            };
+            Vec2::new(HOME_FRAC * m.cfg.arena_radius, leg * PATROL_Y)
+        };
+        set_waypoint(m, own, goal, out);
+    }
 }
 
 /// Own strike craft in the match and not docked (on the field or on the way in).

@@ -9,7 +9,7 @@ use pyo3::types::PyDict;
 use sim::actions::{ACTION_WIDTH, FIRE_OFFSET, POWER_OFFSET, SLEW_OFFSET, THROTTLE_OFFSET};
 use sim::command::{COMMAND_TICKS, CommanderMode, LEARNED_COMMAND_TICKS, MAX_SQUADS};
 use sim::events;
-use sim::mission::{EndReason, MissionKind};
+use sim::mission::{EndReason, MissionKind, StationReadsAs};
 use sim::obs::{N_NEAR_SHIPS, N_ORDER_SHIPS, SHIP_EXTRA_W};
 use sim::obs::{OBS_DIM, OBS_LAYOUT, OBS_SLOTS};
 use sim::state::{MAX_HITS, MAX_REACTION_TICKS, MAX_SHIPS, MAX_THRUSTERS, MAX_TURRETS};
@@ -55,30 +55,21 @@ fn rlf_sim(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("COMMAND_TICKS", COMMAND_TICKS)?;
     m.add("LEARNED_COMMAND_TICKS", LEARNED_COMMAND_TICKS)?;
     m.add("MAX_SQUADS", MAX_SQUADS)?;
+    // In mission code order (v9 appends "station_assault").
+    m.add("MISSIONS", MissionKind::ALL.map(MissionKind::name).to_vec())?;
+    // v9: what a station assault can read as (`{"kind": "station_assault", "as": ...}`).
     m.add(
-        "MISSIONS",
-        [
-            MissionKind::Deathmatch,
-            MissionKind::CarrierBattle,
-            MissionKind::ConvoyEscort,
-        ]
-        .map(MissionKind::name)
-        .to_vec(),
+        "STATION_READS_AS",
+        [StationReadsAs::Carrier, StationReadsAs::Convoy]
+            .map(StationReadsAs::name)
+            .to_vec(),
     )?;
-    // Indexed by the `end_reason` buffer's codes.
-    m.add(
-        "END_REASONS",
-        [
-            EndReason::NotOver,
-            EndReason::Eliminated,
-            EndReason::TimeLimit,
-            EndReason::CarrierDestroyed,
-            EndReason::ConvoyThrough,
-            EndReason::ConvoyDestroyed,
-        ]
-        .map(EndReason::name)
-        .to_vec(),
-    )?;
+    // v9: the hulls that keep their v4-v8 ids, in id order; every other hull follows by
+    // name (`sim::data::hull_order`).
+    m.add("LEGACY_HULL_ORDER", sim::data::LEGACY_HULL_ORDER.to_vec())?;
+    // Indexed by the `end_reason` buffer's codes (v9 appends station_destroyed and
+    // assault_repelled).
+    m.add("END_REASONS", EndReason::ALL.map(EndReason::name).to_vec())?;
     let event_kinds = PyDict::new(py);
     for (name, code) in [
         ("fire", events::KIND_FIRE),
@@ -242,7 +233,7 @@ fn arena_radius_for(n_ships: usize) -> f32 {
 fn mission_kind(name: &str) -> PyResult<MissionKind> {
     MissionKind::from_name(name).ok_or_else(|| {
         pyo3::exceptions::PyValueError::new_err(format!(
-            "unknown mission {name:?} (deathmatch, carrier_battle, convoy_escort)"
+            "unknown mission {name:?} (deathmatch, carrier_battle, convoy_escort, station_assault)"
         ))
     })
 }

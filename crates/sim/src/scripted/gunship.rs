@@ -35,3 +35,24 @@ pub(crate) fn manoeuvre(eng: &Engagement) -> Manoeuvre {
         heading,
     }
 }
+
+/// v9: an anchor whose primary (first) weapon is a fixed mount, the bomber's torpedo
+/// rack, keeps its nose on the lead point instead of turning broadside: it closes to
+/// `NOSE_ON_STANDOFF` × the weapon's range and holds there, firing down its nose. The
+/// gunship (a slewing fore turret) never takes this branch, so its flying is unchanged.
+pub const NOSE_ON_STANDOFF: f32 = 0.85;
+
+pub(crate) fn nose_on(eng: &Engagement) -> Manoeuvre {
+    let standoff = NOSE_ON_STANDOFF * eng.gun_range;
+    let go = if eng.dist > standoff {
+        CLOSE_THRUST
+    } else if eng.dist < standoff * TOO_CLOSE {
+        BACK_OFF_THRUST
+    } else {
+        0.0
+    };
+    Manoeuvre {
+        force_body: Vec2::new(go, 0.0),
+        heading: eng.lead_heading,
+    }
+}

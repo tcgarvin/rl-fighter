@@ -1,0 +1,10 @@
+{
+ "base": {},
+ "hp1600": {"edits": {"hulls/station/hull.yaml": {"hp": 1600}}},
+ "hp1200": {"edits": {"hulls/station/hull.yaml": {"hp": 1200}}},
+ "torp150": {"edits": {"weapons.yaml": {"torpedo.damage": 150, "torpedo.interval": 4.5}}},
+ "ring_2f4g": {"ring": ["flak", "gauss", "gauss", "flak", "gauss", "gauss"]},
+ "bomber_shield": {"edits": {"hulls/bomber/hull.yaml": {"hp": 200, "shield": {"hp": 60, "regen_rate": 8, "regen_delay": 4, "radius": 8}}}},
+ "hp1600_torp150": {"edits": {"hulls/station/hull.yaml": {"hp": 1600}, "weapons.yaml": {"torpedo.damage": 150, "torpedo.interval": 4.5}}},
+ "hp1600_torp150_shield": {"edits": {"hulls/station/hull.yaml": {"hp": 1600}, "weapons.yaml": {"torpedo.damage": 150, "torpedo.interval": 4.5}, "hulls/bomber/hull.yaml": {"hp": 200, "shield": {"hp": 60, "regen_rate": 8, "regen_delay": 4, "radius": 8}}}}
+}

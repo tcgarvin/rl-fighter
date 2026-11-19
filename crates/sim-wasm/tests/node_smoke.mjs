@@ -21,7 +21,7 @@ sim.initSync({ module: fs.readFileSync(path.join(pkgDir, "sim_wasm_bg.wasm")) })
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const read = (rel) => fs.readFileSync(path.join(repo, rel), "utf8");
 // Every shipped hull (v4 ids: carrier 0, fighter 1, freighter 2, gunship 3, strafer 4).
-const hulls = ["carrier", "fighter", "freighter", "gunship", "strafer"].map((n) => [n, read(`assets/hulls/${n}/hull.yaml`)]);
+const hulls = ["carrier", "fighter", "freighter", "gunship", "strafer", "bomber", "station"].map((n) => [n, read(`assets/hulls/${n}/hull.yaml`)]);
 const weapons = read("assets/weapons.yaml");
 
 const scenarios = [
@@ -64,6 +64,16 @@ const scenarios = [
       ["carrier", "fighter", "strafer", "fighter", "gunship", "fighter", "fighter"],
     ],
   },
+  // v9: the station assault, the sim's default roster (station v carrier with bombers).
+  {
+    golden: "station_assault_s43",
+    seed: 43,
+    extra: { mission: { kind: "station_assault", as: "carrier" }, time_limit_ticks: 9000 },
+    fleets: [
+      ["station", "fighter", "strafer", "fighter", "gunship", "fighter", "strafer"],
+      ["carrier", "fighter", "bomber", "fighter", "bomber", "strafer", "bomber", "fighter", "gunship"],
+    ],
+  },
 ];
 
 function goldenEnd(name) {
@@ -83,12 +93,12 @@ function check(cond, msg) {
 
 check(sim.SHIP_STRIDE() === 29 && sim.EVENT_STRIDE() === 8 && sim.PROJECTILE_STRIDE() === 8, "strides");
 check(sim.ACTION_WIDTH() === 21 && sim.OBS_DIM() === 587, "action/obs widths");
-check(sim.sim_version() === 8 && Array.from(sim.pilot_compat_versions()).join() === "3,4,5,6,7,8", "v8 + pilot compat");
+check(sim.sim_version() === 9 && Array.from(sim.pilot_compat_versions()).join() === "3,4,5,6,7,8,9", "v9 + pilot compat");
 check(
-  sim.pilotObsDim(3) === 385 && sim.pilotObsDim(4) === 385 && sim.pilotObsDim(5) === 403 && sim.pilotObsDim(6) === 583 && sim.pilotObsDim(7) === 583 && sim.pilotObsDim(8) === 587,
+  sim.pilotObsDim(3) === 385 && sim.pilotObsDim(4) === 385 && sim.pilotObsDim(5) === 403 && sim.pilotObsDim(6) === 583 && sim.pilotObsDim(7) === 583 && sim.pilotObsDim(8) === 587 && sim.pilotObsDim(9) === 587,
   "pilot obs dims",
 );
-check(JSON.stringify(JSON.parse(sim.pilotObsDimsJson())) === '{"3":385,"4":385,"5":403,"6":583,"7":583,"8":587}', "pilotObsDimsJson");
+check(JSON.stringify(JSON.parse(sim.pilotObsDimsJson())) === '{"3":385,"4":385,"5":403,"6":583,"7":583,"8":587,"9":587}', "pilotObsDimsJson");
 check(JSON.parse(sim.obsLayoutJson()).blocks.at(-1).join() === "order_time,583,4", "obs layout ends with the order_time block");
 check(sim.MAX_TRAIN_SHIPS() === 12, "MAX_TRAIN_SHIPS");
 check(sim.pilot_compatible(3) && !sim.pilot_compatible(2), "pilot_compatible");
@@ -117,9 +127,9 @@ check(sim.MAX_SHIPS() === 20 && sim.COMMAND_TICKS() === 60 && sim.arenaRadiusFor
 
 let threw = false;
 try {
-  new sim.WasmMatch(hulls, weapons, '{"seed":1,"fleets":[["fighter"],["bomber"]]}');
+  new sim.WasmMatch(hulls, weapons, '{"seed":1,"fleets":[["fighter"],["dreadnought"]]}');
 } catch (e) {
-  threw = String(e.message ?? e).includes("bomber");
+  threw = String(e.message ?? e).includes("dreadnought");
 }
 check(threw, "unknown hull should throw a JS error naming it");
 

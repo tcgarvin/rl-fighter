@@ -1,0 +1,30 @@
+# Bomber (SIM_VERSION 9): a slow strike hull with a fixed forward torpedo rack, fired by
+# the fire head like the fighter's nose gun. Deadly to capital ships (they cannot dodge
+# a homing torpedo), poor against fighters (which can). Role `anchor`, the gunship's
+# class: the scripted anchor pilot flies it (nose-on, since its primary weapon is fixed),
+# a learned commander launches it with the gunship head, and the obs class one-hot reads
+# it as a slow heavy hull. Thrusters, mount and size from web/src/render/hulls.js.
+name: bomber
+role: anchor
+hp: 200
+mass: 22.0
+inertia: 260.0
+speed_cap: 34.0
+static: false
+shield: {hp: 60, regen_rate: 8, regen_delay: 4, radius: 8}
+impact:                # v3 collision damage: a sturdy airframe
+  - {from_deg: -180, to_deg: 180, mult: 0.75}
+cost: 25
+collision:
+  - {pos: [3.0, 0.0], r: 3.0}
+  - {pos: [-2.5, 0.0], r: 3.4}
+thrusters:
+  - {id: thruster.main.l, pos: [-6, 1.6], dir: [1, 0], max_force: 900}
+  - {id: thruster.main.r, pos: [-6, -1.6], dir: [1, 0], max_force: 900}
+  - {id: thruster.rcs.fl, pos: [3.5, 3.2], dir: [0, -1], max_force: 260}
+  - {id: thruster.rcs.fr, pos: [3.5, -3.2], dir: [0, 1], max_force: 260}
+  - {id: thruster.rcs.rl, pos: [-3.5, 3.8], dir: [0, -1], max_force: 260}
+  - {id: thruster.rcs.rr, pos: [-3.5, -3.8], dir: [0, 1], max_force: 260}
+turrets:
+  - {id: turret.rack, pos: [4.8, 0.0], rest_deg: 0, arc_deg: 0, slew_deg_s: 0, weapon: torpedo}
+bays: []

@@ -675,7 +675,8 @@ pub fn write_order(m: &Match, cat: &Catalogue, ship: &Ship, out: &mut [f32]) {
         out[order_f::COS_REL_HEADING] = libm::cosf(rel_heading);
     }
     out[order_f::AGE] = (m.order_age(ship.slot) as f32 / ORDER_AGE_TICKS).min(1.0);
-    out[order_f::MISSION + usize::from(m.cfg.mission.kind().index())] = 1.0;
+    // v9: a station assault reads as its `reads_as` (no new entry: `OBS_DIM` stays 587).
+    out[order_f::MISSION + usize::from(m.cfg.mission.obs_kind().index())] = 1.0;
     clamp_record(out);
 }
 

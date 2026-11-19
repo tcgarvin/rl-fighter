@@ -13,16 +13,20 @@ const STRAFER: &str = include_str!("../../../assets/hulls/strafer/hull.yaml");
 const GUNSHIP: &str = include_str!("../../../assets/hulls/gunship/hull.yaml");
 const CARRIER: &str = include_str!("../../../assets/hulls/carrier/hull.yaml");
 const FREIGHTER: &str = include_str!("../../../assets/hulls/freighter/hull.yaml");
+const BOMBER: &str = include_str!("../../../assets/hulls/bomber/hull.yaml");
+const STATION: &str = include_str!("../../../assets/hulls/station/hull.yaml");
 
 const DEG: f32 = PI / 180.0;
 
 fn shipped() -> Catalogue {
-    // Deliberately unsorted: from_yaml must sort by name.
+    // Deliberately unsorted: from_yaml must put them in `hull_order`.
     Catalogue::from_yaml(
         &[
             ("strafer", STRAFER),
+            ("station", STATION),
             ("freighter", FREIGHTER),
             ("gunship", GUNSHIP),
+            ("bomber", BOMBER),
             ("fighter", FIGHTER),
             ("carrier", CARRIER),
         ],
@@ -69,20 +73,30 @@ fn assert_rule(errors: &[String], rule: u32, count: usize) {
 }
 
 #[test]
-fn shipped_hulls_sorted_by_name() {
+fn shipped_hulls_in_hull_order() {
     let cat = shipped();
     let names: Vec<&str> = cat.hulls.iter().map(|h| h.name.as_str()).collect();
-    // v4: the carrier sorts first, so every v3 hull id shifted (SIM_SPEC §4.3).
+    // v4: the carrier sorts first, so every v3 hull id shifted (SIM_SPEC §4.3). v9:
+    // the v4 hulls keep those ids and the new ones follow (`hull_order`).
     assert_eq!(
         names,
-        ["carrier", "fighter", "freighter", "gunship", "strafer"]
+        [
+            "carrier",
+            "fighter",
+            "freighter",
+            "gunship",
+            "strafer",
+            "bomber",
+            "station"
+        ]
     );
     assert_eq!(cat.hull_id("carrier"), Some(0));
     assert_eq!(cat.hull_id("fighter"), Some(1));
     assert_eq!(cat.hull_id("freighter"), Some(2));
     assert_eq!(cat.hull_id("gunship"), Some(3));
     assert_eq!(cat.hull_id("strafer"), Some(4));
-    assert_eq!(cat.hull_id("bomber"), None);
+    assert_eq!(cat.hull_id("bomber"), Some(5));
+    assert_eq!(cat.hull_id("station"), Some(6));
 }
 
 #[test]
@@ -114,6 +128,33 @@ fn rule13_too_many_bays() {
     assert_rule(&errors, 13, 1);
 }
 
+/// v9: the v4-v8 hulls keep their ids whatever else the catalogue holds; later hulls
+/// follow by name (`sim::data::hull_order`). The state hash writes hull ids, so this is
+/// what keeps every older golden trace valid.
+#[test]
+fn legacy_hulls_keep_their_ids_and_new_hulls_follow_by_name() {
+    let cat = shipped();
+    let names: Vec<&str> = cat.hulls.iter().map(|h| h.name.as_str()).collect();
+    assert_eq!(
+        names,
+        [
+            "carrier",
+            "fighter",
+            "freighter",
+            "gunship",
+            "strafer",
+            "bomber",
+            "station"
+        ]
+    );
+    assert_eq!(&names[..5], sim::data::LEGACY_HULL_ORDER.as_slice());
+    // Without the legacy hulls the order is plain name order, as before v9.
+    let two =
+        Catalogue::from_yaml(&[("station", STATION), ("bomber", BOMBER)], WEAPONS).expect("loads");
+    assert_eq!(two.hulls[0].name, "bomber");
+    assert_eq!(two.hulls[1].name, "station");
+}
+
 #[test]
 fn weapons_in_file_order_with_resolved_units() {
     let cat = shipped();
@@ -139,8 +180,9 @@ fn weapons_in_file_order_with_resolved_units() {
 
     let torpedo = &cat.weapons[3];
     assert_eq!(torpedo.kind, WeaponKind::Torpedo);
-    assert_eq!(torpedo.life_ticks, 140); // 340 / 95 * 30 * 1.3 = 139.58
-    assert!(approx(torpedo.turn_rate, 40.0 * DEG));
+    // v9, the bomber's rack: 240 / 90 * 30 * 1.3 = 104.
+    assert_eq!(torpedo.life_ticks, 104);
+    assert!(approx(torpedo.turn_rate, 30.0 * DEG));
     assert!(approx(torpedo.lock_cone, 30.0 * DEG));
 }
 

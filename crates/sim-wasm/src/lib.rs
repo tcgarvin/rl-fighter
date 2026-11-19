@@ -355,13 +355,20 @@ impl WasmMatch {
         self.core.ship_ext_view().len()
     }
 
-    /// v4: 0 deathmatch, 1 carrier battle, 2 convoy escort.
+    /// v4: 0 deathmatch, 1 carrier battle, 2 convoy escort; v9: 3 station assault.
     pub fn mission_kind(&self) -> u8 {
         self.core.mission_kind()
     }
 
+    /// v9: the mission code the nets read: a station assault reads as 1 (carrier
+    /// battle) or 2 (convoy escort), every other mission as itself.
+    pub fn obs_mission_kind(&self) -> u8 {
+        self.core.obs_mission_kind()
+    }
+
     /// v4: why the match ended: 0 not over, 1 eliminated, 2 time limit, 3 carrier
-    /// destroyed, 4 convoy through, 5 convoy destroyed.
+    /// destroyed, 4 convoy through, 5 convoy destroyed; v9: 6 station destroyed, 7
+    /// assault repelled.
     pub fn end_reason(&self) -> u8 {
         self.core.end_reason()
     }

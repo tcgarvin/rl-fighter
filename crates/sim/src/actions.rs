@@ -68,7 +68,8 @@ impl ShipAction {
         power: 0,
     };
 
-    /// What a control-locked (or static, or not present) ship applies in stage 3:
+    /// What a control-locked (or not present) ship applies in stage 3 (v9: a static
+    /// ship takes only its throttle heads):
     /// every level ramps down, turrets hold, no fire. Its power head means "keep":
     /// stage 3 leaves `power_target` unchanged for a locked ship, so the `0` here is
     /// never read. Sim-internal; never a policy or BC label.
@@ -203,8 +204,9 @@ impl Match {
     /// Stage 3 (SIM_SPEC §5, v2): for every alive ship in slot order, dequeue the
     /// action that applies this tick and enqueue the one chosen now (sanitised, or
     /// `IDLE` if it would land in the control lock or the ship is not present); a
-    /// locked, static or not-present ship applies `LOCKED`, otherwise the action sets
-    /// `power_target`; then ramp the thrust levels and record the action in
+    /// locked or not-present ship applies `LOCKED`, otherwise the action sets
+    /// `power_target` (v9: a static ship's throttle heads are `LOCKED`'s, its turrets
+    /// and power act); then ramp the thrust levels and record the action in
     /// `applied` for stages 6–7. Dead ships are skipped entirely.
     pub fn apply_actions(&mut self, cat: &Catalogue) {
         let tick = self.tick;
@@ -227,11 +229,16 @@ impl Match {
                 head
             };
 
-            let locked = ship.control_locked(tick) || hull.is_static || !ship.active();
+            let locked = ship.control_locked(tick) || !ship.active();
             if locked {
                 a = ShipAction::LOCKED;
             } else {
                 ship.power_target = power::target_for(hull, usize::from(a.power));
+                if hull.is_static {
+                    // v9: a static hull (the station) keeps its turrets and power; only
+                    // its thrust stays locked. Before v9 no hull in a match was static.
+                    a.throttle = ShipAction::LOCKED.throttle;
+                }
             }
             let n = hull.thrusters.len();
             for (level, &head) in ship.thrust_level[..n].iter_mut().zip(&a.throttle[..n]) {

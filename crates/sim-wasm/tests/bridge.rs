@@ -111,9 +111,9 @@ fn new_match_starts_running_at_tick_zero() {
 
 #[test]
 fn unknown_hull_name_is_an_error() {
-    let cfg = r#"{"seed":1,"fleets":[["fighter"],["bomber"]]}"#;
+    let cfg = r#"{"seed":1,"fleets":[["fighter"],["dreadnought"]]}"#;
     let err = MatchCore::new(&hulls(), WEAPONS, cfg).err().unwrap();
-    assert!(err.contains("bomber"), "{err}");
+    assert!(err.contains("dreadnought"), "{err}");
 }
 
 #[test]

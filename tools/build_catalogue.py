@@ -44,6 +44,15 @@ DESIGN_ROLES: dict[str, tuple[str, str]] = {
         "Convoy transport; flies straight to the jump point",
         "Two mains and weak heading-hold RCS, unarmed; flown by a script",
     ),
+    # SIM_VERSION 9: the station assault's strike hull and its target.
+    "bomber": (
+        "Bomber; torpedoes capital ships",
+        "Two mains and four RCS, fixed forward torpedo rack",
+    ),
+    "station": (
+        "Station; holds its ground with turrets and launches its garrison",
+        "Immobile, a ring of flak and gauss turrets, two bays; flown by a script",
+    ),
 }
 WEAPON_NAMES = {"gauss": "gauss gun"}
 WEAPON_KINDS = {
@@ -196,6 +205,20 @@ def _count(n: int, word: str) -> str:
 def flying_notes(hull: Mapping[str, Any], thrust: Mapping[str, float]) -> list[str]:
     """Sentences on how the hull is flown, each one read straight off the data."""
     notes = []
+    if hull.get("static"):
+        turning = [t for t in hull["turrets"] if float(t["arc_deg"]) > 0]
+        notes.append(
+            f"It does not move: a static hull has no thrusters and is never pushed. "
+            f"{_count(len(turning), 'turret').capitalize()} cover every approach."
+        )
+        shield = hull.get("shield")
+        if shield:
+            notes.append(
+                f"A {float(shield['hp']):g} hp shield takes hits first and recharges at "
+                f"{float(shield['regen_rate']):g} hp/s after "
+                f"{float(shield['regen_delay']):g} s without a hit."
+            )
+        return notes
     mains = [t for t in hull["thrusters"] if float(t["dir"][0]) > 0.5]
     side = [t for t in hull["thrusters"] if abs(float(t["dir"][1])) > 0.5]
     main_word = (

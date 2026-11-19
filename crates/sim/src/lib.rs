@@ -54,7 +54,12 @@ pub use rng::Pcg32;
 /// 4-float `order_time` block is appended to the obs (`OBS_DIM` 587). No commander in
 /// the sim issues a deadline, so the first 583 obs floats and every trajectory are
 /// v7's (SIM_SPEC §0.6).
-pub const SIM_VERSION: u32 = 8;
+/// v9: the station assault mission and the `bomber` and `station` hulls (the torpedo
+/// retuned for the bomber's rack; a static hull's turrets and power work). Hull ids
+/// keep v4's for the old hulls (`data::LEGACY_HULL_ORDER`), the obs and commander
+/// layouts are unchanged (a station assault reads as a carrier battle or a convoy), and
+/// every older mission and roster replays v8 bit for bit (SIM_SPEC §0.7).
+pub const SIM_VERSION: u32 = 9;
 
 /// Sim versions whose trained pilots fly correctly in this build: their obs prefix
 /// and action layout are identical (SIM_SPEC §0.2–§0.5). Through v6 deathmatch
@@ -62,11 +67,11 @@ pub const SIM_VERSION: u32 = 8;
 /// fighter duel still replays bit for bit (`tests/determinism.rs::v*_compat_duel_*`). The bundle and the champion registry accept a pilot whose
 /// `sim_version` is in this list; it reads the first [`pilot_obs_dim`] floats of the
 /// obs.
-pub const PILOT_COMPAT_VERSIONS: &[u32] = &[3, 4, 5, 6, 7, 8];
+pub const PILOT_COMPAT_VERSIONS: &[u32] = &[3, 4, 5, 6, 7, 8, 9];
 
 /// `(sim version, obs width)` for every pilot-compatible version: a pilot of that
 /// version consumes `obs[..width]` (v3 and v4 pilots the 385-float prefix, v5 pilots
-/// the 403-float one, v6 and v7 pilots the 583-float one).
+/// the 403-float one, v6 and v7 pilots the 583-float one, v8 and v9 pilots all 587).
 pub const PILOT_OBS_DIMS: &[(u32, usize)] = &[
     (3, obs::OBS_DIM_V4),
     (4, obs::OBS_DIM_V4),
@@ -74,6 +79,7 @@ pub const PILOT_OBS_DIMS: &[(u32, usize)] = &[
     (6, obs::OBS_DIM_V7),
     (7, obs::OBS_DIM_V7),
     (8, obs::OBS_DIM),
+    (9, obs::OBS_DIM),
 ];
 
 /// Whether a pilot trained under sim `version` flies in this build.

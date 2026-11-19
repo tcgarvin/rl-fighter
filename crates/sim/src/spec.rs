@@ -11,13 +11,17 @@ use crate::command::{
 };
 use crate::data::Catalogue;
 use crate::math::Vec2;
-use crate::mission::{CarrierBattle, ConvoyEscort, ConvoyStatus, Mission, MissionKind};
+use crate::mission::{
+    CarrierBattle, ConvoyEscort, ConvoyStatus, Mission, MissionKind, StationAssault, StationReadsAs,
+};
 use crate::state::{Match, NONE};
 
 /// `{"kind": "deathmatch"}`, `{"kind": "carrier_battle", "jump_in": [2, 2]}`,
 /// `{"kind": "convoy_escort", "start": [x, y], "jump_point": [x, y], "jump_radius": 40,
-/// "charge_ticks": 60, "start_speed_frac": 0.8}`; every parameter optional (defaults:
-/// `Mission::standard` for the arena).
+/// "charge_ticks": 60, "start_speed_frac": 0.8}`, (v9) `{"kind": "station_assault",
+/// "jump_in": [2, 3], "as": "carrier"}` (`"as"`: `"carrier"` or `"convoy"`, what the nets
+/// read the mission as); every parameter optional (defaults: `Mission::standard` for the
+/// arena).
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum MissionSpec {
@@ -38,6 +42,30 @@ pub enum MissionSpec {
         #[serde(default)]
         start_speed_frac: Option<f32>,
     },
+    /// v9.
+    StationAssault {
+        #[serde(default)]
+        jump_in: Option<[u8; 2]>,
+        #[serde(default, rename = "as")]
+        reads_as: Option<ReadsAsSpec>,
+    },
+}
+
+/// `"carrier"` or `"convoy"`: a station assault's `StationReadsAs` (v9).
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ReadsAsSpec {
+    Carrier,
+    Convoy,
+}
+
+impl From<ReadsAsSpec> for StationReadsAs {
+    fn from(r: ReadsAsSpec) -> StationReadsAs {
+        match r {
+            ReadsAsSpec::Carrier => StationReadsAs::Carrier,
+            ReadsAsSpec::Convoy => StationReadsAs::Convoy,
+        }
+    }
 }
 
 fn v([x, y]: [f32; 2]) -> Vec2 {
@@ -81,6 +109,16 @@ impl MissionSpec {
                 }
                 Mission::ConvoyEscort(ce)
             }
+            MissionSpec::StationAssault { jump_in, reads_as } => {
+                let mut sa = StationAssault::default();
+                if let Some(j) = jump_in {
+                    sa.jump_in = *j;
+                }
+                if let Some(r) = reads_as {
+                    sa.reads_as = (*r).into();
+                }
+                Mission::StationAssault(sa)
+            }
         }
     }
 
@@ -103,6 +141,10 @@ impl MissionSpec {
                 jump_radius: None,
                 charge_ticks: None,
                 start_speed_frac: None,
+            },
+            MissionKind::StationAssault => MissionSpec::StationAssault {
+                jump_in: None,
+                reads_as: None,
             },
         }
     }
@@ -475,6 +517,9 @@ pub struct ShipMissionView {
 #[derive(Clone, Debug, Serialize)]
 pub struct MissionStateView {
     pub mission: &'static str,
+    /// v9: the mission the nets read (`Mission::obs_kind`): the mission itself, except a
+    /// station assault, which reads as `"carrier_battle"` or `"convoy_escort"`.
+    pub reads_as: &'static str,
     pub end_reason: &'static str,
     pub tick: u32,
     /// v5: the match clock, ticks.
@@ -538,6 +583,7 @@ impl MissionStateView {
             .collect();
         MissionStateView {
             mission: m.cfg.mission.kind().name(),
+            reads_as: m.cfg.mission.obs_kind().name(),
             end_reason: m.mission.end_reason.name(),
             tick: m.tick,
             time_limit_ticks: m.cfg.time_limit_ticks,
@@ -604,6 +650,24 @@ mod tests {
         assert_eq!(ce.start, ConvoyEscort::standard(450.0).start);
         assert!(MissionSpec::parse(r#"{"kind": "convoy_escort", "jump": 1}"#).is_err());
         assert!(MissionSpec::parse("duel").is_err());
+    }
+
+    #[test]
+    fn station_assault_specs_parse_with_their_obs_mapping() {
+        let m = MissionSpec::parse("station_assault").unwrap().build(450.0);
+        assert_eq!(m, Mission::StationAssault(StationAssault::default()));
+        assert_eq!(m.obs_kind(), MissionKind::CarrierBattle);
+        let m =
+            MissionSpec::parse(r#"{"kind": "station_assault", "as": "convoy", "jump_in": [0, 4]}"#)
+                .unwrap()
+                .build(450.0);
+        let Mission::StationAssault(sa) = &m else {
+            panic!()
+        };
+        assert_eq!(sa.jump_in, [0, 4]);
+        assert_eq!(sa.reads_as, StationReadsAs::Convoy);
+        assert_eq!(m.obs_kind(), MissionKind::ConvoyEscort);
+        assert!(MissionSpec::parse(r#"{"kind": "station_assault", "as": "duel"}"#).is_err());
     }
 
     #[test]

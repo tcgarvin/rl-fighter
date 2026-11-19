@@ -265,13 +265,21 @@ impl MatchCore {
         &self.ship_ext
     }
 
-    /// v4: `MissionKind` code (0 deathmatch, 1 carrier battle, 2 convoy escort).
+    /// v4: `MissionKind` code (0 deathmatch, 1 carrier battle, 2 convoy escort; v9: 3
+    /// station assault).
     pub fn mission_kind(&self) -> u8 {
         self.m.cfg.mission.kind().index()
     }
 
+    /// v9: the `MissionKind` code the nets read (`Mission::obs_kind`): the mission's
+    /// own, except a station assault, which reads as 1 (carrier) or 2 (convoy).
+    pub fn obs_mission_kind(&self) -> u8 {
+        self.m.cfg.mission.obs_kind().index()
+    }
+
     /// v4: `EndReason` code (0 not over, 1 eliminated, 2 time limit, 3 carrier
-    /// destroyed, 4 convoy through, 5 convoy destroyed).
+    /// destroyed, 4 convoy through, 5 convoy destroyed; v9: 6 station destroyed, 7
+    /// assault repelled).
     pub fn end_reason(&self) -> u8 {
         self.m.mission.end_reason.index()
     }

@@ -18,8 +18,28 @@ use crate::math::PI;
 use raw::{RawArmourArc, RawHull, RawKind, RawWeapon, RawWeapons};
 use validate::vec2;
 
-/// Index into `Catalogue::hulls`; stable for a loaded catalogue (hulls sorted by name).
+/// Index into `Catalogue::hulls`; stable for a loaded catalogue (hulls in
+/// [`hull_order`]: the v4 hulls first, keeping their ids, then the rest by name).
 pub type HullId = u16;
+
+/// The hulls of SIM_VERSION 4 to 8 in their id order (they were numbered by sorted
+/// name: carrier 0, fighter 1, freighter 2, gunship 3, strafer 4). v9 adds hulls whose
+/// names sort among them (`bomber`, `station`); numbering those after these keeps every
+/// existing id, and so every state hash and golden trace, unchanged.
+pub const LEGACY_HULL_ORDER: [&str; 5] = ["carrier", "fighter", "freighter", "gunship", "strafer"];
+
+/// The catalogue's hull order (v9): hulls named in [`LEGACY_HULL_ORDER`] first, in
+/// that order, then every other hull by name. A catalogue of legacy hulls only, or of
+/// none, is numbered by sorted name exactly as before v9.
+pub fn hull_order(a: &str, b: &str) -> core::cmp::Ordering {
+    let rank = |n: &str| {
+        LEGACY_HULL_ORDER
+            .iter()
+            .position(|&l| l == n)
+            .unwrap_or(LEGACY_HULL_ORDER.len())
+    };
+    rank(a).cmp(&rank(b)).then_with(|| a.cmp(b))
+}
 /// Index into `Catalogue::weapons`, in file order.
 pub type WeaponId = u16;
 
@@ -95,8 +115,9 @@ pub struct Catalogue {
 
 impl Catalogue {
     /// Build a catalogue from YAML text: `hulls` is `(directory name, hull.yaml text)`
-    /// pairs in any order, `weapons_yaml` the text of `weapons.yaml`. Hulls are sorted
-    /// by name, so ids match `load_dir`. Every parse and validation error is reported.
+    /// pairs in any order, `weapons_yaml` the text of `weapons.yaml`. Hulls are put in
+    /// [`hull_order`], so ids match `load_dir`. Every parse and validation error is
+    /// reported.
     pub fn from_yaml(hulls: &[(&str, &str)], weapons_yaml: &str) -> Result<Self, DataError> {
         let mut errs = Vec::new();
 
@@ -126,7 +147,7 @@ impl Catalogue {
         }
 
         let mut sorted: Vec<(&str, &str)> = hulls.to_vec();
-        sorted.sort_by(|a, b| a.0.cmp(b.0));
+        sorted.sort_by(|a, b| hull_order(a.0, b.0));
         let mut raw_hulls = Vec::with_capacity(sorted.len());
         for (i, &(name, text)) in sorted.iter().enumerate() {
             if i > 0 && sorted[i - 1].0 == name {
@@ -162,8 +183,8 @@ impl Catalogue {
         Ok(Catalogue { hulls, weapons })
     }
 
-    /// Read `assets/weapons.yaml` and every `assets/hulls/<name>/hull.yaml`, hulls
-    /// sorted by directory name so ids are stable across machines.
+    /// Read `assets/weapons.yaml` and every `assets/hulls/<name>/hull.yaml`, hulls in
+    /// [`hull_order`] of their directory names so ids are stable across machines.
     #[cfg(feature = "fs")]
     pub fn load_dir(assets: &std::path::Path) -> Result<Self, DataError> {
         let read = |rel: &str| {
@@ -193,7 +214,7 @@ impl Catalogue {
                 }),
             }
         }
-        names.sort();
+        names.sort_by(|a, b| hull_order(a, b));
 
         let weapons = read(validate::WEAPONS_FILE);
         let mut texts = Vec::with_capacity(names.len());

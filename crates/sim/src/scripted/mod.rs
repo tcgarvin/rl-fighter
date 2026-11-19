@@ -120,6 +120,18 @@ impl Role {
     }
 }
 
+/// Whether fighters treat `hull` as a bomber (their first target within
+/// `FIGHTER_BOMBER_PRIORITY_RANGE`): sim.js's `bomber` role, or (v9) a hull whose
+/// primary weapon is a torpedo rack, the bomber of role `anchor`. No hull before v9
+/// carried a torpedo, so the scripts fly every older roster as before.
+fn is_bomber(cat: &Catalogue, hull: &HullDef) -> bool {
+    hull.role == "bomber"
+        || hull
+            .turrets
+            .first()
+            .is_some_and(|t| cat.weapon(t.weapon).kind == WeaponKind::Torpedo)
+}
+
 /// Roles torpedo racks prefer (sim.js `CAPITAL_ROLES`).
 fn is_capital(role: &str) -> bool {
     matches!(role, "carrier" | "station" | "anchor")
@@ -205,6 +217,10 @@ pub fn act(m: &Match, cat: &Catalogue, ship: ShipIdx) -> ShipAction {
     let plan = match role {
         Role::Fighter => fighter::manoeuvre(me, &eng),
         Role::Skirmisher => strafer::manoeuvre(me, &eng),
+        // v9: the bomber (a fixed primary weapon) flies nose-on, the gunship broadside.
+        Role::Anchor if hull.turrets.first().is_some_and(|t| t.arc == 0.0) => {
+            gunship::nose_on(&eng)
+        }
         Role::Anchor => gunship::manoeuvre(&eng),
         Role::Carrier | Role::Transport => unreachable!("capital roles returned above"),
     };
@@ -403,7 +419,7 @@ fn pick_target<'a>(m: &'a Match, cat: &Catalogue, me: &Ship, role: Role) -> Opti
             me.team,
             me.pos,
             FIGHTER_BOMBER_PRIORITY_RANGE,
-            |h| h.role == "bomber",
+            |h| is_bomber(cat, h),
         );
         if bomber.is_some() {
             return bomber;

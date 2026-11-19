@@ -669,9 +669,11 @@ fn defend_match(cat: &Catalogue, dist: f32) -> Match {
 /// gun does not; and anyone who hit the ward in the last `RECENT_HIT_TICKS` ticks.
 #[test]
 fn defend_threat_set_uses_each_enemys_own_reach_and_recent_hits() {
-    // The shipped gunship carries no torpedo: give its fore turret one.
+    // The shipped gunship carries no torpedo: give its fore turret one, at the
+    // torpedo's v4-v8 range (v9 shortened it to 240 m for the bomber).
     let mut cat = test_catalogue();
     cat.hulls[GUNSHIP as usize].turrets[0].weapon = TORPEDO;
+    cat.weapons[TORPEDO as usize].range = 340.0;
     let bound = cat.hull(FREIGHTER).bound_radius;
     let torpedo = m_reach(&cat, GUNSHIP);
     let gun = m_reach(&cat, FIGHTER);

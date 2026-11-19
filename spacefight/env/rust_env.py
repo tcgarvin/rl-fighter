@@ -453,7 +453,7 @@ class RustVecEnv:
             IndexError: ``i`` out of range.
         """
         radius = roster.arena_radius if arena_radius is None else arena_radius
-        mission = None if roster.mission == DEATHMATCH else roster.mission
+        mission = roster.mission_spec
         if hide_orders is None:
             hide = (
                 roster.hide_orders[0] or self._default_hide[0],

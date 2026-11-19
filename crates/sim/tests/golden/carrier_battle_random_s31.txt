@@ -1,4 +1,4 @@
-# sim golden trace carrier_battle_random_s31 (SIM_VERSION 8); regenerate with UPDATE_GOLDEN=1
+# sim golden trace carrier_battle_random_s31 (SIM_VERSION 9); regenerate with UPDATE_GOLDEN=1
 # tick state_hash aux_digest; end tick state_hash aux_digest phase winner
 300 acb6a43b32d454e9 5fd3af5c4c96e77a
 600 d91d5c375a13c0a3 8df21288801365d6

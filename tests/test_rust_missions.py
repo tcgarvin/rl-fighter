@@ -1,6 +1,6 @@
 """rlf_sim v4 missions from Python: carrier battle and convoy escort with the stub
 commander, the end-reason buffer, External commands, and the commander views
-(SIM_SPEC §5.9, §5.10, §10.1)."""
+(SIM_SPEC §5.9, §5.10, §10.1); v9's station assault and its obs mapping."""
 
 from __future__ import annotations
 
@@ -45,8 +45,17 @@ def _run_to_end(env: rlf_sim.VecEnv, max_steps: int) -> tuple[np.ndarray, np.nda
 
 
 def test_mission_constants() -> None:
-    assert list(rlf_sim.MISSIONS) == ["deathmatch", "carrier_battle", "convoy_escort"]
+    # v9 appends the station assault; the first three keep their codes.
+    assert list(rlf_sim.MISSIONS) == [
+        "deathmatch",
+        "carrier_battle",
+        "convoy_escort",
+        "station_assault",
+    ]
     assert REASONS[0] == "not_over"
+    assert REASONS[6:] == ["station_destroyed", "assault_repelled"]
+    assert list(rlf_sim.STATION_READS_AS) == ["carrier", "convoy"]
+    assert rlf_sim.mission_time_limit_s("station_assault") == 150.0
     assert rlf_sim.COMMAND_TICKS == 60
     assert rlf_sim.mission_time_limit_s("carrier_battle") == 150.0
     assert rlf_sim.arena_radius_for_mission("convoy_escort", 13) == 450.0
@@ -163,7 +172,7 @@ def test_external_commander_launches_and_orders() -> None:
     assert obs["reserves"] == {"fighter": 3}
     assert obs["own_carrier"]["hull"] == "carrier"
     with pytest.raises(ValueError, match="unknown hull"):
-        env.submit_command(0, 0, {"kind": "launch", "hull": "bomber"})
+        env.submit_command(0, 0, {"kind": "launch", "hull": "dreadnought"})
     with pytest.raises(ValueError):
         env.submit_command(0, 0, {"kind": "teleport"})
     with pytest.raises(ValueError, match="team"):
@@ -194,10 +203,18 @@ TRAIN_CARRIER = ["carrier", "fighter", "fighter", "strafer", "gunship"]
 
 
 def test_v5_constants_and_pilot_obs_dims() -> None:
-    assert rlf_sim.SIM_VERSION == 8
+    assert rlf_sim.SIM_VERSION == 9
     assert (ORDER_OFF, ORDER_W) == (385, 18)
     assert rlf_sim.OBS_DIM_V5 == ORDER_OFF + ORDER_W
-    assert rlf_sim.PILOT_OBS_DIMS == {3: 385, 4: 385, 5: 403, 6: 583, 7: 583, 8: 587}
+    assert rlf_sim.PILOT_OBS_DIMS == {
+        3: 385,
+        4: 385,
+        5: 403,
+        6: 583,
+        7: 583,
+        8: 587,
+        9: 587,
+    }
     assert set(rlf_sim.PILOT_OBS_DIMS) == set(rlf_sim.PILOT_COMPAT_VERSIONS)
     assert rlf_sim.MAX_TRAIN_SHIPS == 12
 
@@ -306,3 +323,67 @@ def test_set_next_roster_takes_commanders_and_a_clock() -> None:
     )
     explicit.reset()
     assert explicit.mission_state(0)["time_limit_ticks"] == 600
+
+
+STATION = rlf_sim.mission_rosters("station_assault")[0]["fleets"]
+
+
+def _mission_one_hot(env: rlf_sim.VecEnv, slot: int) -> list[float]:
+    """The order block's mission one-hot of ``slot`` in env 0 (zero without an order)."""
+    offset, _ = rlf_sim.OBS_LAYOUT["order"]
+    return [float(x) for x in env.obs[0, slot, offset + 15 : offset + 18]]
+
+
+@pytest.mark.parametrize(("reads_as", "index"), [("carrier", 1), ("convoy", 2)])
+def test_station_assault_reads_as_its_mapping(reads_as: str, index: int) -> None:
+    env = rlf_sim.VecEnv(
+        ASSETS,
+        2,
+        STATION,
+        43,
+        time_limit_s=rlf_sim.mission_time_limit_s("station_assault"),
+        n_threads=2,
+        mission={"kind": "station_assault", "as": reads_as},
+    )
+    state = env.mission_state(0)
+    assert state["mission"] == "station_assault"
+    assert state["reads_as"] == ("carrier_battle" if reads_as == "carrier" else "convoy_escort")
+    assert state["carrier"][0] == 0  # the station is team 0's carrier
+    # Two on picket, four in the station; three jump in, five wait in the carrier.
+    assert [len(h) for h in state["hangar"]] == [4, 5]
+    # After the first slow tick the defenders' orders show the mapped mission.
+    for _ in range(rlf_sim.COMMAND_TICKS + 1):
+        env.scripted_actions()
+        env.step()
+    want = [0.0, 0.0, 0.0]
+    want[index] = 1.0
+    picket = 1
+    assert _mission_one_hot(env, picket) == want
+
+
+def test_station_assault_ends_by_its_rules() -> None:
+    env = rlf_sim.VecEnv(
+        ASSETS,
+        6,
+        STATION,
+        43,
+        time_limit_s=rlf_sim.mission_time_limit_s("station_assault"),
+        n_threads=2,
+        mission="station_assault",
+    )
+    winner, reason = _run_to_end(env, 4600)
+    for w, r in zip(winner, reason):
+        name = REASONS[r]
+        assert name in {"station_destroyed", "assault_repelled", "time_limit"}
+        assert w == (1 if name == "station_destroyed" else 0)
+
+
+def test_station_assault_rejects_a_mobile_station() -> None:
+    with pytest.raises(ValueError, match="static"):
+        rlf_sim.VecEnv(
+            ASSETS,
+            1,
+            [["carrier", "fighter"], ["carrier", "fighter"]],
+            1,
+            mission="station_assault",
+        )

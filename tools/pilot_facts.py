@@ -61,7 +61,7 @@ from tools.champion import CHAMPIONS_DIR, Champion, find_champion
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_PAGE = REPO_ROOT / "web/pilot/index.html"
 TICK_HZ = 30
-_CAPITAL_HULLS = frozenset({"carrier", "freighter"})
+_CAPITAL_HULLS = frozenset({"carrier", "freighter", "station"})
 _FACT_RE = re.compile(r'data-fact="([^"]+)"[^>]*>([^<]*)<')
 _UPDATE_RE = re.compile(r"_(\d+)\.pt$")
 
