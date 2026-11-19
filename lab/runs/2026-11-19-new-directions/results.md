@@ -18,16 +18,16 @@ consistent commander and pilot pairing instead of random pilots ship by ship; an
 three new ship types. This entry links the night's entries and says how each went. The
 work ran on the laptop and on Beast (two GTX 1080 Ti) from 22:00 to 16:00.
 
-| Direction | Entry | Outcome |
-|---|---|---|
-| What each order kind costs (the groundwork for any new commander task) | [order-kinds](../2026-11-19-order-kinds/results.md) | Go-to costs a fifth of an attack order; defend and rally depend on the hull |
-| Kite drills (the order-cost run carried over from the night before) | [kite-drills](../2026-11-18-kite-drills/results.md) | **PASS**: ordered 0.42 to 0.47 against a free 1052, against 0.14 for the parent |
-| Base assault: the station mission, the station and bomber hulls | [station-bomber](../2026-11-19-station-bomber/results.md) | Scripts balanced at 0.55 for the attacker; learned pilots 0.36 to 0.39 and barely fire torpedoes |
-| Consistent commander and pilot a side | [pairing](../2026-11-19-pairing/results.md) | No interaction beyond what we knew; `?pairing=side` on the live page |
-| What a commander can do in the station assault, by hand | [station-rules](../2026-11-19-station-rules/results.md) | Launch timing and the carrier's position beat no orders by 0.13 to 0.19; orders to fighters do not |
-| A learned station commander | [station-commander](../2026-11-19-station-commander/results.md) | **FAIL**: both arms level with no orders (−0.06 to +0.04); both launch the reserve at 2 s |
-| Pilots trained with the station and bomber in the mix | [station-mix](../2026-11-19-station-mix/results.md) | **PARTIAL**: station attack 0.50 → 0.87 against the parent, bomber as good as the gunship; old missions slip with training |
-| Piracy, stealing cargo | [piracy-design](../2026-11-19-piracy-design/plan.md) | A design: disable, board by presence, carry out; reads as a convoy escort |
+| Direction | Outcome |
+|---|---|
+| [Order kinds](../2026-11-19-order-kinds/results.md) | Go-to costs a fifth of an attack order; defend and rally depend on the hull |
+| [Kite drills](../2026-11-18-kite-drills/results.md) | **PASS**: ordered 0.42 to 0.47 against a free 1052, against 0.14 for the parent |
+| [Base assault](../2026-11-19-station-bomber/results.md) | Scripts balanced at 0.55 for the attacker; learned pilots 0.36 to 0.39 and barely fire torpedoes |
+| [Pairing by side](../2026-11-19-pairing/results.md) | No interaction beyond what we knew; `?pairing=side` on the live page |
+| [Station hand rules](../2026-11-19-station-rules/results.md) | Launch timing and the carrier's position beat no orders by 0.13 to 0.19; orders to fighters do not |
+| [Learned commander](../2026-11-19-station-commander/results.md) | **FAIL**: both arms level with no orders (−0.06 to +0.04); both launch the reserve at 2 s |
+| [Station-mix pilots](../2026-11-19-station-mix/results.md) | **PARTIAL**: station attack 0.50 → 0.87 against the parent, bomber as good as the gunship; old missions slip with training |
+| [Piracy](../2026-11-19-piracy-design/plan.md) | A design: disable, board by presence, carry out; reads as a convoy escort |
 
 ## The base assault
 
