@@ -1,13 +1,14 @@
 # Mixed-condition matches and order pay: an order still costs a fleet fight
 
-Verdict: **no.** No arm made an attack order cheap to follow. Against
+Verdict: **FAIL.** No arm made an attack order cheap to follow. Against
 `followers_school_1052` flying free, every checkpoint we measured scores between 0.14 and
 0.35 in a 3 v 3 with each ship ordered onto its nearest enemy. Flying free against the same
 opponent, the same checkpoints score 0.36 to 0.83. The best ordered score was pay025 at
 update 725 (0.345). Training on did not keep it: 0.248 at 2200, 0.220 at the final 3478.
 Every ordered pilot still puts 98% to 100% of its damage on its target. Each arm is one
 seed, and a pilot's free strength drifts by ±0.2 from one checkpoint to the next, so the
-cost (ordered minus free) is noisy. The scores are not.
+cost (ordered minus free) is noisy. The scores are not. No rule of the game changed
+(`SIM_VERSION` 8).
 
 <!-- summary: We trained pilots in matches where only one side sees its orders, and with less or no pay for following an order outside drills, to see whether an order would stop costing a fleet fight. It did not: ordered onto their nearest enemy, every checkpoint scores 0.14 to 0.35 against a free opponent, and they still shoot almost only their target. A quarter of the order pay looked like it helped at update 725 (0.35), but the effect was gone by the end of the run. -->
 
