@@ -1,0 +1,73 @@
+start 2026-11-18T22:51:42-05:00 N=144 N_PAIRS=96 THREADS=8
+deathmatch scripted+f995_701 v scripted+draw: 0.542 over 144 in 45.4 s
+carrier_battle scripted+f995_701 v scripted+draw: 0.639 over 144 in 194.1 s
+convoy_escort scripted+f995_701 v scripted+draw: 0.458 over 144 in 94.1 s
+deathmatch unseen+f995_701 v scripted+draw: 0.469 over 144 in 42.0 s
+start 2026-11-18T22:59:41-05:00 N=144 N_PAIRS=96 THREADS=8
+carrier_battle unseen+f995_701 v scripted+draw: 0.694 over 144 in 273.9 s
+convoy_escort unseen+f995_701 v scripted+draw: 0.431 over 144 in 201.5 s
+deathmatch shaped/commander_327+f995_701 v scripted+draw: 0.622 over 144 in 51.7 s
+carrier_battle shaped/commander_327+f995_701 v scripted+draw: 0.583 over 144 in 154.9 s
+convoy_escort shaped/commander_327+f995_701 v scripted+draw: 0.465 over 144 in 118.3 s
+deathmatch outcome/commander_328+f995_701 v scripted+draw: 0.549 over 144 in 57.5 s
+carrier_battle outcome/commander_328+f995_701 v scripted+draw: 0.674 over 144 in 178.2 s
+convoy_escort outcome/commander_328+f995_701 v scripted+draw: 0.361 over 144 in 158.2 s
+deathmatch scripted+fighters_pay1_v8_351 v scripted+draw: 0.521 over 144 in 214.3 s
+restart 96: 2026-11-18T23:28:01-05:00
+start 2026-11-18T23:28:01-05:00 N=96 N_PAIRS=96 THREADS=8
+restart THREADS=4 (8 thrashed at load 28): 2026-11-18T23:43:42-05:00
+start 2026-11-18T23:43:42-05:00 N=96 N_PAIRS=96 THREADS=4
+carrier_battle scripted+fighters_pay1_v8_351 v scripted+draw: 0.375 over 96 in 247.6 s
+convoy_escort scripted+fighters_pay1_v8_351 v scripted+draw: 0.510 over 96 in 127.3 s
+deathmatch unseen+fighters_pay1_v8_351 v scripted+draw: 0.630 over 96 in 76.3 s
+carrier_battle unseen+fighters_pay1_v8_351 v scripted+draw: 0.833 over 96 in 247.8 s
+convoy_escort unseen+fighters_pay1_v8_351 v scripted+draw: 0.750 over 96 in 90.7 s
+deathmatch shaped/commander_327+fighters_pay1_v8_351 v scripted+draw: 0.490 over 96 in 42.3 s
+carrier_battle shaped/commander_327+fighters_pay1_v8_351 v scripted+draw: 0.510 over 96 in 147.1 s
+convoy_escort shaped/commander_327+fighters_pay1_v8_351 v scripted+draw: 0.688 over 96 in 85.3 s
+deathmatch outcome/commander_328+fighters_pay1_v8_351 v scripted+draw: 0.552 over 96 in 40.9 s
+carrier_battle outcome/commander_328+fighters_pay1_v8_351 v scripted+draw: 0.490 over 96 in 112.5 s
+convoy_escort outcome/commander_328+fighters_pay1_v8_351 v scripted+draw: 0.667 over 96 in 73.7 s
+deathmatch scripted+followers_school_600 v scripted+draw: 0.292 over 96 in 27.5 s
+carrier_battle scripted+followers_school_600 v scripted+draw: 0.344 over 96 in 157.6 s
+convoy_escort scripted+followers_school_600 v scripted+draw: 0.542 over 96 in 75.3 s
+deathmatch unseen+followers_school_600 v scripted+draw: 0.573 over 96 in 33.1 s
+carrier_battle unseen+followers_school_600 v scripted+draw: 0.667 over 96 in 165.3 s
+convoy_escort unseen+followers_school_600 v scripted+draw: 0.562 over 96 in 72.3 s
+deathmatch shaped/commander_327+followers_school_600 v scripted+draw: 0.495 over 96 in 48.4 s
+carrier_battle shaped/commander_327+followers_school_600 v scripted+draw: 0.469 over 96 in 117.5 s
+convoy_escort shaped/commander_327+followers_school_600 v scripted+draw: 0.458 over 96 in 78.9 s
+deathmatch outcome/commander_328+followers_school_600 v scripted+draw: 0.500 over 96 in 33.2 s
+carrier_battle outcome/commander_328+followers_school_600 v scripted+draw: 0.604 over 96 in 123.4 s
+convoy_escort outcome/commander_328+followers_school_600 v scripted+draw: 0.552 over 96 in 38.7 s
+deathmatch scripted+followers_v8_352 v scripted+draw: 0.521 over 96 in 17.5 s
+carrier_battle scripted+followers_v8_352 v scripted+draw: 0.354 over 96 in 79.6 s
+convoy_escort scripted+followers_v8_352 v scripted+draw: 0.531 over 96 in 40.2 s
+deathmatch unseen+followers_v8_352 v scripted+draw: 0.646 over 96 in 17.4 s
+carrier_battle unseen+followers_v8_352 v scripted+draw: 0.698 over 96 in 73.9 s
+convoy_escort unseen+followers_v8_352 v scripted+draw: 0.812 over 96 in 35.6 s
+deathmatch shaped/commander_327+followers_v8_352 v scripted+draw: 0.469 over 96 in 27.0 s
+carrier_battle shaped/commander_327+followers_v8_352 v scripted+draw: 0.510 over 96 in 103.3 s
+convoy_escort shaped/commander_327+followers_v8_352 v scripted+draw: 0.552 over 96 in 34.8 s
+deathmatch outcome/commander_328+followers_v8_352 v scripted+draw: 0.510 over 96 in 16.1 s
+carrier_battle outcome/commander_328+followers_v8_352 v scripted+draw: 0.510 over 96 in 52.9 s
+convoy_escort outcome/commander_328+followers_v8_352 v scripted+draw: 0.573 over 96 in 44.6 s
+deathmatch scripted+draw v scripted+draw: 0.417 over 96 in 22.3 s
+carrier_battle scripted+draw v scripted+draw: 0.469 over 96 in 128.2 s
+convoy_escort scripted+draw v scripted+draw: 0.396 over 96 in 47.5 s
+deathmatch unseen+draw v scripted+draw: 0.635 over 96 in 24.7 s
+carrier_battle unseen+draw v scripted+draw: 0.833 over 96 in 106.5 s
+convoy_escort unseen+draw v scripted+draw: 0.646 over 96 in 46.9 s
+deathmatch shaped/commander_327+draw v scripted+draw: 0.510 over 96 in 20.0 s
+carrier_battle shaped/commander_327+draw v scripted+draw: 0.448 over 96 in 72.7 s
+convoy_escort shaped/commander_327+draw v scripted+draw: 0.458 over 96 in 58.6 s
+deathmatch outcome/commander_328+draw v scripted+draw: 0.510 over 96 in 41.2 s
+carrier_battle outcome/commander_328+draw v scripted+draw: 0.594 over 96 in 129.5 s
+convoy_escort outcome/commander_328+draw v scripted+draw: 0.594 over 96 in 90.0 s
+deathmatch unseen+f995_701 v unseen+followers_v8_352: 0.271 over 96 in 23.8 s
+carrier_battle unseen+f995_701 v unseen+followers_v8_352: 0.677 over 96 in 96.4 s
+convoy_escort unseen+f995_701 v unseen+followers_v8_352: 0.198 over 96 in 39.9 s
+deathmatch unseen+followers_school_600 v unseen+followers_v8_352: 0.479 over 96 in 16.5 s
+carrier_battle unseen+followers_school_600 v unseen+followers_v8_352: 0.479 over 96 in 114.6 s
+convoy_escort unseen+followers_school_600 v unseen+followers_v8_352: 0.396 over 96 in 73.9 s
+done 2026-11-19T00:51:31-05:00

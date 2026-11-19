@@ -153,6 +153,19 @@ def chi2_sf(x: float, df: int) -> float:
     return 0.5 * math.erfc(z / math.sqrt(2))
 
 
+def wald(observed: NDArray[np.float64], boot: NDArray[np.float64], df: int) -> float:
+    """``v' C^+ v`` of an interaction grid ``observed`` with the bootstrap covariance
+    ``C`` of its ``boot`` replicates, on the ``df`` directions it spans (an interaction
+    grid sums to zero along rows and columns, so ``C`` has rank ``df``). Chi-squared on
+    ``df`` when there is no interaction; it accounts for the cells' pairing."""
+    v = observed.ravel()
+    cov = np.cov(boot.reshape(boot.shape[0], -1), rowvar=False)
+    vals, vecs = np.linalg.eigh(cov)
+    keep = np.argsort(vals)[-df:]
+    proj = vecs[:, keep].T @ v
+    return float((proj**2 / vals[keep]).sum())
+
+
 def analyze(root: Path, war_path: Path, n_boot: int, seed: int) -> dict[str, Any]:
     cells = load_cells(root)
     check_paired(cells)
@@ -198,12 +211,33 @@ def analyze(root: Path, war_path: Path, n_boot: int, seed: int) -> dict[str, Any
     mix_boot = boot[:, 2 * k : 2 * k + len(mixed)]
     pair_obs = observed[2 * k + len(mixed) :]
     pair_se = se[2 * k + len(mixed) :]
-    # The whole grid's interaction against its noise: a sum of squared z-scores.
-    stat = float(((inter / inter_se) ** 2).sum())
+    # The whole grid's interaction against its noise: a Wald statistic.
     df = (len(rows) - 1) * (len(pilots) - 1)
+    boot_inter = boot[:, k : 2 * k]
+    stat = wald(inter, boot_inter, df) if df else 0.0
     # The interaction's spread beyond noise: sd of observed minus the noise's share.
     noise_var = float((inter_se**2).mean())
     excess_sd = math.sqrt(max(0.0, float((inter**2).mean()) - noise_var))
+    # The same over the commanders that give orders (without the unseen row): is there a
+    # pairing beyond "this pilot is hurt by orders, that one is not"?
+    ordered = [i for i, r in enumerate(rows) if r != "unseen"]
+    ordered_test: dict[str, float] = {}
+    if len(ordered) > 1 and len(pilots) > 1:
+        sub = interaction(g[ordered])
+        sub_boot = np.stack([interaction(b[ordered]) for b in boot_grid])
+        sub_se = sub_boot.std(axis=0, ddof=1)
+        sub_df = (len(ordered) - 1) * (len(pilots) - 1)
+        sub_stat = wald(sub, sub_boot, sub_df)
+        ordered_test = {
+            "rows": [rows[i] for i in ordered],
+            "interaction": sub.tolist(),
+            "interaction_se": sub_se.tolist(),
+            "chi2": sub_stat,
+            "df": sub_df,
+            "p": chi2_sf(sub_stat, sub_df),
+            "rms": math.sqrt(float((sub**2).mean())),
+            "noise_rms": math.sqrt(float((sub_se**2).mean())),
+        }
     war = json.loads(war_path.read_text()) if war_path.is_file() else None
     out: dict[str, Any] = {
         "schema": "rlf.pairing.analysis/1",
@@ -227,6 +261,7 @@ def analyze(root: Path, war_path: Path, n_boot: int, seed: int) -> dict[str, Any
         "interaction_rms": math.sqrt(float((inter**2).mean())),
         "interaction_noise_rms": math.sqrt(noise_var),
         "interaction_excess_sd": excess_sd,
+        "ordered_rows": ordered_test,
         "mixed": {
             r: {
                 "score": float(mix_obs[i]),
@@ -242,6 +277,22 @@ def analyze(root: Path, war_path: Path, n_boot: int, seed: int) -> dict[str, Any
             k: {"score_a": float(pair_obs[i]), "se": float(pair_se[i])}
             for i, k in enumerate(pairs)
         },
+        # A commander's orders over no orders, pilot by pilot: its cell minus the
+        # unseen cell (the script with its orders hidden), paired.
+        "over_unseen": (
+            {
+                r: {
+                    "diff": (g[i] - g[rows.index("unseen")]).tolist(),
+                    "se": (boot_grid[:, i] - boot_grid[:, rows.index("unseen")])
+                    .std(axis=0, ddof=1)
+                    .tolist(),
+                }
+                for i, r in enumerate(rows)
+                if r != "unseen"
+            }
+            if "unseen" in rows
+            else {}
+        ),
         "by_mission": {
             m: [
                 [float(np.mean(cells[f"grid__{r}__{p}"][m]["score"])) for p in pilots]
@@ -329,10 +380,25 @@ def tables(a: Mapping[str, Any]) -> str:
         f"column mean ±: {1.96 * max(a['col_mean_se']):.3f}.",
         "",
         f"Interaction over the grid: rms {a['interaction_rms']:.3f} against "
-        f"{a['interaction_noise_rms']:.3f} from noise alone; sum of squared z "
+        f"{a['interaction_noise_rms']:.3f} from noise alone; Wald chi-squared "
         f"{a['interaction_chi2']:.1f} on {a['interaction_df']} df, p ≈ "
         f"{a['interaction_p']:.2f}; spread beyond noise ≈ "
         f"{a['interaction_excess_sd']:.3f}.",
+    ]
+    o = a["ordered_rows"]
+    if o:
+        lines += [
+            "",
+            f"Without `unseen` ({', '.join(o['rows'])}): interaction rms {o['rms']:.3f} "
+            f"against {o['noise_rms']:.3f} from noise; Wald chi-squared "
+            f"{o['chi2']:.1f} on {o['df']} df, p ≈ {o['p']:.2f}. Interactions: "
+            + "; ".join(
+                f"{r} " + ", ".join(signed(x) for x in row)
+                for r, row in zip(o["rows"], o["interaction"])
+            )
+            + ".",
+        ]
+    lines += [
         "",
         "| Commander | Per-ship draw | Minus its row mean (one pilot a side) |",
         "|---|---|---|",
@@ -342,6 +408,22 @@ def tables(a: Mapping[str, Any]) -> str:
             f"| `{r}` | {m['score']:.3f} ± {1.96 * m['se']:.3f} | "
             f"{signed(m['minus_row_mean'])} ± {1.96 * m['minus_row_mean_se']:.3f} |"
         )
+    if a["over_unseen"]:
+        lines += [
+            "",
+            "| Orders over none (cell minus `unseen`) | "
+            + " | ".join(f"`{p}`" for p in pilots)
+            + " |",
+            "|---" * (len(pilots) + 1) + "|",
+        ]
+        for r, d in a["over_unseen"].items():
+            lines.append(
+                f"| `{r}` | "
+                + " | ".join(
+                    f"{signed(x)} ± {1.96 * s:.3f}" for x, s in zip(d["diff"], d["se"])
+                )
+                + " |"
+            )
     lines += ["", "| Mission | " + " | ".join(f"`{r}`" for r in rows) + " |"]
     lines.append("|---" * (len(rows) + 1) + "|")
     for m, g in a["by_mission"].items():
