@@ -1,0 +1,91 @@
+{
+ "schema": "rlf.lab.station/1",
+ "sim_version": 9,
+ "n": 512,
+ "seed": 900000,
+ "roster": [
+  [
+   "station",
+   "fighter",
+   "strafer",
+   "fighter",
+   "gunship",
+   "fighter",
+   "strafer"
+  ],
+  [
+   "carrier",
+   "fighter",
+   "bomber",
+   "fighter",
+   "bomber",
+   "strafer",
+   "bomber",
+   "fighter",
+   "gunship"
+  ]
+ ],
+ "station_as": "carrier",
+ "jump_in": null,
+ "commanders": [
+  "unseen",
+  "scripted"
+ ],
+ "pilots": "/home/timg/code/rl-fighter/.claude/worktrees/agent-a452e13ae84a476a1/lab/runs/2026-11-19-station-bomber/../../live_pilots.json",
+ "pilots_team": null,
+ "attacker_win_rate": 0.24609375,
+ "attacker_win_ci95": 0.03734690227137961,
+ "draw_rate": 0.0,
+ "end_reasons": {
+  "time_limit": 0.083984375,
+  "station_destroyed": 0.24609375,
+  "assault_repelled": 0.669921875
+ },
+ "length_median_s": 90.56666666666666,
+ "length_p10_s": 63.20333333333333,
+ "length_p90_s": 145.52,
+ "station_damage_by_hull_per_match": {
+  "bomber": 84.66796875,
+  "carrier": 305.7265625,
+  "fighter": 291.650390625,
+  "gunship": 409.0,
+  "strafer": 155.14453125
+ },
+ "survival": {
+  "defender": {
+   "fighter": 0.072265625,
+   "gunship": 0.521484375,
+   "strafer": 0.1142578125,
+   "station": 0.75390625
+  },
+  "attacker": {
+   "carrier": 0.3125,
+   "fighter": 0.005208333333333333,
+   "gunship": 0.119140625,
+   "strafer": 0.0078125,
+   "bomber": 0.044921875
+  }
+ },
+ "damage_dealt_per_ship": {
+  "defender": {
+   "fighter": 196.07421875,
+   "fighter_vs_capital": 57.115885416666664,
+   "gunship": 773.462890625,
+   "gunship_vs_capital": 619.6640625,
+   "strafer": 324.71923828125,
+   "strafer_vs_capital": 90.5244140625,
+   "station": 788.849609375
+  },
+  "attacker": {
+   "carrier": 640.859375,
+   "fighter": 155.07161458333334,
+   "fighter_vs_capital": 97.216796875,
+   "gunship": 527.787109375,
+   "gunship_vs_capital": 409.0,
+   "strafer": 261.228515625,
+   "strafer_vs_capital": 155.14453125,
+   "bomber": 93.896484375,
+   "bomber_vs_capital": 28.22265625
+  }
+ }
+}

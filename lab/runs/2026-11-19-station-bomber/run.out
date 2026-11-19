@@ -1,3 +1,11 @@
 == station_eval.py --n 512 --out out/balance_script_carrier.json
 == station_eval.py --n 512 --station-as convoy --out out/balance_script_convoy.json
 == station_eval.py --n 512 --station-as carrier --pilots /home/timg/code/rl-fighter/.claude/worktrees/agent-a452e13ae84a476a1/lab/runs/2026-11-19-station-bomber/../../live_pilots.json --checkpoint-root /home/timg/code/rl-fighter --out out/pilots_carrier.json
+== station_eval.py --n 512 --station-as convoy --pilots /home/timg/code/rl-fighter/.claude/worktrees/agent-a452e13ae84a476a1/lab/runs/2026-11-19-station-bomber/../../live_pilots.json --checkpoint-root /home/timg/code/rl-fighter --out out/pilots_convoy.json
+== station_eval.py --n 512 --pilots /home/timg/code/rl-fighter/.claude/worktrees/agent-a452e13ae84a476a1/lab/runs/2026-11-19-station-bomber/../../live_pilots.json --checkpoint-root /home/timg/code/rl-fighter --commanders scripted unseen --out out/pilots_carrier_attacker_unseen.json
+== station_eval.py --n 512 --pilots /home/timg/code/rl-fighter/.claude/worktrees/agent-a452e13ae84a476a1/lab/runs/2026-11-19-station-bomber/../../live_pilots.json --checkpoint-root /home/timg/code/rl-fighter --commanders unseen scripted --out out/pilots_carrier_defender_unseen.json
+== swap_eval.py --mission deathmatch --n-per-roster 16 --out out/swap_dm_script.json
+== swap_eval.py --mission carrier_battle --n-per-roster 86 --out out/swap_carrier_script.json
+== swap_eval.py --mission deathmatch --n-per-roster 16 --pilots /home/timg/code/rl-fighter/.claude/worktrees/agent-a452e13ae84a476a1/lab/runs/2026-11-19-station-bomber/../../live_pilots.json --checkpoint-root /home/timg/code/rl-fighter --out out/swap_dm_pilots.json
+== swap_eval.py --mission carrier_battle --n-per-roster 86 --pilots /home/timg/code/rl-fighter/.claude/worktrees/agent-a452e13ae84a476a1/lab/runs/2026-11-19-station-bomber/../../live_pilots.json --checkpoint-root /home/timg/code/rl-fighter --out out/swap_carrier_pilots.json
+== done

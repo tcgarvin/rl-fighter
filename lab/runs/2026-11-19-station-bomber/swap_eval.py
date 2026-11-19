@@ -69,9 +69,13 @@ def roster_pairs(mission: str) -> list[tuple[str, tuple[str, ...], tuple[str, ..
     """``(name, side X, side Y)`` per roster."""
     if mission == DEATHMATCH:
         return [
-            (f"{''.join(h[0].upper() for h in x)} v {''.join(h[0].upper() for h in y)}",
-             x, y)
-            for x in X_SIDES for y in Y_SIDES
+            (
+                f"{''.join(h[0].upper() for h in x)} v {''.join(h[0].upper() for h in y)}",
+                x,
+                y,
+            )
+            for x in X_SIDES
+            for y in Y_SIDES
         ]
     out = []
     for r in rlf_sim.mission_rosters(mission):
@@ -93,9 +97,15 @@ def run_arm(args: argparse.Namespace, swap: bool) -> dict[str, Any]:
         rosters.append(Roster(teams, args.mission, (SCRIPTED, SCRIPTED)))
     time_limit = float(rlf_sim.mission_time_limit_s(args.mission))
     env = RustVecEnv(
-        REPO / "assets", n, rosters[0].fleets(), args.seed, time_limit_s=time_limit,
-        n_threads=args.threads, reaction_ticks=2,
-        max_ships=max(r.n_ships for r in rosters), commanders=(SCRIPTED, SCRIPTED),
+        REPO / "assets",
+        n,
+        rosters[0].fleets(),
+        args.seed,
+        time_limit_s=time_limit,
+        n_threads=args.threads,
+        reaction_ticks=2,
+        max_ships=max(r.n_ships for r in rosters),
+        commanders=(SCRIPTED, SCRIPTED),
     )
     for i, r in enumerate(rosters):
         env.set_next_roster(i, r, time_limit_s=time_limit)
@@ -109,7 +119,9 @@ def run_arm(args: argparse.Namespace, swap: bool) -> dict[str, Any]:
         names = r.teams[xt]
         k = names.index("bomber" if swap else "gunship")
         slot[i] = k + (0 if xt == 0 else len(r.teams[0]))
-    pool = PilotPool(args.pilots, args.seed, args.checkpoint_root) if args.pilots else None
+    pool = (
+        PilotPool(args.pilots, args.seed, args.checkpoint_root) if args.pilots else None
+    )
     if pool is not None:
         pool.draw(team.shape)
     rows = ~capital & (team >= 0)
@@ -159,8 +171,11 @@ def summary(arm: dict[str, Any]) -> dict[str, Any]:
     return {
         "x_score": float(s.mean()),
         "x_score_ci95": float(1.96 * s.std(ddof=1) / np.sqrt(s.size)),
-        "end_reasons": {END_REASONS[c]: float(np.mean(arm["reason"] == c))
-                        for c in range(1, len(END_REASONS)) if (arm["reason"] == c).any()},
+        "end_reasons": {
+            END_REASONS[c]: float(np.mean(arm["reason"] == c))
+            for c in range(1, len(END_REASONS))
+            if (arm["reason"] == c).any()
+        },
         "length_median_s": float(np.median(arm["length"])),
         "slot_damage_to_capital": float(arm["to_cap"].mean()),
         "slot_damage_to_strike": float(arm["to_strike"].mean()),
@@ -169,12 +184,16 @@ def summary(arm: dict[str, Any]) -> dict[str, Any]:
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    p.add_argument("--mission", choices=(DEATHMATCH, CARRIER_BATTLE), default=DEATHMATCH)
+    p.add_argument(
+        "--mission", choices=(DEATHMATCH, CARRIER_BATTLE), default=DEATHMATCH
+    )
     p.add_argument("--n-per-roster", type=int, default=16)
     p.add_argument("--seed", type=int, default=910_000)
     p.add_argument("--threads", type=int, default=8)
     p.add_argument("--pilots", type=Path)
-    p.add_argument("--checkpoint-root", type=Path, default=Path("/home/timg/code/rl-fighter"))
+    p.add_argument(
+        "--checkpoint-root", type=Path, default=Path("/home/timg/code/rl-fighter")
+    )
     p.add_argument("--out", type=Path)
     args = p.parse_args()
     torch.set_num_threads(max(1, args.threads))
@@ -193,7 +212,8 @@ def main() -> int:
         "delta": float(d.mean()),
         "delta_ci95": float(1.96 * d.std(ddof=1) / np.sqrt(d.size)),
         "delta_by_roster": {
-            name: float(d[base["entry"] == k].mean()) for k, name in enumerate(base["names"])
+            name: float(d[base["entry"] == k].mean())
+            for k, name in enumerate(base["names"])
         },
     }
     text = json.dumps(out, indent=1)

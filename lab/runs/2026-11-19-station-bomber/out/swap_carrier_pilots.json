@@ -1,0 +1,37 @@
+{
+ "schema": "rlf.lab.swap/1",
+ "sim_version": 9,
+ "mission": "carrier_battle",
+ "n": 516,
+ "seed": 910000,
+ "pilots": "/home/timg/code/rl-fighter/.claude/worktrees/agent-a452e13ae84a476a1/lab/runs/2026-11-19-station-bomber/../../live_pilots.json",
+ "base": {
+  "x_score": 0.49224806201550386,
+  "x_score_ci95": 0.04317876924566329,
+  "end_reasons": {
+   "time_limit": 0.001937984496124031,
+   "carrier_destroyed": 0.998062015503876
+  },
+  "length_median_s": 78.65,
+  "slot_damage_to_capital": 235.52131782945736,
+  "slot_damage_to_strike": 146.12306201550388
+ },
+ "swap": {
+  "x_score": 0.24806201550387597,
+  "x_score_ci95": 0.037301268651747994,
+  "end_reasons": {
+   "time_limit": 0.001937984496124031,
+   "carrier_destroyed": 0.998062015503876
+  },
+  "length_median_s": 82.05,
+  "slot_damage_to_capital": 21.802325581395348,
+  "slot_damage_to_strike": 67.44186046511628
+ },
+ "delta": -0.2441860465116279,
+ "delta_ci95": 0.05033093594775608,
+ "delta_by_roster": {
+  "wing of 8": -0.20348837209302326,
+  "wing of 6": -0.3081395348837209,
+  "wing of 9": -0.22093023255813954
+ }
+}

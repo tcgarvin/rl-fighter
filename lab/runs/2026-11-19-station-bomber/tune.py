@@ -68,14 +68,27 @@ def apply(assets: Path, edits: dict[str, dict[str, Any]]) -> None:
         path.write_text(yaml.safe_dump(data, sort_keys=False))
 
 
-def run(name: str, edits: dict[str, dict[str, Any]], args: argparse.Namespace,
-        extra: list[str]) -> dict[str, Any]:
+def run(
+    name: str,
+    edits: dict[str, dict[str, Any]],
+    args: argparse.Namespace,
+    extra: list[str],
+) -> dict[str, Any]:
     with tempfile.TemporaryDirectory() as tmp:
         assets = Path(tmp) / "assets"
         shutil.copytree(REPO / "assets", assets)
         apply(assets, edits)
-        cmd = [sys.executable, str(HERE / "station_eval.py"), "--n", str(args.n),
-               "--assets", str(assets), "--threads", str(args.threads), *extra]
+        cmd = [
+            sys.executable,
+            str(HERE / "station_eval.py"),
+            "--n",
+            str(args.n),
+            "--assets",
+            str(assets),
+            "--threads",
+            str(args.threads),
+            *extra,
+        ]
         out = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
     d = json.loads(out)
     d["variant"] = name
@@ -98,13 +111,15 @@ def main() -> int:
             continue
         edits = dict(spec.get("edits", {}))
         if "ring" in spec:
-            edits.setdefault("hulls/station/hull.yaml", {})["turrets"] = ring(spec["ring"])
+            edits.setdefault("hulls/station/hull.yaml", {})["turrets"] = ring(
+                spec["ring"]
+            )
         d = run(name, edits, args, spec.get("args", []) + args.extra)
-        line = (f"{name:28s} att {d['attacker_win_rate']:.3f} ± {d['attacker_win_ci95']:.3f} "
-                f"len {d['length_median_s']:.0f}s "
-                + " ".join(f"{k} {v:.2f}" for k, v in d["end_reasons"].items())
-                + " | stn dmg " + " ".join(f"{k} {v:.0f}" for k, v in
-                                           d["station_damage_by_hull_per_match"].items()))
+        line = f"{name:28s} att {d['attacker_win_rate']:.3f} ± {d['attacker_win_ci95']:.3f} " f"len {d['length_median_s']:.0f}s " + " ".join(
+            f"{k} {v:.2f}" for k, v in d["end_reasons"].items()
+        ) + " | stn dmg " + " ".join(
+            f"{k} {v:.0f}" for k, v in d["station_damage_by_hull_per_match"].items()
+        )
         print(line, flush=True)
         if args.out:
             with args.out.open("a") as f:

@@ -63,7 +63,9 @@ class PilotPool:
         from spacefight.eval.controllers import Policy
 
         self.ids = [i for i, _ in live_pilot_checkpoints(path, root)]
-        self.policies = [Policy(p, sample=True) for _, p in live_pilot_checkpoints(path, root)]
+        self.policies = [
+            Policy(p, sample=True) for _, p in live_pilot_checkpoints(path, root)
+        ]
         self.rng = np.random.default_rng(seed)
         self.assign: np.ndarray | None = None
         torch.manual_seed(seed)
@@ -91,11 +93,20 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--station-as", default="carrier", choices=("carrier", "convoy"))
     p.add_argument("--commanders", nargs=2, default=[SCRIPTED, SCRIPTED])
     p.add_argument("--pilots", type=Path, help="live pilot list; default: the script")
-    p.add_argument("--pilots-team", type=int, choices=(0, 1), default=None,
-                   help="only this team flies the pilots (the other the script)")
+    p.add_argument(
+        "--pilots-team",
+        type=int,
+        choices=(0, 1),
+        default=None,
+        help="only this team flies the pilots (the other the script)",
+    )
     p.add_argument("--time-limit-s", type=float, default=None)
-    p.add_argument("--checkpoint-root", type=Path, default=Path("/home/timg/code/rl-fighter"),
-                   help="checkout holding the pilots' lab/runs checkpoints")
+    p.add_argument(
+        "--checkpoint-root",
+        type=Path,
+        default=Path("/home/timg/code/rl-fighter"),
+        help="checkout holding the pilots' lab/runs checkpoints",
+    )
     p.add_argument("--out", type=Path)
     args = p.parse_args(argv)
     torch.set_num_threads(max(1, args.threads))
@@ -106,28 +117,49 @@ def main(argv: list[str] | None = None) -> int:
     hide = tuple(c == UNSEEN for c in args.commanders)
     modes = tuple(SCRIPTED if c == UNSEEN else c for c in args.commanders)
     roster = Roster.of(team0, team1, mission=STATION_ASSAULT, commanders=modes)
-    roster = Roster(roster.teams, STATION_ASSAULT, roster.commanders,
-                    hide_orders=(hide[0], hide[1]), station_as=args.station_as)
+    roster = Roster(
+        roster.teams,
+        STATION_ASSAULT,
+        roster.commanders,
+        hide_orders=(hide[0], hide[1]),
+        station_as=args.station_as,
+    )
     spec: dict[str, Any] = {"kind": STATION_ASSAULT, "as": args.station_as}
     if args.jump_in is not None:
         spec["jump_in"] = list(args.jump_in)
-    time_limit = args.time_limit_s or float(rlf_sim.mission_time_limit_s(STATION_ASSAULT))
+    time_limit = args.time_limit_s or float(
+        rlf_sim.mission_time_limit_s(STATION_ASSAULT)
+    )
     env = RustVecEnv(
-        args.assets, args.n, roster.fleets(), args.seed, time_limit_s=time_limit,
-        n_threads=args.threads, record_events=False, reaction_ticks=2,
-        max_ships=roster.n_ships, commanders=modes,
+        args.assets,
+        args.n,
+        roster.fleets(),
+        args.seed,
+        time_limit_s=time_limit,
+        n_threads=args.threads,
+        record_events=False,
+        reaction_ticks=2,
+        max_ships=roster.n_ships,
+        commanders=modes,
     )
     for i in range(args.n):
         env.raw.set_next_roster(
-            i, roster.fleets(), roster.arena_radius, mission=json.dumps(spec),
-            commanders=list(modes), time_limit_s=time_limit, hide_orders=list(hide),
+            i,
+            roster.fleets(),
+            roster.arena_radius,
+            mission=json.dumps(spec),
+            commanders=list(modes),
+            time_limit_s=time_limit,
+            hide_orders=list(hide),
         )
     env.reset()
     names = hull_names_by_id(args.assets)
     capital = np.isin(env.hull_id, capital_hull_ids(args.assets))
     team = env.team.copy()
     hull = env.hull_id.copy()
-    pool = PilotPool(args.pilots, args.seed, args.checkpoint_root) if args.pilots else None
+    pool = (
+        PilotPool(args.pilots, args.seed, args.checkpoint_root) if args.pilots else None
+    )
     if pool is not None:
         pool.draw(team.shape)
     learned_rows = ~capital & (team >= 0)
@@ -172,21 +204,51 @@ def main(argv: list[str] | None = None) -> int:
     # alive_end is "alive before the last step" (a done env resets at once); the end
     # reason says who died on it: the station, or every attacker.
     alive_end[reason == END_REASONS.index("station_destroyed"), station] = False
-    alive_end[(reason == END_REASONS.index("assault_repelled"))[:, None] & (team == 1)] = False
-    return report(args, roster, names, team, hull, capital, winner, reason, length,
-                  alive_end, station_dmg, dmg_by, dmg_to_capital)
+    alive_end[
+        (reason == END_REASONS.index("assault_repelled"))[:, None] & (team == 1)
+    ] = False
+    return report(
+        args,
+        roster,
+        names,
+        team,
+        hull,
+        capital,
+        winner,
+        reason,
+        length,
+        alive_end,
+        station_dmg,
+        dmg_by,
+        dmg_to_capital,
+    )
 
 
-def report(args: argparse.Namespace, roster: Roster, names: list[str], team, hull,
-           capital, winner, reason, length, alive_end, station_dmg, dmg_by,
-           dmg_to_capital) -> int:
+def report(
+    args: argparse.Namespace,
+    roster: Roster,
+    names: list[str],
+    team,
+    hull,
+    capital,
+    winner,
+    reason,
+    length,
+    alive_end,
+    station_dmg,
+    dmg_by,
+    dmg_to_capital,
+) -> int:
     n = winner.size
     att = winner == 1
     draw = winner == -1
     score = att + 0.5 * draw
     se = float(score.std(ddof=1) / np.sqrt(n)) if n > 1 else 0.0
-    reasons = {END_REASONS[c]: float(np.mean(reason == c))
-               for c in range(1, len(END_REASONS)) if (reason == c).any()}
+    reasons = {
+        END_REASONS[c]: float(np.mean(reason == c))
+        for c in range(1, len(END_REASONS))
+        if (reason == c).any()
+    }
     secs = length / TICK_HZ
     surv: dict[str, dict[str, float]] = {}
     dealt: dict[str, dict[str, float]] = {}
@@ -218,7 +280,9 @@ def report(args: argparse.Namespace, roster: Roster, names: list[str], team, hul
         "length_median_s": float(np.median(secs)),
         "length_p10_s": float(np.percentile(secs, 10)),
         "length_p90_s": float(np.percentile(secs, 90)),
-        "station_damage_by_hull_per_match": {k: v / n for k, v in sorted(station_dmg.items())},
+        "station_damage_by_hull_per_match": {
+            k: v / n for k, v in sorted(station_dmg.items())
+        },
         "survival": surv,
         "damage_dealt_per_ship": dealt,
     }
