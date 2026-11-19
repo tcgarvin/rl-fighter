@@ -278,10 +278,10 @@ function sideRows(match: LiveMatch, commanders: boolean): string {
 /** What the caption says is scripted, and which commander is a net. */
 function scriptsSentence(capitals: boolean, commanders: readonly LiveCommander[]): string {
   const learned = [0, 1].filter((t) => commanders[t]?.net);
-  if (learned.length === 0) return capitals ? "Carriers, freighters and both commanders are scripted. " : "";
+  if (learned.length === 0) return capitals ? "Capital ships and both commanders are scripted. " : "";
   const who = learned.length === 2 ? "Both commanders are neural networks" : `The ${TEAM_WORDS[learned[0]!]} commander is a neural network`;
   const net = `${who} too, giving orders once a second.`;
-  return capitals ? `Carriers and freighters are scripted. ${net} ` : `${net} `;
+  return capitals ? `Capital ships are scripted. ${net} ` : `${net} `;
 }
 
 function pct(hp: number, max: number): number {
