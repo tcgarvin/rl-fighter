@@ -1,0 +1,3 @@
+== station_eval.py --n 512 --out out/balance_script_carrier.json
+== station_eval.py --n 512 --station-as convoy --out out/balance_script_convoy.json
+== station_eval.py --n 512 --station-as carrier --pilots /home/timg/code/rl-fighter/.claude/worktrees/agent-a452e13ae84a476a1/lab/runs/2026-11-19-station-bomber/../../live_pilots.json --checkpoint-root /home/timg/code/rl-fighter --out out/pilots_carrier.json

@@ -118,6 +118,7 @@ def mission_weights_of(weights: Sequence[float]) -> tuple[float, ...]:
         raise ValueError(f"mission_weights needs one weight per {MISSIONS}, got {w}")
     return w
 
+
 # Order drills (``docs/PILOT_TRAINING.md`` §2), in ``drill_weights`` order.
 DRILL_GOTO, DRILL_ATTACK, DRILL_DEFEND = "goto", "attack", "defend"
 # ``OpeningOrder.deadline_tick`` of a go-to without a deadline (SIM_VERSION 8).
@@ -492,11 +493,12 @@ def load_hull_costs(assets_dir: Path = DEFAULT_ASSETS) -> dict[str, float]:
 
 
 def load_hull_speed_caps(assets_dir: Path = DEFAULT_ASSETS) -> dict[str, float]:
-    """Hull name -> ``speed_cap`` (m/s) from every ``hulls/*/hull.yaml``.
+    """Hull name -> ``speed_cap`` (m/s) from every ``hulls/*/hull.yaml`` that can
+    move (a ``static`` hull, SIM_VERSION 9's station, has none and is left out).
 
     Raises:
         FileNotFoundError: No hull YAML under ``assets_dir``.
-        ValueError: A hull YAML without a positive ``speed_cap``.
+        ValueError: A non-static hull YAML without a positive ``speed_cap``.
     """
     paths = sorted((assets_dir / "hulls").glob("*/hull.yaml"))
     if not paths:
@@ -505,6 +507,8 @@ def load_hull_speed_caps(assets_dir: Path = DEFAULT_ASSETS) -> dict[str, float]:
     for path in paths:
         raw = yaml.safe_load(path.read_text())
         cap = raw.get("speed_cap") if isinstance(raw, dict) else None
+        if isinstance(raw, dict) and raw.get("static"):
+            continue
         if not isinstance(cap, (int, float)) or cap <= 0:
             raise ValueError(f"{path} has no positive speed_cap (got {cap!r})")
         caps[str(raw["name"])] = float(cap)
@@ -665,7 +669,9 @@ class OrdersDistribution:
     def __post_init__(self) -> None:
         if self.kind != ORDERS_KIND:
             raise ValueError(f"kind must be {ORDERS_KIND!r}, got {self.kind!r}")
-        object.__setattr__(self, "mission_weights", mission_weights_of(self.mission_weights))
+        object.__setattr__(
+            self, "mission_weights", mission_weights_of(self.mission_weights)
+        )
         if len(self.strike_weights) != len(self.strike_hulls) or not self.strike_hulls:
             raise ValueError("strike_weights needs one weight per strike hull")
         for name in ("mission_weights", "strike_weights"):
@@ -807,7 +813,9 @@ class PilotsDistribution:
     def __post_init__(self) -> None:
         if self.kind != PILOTS_KIND:
             raise ValueError(f"kind must be {PILOTS_KIND!r}, got {self.kind!r}")
-        object.__setattr__(self, "mission_weights", mission_weights_of(self.mission_weights))
+        object.__setattr__(
+            self, "mission_weights", mission_weights_of(self.mission_weights)
+        )
         if any(w < 0 for w in self.mission_weights) or sum(self.mission_weights) <= 0:
             raise ValueError("mission_weights must be >= 0 with a positive sum")
         for name in (

@@ -37,7 +37,7 @@ scripts/check.sh
 # Build the Rust sim's Python extension (rlf_sim) into the venv, test, benchmark
 uv run maturin develop -m crates/sim-py/Cargo.toml --release
 uv run python -m pytest tests/test_rust_env.py -v
-uv run python -m pytest tests/test_rust_missions.py -v   # v4 missions + commander API, v5 orders/random commander
+uv run python -m pytest tests/test_rust_missions.py -v   # v4 missions + commander API, v5 orders/random commander, v9 station assault
 uv run python -m pytest tests/test_rust_orders_v6.py -v  # v6 orders: defend / go-to, hidden orders, transit, threat sets
 uv run python -m pytest tests/test_commander_io.py -v    # learned commander I/O (docs/COMMANDER.md); Rust: cargo test -p sim --test commander_io
 # Mission timeline diagnostic (carrier battle, convoy escort, stub commanders)
@@ -159,6 +159,17 @@ nohup lab/runs/2026-10-30-fleet-pilot/run.sh > lab/runs/2026-10-30-fleet-pilot/r
 # (spacefight.eval.orders_v1, rlf.eval.orders/1, runs 1 and B2b; v5 sim only), and the
 # order pilot run (rosters orders_v1, arms w1 / w03; SMOKE=1 for tiny sizes into smoke/)
 uv run python -m spacefight.eval.missions --a <checkpoint.pt> --b <v1.pt> --out missions.json
+
+# Station assault (SIM_VERSION 9; docs/SIM_SPEC.md §0.7, §5.10): a static `station`
+# (role carrier) defended by team 0 against a carrier with `bomber`s (role anchor, fixed
+# torpedo rack). Not in the default eval set; {"kind": "station_assault", "as":
+# "carrier"|"convoy"} picks what the nets read it as (Roster.station_as). Hull ids: the
+# v4 hulls keep theirs (LEGACY_HULL_ORDER), new hulls follow by name. Balance and the
+# zero-shot / bomber-swap measurements: lab/runs/2026-11-19-station-bomber (run.sh).
+uv run python -m spacefight.eval.missions --missions station_assault --station-as convoy \
+    --a <checkpoint.pt> --b script --n-per-mission 512
+uv run python lab/runs/2026-11-19-station-bomber/station_eval.py --n 512 \
+    [--pilots lab/live_pilots.json] [--station-as convoy] [--commanders scripted unseen]
 nohup lab/runs/2026-10-31-order-pilot/run.sh > lab/runs/2026-10-31-order-pilot/run.out 2>&1 &
 
 # Stage B3 (orders attack / defend / go-to, SIM_VERSION 6, OBS_DIM 583): order eval

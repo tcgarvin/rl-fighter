@@ -1,4 +1,5 @@
-//! v4 missions, hangars, launches and the commander layer (SIM_SPEC §5.9, §5.10).
+//! v4 missions, hangars, launches and the commander layer (SIM_SPEC §5.9, §5.10);
+//! v9 station assault.
 
 mod common;
 
@@ -11,7 +12,8 @@ use sim::data::{Catalogue, HullId};
 use sim::events::Event;
 use sim::math::Vec2;
 use sim::mission::{
-    CarrierBattle, ConvoyEscort, EndReason, JumpState, Mission, TRANSPORT_CRUISE_FRAC,
+    CarrierBattle, ConvoyEscort, EndReason, JumpState, Mission, MissionKind, PICKET_RANGE,
+    STATION_X_FRAC, StationAssault, StationReadsAs, TRANSPORT_CRUISE_FRAC, default_rosters,
 };
 use sim::obs::{OBS_DIM, SHIP_W, SHIPS_OFF};
 use sim::scripted;
@@ -773,4 +775,210 @@ fn carrier_holds_heading_without_rcs_chatter() {
     let s = &m.ships[0];
     assert!(s.heading.abs() < 0.05, "held heading: {}", s.heading);
     assert!(s.omega.abs() < 0.01, "and stopped turning: {}", s.omega);
+}
+
+// -- v9: station assault (SIM_SPEC §0.7, §5.10) --------------------------------------
+
+fn station_cfg(cat: &Catalogue, seed: u64, reads_as: StationReadsAs) -> MatchConfig {
+    let roster = &default_rosters(MissionKind::StationAssault)[0];
+    MatchConfig {
+        seed,
+        fleets: [ids(cat, roster.fleets[0]), ids(cat, roster.fleets[1])],
+        mission: Mission::StationAssault(StationAssault {
+            reads_as,
+            ..StationAssault::default()
+        }),
+        time_limit_ticks: MissionKind::StationAssault.default_time_limit_ticks(),
+        ..MatchConfig::default()
+    }
+}
+
+#[test]
+fn station_assault_setup_places_the_station_picket_and_attackers() {
+    let cat = asset_catalogue();
+    let m = Match::new(&cat, &station_cfg(&cat, 3, StationReadsAs::Carrier)).unwrap();
+    let r = m.cfg.arena_radius;
+    let station = usize::from(m.carrier_of(0));
+    assert_eq!(station, 0);
+    let s = &m.ships()[station];
+    assert!(cat.hull(s.hull).is_static && s.present);
+    assert_eq!(s.pos.x, -STATION_X_FRAC * r);
+    assert_eq!(s.vel, Vec2::ZERO);
+    assert_eq!(m.command.waypoints[station], Waypoint::Unset);
+    // The picket: the first two strike craft, present at rest in front of it.
+    for slot in [1, 2] {
+        let p = &m.ships()[slot];
+        assert!(p.present && p.attach == Attach::None);
+        assert!(((p.pos - s.pos).length() - PICKET_RANGE).abs() < 1e-3);
+        assert!(p.pos.x > s.pos.x);
+    }
+    assert_eq!(m.hangar(0), &[3, 4, 5, 6]);
+    // The attackers: a carrier under way on the far side, three jumping in, five docked.
+    let carrier = usize::from(m.carrier_of(1));
+    assert_eq!(carrier, 7);
+    assert!(m.ships()[carrier].present && m.ships()[carrier].pos.x > 0.0);
+    let jumping: Vec<usize> = (8..16)
+        .filter(|&i| !m.ships()[i].present && m.ships()[i].attach == Attach::None)
+        .collect();
+    assert_eq!(jumping, vec![8, 9, 10]);
+    assert_eq!(m.hangar(1).len(), 5);
+}
+
+#[test]
+fn station_assault_ends_on_the_station_the_attackers_or_the_clock() {
+    let cat = asset_catalogue();
+    let cfg = station_cfg(&cat, 4, StationReadsAs::Carrier);
+    // The station falls: the attackers win.
+    let mut m = Match::new(&cat, &cfg).unwrap();
+    m.step(&cat);
+    m.ships[0].hp = 0.0;
+    m.step(&cat);
+    assert_eq!(m.phase(), MatchPhase::Over);
+    assert_eq!(
+        (m.winner(), m.mission.end_reason),
+        (1, EndReason::StationDestroyed)
+    );
+    // The attacker's carrier falls: its hangar dies with it, its wing fights on.
+    let mut m = Match::new(&cat, &cfg).unwrap();
+    m.step(&cat);
+    let carrier = usize::from(m.carrier_of(1));
+    let docked = m.hangar(1).to_vec();
+    m.ships[carrier].hp = 0.0;
+    m.step(&cat);
+    assert_eq!(
+        m.phase(),
+        MatchPhase::Running,
+        "its strike craft are still in"
+    );
+    assert!(m.hangar(1).is_empty());
+    assert!(docked.iter().all(|&s| !m.ships()[usize::from(s)].alive));
+    // ... and once every attacker is gone the defender has won.
+    for s in 8..16 {
+        m.ships[s].hp = 0.0;
+    }
+    m.step(&cat);
+    assert_eq!(
+        (m.winner(), m.mission.end_reason),
+        (0, EndReason::AssaultRepelled)
+    );
+    // The clock is the defender's.
+    let mut short = cfg.clone();
+    short.time_limit_ticks = 10;
+    let mut m = Match::new(&cat, &short).unwrap();
+    idle_until(&mut m, &cat, 10);
+    assert_eq!(
+        (m.winner(), m.mission.end_reason),
+        (0, EndReason::TimeLimit)
+    );
+}
+
+#[test]
+fn station_assault_rosters_are_validated() {
+    let cat = asset_catalogue();
+    let carrier = cat.hull_id("carrier").unwrap();
+    let station = cat.hull_id("station").unwrap();
+    // A mobile carrier cannot hold the station's side, nor a station attack.
+    let mut cfg = station_cfg(&cat, 1, StationReadsAs::Carrier);
+    cfg.fleets[0][0] = carrier;
+    assert!(matches!(
+        Match::new(&cat, &cfg),
+        Err(SetupError::Mission(_))
+    ));
+    let mut cfg = station_cfg(&cat, 1, StationReadsAs::Carrier);
+    cfg.fleets[1][0] = station;
+    assert!(matches!(
+        Match::new(&cat, &cfg),
+        Err(SetupError::Mission(_))
+    ));
+    let mut cfg = station_cfg(&cat, 1, StationReadsAs::Carrier);
+    cfg.fleets[1].remove(0);
+    assert!(matches!(
+        Match::new(&cat, &cfg),
+        Err(SetupError::Mission(_))
+    ));
+}
+
+/// The nets read a station assault as its `reads_as`: the pilot obs's mission one-hot
+/// and the commander's role one-hot, both sides; the station is "my carrier".
+#[test]
+fn station_assault_reads_as_a_carrier_battle_or_a_convoy() {
+    use sim::commander_io::{CommanderLocks, features, glob};
+    use sim::obs::{ORDER_OFF, order_f};
+    let cat = asset_catalogue();
+    for (reads_as, mission, roles) in [
+        (StationReadsAs::Carrier, 1, [1, 1]),
+        (StationReadsAs::Convoy, 2, [2, 3]),
+    ] {
+        let mut m = Match::new(&cat, &station_cfg(&cat, 5, reads_as)).unwrap();
+        assert_eq!(m.cfg.mission.obs_kind().index(), mission as u8);
+        for _ in 0..=COMMAND_TICKS {
+            scripted_step(&mut m, &cat);
+        }
+        let mut obs = vec![0.0; OBS_DIM];
+        for slot in [1u8, 8] {
+            m.write_obs(&cat, slot, &mut obs);
+            let hot = &obs[ORDER_OFF + order_f::MISSION..ORDER_OFF + order_f::MISSION + 3];
+            let mut want = [0.0; 3];
+            want[mission] = 1.0;
+            assert_eq!(hot, want, "slot {slot} {reads_as:?}");
+        }
+        let locks = CommanderLocks::default();
+        for team in 0..2u8 {
+            let f = features(&m, &cat, team, &locks);
+            let hot = &f.globals[glob::ROLE..glob::ROLE + 4];
+            let mut want = [0.0; 4];
+            want[roles[usize::from(team)]] = 1.0;
+            assert_eq!(hot, want, "team {team} {reads_as:?}");
+            assert_eq!(
+                f.globals[glob::CARRIER],
+                1.0,
+                "the station is a live carrier"
+            );
+            // The station cannot move: its commander's waypoint head only keeps.
+            let mobile = f.masks.waypoint[1..].iter().any(|&w| w);
+            assert_eq!(mobile, team == 1);
+        }
+    }
+}
+
+/// The station's turrets fight (a static hull fires since v9) and its bays launch.
+#[test]
+fn the_station_shoots_and_launches_under_the_scripts() {
+    let cat = asset_catalogue();
+    let mut m = Match::new(&cat, &station_cfg(&cat, 6, StationReadsAs::Carrier)).unwrap();
+    let (mut shots, mut launches) = (0u32, 0u32);
+    for _ in 0..1800 {
+        scripted_step(&mut m, &cat);
+        shots += u32::from(m.shots_fired[0]);
+        launches += m
+            .events()
+            .iter()
+            .filter(|e| matches!(e, Event::Launch { carrier: 0, .. }))
+            .count() as u32;
+        if m.phase() == MatchPhase::Over {
+            break;
+        }
+    }
+    assert!(shots > 0, "the station fired");
+    assert!(launches > 0, "the station launched");
+    assert_eq!(m.ships()[0].pos.x, -STATION_X_FRAC * m.cfg.arena_radius);
+}
+
+/// The scripted bomber (an anchor with a fixed torpedo rack) flies nose-on and lands
+/// torpedoes on the station; the gunship's broadside flying is untouched (golden).
+#[test]
+fn scripted_bombers_torpedo_the_station() {
+    let cat = asset_catalogue();
+    let bomber = cat.hull_id("bomber").unwrap();
+    let mut m = Match::new(&cat, &station_cfg(&cat, 7, StationReadsAs::Carrier)).unwrap();
+    let mut on_station = 0.0f32;
+    while m.phase() == MatchPhase::Running && m.tick() < 4500 {
+        scripted_step(&mut m, &cat);
+        for h in m.hits() {
+            if m.ships()[usize::from(h.shooter)].hull == bomber && h.target == 0 {
+                on_station += h.damage;
+            }
+        }
+    }
+    assert!(on_station > 0.0, "bombers hit the station");
 }

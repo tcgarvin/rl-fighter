@@ -604,7 +604,7 @@ a mean over all the learner side's rows like `reward_order`, so the two add up t
 
 | Choice | Draw |
 |---|---|
-| Mission | `mission_weights`, default deathmatch 0.4, carrier 0.3, convoy 0.3 |
+| Mission | `mission_weights`, default deathmatch 0.4, carrier 0.3, convoy 0.3, station assault 0 (SIM_VERSION 9; three weights mean station 0) |
 | Carrier, convoy | `rlf_sim.mission_rosters` at run time: the first 0.5, the others evenly, as the page |
 | Deathmatch | The page's draft: 2 to 4 of the cheapest hull's worth of credits, the same budget a side, each side spending it independently |
 | Condition | `commander_p`, default 0.5: both teams' orders shown, else hidden from both |

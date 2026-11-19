@@ -9,15 +9,23 @@ import pytest
 import rlf_sim
 
 from spacefight.env.rosters import (
+    BOMBER,
+    DEFAULT_ASSETS,
     FLEET_HULLS,
     MAX_FLEET_SHIPS,
     MAX_PER_SIDE,
+    MISSIONS,
     ROSTER_PRESETS,
+    STATION_ASSAULT,
+    STRIKE_HULLS,
     Roster,
     RosterDistribution,
     RosterSampler,
     arena_radius_for,
+    capital_hull_ids,
+    hull_names_by_id,
     load_hull_costs,
+    mission_weights_of,
     resolve_distribution,
 )
 from spacefight.env.rust_env import RustVecEnv
@@ -27,8 +35,8 @@ DUEL = [["fighter"], ["fighter"]]
 
 
 def hull_names() -> list[str]:
-    """Hull names in hull-id order (the catalogue sorts them by name)."""
-    return sorted(load_hull_costs())
+    """Hull names in hull-id order (the sim's catalogue order)."""
+    return hull_names_by_id()
 
 
 def test_arena_rule_is_the_duel_arena_for_every_fleet_size() -> None:
@@ -52,12 +60,75 @@ def test_roster_properties_and_validation() -> None:
 
 def test_hull_costs_come_from_the_yaml() -> None:
     assert load_hull_costs() == {
+        "bomber": 25.0,
         "carrier": 120.0,
         "fighter": 10.0,
         "freighter": 40.0,
         "gunship": 30.0,
+        "station": 200.0,
         "strafer": 10.0,
     }
+
+
+def test_hull_ids_keep_the_legacy_hulls_first() -> None:
+    """SIM_VERSION 9: the v4 hulls keep their ids, the new ones follow by name, as the
+    sim numbers them (``rlf_sim.LEGACY_HULL_ORDER``, ``sim::data::hull_order``)."""
+    names = hull_names_by_id()
+    assert names == [
+        "carrier",
+        "fighter",
+        "freighter",
+        "gunship",
+        "strafer",
+        "bomber",
+        "station",
+    ]
+    assert names[:5] == list(rlf_sim.LEGACY_HULL_ORDER)
+    # The ids the sim gives the hulls of a match agree.
+    env = rlf_sim.VecEnv(
+        str(DEFAULT_ASSETS),
+        1,
+        [["station", "bomber"], ["carrier", "strafer"]],
+        1,
+        mission="station_assault",
+    )
+    assert [names[h] for h in env.hull_id[0]] == [
+        "station",
+        "bomber",
+        "carrier",
+        "strafer",
+    ]
+    assert capital_hull_ids() == [0, 2, 6]
+
+
+def test_bomber_is_an_opt_in_strike_hull() -> None:
+    assert BOMBER not in FLEET_HULLS and BOMBER in STRIKE_HULLS
+    assert MISSIONS[-1] == STATION_ASSAULT
+
+
+def test_station_roster_carries_its_obs_mapping() -> None:
+    teams = (("station", "fighter"), ("carrier", "bomber"))
+    r = Roster(teams, STATION_ASSAULT)
+    assert r.mission_spec == {"kind": STATION_ASSAULT, "as": "carrier"}
+    convoy = Roster(teams, STATION_ASSAULT, station_as="convoy")
+    assert convoy.mission_spec == {"kind": STATION_ASSAULT, "as": "convoy"}
+    assert convoy.label == "station as convoy: XF v CB"
+    assert Roster(teams[:1] + (("fighter",),)).mission_spec is None
+    with pytest.raises(ValueError):
+        Roster(teams, STATION_ASSAULT, station_as="duel")
+
+
+def test_three_mission_weights_draw_as_before_v9() -> None:
+    """A trailing zero weight leaves numpy's draws exactly as the three-weight ones."""
+    three = np.asarray([0.4, 0.3, 0.3])
+    four = np.asarray([0.4, 0.3, 0.3, 0.0])
+    a, b = np.random.default_rng(5), np.random.default_rng(5)
+    draws_a = [int(a.choice(3, p=three / three.sum())) for _ in range(2000)]
+    draws_b = [int(b.choice(4, p=four / four.sum())) for _ in range(2000)]
+    assert draws_a == draws_b
+    assert mission_weights_of((0.4, 0.3, 0.3)) == (0.4, 0.3, 0.3, 0.0)
+    with pytest.raises(ValueError):
+        mission_weights_of((1.0, 1.0))
 
 
 def test_fleet_rosters_draw_strike_craft_only() -> None:

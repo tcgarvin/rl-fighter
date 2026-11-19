@@ -71,7 +71,7 @@ import numpy as np
 import rlf_sim
 from numpy.typing import NDArray
 
-from spacefight.env.rosters import DEATHMATCH, SCRIPTED, Roster, Sampler
+from spacefight.env.rosters import SCRIPTED, Roster, Sampler
 
 SIM_VERSION: int = int(rlf_sim.SIM_VERSION)
 OBS_DIM: int = rlf_sim.OBS_DIM

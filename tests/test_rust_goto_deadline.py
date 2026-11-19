@@ -135,12 +135,20 @@ def order_time(env: RustVecEnv, slot: int = 0) -> np.ndarray:
 
 
 def test_the_obs_is_587_wide_with_the_order_time_block_last() -> None:
-    assert rust_env.SIM_VERSION == 8
+    assert rust_env.SIM_VERSION == 9
     assert (rust_env.OBS_DIM, rust_env.OBS_DIM_V7) == (587, 583)
     assert (ORDER_TIME_OFF, ORDER_TIME_W) == (583, 4)
     assert list(rust_env.OBS_LAYOUT)[-1] == "order_time"
     assert rust_env.OBS_SLOTS["order_time"] == 1
-    assert rust_env.PILOT_OBS_DIMS == {3: 385, 4: 385, 5: 403, 6: 583, 7: 583, 8: 587}
+    assert rust_env.PILOT_OBS_DIMS == {
+        3: 385,
+        4: 385,
+        5: 403,
+        6: 583,
+        7: 583,
+        8: 587,
+        9: 587,
+    }
     assert PILOT_OBS_DIMS[8] == V8_OBS_DIM == rust_env.OBS_DIM
     assert PILOT_OBS_DIMS[6] == PILOT_OBS_DIMS[7] == V6_OBS_DIM == rust_env.OBS_DIM_V7
     assert rust_env.NO_DEADLINE == rosters.NO_DEADLINE == 0

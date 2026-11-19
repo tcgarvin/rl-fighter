@@ -189,6 +189,7 @@ inertia, and the sim reads that file. The validator runs in CI and in the nightl
 | Fighter | main engine + 4 RCS thrusters, fixed nose gun | dogfighter |
 | Strafer | lateral thruster pairs plus a weak main engine | skirmisher, circle-strafes |
 | Gunship | slow hull, 2–3 independent turrets | anchor, anti-fighter |
+| Bomber (v9) | two mains and four RCS, fixed forward torpedo rack | anchor class, anti-capital |
 
 The flagship (turrets plus bays) follows when the match structure lands.
 
@@ -219,6 +220,24 @@ this further, and its choices are the working plan: drafting deals 5-card hands 
 fighter/bomber cards are whole flights (×3 and ×2); a carrier brings an air wing; and
 there are four mission types: team deathmatch, flagship duel, hold the beacon, and
 station assault (attackers against a pre-placed, turreted, immobile station).
+
+**Station assault** (SIM_VERSION 9, in the sim and its bindings; not yet on the live
+page). Team 0 defends a static station (the `station` hull: six turrets, two bays, no
+engines) with a picket of two strike craft and a garrison it launches; team 1 arrives
+from the far side with a carrier and a wing that includes **bombers** (the `bomber`
+hull: a slow anchor-class strike craft with a fixed forward torpedo rack). The attacker
+wins by destroying the station; the defender wins on the clock (150 s) or by destroying
+the attacker's carrier and every one of its strike craft. To the nets the mission reads
+as a carrier battle for both sides, or as a convoy escort with the station's side the
+defender (`reads_as`, chosen per match): no input changed, so every pilot and commander
+flies it as it is. The rules are kept simple so that the commander matters through
+timing and concentration rather than targeting: the turrets punish a wing that arrives
+piecemeal, bombers are what kills the station (torpedoes cannot be dodged by a ship
+that cannot move, while a fighter can turn out of one), so escorts that defend the
+bombers matter, and since the clock is the defender's the attacker has to commit. Script
+against script the attacker wins about half its assaults
+(`lab/runs/2026-11-19-station-bomber/results.md`). The bomber is opt-in elsewhere: the
+default rosters and drafts of the other missions are unchanged.
 
 **Staging:** the first build is a plain skirmish (fixed fleets, no economy). Then
 flagships and supply, with a scripted commander. Then a learned commander. Then

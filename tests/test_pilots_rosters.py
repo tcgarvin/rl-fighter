@@ -35,6 +35,7 @@ from spacefight.env.rosters import (  # noqa: E402
     MAX_SHIPS,
     MAX_TRAIN_SHIPS,
     MISSIONS,
+    STATION_ASSAULT,
     SCRIPTED,
     OrdersDistribution,
     PilotsDistribution,
@@ -74,6 +75,11 @@ EXTRAS_ORDER_COL = 7
 NODE = shutil.which("node")
 
 
+# The missions the live page plays (``web/src/live/missions.ts``); the station assault
+# (SIM_VERSION 9) is not among them yet.
+LIVE_MISSIONS = tuple(m for m in MISSIONS if m != STATION_ASSAULT)
+
+
 def live_fleets(mission: str) -> list[tuple[tuple[str, ...], tuple[str, ...]]]:
     """The sim's rosters of ``mission`` as team pairs, default first."""
     return [
@@ -109,7 +115,9 @@ def test_mission_shares_follow_the_weights() -> None:
 def test_commander_share_follows_commander_p_in_every_mission() -> None:
     for commander_p in (0.5, 0.25):
         rosters = _sampler(commander_p=commander_p).sample_many(6000)
-        for mission in MISSIONS:
+        # The station assault (SIM_VERSION 9) has weight 0 by default: never drawn.
+        assert not any(r.mission == STATION_ASSAULT for r in rosters)
+        for mission in LIVE_MISSIONS:
             of_mission = [r for r in rosters if r.mission == mission]
             shown = sum(not r.hide_orders[0] for r in of_mission) / len(of_mission)
             assert shown == pytest.approx(commander_p, abs=0.05), mission
@@ -231,7 +239,7 @@ def test_draws_match_the_live_page_s_own_code() -> None:
             "max_per_side": rules.max_per_side,
             "budget": rules.budget,
         },
-        "rosters": {m: rlf_sim.mission_rosters(m) for m in MISSIONS},
+        "rosters": {m: rlf_sim.mission_rosters(m) for m in LIVE_MISSIONS},
     }
     script = """
     import { missionRoster } from "./web/src/live/missions.ts";
@@ -273,7 +281,7 @@ def test_draws_match_the_live_page_s_own_code() -> None:
     )
     assert done.returncode == 0, done.stderr
     page = json.loads(done.stdout)
-    for index, mission in enumerate(MISSIONS):
+    for index, mission in enumerate(LIVE_MISSIONS):
         weights = tuple(1.0 if k == index else 0.0 for k in range(3))
         ours = Counter(
             json.dumps([list(t) for t in r.teams], separators=(",", ":"))

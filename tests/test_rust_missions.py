@@ -295,10 +295,16 @@ def test_set_next_roster_takes_commanders_and_a_clock() -> None:
         mission="carrier_battle",
         commanders=["random", "scripted"],
     )
-    env.set_next_roster(1, [["fighter"], ["fighter", "strafer"]], 450.0, time_limit_s=30.0)
-    env.set_next_roster(2, [["fighter"], ["fighter"]], 450.0, commanders=["random", "random"])
+    env.set_next_roster(
+        1, [["fighter"], ["fighter", "strafer"]], 450.0, time_limit_s=30.0
+    )
+    env.set_next_roster(
+        2, [["fighter"], ["fighter"]], 450.0, commanders=["random", "random"]
+    )
     with pytest.raises(ValueError, match="commander"):
-        env.set_next_roster(2, [["fighter"], ["fighter"]], 450.0, commanders=["robot", "scripted"])
+        env.set_next_roster(
+            2, [["fighter"], ["fighter"]], 450.0, commanders=["robot", "scripted"]
+        )
     with pytest.raises(ValueError, match="two"):
         env.set_next_roster(2, [["fighter"], ["fighter"]], 450.0, commanders=["random"])
     with pytest.raises(ValueError, match="time_limit_s"):
@@ -307,7 +313,9 @@ def test_set_next_roster_takes_commanders_and_a_clock() -> None:
     s0, s1, s2 = (env.mission_state(i) for i in range(3))
     # A mission without a clock gets the mission's own; none at all, the env's.
     assert s0["commanders"] == ["random", "scripted"]
-    assert s0["time_limit_ticks"] == round(rlf_sim.mission_time_limit_s("carrier_battle") * 30)
+    assert s0["time_limit_ticks"] == round(
+        rlf_sim.mission_time_limit_s("carrier_battle") * 30
+    )
     assert (s1["commanders"], s1["time_limit_ticks"]) == (["scripted", "scripted"], 900)
     assert (s2["commanders"], s2["time_limit_ticks"]) == (["random", "random"], 1800)
     # The roster's commanders and clock stick through auto-resets: env 1 ends at 30 s.
@@ -319,7 +327,11 @@ def test_set_next_roster_takes_commanders_and_a_clock() -> None:
     assert env.mission_state(0)["commanders"] == ["random", "scripted"]
     explicit = rlf_sim.VecEnv(ASSETS, 1, [["fighter"], ["fighter"]], 2, max_ships=12)
     explicit.set_next_roster(
-        0, [TRAIN_CARRIER, TRAIN_CARRIER], 450.0, mission="carrier_battle", time_limit_s=20.0
+        0,
+        [TRAIN_CARRIER, TRAIN_CARRIER],
+        450.0,
+        mission="carrier_battle",
+        time_limit_s=20.0,
     )
     explicit.reset()
     assert explicit.mission_state(0)["time_limit_ticks"] == 600
@@ -347,7 +359,9 @@ def test_station_assault_reads_as_its_mapping(reads_as: str, index: int) -> None
     )
     state = env.mission_state(0)
     assert state["mission"] == "station_assault"
-    assert state["reads_as"] == ("carrier_battle" if reads_as == "carrier" else "convoy_escort")
+    assert state["reads_as"] == (
+        "carrier_battle" if reads_as == "carrier" else "convoy_escort"
+    )
     assert state["carrier"][0] == 0  # the station is team 0's carrier
     # Two on picket, four in the station; three jump in, five wait in the carrier.
     assert [len(h) for h in state["hangar"]] == [4, 5]

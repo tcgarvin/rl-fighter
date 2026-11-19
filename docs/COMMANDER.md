@@ -69,7 +69,7 @@ jumped in). Docked reserves are not entities; the globals count them.
 
 | Index | Feature |
 |---|---|
-| 0-3 | role one-hot: deathmatch, carrier battle, convoy defender, convoy attacker |
+| 0-3 | role one-hot: deathmatch, carrier battle, convoy defender, convoy attacker (v9: a station assault reads as its `reads_as`, see below) |
 | 4 | time left / time limit |
 | 5 | tick / time limit |
 | 6-8 | hangar reserves by strike hull (fighter, strafer, gunship) / 8 |
@@ -106,12 +106,27 @@ at radius `(0.3, 0.6, 0.85)[r] R` and bearing `45 b` degrees, counter-clockwise 
 deadline (SIM_VERSION 8 lets a go-to carry one, `docs/SIM_SPEC.md` §0.6; so far only an
 external commander's orders do). A carrier waypoint is the point itself.
 
+**Station assault (SIM_VERSION 9).** No input changed (`COMMANDER_IO_VERSION` stays
+1). The station is team 0's carrier: its slot is the carrier entity, its bays launch the
+garrison (the launch heads and reserves work as on a carrier), "my carrier alive" is the
+station's. The role one-hot reads the mission's `reads_as` (`{"kind":
+"station_assault", "as": ...}`): `carrier` sets index 1 for both teams (the symmetric
+reading), `convoy` sets 2 for the defender (team 0) and 3 for the attacker, the
+asymmetric reading, with the convoy globals (13-17) at 0 since there are no
+transports. A bomber is an `anchor`, so the gunship launch head launches it (the first
+docked anchor in fleet order) and it counts in the gunship reserves. The decisions that
+should matter here are timing and concentration (`lab/runs/2026-11-19-station-bomber`):
+when the attacker sends its wing (all at once or piecemeal into the turrets), whether
+its escorts defend the bombers, and for the defender which attackers it intercepts
+(bombers first) and when it launches.
+
 **Masks** (a choice is allowed when its mask is true; "keep" and "hold" always are):
 
 - Launch a hull: my carrier alive, a reserve of that hull, a bay ready. Launches go
   fighter, strafer, gunship in that order; the sim picks the bay; one refused for a busy
   bay is reported, not an error.
-- Carrier waypoint: points only while my carrier is alive.
+- Carrier waypoint: points only while my carrier is alive and can move (SIM_VERSION 9:
+  a station, a static carrier, only keeps).
 - Squad of slot s: only for my strike craft on the field or arriving, and not while the
   ship is held.
 - Order of squad k: none, attack, defend and go-to only while my team has strike craft

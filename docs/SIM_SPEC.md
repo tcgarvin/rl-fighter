@@ -5,7 +5,9 @@ day to **SIM_VERSION 2** (§0) after M1 landed, to **SIM_VERSION 3** (§0.1,
 collision damage) on 2026-10-29, to **SIM_VERSION 4** (§0.2: missions, carriers,
 convoys, the commander layer; M3 stage A, WP-S1) on 2026-10-30, and to **SIM_VERSION
 5** (§0.3: orders reach the pilots, the order reward, the random commander; M3 stage
-B, WP-B1) the same evening. `docs/DESIGN.md` is the source of
+B, WP-B1) the same evening, and since through **SIM_VERSION 9** (§0.4–§0.7; v9 on
+2026-11-19: the station assault, the bomber and the station). `docs/DESIGN.md` is the
+source of
 truth for direction; this file pins the decisions implementers need. When the two
 disagree, fix this file and note it in the lab journal.
 
@@ -219,6 +221,37 @@ moved. It fires 4, 4 and 2 times in the three random-commander scenarios and nev
 under the scripted commander. `v3_compat_duel_*`, `v4_compat_duel_*` and
 `v5_compat_duel_*` still pass.
 
+### 0.7 v9 changes (SIM_VERSION 8 → 9, station assault and the bomber)
+
+The mission DESIGN §6 lists as "station assault" (attackers against a pre-placed,
+turreted, immobile station) and a strike hull that kills capital ships, built so that
+every existing pilot and commander runs in them unchanged and every older match replays
+v8 exactly. Balance and the zero-shot numbers: `lab/runs/2026-11-19-station-bomber/
+results.md`.
+
+| # | change | why | sections |
+|---|---|---|---|
+| 1 | **Hull ids keep v4's for the old hulls** (`data::LEGACY_HULL_ORDER`: carrier 0, fighter 1, freighter 2, gunship 3, strafer 4); every other hull follows by name (`data::hull_order`, `load_dir` and `from_yaml` alike): bomber 5, station 6. A catalogue of legacy hulls only, or of none, is numbered by name as before | the state hash writes hull ids, and `bomber` and `station` sort among the old names, so plain name order would have shifted every id and every golden trace | §4.3, §12 |
+| 2 | Hulls **`bomber`** (role `anchor`, 200 hp, shield 60, cap 34 m/s, one fixed forward `torpedo` rack fired by the fire head) and **`station`** (role `carrier`, `static`, no thrusters, 1600 hp, shield 300, three flak and three gauss turrets on a 16 m ring, two bays) | a strike hull that kills capital ships, and the station. Existing roles, so the scripts fly them and the nets read them (the bomber as the gunship class, the station as a carrier); no new action head and no automatic behaviour | §4.1 |
+| 3 | The **torpedo** retuned for the rack (no hull carried one before): speed 95 → 90 m/s, range 340 → 240 m, damage 55 → 150, interval 3.2 → 4.5 s, turn 40 → 30 °/s | inside the station's turret reach, so a bomber has to take fire to strike; wide-turning (a fighter crossing within ~115 m out-turns it), so it is poor against fighters and deadly to what cannot dodge | §4.2, §6 |
+| 4 | **A static hull's turrets and power act** (stage 3): only its throttle heads are `LOCKED`'s. Before v9 a static hull applied `LOCKED` whole, so it could not fire; no shipped hull was static | the station has to fight | §5 stage 3 |
+| 5 | Mission **`StationAssault { jump_in, reads_as }`** (`MissionKind` 3, `"station_assault"`): setup, stage 12b (a dead carrier's hangar dies, the station counting as team 0's carrier), termination, default time limit 150 s, arena 450 m, one default roster | the mission | §5.10 |
+| 6 | **`EndReason::StationDestroyed` (6), `AssaultRepelled` (7)**, appended | the mission's two decisive ends; the clock is `TimeLimit` | §5.8, §5.10 |
+| 7 | **`reads_as`** (`StationReadsAs::{Carrier, Convoy}`, JSON `"as"`): what the pilot obs's 3-wide mission one-hot and the commander's 4-wide role one-hot show (`Mission::obs_kind`): a carrier battle for both teams, or a convoy escort with team 0 the defender. `OBS_DIM` stays 587 and `COMMANDER_IO_VERSION` 1 | no input grows; the two readings are the symmetric one (a carrier is a carrier) and the asymmetric one (attacker and defender, a clock on the defender's side), so they can be compared | §7.2, `docs/COMMANDER.md` |
+| 8 | Scripts: the scripted commander's **station arms** (defender and attacker); an **anchor whose first turret is fixed flies nose-on** (`gunship::nose_on`: closes to 0.85 × the weapon's range, nose on the lead point) instead of broadside; fighters' bomber priority also takes a hull whose primary weapon is a torpedo. The learned commander's waypoint head only keeps for a static carrier | the station needs a defence and an assault; a fixed rack must be pointed. None of these reaches a hull or mission that existed before | §5.9, §11, `docs/COMMANDER.md` |
+| 9 | `PILOT_COMPAT_VERSIONS = [3, …, 9]`, `PILOT_OBS_DIMS` adds `9: 587`. Bindings: `rlf_sim.MISSIONS` / `END_REASONS` append, `STATION_READS_AS`, `LEGACY_HULL_ORDER`; `mission_state()["reads_as"]`; WASM `obs_mission_kind()` | the obs and actions are v8's | §10 |
+
+**Compatibility.** Nothing a v8 match does changes: the `v8_compat_*` replay renders all
+nine v8 scenarios (kept verbatim in `tests/golden/v8/`) with the v9 hash and digest and
+matches them line for line, from a catalogue that holds the bomber and the station too
+(`tests/common/mod.rs::asset_catalogue`); the regenerated v9 traces of those nine differ
+from v8's in their header only. No state was added to the hash (a station assault keeps
+its mission state in the carrier fields). The older compat replays still pass.
+`golden_station_assault_*` are new (the carrier reading under the scripted commander,
+the convoy reading under the random one). Python's `mission_weights` gain a fourth
+entry, 0 by default; a three-weight tuple means station 0 and draws exactly as before
+(`tests/test_rosters.py`).
+
 ---
 
 ## 1. Conventions
@@ -396,7 +429,8 @@ not hashed; `queue` and `thrust_level` are state and are hashed (§12).
 ### 3.4 Room for later hulls
 
 - `HullDef.static: bool` — skip integration; infinite mass in collisions. Parsed and
-  honoured in M1 (tested with a synthetic hull), no shipped static hull.
+  honoured in M1 (tested with a synthetic hull); v9 ships one, the `station`, and lets
+  a static hull's turrets and power act (§0.7).
 - `HullDef.bays: Vec<BayDef>` — v4: used for launches (§5.9).
 - `Ship.parent / attach` — hit tests and collisions must skip pairs where one is the
   other's parent (`same_entity(a,b)` helper in `damage.rs`, used by every hit path).
@@ -451,6 +485,8 @@ changes in bold; v4 capital ships at the end):
 | gunship | anchor | 320 | 60 | 2200 | 24 | 140 / 12 / 4 / 11 | uniform (absent) | 0.75 all round | (4.5,0) 3.6; (0,0) 4.6; (-4.5,0) 3.8 |
 | carrier (v4) | carrier | **1000** (WP-S2; was 1500) | 600 | 90000 | **8** (was 10) | 260 / 15 / 5 / 24 | uniform | 0.5 all round | (13,0) 6.5; (0,0) 8.5; (-13,0) 7.5 |
 | freighter (v4) | transport | **400** (WP-S2; was 500) | 300 | **40000** | **10.5** (was 14) | 80 / 6 / 5 / 15 | uniform | 0.75 all round | (8,0) 4; (0,0) 4.5; (-8,0) 4.2 |
+| bomber (v9) | anchor | 200 | 22 | 260 | 34 | 60 / 8 / 4 / 8 | uniform | 0.75 all round | (3,0) 3; (-2.5,0) 3.4 |
+| station (v9) | carrier, `static` | 1600 | 5000 | 1e6 | 0 | 300 / 20 / 5 / 27 | uniform | 0.5 all round | (0,0) 21 |
 
 v4 mounts (the contract with the art agent's models; body frame): **carrier** mains
 `thruster.main.l/c/r` at (−19.5, 4.5) / (−20, 0) / (−19.5, −4.5), dir +x, **300 N** (WP-S2; was 7000); RCS
@@ -463,6 +499,19 @@ dir (0.5, 0.87) and `bay.starboard` (4, −9) dir (0.5, −0.87); cost 120. **fr
 **300 N** (heading hold only; its script turns with the RCS alone, ≈ 0.14 rad/s² of
 yaw); no turrets, no bays; cost 40. Role `transport` is the mission category, so
 another transport-role hull (a medical frigate) needs no sim change.
+
+v9 mounts (from the renderer's specs, `web/src/render/hulls.js`): **bomber** mains
+`thruster.main.l/r` at (−6, ±1.6), dir +x, 900 N; RCS `thruster.rcs.fl/fr/rl/rr` at
+(3.5, ±3.2) / (−3.5, ±3.8), dir ∓y, 260 N; `turret.rack` (4.8, 0), fixed (arc 0),
+torpedo; cost 25. **station**: no thrusters; `turret.flak.0` (16, 0) rest 0,
+`turret.flak.1` (−8, 13.9) rest 120, `turret.flak.2` (−8, −13.9) rest −120 (slew 90),
+`turret.gauss.0` (8, 13.9) rest 60, `turret.gauss.1` (−16, 0) rest 180,
+`turret.gauss.2` (8, −13.9) rest −60 (slew 120), all arc 220; bays `bay.port` (0, 21)
+dir (0, 1) and `bay.starboard` (0, −21) dir (0, −1); cost 200. The bomber's role is the
+gunship's (`anchor`): the scripted anchor pilot flies it (nose-on, §11), a learned
+commander launches it with the gunship head, and the obs class one-hot reads it as the
+slow heavy class. The station's role is `carrier`: the hangar, launches, the carrier
+script and every carrier feature of the nets apply to it.
 
 Thrusters and turrets are copied verbatim from `hulls.js` (`force` → `max_force`,
 `rest/arc/slew` → `rest_deg/arc_deg/slew_deg_s`; drop `size`/`height`, they are
@@ -514,8 +563,10 @@ Weapon ids are assigned in file order.
 `Catalogue::from_yaml` takes `(name, yaml_text)` pairs plus the weapons text, so the
 WASM bundle can hand over the same strings. Under the `fs` feature,
 `Catalogue::load_dir(assets)` reads `assets/weapons.yaml` and every
-`assets/hulls/*/hull.yaml`, sorted by directory name (hull ids are stable across
-machines). Parsing uses `serde-saphyr` (`serde_saphyr::from_str`; pure Rust, maintained; `serde_yaml` is deprecated) with `#[serde(deny_unknown_fields)]`.
+`assets/hulls/*/hull.yaml`, in `data::hull_order` of their directory names (hull ids are
+stable across machines): v9, the v4 hulls first in their v4 order (carrier, fighter,
+freighter, gunship, strafer: `LEGACY_HULL_ORDER`, which is their name order), then every
+other hull by name, so adding a hull never moves an old one's id (§0.7). Parsing uses `serde-saphyr` (`serde_saphyr::from_str`; pure Rust, maintained; `serde_yaml` is deprecated) with `#[serde(deny_unknown_fields)]`.
 
 ### 4.4 Validation (all errors, never warnings; `DataError::{Parse, Invalid{hull, msg}}`)
 
@@ -571,10 +622,11 @@ Each stage loops over ships in slot order and over projectiles in pool order.
       `tick >= control_lock_until` as the condition). So an action chosen while the
       ship is not present, or that would land inside the control lock, never enters
       the state: this is what makes `act_mask` (§7.1) exact.
-   2. *Lock.* `locked = tick < control_lock_until || hull.is_static || !s.active()`.
-      If `locked`, `a = ShipAction::LOCKED` (every throttle head `DECREASE`, slews
-      `HOLD`, fire 0, power head = "keep": `power_target` unchanged). Otherwise set
-      `power_target` from `a.power`.
+   2. *Lock.* `locked = tick < control_lock_until || !s.active()` (v9; through v8 also
+      `|| hull.is_static`). If `locked`, `a = ShipAction::LOCKED` (every throttle head
+      `DECREASE`, slews `HOLD`, fire 0, power head = "keep": `power_target` unchanged).
+      Otherwise set `power_target` from `a.power`, and for a static hull replace the
+      throttle heads by `LOCKED`'s (its turrets and power act; it has no thrust).
    3. *Ramp.* For each thruster `i`: `thrust_level[i] = clamp(thrust_level[i] +
       (a.throttle[i] as i8 − 1) * RAMP_RATE * DT, 0, 1)` with `RAMP_RATE = 5.0` /s
       (one step is `1/6`; 0 → 1 in 6 ticks = 200 ms). Slots beyond the hull's
@@ -1061,9 +1113,9 @@ those.
 `MatchConfig.mission`: `Deathmatch` | `CarrierBattle { jump_in: [u8; 2] }` |
 `ConvoyEscort { start, jump_point, jump_radius, charge_ticks, start_speed_frac }`.
 `Match::new` validates the roster against the mission (`SetupError::Mission`).
-Arena: `mission::arena_radius_for_mission(kind, n)` = 450 m for all three (DESIGN §6).
+Arena: `mission::arena_radius_for_mission(kind, n)` = 450 m for all of them (DESIGN §6).
 Default time limits (`MissionKind::default_time_limit_ticks`; callers pass them in
-`time_limit_ticks`): 90 s, 150 s, 120 s.
+`time_limit_ticks`): 90 s, 150 s, 120 s (v9: station assault 150 s).
 
 **Deathmatch**: v3 (§5.6, §5.8).
 
@@ -1118,6 +1170,33 @@ destroyed ≥ `to_destroy` → team 1 (`ConvoyDestroyed`); escaped ≥ `to_escap
 team 1 (`TimeLimit`: the convoy failed to get through). `Match::convoy_status()`
 reports total, en route, charging, escaped, destroyed, both thresholds and the mean
 route progress of the transports not destroyed (escaped = 1).
+
+
+**Station assault (v9).** `StationAssault { jump_in: [u8; 2] (default [2, 3]), reads_as:
+StationReadsAs (default Carrier) }`. Team 0, the defender, has exactly one
+`carrier`-role ship and it is `static` (the station); team 1, the attacker, exactly one
+`carrier`-role ship that is not static; neither fields transports
+(`SetupError::Mission`). Setup draws, per team in order, `y = range(−40, 40)`. The
+station is present at `(−STATION_X_FRAC · R, y)` = `(−0.35 R, y)`, heading 0, at rest,
+with no waypoint; `MissionState.carrier[0]` is its slot. Of team 0's other ships (fleet
+order) the first `min(jump_in[0], wing)` start on **picket**: present at tick 0, no
+control lock, at rest, heading 0, at the station's position plus `PICKET_RANGE = 70` m
+along bearing `(j − (n − 1)/2) · PICKET_SPREAD` (0.45 rad); the rest dock in the station.
+Team 1 is a carrier battle side: the carrier present at `(0.72 R, y)` heading π, at 0.4 ×
+its cap, waypoint 60 m ahead; its first `jump_in[1]` other ships jump in (§5.6 schedule,
+team 1 only), the rest dock. No draw for the picket. Stage 12b as a carrier battle's (a
+dead carrier's hangar dies; the station is team 0's carrier). Termination, in order:
+the station dead → team 1 (`StationDestroyed`); no team 1 ship in the match (its carrier
+and every strike craft dead; a dead carrier's hangar died with it) → team 0
+(`AssaultRepelled`); the time limit (150 s) → team 0 (`TimeLimit`). Team 1 wins only by
+destroying the station, so it has to commit before the clock runs out.
+
+`reads_as` changes nothing the sim does, only what the nets read (`Mission::obs_kind`):
+the pilot obs's mission one-hot (§7.2, `order` block) and the learned commander's role
+one-hot (`docs/COMMANDER.md`) show a carrier battle (`Carrier`: index 1 for both teams)
+or a convoy escort (`Convoy`: index 2; the commander's role 2 for team 0, the convoy
+defender, and 3 for team 1, the attacker). The scripts read no obs, so a script-only
+match is the same match under either reading.
 
 ## 6. Weapons
 
@@ -1561,6 +1640,23 @@ env.order_tracks(): + deadline [N,S] u32 (the instance's, 0 none), missed [N,S] 
 env.mission_state(i)["squads"][t][k]["order"]: a go-to always has "deadline" (0 none)
 ```
 
+```text
+# v9:
+rlf_sim.SIM_VERSION == 9; PILOT_COMPAT_VERSIONS == [3, 4, 5, 6, 7, 8, 9]; PILOT_OBS_DIMS adds 9: 587
+rlf_sim.MISSIONS == [..., "station_assault"]; END_REASONS == [..., "station_destroyed", "assault_repelled"]
+rlf_sim.STATION_READS_AS == ["carrier", "convoy"]
+rlf_sim.LEGACY_HULL_ORDER == ["carrier", "fighter", "freighter", "gunship", "strafer"]
+VecEnv(..., mission={"kind": "station_assault", "as": "convoy"})   # or "station_assault"
+env.mission_state(i)["reads_as"]       # the mission the nets read ("carrier_battle", ...)
+```
+
+v9 Python side: `rosters.MISSIONS` appends `STATION_ASSAULT`, `Roster.station_as` (one of
+`STATION_READS_AS`, default `"carrier"`) reaches the sim through `Roster.mission_spec`,
+`mission_weights` take four weights (three mean station 0, `mission_weights_of`), and
+`hull_names_by_id` follows `LEGACY_HULL_ORDER`. The bomber is opt-in
+(`rosters.STRIKE_HULLS`; `FLEET_HULLS` and every default roster and draft are v8's).
+WASM: `obs_mission_kind()` beside `mission_kind()`; `end_reason()` codes 6 and 7.
+
 v8 Python side: `RustVecEnv(..., goto_timed_bonus=, goto_miss_penalty=)` with the sim's
 defaults and matching properties; `rosters.OpeningOrder.deadline_tick` (an absolute
 match tick, `rosters.NO_DEADLINE = 0` for none; a non-negative int, on go-to orders
@@ -1701,6 +1797,7 @@ Both bindings parse missions and commands with the same serde structs (PyO3 pass
 {"kind": "carrier_battle", "jump_in": [2, 2]}                    // optional
 {"kind": "convoy_escort", "start": [x, y], "jump_point": [x, y], // all optional:
  "jump_radius": 40, "charge_ticks": 60, "start_speed_frac": 0.8} // ConvoyEscort::standard(R)
+{"kind": "station_assault", "jump_in": [2, 3], "as": "carrier" | "convoy"}  // v9, optional
 // commanders (config_json / VecEnv): ["scripted" | "external" | "random", same]
 // commands (one or an array):
 {"kind": "launch", "hull": "fighter" | null, "bay": 0 | null}
@@ -1726,15 +1823,16 @@ their files in order). The first entry is the default.
 | convoy_escort | 5 freighters | 5 freighters, F S F G | F F S G F S |
 | convoy_escort | 6 freighters | 6 freighters, F S F G | F F S G F S |
 | convoy_escort | 7 freighters | 7 freighters, F S F G | F F S G F S |
+| station_assault (v9) | strike of 8 | station, F S F G F S | carrier, F B F B S B F G |
 
-(F fighter, S strafer, G gunship.) Deathmatch has none: its rosters stay budget
+(F fighter, S strafer, G gunship, B bomber.) Deathmatch has none: its rosters stay budget
 drafts of 2–4 strike craft a side. The convoy rosters changed on 2026-11-01 for the
 `reward_300` champion, with no rule change and no `SIM_VERSION` bump (rosters are data
 the page and the evals read; goldens build their own fleets):
 `lab/runs/2026-11-01-fighters-v2/convoy_balance.md`.
 
 Views (serde-serialised): `CommanderObsView` (counts keyed by hull name),
-`MissionStateView` (mission, end reason, tick, command_due, carriers, hangars, bay
+`MissionStateView` (mission, v9 `reads_as`, end reason, tick, command_due, carriers, hangars, bay
 cooldowns, squads with member lists and orders, convoy, per-ship role / docked /
 parent / jump / waypoint / squad), `OutcomeView`.
 
@@ -1864,7 +1962,29 @@ balanced power; no guns.
 Roles as shipped: `fighter` (fighter), `skirmisher` (strafer: orbit at 120 m,
 `orbit_sign = +1 if slot even else -1`) and `anchor` (gunship: standoff 170 m,
 broadside), ported from sim.js in `fighter.rs` / `strafer.rs` / `gunship.rs`; a hull
-whose role has no controller returns `IDLE`. The controller reads `Match` state, not
+whose role has no controller returns `IDLE`. v9: an `anchor` whose first turret is a
+fixed mount (the bomber) flies `gunship::nose_on` instead: it closes to
+`NOSE_ON_STANDOFF = 0.85` × the weapon's range (backs off inside 0.7 of that) with its
+nose on the lead point, and fires down it (the torpedo rule of `aim_turrets`: the
+nearest capital-role enemy in range, else any enemy within half the range, within 0.35
+rad of the nose). Fighters' first-target rule ("a bomber within 260 m") also takes a hull
+whose first weapon is a torpedo. The station (role `carrier`, static) runs the carrier
+pilot: with no thrusters and no waypoint it only aims its turrets (strike craft first)
+and picks its power.
+
+**Scripted commander, station assault (v9).** *Defender:* launches as a carrier battle's
+(`WING_BASE` in space, one more every 30 s, paced), scrambling one per bay per slow tick
+while any enemy strike craft is within `STATION_ALARM_RADIUS = 320` m of the station;
+squad 0 defends the station (half the wing), squad 1 attacks the enemy bomber nearest
+the station, else the enemy strike craft nearest it, else the enemy carrier. No
+waypoint. *Attacker:* launches one per bay per slow tick until the hangar is empty;
+every strike craft defends the carrier (gathers round it) until the assault starts:
+the hangar empty and every strike craft on the field, or `ASSAULT_TICKS = 1200` (40 s),
+or the carrier lost; once started it stays started. Then squad 1 (the bombers) attacks
+the station and squad 0 (the rest) defends the bomber nearest the station (attacks the
+station once no bomber is left). The carrier patrols its own side as in a carrier
+battle, and closes on the station once its wing is spent (no strike craft, empty
+hangar), so a repelled assault ends in a flak duel rather than on the clock. The controller reads `Match` state, not
 obs, so BC pairs are `(obs_t, act(state_t))`; it is deterministic and allocation-free.
 Acceptance for v2 (§14.1 WP11, revised at WP14 for the real armour and balance):
 scripted fighter duels (seeds 0..20) end in a kill before the time limit for 20/20 at
