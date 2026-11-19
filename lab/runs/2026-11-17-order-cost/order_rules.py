@@ -28,6 +28,26 @@ from t = 2 s):
   gets no order (the order only once the fight has reached it).
 - ``none``: an external commander that gives no orders (a control: should be 0.50).
 
+Go-to and defend rules (added 2026-11-19, lab/runs/2026-11-19-order-kinds; the rules
+above are unchanged). A go-to is issued once, at the first slow tick, to the whole side
+as one squad, and never re-sent: it completes ship by ship on arrival (or, with a
+deadline, on a miss), and from then on the ship's effective order is none, which is
+exactly what a ship with no order sees (SIM_SPEC §0.4 row 2, §0.6 row 3). The squad's
+standing order stays a go-to; nothing a pilot reads shows it.
+
+- ``goto_front``: go to the midpoint of the two fleets' centroids (radius
+  ``GOTO_RADIUS`` = 60 m, the learned commander's), no deadline.
+- ``goto_front_deadline``: the same, with a v8 deadline: ``GOTO_SLACK`` (2) times the
+  slowest ship's straight-line time to the circle at its speed cap, plus 3 s (the tight
+  end of the drills' 2 to 8 times).
+- ``goto_rally``: go to a point ``RALLY_BACK_M`` (120 m) behind the side's own
+  centroid, away from the enemy's (radius 60 m), no deadline: regroup, then fight.
+- ``defend_ward``: one ship is the ward (no order), the others one squad defending it.
+  The ward is the ship nearest the side's centroid when first chosen, kept until it
+  dies; then the survivor nearest the survivors' centroid, while two are left.
+- ``defend_ring``: every ship its own squad, defending the next live ship in slot order
+  (two left: each other; one: no order). Every ship is ordered, as under ``nearest``.
+
 Rosters are even k v k of one hull (fighter, strafer, gunship; 8 rosters each, as in
 the commander-3 ``DUELS`` runs), each played with the ordered side on team 0 and on
 team 1.
@@ -69,13 +89,39 @@ NOSE_DEG = 10.0
 GUN_RANGE = {"fighter": 220.0, "strafer": 180.0, "gunship": 230.0}
 NOSE_ONLY = {"fighter": True, "strafer": True, "gunship": False}
 BIN_S = 2
-RULES = ("scripted", "nearest", "focus", "none", "near250")
+RULES = (
+    "scripted",
+    "nearest",
+    "focus",
+    "none",
+    "near250",
+    "goto_front",
+    "goto_front_deadline",
+    "goto_rally",
+    "defend_ward",
+    "defend_ring",
+)
 NEAR_ORDER_M = 250.0
+GOTO_RADIUS = 60.0
+GOTO_SLACK = 2.0
+GOTO_EXTRA_S = 3.0
+RALLY_BACK_M = 120.0
+SPEED_CAP = {"fighter": 60.0, "strafer": 50.0, "gunship": 24.0}
+# The sim's defend threat set (order module): an enemy within its reach plus
+# THREAT_MARGIN of the ward, or one that hit the ward in the last RECENT_HIT_TICKS.
+# Approximated here with GUN_RANGE as the reach and no bound radius.
+THREAT_MARGIN = 40.0
+RECENT_HIT_TICKS = 150
 DEFAULT_PILOTS = Path("lab/runs/2026-11-15-commander-3/pilots_followers.json")
 
 
 def wrap(a: np.ndarray) -> np.ndarray:
     return (a + np.pi) % (2 * np.pi) - np.pi
+
+
+def first_step(record: np.ndarray, now: np.ndarray, step: int) -> None:
+    """Set ``record`` (−1 = not yet) to ``step`` where ``now`` holds for the first time."""
+    record[(record < 0) & now] = step
 
 
 class ExternalRule:
@@ -84,12 +130,20 @@ class ExternalRule:
     def __init__(self, rule: str, n: int) -> None:
         self.rule = rule
         self.focus = np.full(n, -1, dtype=np.int64)
+        self.issued = np.zeros(n, dtype=bool)  # go-to rules: the one go-to is sent
+        self.ward = np.full(n, -1, dtype=np.int64)  # defend_ward: the current ward
 
-    def commands(self, i: int, team: int, ships: list[dict]) -> list[dict]:
+    def commands(self, i: int, team: int, ships: list[dict], tick: int = 0) -> list[dict]:
         own = [s for s in ships if s["team"] == team and s["alive"]]
         foes = [s for s in ships if s["team"] != team and s["alive"]]
         if self.rule == "none" or not own or not foes:
             return []
+        if self.rule.startswith("goto_"):
+            return self.goto(i, own, foes, tick)
+        if self.rule == "defend_ward":
+            return self.defend_ward(i, own)
+        if self.rule == "defend_ring":
+            return self.defend_ring(own)
         if self.rule in ("nearest", "near250"):
             out = []
             for k, s in enumerate(sorted(own, key=lambda s: s["slot"])):
@@ -121,6 +175,55 @@ class ExternalRule:
                 }
             ]
         raise ValueError(self.rule)
+
+    def goto(self, i: int, own: list[dict], foes: list[dict], tick: int) -> list[dict]:
+        """The side's one go-to, sent once (module docs); nothing after it."""
+        if self.issued[i]:
+            return []
+        self.issued[i] = True
+        c_own = np.mean([s["pos"] for s in own], axis=0)
+        c_foe = np.mean([s["pos"] for s in foes], axis=0)
+        if self.rule in ("goto_front", "goto_front_deadline"):
+            point = (c_own + c_foe) / 2
+        elif self.rule == "goto_rally":
+            away = c_own - c_foe
+            point = c_own + away / max(float(np.hypot(*away)), 1e-6) * RALLY_BACK_M
+        else:
+            raise ValueError(self.rule)
+        order = {"kind": "goto", "point": [float(point[0]), float(point[1])], "radius": GOTO_RADIUS}
+        if self.rule == "goto_front_deadline":
+            secs = max(
+                max(float(np.hypot(*(np.asarray(s["pos"]) - point))) - GOTO_RADIUS, 0.0)
+                / SPEED_CAP[s["hull"]]
+                for s in own
+            )
+            order["deadline"] = int(tick + math.ceil((GOTO_SLACK * secs + GOTO_EXTRA_S) * TICK_HZ))
+        members = sorted(int(s["slot"]) for s in own)
+        return [{"kind": "squad", "squad": 0, "members": members, "order": order}]
+
+    def defend_ward(self, i: int, own: list[dict]) -> list[dict]:
+        """One ward (no squad), every other live ship in squad 0 defending it."""
+        alive = {int(s["slot"]) for s in own}
+        if self.ward[i] not in alive:
+            c = np.mean([s["pos"] for s in own], axis=0)
+            w = min(own, key=lambda s: (np.hypot(*(np.asarray(s["pos"]) - c)), s["slot"]))
+            self.ward[i] = int(w["slot"])
+        ward = int(self.ward[i])
+        defenders = sorted(alive - {ward})
+        order = {"kind": "defend", "ward": ward} if defenders else {"kind": "none"}
+        return [{"kind": "squad", "squad": 0, "members": defenders, "order": order}]
+
+    @staticmethod
+    def defend_ring(own: list[dict]) -> list[dict]:
+        """Each live ship its own squad, defending the next live ship in slot order."""
+        slots = sorted(int(s["slot"]) for s in own)
+        out = []
+        for k, s in enumerate(slots):
+            nxt = slots[(k + 1) % len(slots)]
+            order = {"kind": "defend", "ward": nxt} if nxt != s else {"kind": "none"}
+            out.append({"kind": "squad", "squad": k, "members": [s], "order": order})
+        # As for ``nearest``: a squad past the live count held only ships now dead.
+        return out
 
 
 def run(args: argparse.Namespace) -> dict:
@@ -256,6 +359,13 @@ def run(args: argparse.Namespace) -> dict:
     last_hit_tick = np.full((n, S, S), -10_000)  # [i, victim, shooter]
     last_hitter = np.full((n, S), -1)
 
+    # Whole-match per-ship steps (−1 = never): the first step under a standing go-to,
+    # arrived in time, missed its deadline; the first under any effective order, and
+    # the first with none again after it (the order spent); and its death.
+    order_t = {
+        key: np.full((n, S), -1, dtype=np.int64)
+        for key in ("goto_start", "goto_arrive", "goto_miss", "order_start", "order_spent", "death")
+    }
     pos = np.zeros((n, S, 2))
     vel = np.zeros((n, S, 2))
     head = np.zeros((n, S))
@@ -273,7 +383,8 @@ def run(args: argparse.Namespace) -> dict:
         due = np.asarray(env.raw.command_due())
         if True:
             for i in rows:
-                ships = env.raw.render_state(int(i))["ships"]
+                rs = env.raw.render_state(int(i))
+                ships = rs["ships"]
                 for s in ships:
                     j = s["slot"]
                     pos[i, j] = s["pos"]
@@ -281,14 +392,27 @@ def run(args: argparse.Namespace) -> dict:
                     vel[i, j] = s["vel"]
                     alive[i, j] = s["alive"]
                 if ord_mode == EXTERNAL and due[i]:
-                    cmds = rule.commands(int(i), int(ord_team[i]), ships)
+                    cmds = rule.commands(int(i), int(ord_team[i]), ships, int(rs["tick"]))
                     if cmds:
                         env.raw.submit_command(int(i), int(ord_team[i]), cmds)
         tracks = env.order_tracks()
         kind = np.asarray(tracks["standing_kind"]).astype(np.int64)
         target = np.asarray(tracks["target"]).astype(np.int64)
+        # Go-to and defend telemetry (2026-11-19): what the order kinds' ships see.
+        eff = np.asarray(tracks["effective_kind"]).astype(np.int64)
+        ward = np.where(eff == 2, target, -1)
         target = np.where(kind == 1, target, -1)
         alive_before = alive.copy()
+        on = running[:, None] & strike & alive
+        goto_now = on & (kind == 3)
+        arr_now = goto_now & np.asarray(tracks["arrived"]) & ~np.asarray(tracks["missed"])
+        miss_now = goto_now & np.asarray(tracks["missed"])
+        first_step(order_t["goto_start"], goto_now, step)
+        first_step(order_t["goto_arrive"], arr_now, step)
+        first_step(order_t["goto_miss"], miss_now, step)
+        first_step(order_t["order_start"], on & (eff != 0), step)
+        had_order = order_t["order_start"] >= 0
+        first_step(order_t["order_spent"], on & had_order & (eff == 0), step)
 
         if in_window:
             live = running[:, None] & strike & alive  # [n, S]
@@ -366,6 +490,30 @@ def run(args: argparse.Namespace) -> dict:
             both = running & (cnt > 0).all(axis=1)
             gap_sum[bn] += np.hypot(*(cent[both, 0] - cent[both, 1]).T).sum()
             gap_n[bn] += both.sum()
+            # Order kinds (2026-11-19): time under each effective kind, distance to the
+            # ward, and time / damage as a ward (a ship some live ally defends).
+            for name in (
+                "eff_ordered_s",
+                "goto_s",
+                "defend_s",
+                "ward_s",
+                "dist_ward_sum",
+                "ward_taken",
+                "ward_lost",
+                "dealt_threat",
+                "dealt_nonthreat",
+            ):
+                acc.setdefault(name, z())
+            acc["eff_ordered_s"] += (live & (eff != 0)) * dt
+            acc["goto_s"] += (live & (eff == 3)) * dt
+            acc["defend_s"] += (live & (eff == 2)) * dt
+            wj = np.clip(ward, 0, S - 1)
+            ward_d = np.take_along_axis(dist, wj[..., None], axis=2)[..., 0]
+            acc["dist_ward_sum"] += np.where(live & (ward >= 0), ward_d, 0)
+            is_ward = np.zeros((n, S), dtype=bool)
+            wi, ws = np.nonzero(live & (ward >= 0))
+            is_ward[wi, ward[wi, ws]] = True
+            acc["ward_s"] += (is_ward & live) * dt
 
         acts = stable.actions(env)
         if in_window:
@@ -404,11 +552,22 @@ def run(args: argparse.Namespace) -> dict:
                     b = math.atan2(*(pos[i, sh] - pos[i, tg])[::-1])
                     if abs(wrap(np.asarray(b - head[i, tg]))) > math.pi / 2:
                         acc["taken_rear"][i, tg] += dmg
+                    if is_ward[i, tg]:
+                        acc["ward_taken"][i, tg] += dmg
+                    w = int(ward[i, sh])
+                    if w >= 0:  # a defender's hit: on the ward's threat set (approx.)?
+                        near = float(np.hypot(*(pos[i, tg] - pos[i, w])))
+                        threat = near <= GUN_RANGE[hull_name[i, tg]] + THREAT_MARGIN or (
+                            last_hit_tick[i, w, tg] >= step - RECENT_HIT_TICKS
+                        )
+                        acc["dealt_threat" if threat else "dealt_nonthreat"][i, sh] += dmg
         # Deaths this step, from the env's alive buffer (the finished match on a done).
         alive_now = np.asarray(env.raw.alive).copy()
         died = running[:, None] & strike & alive_before & ~alive_now
+        first_step(order_t["death"], died, step)
         if in_window:
             acc["lost"] += died
+            acc["ward_lost"] += died & is_ward
             for sd in (0, 1):
                 tl["lost"][sd, bn] += (died & (side == sd)).sum()
         for i in np.flatnonzero(died.any(axis=1)):
@@ -503,6 +662,45 @@ def run(args: argparse.Namespace) -> dict:
         "centroid_gap": (gap_sum / np.maximum(gap_n, 1)).tolist(),
     }
     out["per_match"]["first_hit"] = first_hit.tolist()
+    out["per_match"]["side"] = side.tolist()
+    out["per_match"]["order_steps"] = {key: v.tolist() for key, v in order_t.items()}
+    out["orders"] = order_summary(order_t, side, end_tick)
+    return out
+
+
+def order_summary(order_t: dict, side: np.ndarray, end_tick: np.ndarray) -> dict:
+    """Per side, whole match: how the go-to and the order as a whole ended, ship by ship.
+
+    Times are seconds from the step the ship's go-to (or first effective order) began.
+    """
+    out = {}
+    for sd, name in ((0, "ordered"), (1, "unseen")):
+        m = side == sd
+        go = m & (order_t["goto_start"] >= 0)
+        arr = go & (order_t["goto_arrive"] >= 0)
+        miss = go & (order_t["goto_miss"] >= 0)
+        dead = order_t["death"] >= 0
+        open_ = go & ~arr & ~miss
+        t_arr = (order_t["goto_arrive"] - order_t["goto_start"])[arr] / TICK_HZ
+        od = m & (order_t["order_start"] >= 0)
+        spent = od & (order_t["order_spent"] >= 0)
+        t_spent = (order_t["order_spent"] - order_t["order_start"])[spent] / TICK_HZ
+        quant = lambda a: [float(np.quantile(a, q)) for q in (0.25, 0.5, 0.75)] if a.size else []  # noqa: E731
+        out[name] = {
+            "ships": int(m.sum()),
+            "goto_ships": int(go.sum()),
+            "arrived": int(arr.sum()),
+            "missed": int(miss.sum()),
+            "died_before_end_of_goto": int((open_ & dead).sum()),
+            "goto_open_at_match_end": int((open_ & ~dead).sum()),
+            "arrive_s_mean": float(t_arr.mean()) if t_arr.size else None,
+            "arrive_s_quartiles": quant(t_arr),
+            "ordered_ships": int(od.sum()),
+            "spent": int(spent.sum()),
+            "spent_s_mean": float(t_spent.mean()) if t_spent.size else None,
+            "spent_s_quartiles": quant(t_spent),
+            "match_s_mean": float(end_tick.mean() / TICK_HZ),
+        }
     return out
 
 
