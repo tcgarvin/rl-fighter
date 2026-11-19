@@ -32,6 +32,11 @@
 //!   (the lead or the most damaged one); wave 2 (squad 1) goes to a staging point
 //!   ahead of the convoy on the attackers' side, and goes in on the same target
 //!   once wave 1 is down to half its size, or at `WAVE_TWO_TICKS`.
+//! - **Station assault (v9).** The defender (team 0) launches like a carrier and
+//!   scrambles while attackers are near its station; squad 0 **defends** the station,
+//!   squad 1 **intercepts** bombers first (`station_defence`). The attacker launches
+//!   everything, gathers its wing on the carrier, then sends the bombers at the station
+//!   with the rest **defending** the lead bomber (`station_attack`).
 //! - **Deathmatch.** Two squads (the fleet split in slot order): squad 0 attacks
 //!   the enemy nearest it, squad 1 the most damaged enemy within reach. The
 //!   scripted pilots do not follow a scripted deathmatch commander
