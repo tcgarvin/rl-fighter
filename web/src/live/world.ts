@@ -20,7 +20,7 @@ import { HULLS } from "../render/hulls.js";
 import { FitCamera, TYPICAL_ZOOM, emptyBounds, growBounds, type Bounds, type SafeRect } from "./camera.ts";
 import type { LiveMatch } from "./match.ts";
 import { RenderScale } from "./pacing.ts";
-import { JUMP_DEPARTED, SIM_HZ, type HullInfo, type ShipState, type SimEvent } from "./sim.ts";
+import { JUMP_DEPARTED, SIM_HZ, WEAPON_NAMES, type HullInfo, type ShipState, type SimEvent } from "./sim.ts";
 
 // Jump-in streak, as in the story and the duel.
 const JUMP_DISTANCE = 900;
@@ -57,8 +57,6 @@ const HULK_SOOT = new THREE.Color(0x1a1714);
 const HULK_EMBER_FLOOR = 0.35;
 const HULK_COOL = 8;
 const BEAM_TTL = 0.06;
-// Weapon ids are assets/weapons.yaml file order (SIM_SPEC §4.2); `Fire` carries one.
-const WEAPON_NAMES = ["gauss", "laser", "flak", "torpedo", "rail", "lance"];
 // The defenders' jump-out at the end of a convoy the escort won: after a beat, one
 // ship every QUICK_JUMP_GAP seconds, freighters first.
 const QUICK_JUMP_DELAY = 0.7;
@@ -581,6 +579,12 @@ export class World {
         continue;
       }
       if (quiet) continue;
+      // The moment a turret or bay is shot off; drawShip() catches up silently on any
+      // the page missed (a fast-forward).
+      if (e.kind === "turretDestroyed" || e.kind === "bayDestroyed") {
+        this.setHardpointDestroyed(e.a, e.kind === "turretDestroyed" ? "turret" : "bay", e.b, true);
+        continue;
+      }
       const shooter = m.ships[e.b];
       switch (e.kind) {
         case "fire":
@@ -820,6 +824,7 @@ export class World {
     v.drawn.visible = visible;
     v.model.setThrottles(ship.throttles, dt);
     v.model.turrets.forEach((pivot, k) => (pivot.rotation.y = ship.turretAngles[k] ?? 0));
+    this.syncHardpoints(i, v, ship);
     for (const e of v.engines) {
       // No trail across the jump-in streak, or from a ship that isn't on the field.
       if (!visible || jumpT < 1) {
@@ -833,7 +838,26 @@ export class World {
     v.damage.update(Math.max(0, ship.hp) / (m.maxHp[i] ?? 1), visible, dt);
     // Ships yet to jump in count too, so the empty field is framed where they'll
     // appear; ships in a hangar or gone through the jump point do not.
-    if (ship.alive && !ship.docked && ship.jump !== JUMP_DEPARTED) this.cam.grow(bounds, ship.x, ship.y);
+    // A capital ship is framed whole (the citadel is some 100 m across), strike craft
+    // by their centres.
+    if (ship.alive && !ship.docked && ship.jump !== JUMP_DEPARTED) {
+      if (ship.role === "strike") this.cam.grow(bounds, ship.x, ship.y);
+      else this.cam.growDisc(bounds, ship.x, ship.y, v.hull.radius);
+    }
+  }
+
+  /**
+   * Match the model's wreckage to the sim's hardpoints (v10), without the burst: the
+   * TurretDestroyed / BayDestroyed events play that as it happens, so this only catches
+   * a mount lost while the page was not drawing (a fast-forward, a match joined late).
+   */
+  private syncHardpoints(i: number, v: ShipView, ship: ShipState): void {
+    for (let k = 0; k < ship.nTurrets; k++) {
+      if (ship.turretState[k] === 0 && !v.model.hardpointDestroyed("turret", k)) this.setHardpointDestroyed(i, "turret", k, false);
+    }
+    for (let k = 0; k < ship.nBays; k++) {
+      if (ship.bayState[k] === 0 && !v.model.hardpointDestroyed("bay", k)) this.setHardpointDestroyed(i, "bay", k, false);
+    }
   }
 
   /** A hull leaving through its jump: pulled forward along its heading, then gone. */

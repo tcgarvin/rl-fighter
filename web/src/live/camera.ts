@@ -136,6 +136,14 @@ export class FitCamera {
     growBounds(b, x * this.ax + y * this.ay, -x * this.ay + y * this.ax);
   }
 
+  /** Grow `b` (axis frame) by a disc of radius `r` about the sim point (x, y): a big hull whole. */
+  growDisc(b: Bounds, x: number, y: number, r: number): void {
+    const f = x * this.ax + y * this.ay;
+    const g = -x * this.ay + y * this.ax;
+    growBounds(b, f - r, g - r);
+    growBounds(b, f + r, g + r);
+  }
+
   /** Axis-frame (f, g) back to sim metres. */
   private toSim(f: number, g: number): [number, number] {
     return [f * this.ax - g * this.ay, f * this.ay + g * this.ax];

@@ -26,6 +26,9 @@ export interface WasmMatch {
   // v4 (SIM_SPEC §10.2): missions and the commander layer.
   ship_ext_ptr(): number;
   ship_ext_len(): number;
+  /** v10: the hardpoints view (SimModule.HARDPOINT_STRIDE floats per ship, ship order). */
+  hardpoints_ptr?(): number;
+  hardpoints_len?(): number;
   /** MISSION_KINDS index (v9: 3, the station assault). */
   mission_kind(): number;
   /** v9: the mission kind the nets read: a station assault's is 1 or 2 (its spec's `"as"`). */
@@ -92,6 +95,19 @@ export interface SimModule {
   SHIP_POWER_OFFSET(): number;
   PROJECTILE_STRIDE(): number;
   EVENT_STRIDE(): number;
+  /** v10: `[n_turrets, n_bays, turret_angle[12], turret_state[12], bay_state[4]]` per ship. */
+  HARDPOINT_STRIDE?(): number;
+  HARDPOINT_TURRET_ANGLE_OFFSET?(): number;
+  HARDPOINT_TURRET_STATE_OFFSET?(): number;
+  HARDPOINT_BAY_STATE_OFFSET?(): number;
+}
+
+/** Where the v10 hardpoints view keeps each block of a ship's record. */
+export interface HardpointLayout {
+  stride: number;
+  turretAngleOffset: number;
+  turretStateOffset: number;
+  bayStateOffset: number;
 }
 
 export interface SimLayout {
@@ -107,8 +123,11 @@ export interface SimLayout {
   throttleOffset: number;
   turretOffset: number;
   powerOffset: number;
+  /** v10 appends the weapon id to each projectile (9 floats); 8 before. */
   projectileStride: number;
   eventStride: number;
+  /** v10: the hardpoints view's layout; null in a wasm before it. */
+  hardpoints: HardpointLayout | null;
 }
 
 /** Read the module's static constants once. */
@@ -131,7 +150,23 @@ export function simLayout(sim: SimModule): SimLayout {
     powerOffset: sim.SHIP_POWER_OFFSET(),
     projectileStride: sim.PROJECTILE_STRIDE(),
     eventStride: sim.EVENT_STRIDE(),
+    hardpoints: hardpointLayout(sim),
   };
+}
+
+function hardpointLayout(sim: SimModule): HardpointLayout | null {
+  if (!sim.HARDPOINT_STRIDE || !sim.HARDPOINT_TURRET_ANGLE_OFFSET || !sim.HARDPOINT_TURRET_STATE_OFFSET || !sim.HARDPOINT_BAY_STATE_OFFSET) return null;
+  const layout = {
+    stride: sim.HARDPOINT_STRIDE(),
+    turretAngleOffset: sim.HARDPOINT_TURRET_ANGLE_OFFSET(),
+    turretStateOffset: sim.HARDPOINT_TURRET_STATE_OFFSET(),
+    bayStateOffset: sim.HARDPOINT_BAY_STATE_OFFSET(),
+  };
+  // The page keeps MAX_TURRETS angles and states and MAX_BAYS bay states a ship.
+  if (layout.turretStateOffset - layout.turretAngleOffset !== MAX_TURRETS || layout.bayStateOffset - layout.turretStateOffset !== MAX_TURRETS || layout.stride - layout.bayStateOffset !== MAX_BAYS) {
+    throw new Error(`hardpoints view ${JSON.stringify(layout)} does not hold ${MAX_TURRETS} turrets and ${MAX_BAYS} bays`);
+  }
+  return layout;
 }
 
 /**
@@ -196,12 +231,22 @@ export interface HullGeometry {
 /** Hull roles (YAML `role`) of the capital ships, which scripts fly (SIM_SPEC §11). */
 export const ROLE_CARRIER = "carrier";
 export const ROLE_TRANSPORT = "transport";
+/** v10: a gun capital ship with no bays (the dreadnought). */
+export const ROLE_LINE = "line";
+export const CAPITAL_ROLES: readonly string[] = [ROLE_CARRIER, ROLE_TRANSPORT, ROLE_LINE];
 
-/** The ship-ext view's role code (SIM_SPEC §10.2). */
-export type ShipRole = "strike" | "carrier" | "transport";
-const SHIP_ROLES: ShipRole[] = ["strike", "carrier", "transport"];
+/** Whether a catalogue hull is a capital ship (a script flies it, never a pilot). */
+export function isCapitalHull(info: HullInfo | undefined): boolean {
+  return info !== undefined && (CAPITAL_ROLES.includes(info.role) || Boolean(info.geometry?.static));
+}
+
+/** The ship-ext view's role code (SIM_SPEC §10.2; v10 adds 3, line). */
+export type ShipRole = "strike" | "carrier" | "transport" | "line";
+const SHIP_ROLES: ShipRole[] = ["strike", "carrier", "transport", "line"];
+/** A code this page does not know is a capital ship all the same: only the sim's script can fly it. */
 export function shipRole(code: number): ShipRole {
-  return SHIP_ROLES[code] ?? "strike";
+  if (code === 0) return "strike";
+  return SHIP_ROLES[code] ?? "line";
 }
 
 /** Jump drive state (SIM_SPEC §5.10): 0 idle, 1 charging, 2 departed. */
@@ -237,11 +282,23 @@ export interface MatchSettings {
 
 export const PROJECTILE_KINDS = ["bullet", "beam", "flak", "torpedo"] as const;
 export type ProjectileKind = (typeof PROJECTILE_KINDS)[number];
-export const EVENT_KINDS = ["fire", "beam", "hit", "shieldHit", "burst", "death", "arrival", "collision", "launch", "order", "jumpCharge", "jumpOut", "matchEnd"] as const;
+export const EVENT_KINDS = [
+  "fire", "beam", "hit", "shieldHit", "burst", "death", "arrival", "collision", "launch", "order", "jumpCharge", "jumpOut", "matchEnd",
+  // v10: `[kind, ship, turret or bay, x, y, 0, 0, shooter]`.
+  "turretDestroyed", "bayDestroyed",
+] as const;
 export type EventKind = (typeof EVENT_KINDS)[number] | "unknown";
 
+/** Weapon ids are assets/weapons.yaml file order (SIM_SPEC §4.2): `Fire` and (v10) each projectile carry one. */
+export const WEAPON_NAMES = ["gauss", "laser", "flak", "torpedo", "rail", "lance"] as const;
+
 export const MAX_THRUSTERS = 8;
-export const MAX_TURRETS = 6;
+/** Turret angles in the ships view and turret heads in an action row. */
+export const ACTION_TURRETS = 6;
+/** Turrets a hull may have (v10: the citadel's 12); the hardpoints view has them all. */
+export const MAX_TURRETS = 12;
+/** Bays a hull may have. */
+export const MAX_BAYS = 4;
 
 export interface ShipState {
   id: number;
@@ -259,7 +316,14 @@ export interface ShipState {
   /** Index into the catalogue's hull list, in the sim's id order (simHullOrder). */
   hull: number;
   throttles: Float32Array;
+  /** Every turret's angle, body frame (MAX_TURRETS; past the first ACTION_TURRETS only from v10's hardpoints view). */
   turretAngles: Float32Array;
+  // v10 (the hardpoints view): the hull's turrets and bays, and each one's hp fraction
+  // (0 destroyed; 1 for a mount that cannot be). Zero counts before v10.
+  nTurrets: number;
+  nBays: number;
+  turretState: Float32Array;
+  bayState: Float32Array;
   /** Shields, engines, weapons shares. */
   power: Float32Array;
   // v4 (the ship-ext view, SIM_SPEC §10.2).

@@ -9,9 +9,11 @@ import { mulberry32, type Rng } from "./policy.js";
 import { SCRIPTED_COMMANDER, type LiveCommander, type LivePilot } from "./bundle.ts";
 import type { MissionName } from "./missions.ts";
 import {
+  ACTION_TURRETS,
   END_REASONS,
   EVENT_KINDS,
   JUMP_DEPARTED,
+  MAX_BAYS,
   MAX_THRUSTERS,
   MAX_TURRETS,
   ORDER_KINDS,
@@ -29,6 +31,7 @@ import {
   type SquadState,
   type TeamState,
   type WasmMatch,
+  WEAPON_NAMES,
 } from "./sim.ts";
 
 // Matches SIM_SPEC §5.8's time-limit tiebreak: Σ_in_match (hp + 0.5 · shield).
@@ -135,6 +138,10 @@ function emptyShip(i: number): ShipState {
     id: i, x: 0, y: 0, vx: 0, vy: 0, heading: 0, omega: 0, hp: 0, shield: 0, alive: false, present: false, team: 0, hull: 0,
     throttles: new Float32Array(MAX_THRUSTERS),
     turretAngles: new Float32Array(MAX_TURRETS),
+    nTurrets: 0,
+    nBays: 0,
+    turretState: new Float32Array(MAX_TURRETS),
+    bayState: new Float32Array(MAX_BAYS),
     power: new Float32Array(3),
     role: "strike", docked: false, jump: 0, chargeUntil: 0, hasWaypoint: false, waypointX: 0, waypointY: 0, squad: -1,
   };
@@ -481,9 +488,10 @@ export class LiveMatch {
       s.team = v[o + 10]!;
       s.hull = v[o + 11]!;
       s.throttles.set(v.subarray(o + L.throttleOffset, o + L.throttleOffset + MAX_THRUSTERS));
-      s.turretAngles.set(v.subarray(o + L.turretOffset, o + L.turretOffset + MAX_TURRETS));
+      s.turretAngles.set(v.subarray(o + L.turretOffset, o + L.turretOffset + ACTION_TURRETS));
       s.power.set(v.subarray(o + L.powerOffset, o + L.powerOffset + 3));
     }
+    this.readHardpoints(n);
     if (!this.v4) return;
     const stride = this.sim.SHIP_EXT_STRIDE();
     const x = this.view(this.wasm.ship_ext_ptr(), this.wasm.ship_ext_len());
@@ -498,6 +506,23 @@ export class LiveMatch {
       s.waypointX = x[o + 6]!;
       s.waypointY = x[o + 7]!;
       s.squad = x[o + 8]!;
+    }
+  }
+
+  /** v10: every turret's angle (the citadel has more than the ships view's six) and each mount's state. */
+  private readHardpoints(n: number): void {
+    const H = this.layout.hardpoints;
+    const m = this.wasm;
+    if (!H || !m.hardpoints_ptr || !m.hardpoints_len) return;
+    const v = this.view(m.hardpoints_ptr(), m.hardpoints_len());
+    for (let i = 0; i < n && (i + 1) * H.stride <= v.length; i++) {
+      const o = i * H.stride;
+      const s = this.ships[i]!;
+      s.nTurrets = v[o]!;
+      s.nBays = v[o + 1]!;
+      s.turretAngles.set(v.subarray(o + H.turretAngleOffset, o + H.turretAngleOffset + MAX_TURRETS));
+      s.turretState.set(v.subarray(o + H.turretStateOffset, o + H.turretStateOffset + MAX_TURRETS));
+      s.bayState.set(v.subarray(o + H.bayStateOffset, o + H.bayStateOffset + MAX_BAYS));
     }
   }
 
@@ -547,7 +572,9 @@ export class LiveMatch {
     const v = this.view(this.wasm.projectiles_ptr(), this.wasm.projectiles_len());
     const n = v.length / stride;
     const pool = this.projectilePool;
-    while (pool.length < n) pool.push({ slot: 0, kind: "bullet", team: 0, owner: 0, x: 0, y: 0, vx: 0, vy: 0 });
+    // v10 appends the weapon id (stride 9); an older wasm's projectiles name none.
+    const weapons = stride > 8;
+    while (pool.length < n) pool.push({ slot: 0, kind: "bullet", weapon: undefined, team: 0, owner: 0, x: 0, y: 0, vx: 0, vy: 0 });
     for (let i = 0; i < n; i++) {
       const o = i * stride;
       const p = pool[i]!;
@@ -559,6 +586,7 @@ export class LiveMatch {
       p.y = v[o + 5]!;
       p.vx = v[o + 6]!;
       p.vy = v[o + 7]!;
+      p.weapon = weapons ? WEAPON_NAMES[v[o + 8]!] : undefined;
     }
     this.projectiles = pool.slice(0, n);
   }
