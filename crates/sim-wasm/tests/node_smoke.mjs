@@ -91,7 +91,8 @@ function check(cond, msg) {
   }
 }
 
-check(sim.SHIP_STRIDE() === 29 && sim.EVENT_STRIDE() === 8 && sim.PROJECTILE_STRIDE() === 8, "strides");
+check(sim.SHIP_STRIDE() === 29 && sim.EVENT_STRIDE() === 8 && sim.PROJECTILE_STRIDE() === 9, "strides");
+check(sim.HARDPOINT_STRIDE() === 30 && sim.HARDPOINT_TURRET_STATE_OFFSET() === 14 && sim.HARDPOINT_BAY_STATE_OFFSET() === 26, "v10 hardpoint stride");
 check(sim.ACTION_WIDTH() === 21 && sim.OBS_DIM() === 587, "action/obs widths");
 check(sim.sim_version() === 9 && Array.from(sim.pilot_compat_versions()).join() === "3,4,5,6,7,8,9", "v9 + pilot compat");
 check(
@@ -127,9 +128,9 @@ check(sim.MAX_SHIPS() === 20 && sim.COMMAND_TICKS() === 60 && sim.arenaRadiusFor
 
 let threw = false;
 try {
-  new sim.WasmMatch(hulls, weapons, '{"seed":1,"fleets":[["fighter"],["dreadnought"]]}');
+  new sim.WasmMatch(hulls, weapons, '{"seed":1,"fleets":[["fighter"],["battlecruiser"]]}');
 } catch (e) {
-  threw = String(e.message ?? e).includes("dreadnought");
+  threw = String(e.message ?? e).includes("battlecruiser");
 }
 check(threw, "unknown hull should throw a JS error naming it");
 

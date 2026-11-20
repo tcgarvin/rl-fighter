@@ -133,7 +133,7 @@ def test_mixed_training_fleets_certify_every_hull_they_used(tmp_path: Path) -> N
 def test_unknown_certified_hull_is_refused(tmp_path: Path) -> None:
     bundle = _fake_bundle(tmp_path, [["fighter"], ["fighter"]])
     with pytest.raises(BundleError, match="not in the catalogue"):
-        build(bundle, "run", ASSETS, REPO, hulls=["fighter", "dreadnought"])
+        build(bundle, "run", ASSETS, REPO, hulls=["fighter", "battlecruiser"])
 
 
 def test_roster_sizes_beyond_the_ship_cap_are_refused(tmp_path: Path) -> None:

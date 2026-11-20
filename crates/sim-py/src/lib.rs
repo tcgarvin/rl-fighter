@@ -12,7 +12,9 @@ use sim::events;
 use sim::mission::{EndReason, MissionKind, StationReadsAs};
 use sim::obs::{N_NEAR_SHIPS, N_ORDER_SHIPS, SHIP_EXTRA_W};
 use sim::obs::{OBS_DIM, OBS_LAYOUT, OBS_SLOTS};
-use sim::state::{MAX_HITS, MAX_REACTION_TICKS, MAX_SHIPS, MAX_THRUSTERS, MAX_TURRETS};
+use sim::state::{
+    ACTION_TURRETS, MAX_BAYS, MAX_HITS, MAX_REACTION_TICKS, MAX_SHIPS, MAX_THRUSTERS, MAX_TURRETS,
+};
 
 #[pymodule]
 fn rlf_sim(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -25,6 +27,11 @@ fn rlf_sim(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("HIT_FIELDS", batch::HIT_FIELDS)?;
     m.add("HIT_DAMAGE_SCALE", batch::HIT_DAMAGE_SCALE)?;
     m.add("MAX_REACTION_TICKS", MAX_REACTION_TICKS)?;
+    // v10: turret slots of a hull (the citadel has 12), of the action row (6), and bays;
+    // the widths of `VecEnv.hardpoints()`.
+    m.add("MAX_TURRETS", MAX_TURRETS)?;
+    m.add("ACTION_TURRETS", ACTION_TURRETS)?;
+    m.add("MAX_BAYS", MAX_BAYS)?;
     // v4.
     m.add("PILOT_COMPAT_VERSIONS", sim::PILOT_COMPAT_VERSIONS.to_vec())?;
     // v5: sim version -> the obs width a pilot of that version consumes (obs[..., :w]).
@@ -64,8 +71,9 @@ fn rlf_sim(m: &Bound<'_, PyModule>) -> PyResult<()> {
             .map(StationReadsAs::name)
             .to_vec(),
     )?;
-    // v9: the hulls that keep their v4-v8 ids, in id order; every other hull follows by
-    // name (`sim::data::hull_order`).
+    // v9: the hulls that keep their v4-v8 ids, in id order (v10: frozen through the v9
+    // hulls, `bomber` and `station`); every other hull follows by name
+    // (`sim::data::hull_order`).
     m.add("LEGACY_HULL_ORDER", sim::data::LEGACY_HULL_ORDER.to_vec())?;
     // Indexed by the `end_reason` buffer's codes (v9 appends station_destroyed and
     // assault_repelled).
@@ -85,6 +93,9 @@ fn rlf_sim(m: &Bound<'_, PyModule>) -> PyResult<()> {
         ("jump_charge", events::KIND_JUMP_CHARGE),
         ("jump_out", events::KIND_JUMP_OUT),
         ("match_end", events::KIND_MATCH_END),
+        // v10: [kind, ship, turret or bay, x, y, 0, 0, shooter].
+        ("turret_destroyed", events::KIND_TURRET_DESTROYED),
+        ("bay_destroyed", events::KIND_BAY_DESTROYED),
     ] {
         event_kinds.set_item(name, code)?;
     }
@@ -106,8 +117,8 @@ fn rlf_sim(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     let action_layout = PyDict::new(py);
     action_layout.set_item("throttle", (THROTTLE_OFFSET, MAX_THRUSTERS))?;
-    action_layout.set_item("slew", (SLEW_OFFSET, MAX_TURRETS))?;
-    action_layout.set_item("fire", (FIRE_OFFSET, MAX_TURRETS))?;
+    action_layout.set_item("slew", (SLEW_OFFSET, ACTION_TURRETS))?;
+    action_layout.set_item("fire", (FIRE_OFFSET, ACTION_TURRETS))?;
     action_layout.set_item("power", (POWER_OFFSET, 1))?;
     m.add("ACTION_LAYOUT", action_layout)?;
 
@@ -239,7 +250,8 @@ fn mission_kind(name: &str) -> PyResult<MissionKind> {
 }
 
 /// v4: arena radius for mission `mission` with `n_ships` ships
-/// (`sim::mission::arena_radius_for_mission`, the one per-mission rule).
+/// (`sim::mission::arena_radius_for_mission`, the one per-mission rule; v10: a station
+/// assault of more than 16 ships, the citadel's, fights in 550 m).
 #[pyfunction]
 fn arena_radius_for_mission(mission: &str, n_ships: usize) -> PyResult<f32> {
     Ok(sim::mission::arena_radius_for_mission(

@@ -24,7 +24,9 @@ use sim::spec::{
     CommandSpec, CommanderObsView, MissionSpec, MissionStateView, OutcomeView, parse_commanders,
     to_json,
 };
-use sim::state::{MAX_HITS, MAX_REACTION_TICKS, MAX_SHIPS, MAX_THRUSTERS, MAX_TURRETS, MatchPhase};
+use sim::state::{
+    ACTION_TURRETS, MAX_HITS, MAX_REACTION_TICKS, MAX_SHIPS, MAX_THRUSTERS, MatchPhase,
+};
 use sim::{DT, TICK_HZ};
 
 use crate::batch::{Batch, BatchConfig, HIT_FIELDS, Roster, StepBuffers};
@@ -451,8 +453,8 @@ impl VecEnv {
             end_reason: PyArray1::zeros(py, [n], false).unbind(),
             act_mask: PyArray2::zeros(py, [n, s], false).unbind(),
             thruster_mask: PyArray3::zeros(py, [n, s, MAX_THRUSTERS], false).unbind(),
-            turret_mask: PyArray3::zeros(py, [n, s, MAX_TURRETS], false).unbind(),
-            fixed_turret: PyArray3::zeros(py, [n, s, MAX_TURRETS], false).unbind(),
+            turret_mask: PyArray3::zeros(py, [n, s, ACTION_TURRETS], false).unbind(),
+            fixed_turret: PyArray3::zeros(py, [n, s, ACTION_TURRETS], false).unbind(),
             team: PyArray2::zeros(py, [n, s], false).unbind(),
             hull_id: PyArray2::zeros(py, [n, s], false).unbind(),
             alive: PyArray2::zeros(py, [n, s], false).unbind(),
@@ -921,6 +923,49 @@ impl VecEnv {
         Ok(out)
     }
 
+    /// v10: every slot's hardpoints now, a dict of new arrays: `turret_alive` (`[N,S,
+    /// MAX_TURRETS] bool`: the turret exists and has not been destroyed), `turret_hp`
+    /// (`[N,S,MAX_TURRETS] f32`: a hardpoint's hit points, its maximum `turret_max_hp`;
+    /// both 0 for a turret that is not a hardpoint), `bay_alive`, `bay_hp`, `bay_max_hp`
+    /// (`[N,S,MAX_BAYS]`, the same for bays). Padding slots and missing mounts read
+    /// false / 0.
+    fn hardpoints<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        use numpy::ndarray::Array3;
+        use sim::state::{MAX_BAYS, MAX_TURRETS};
+        let (n, s) = (self.batch.n_envs(), self.batch.n_ships());
+        let cat = self.batch.catalogue();
+        let mut turret_alive = Array3::<bool>::from_elem(Dim([n, s, MAX_TURRETS]), false);
+        let mut turret_hp = Array3::<f32>::zeros(Dim([n, s, MAX_TURRETS]));
+        let mut turret_max = Array3::<f32>::zeros(Dim([n, s, MAX_TURRETS]));
+        let mut bay_alive = Array3::<bool>::from_elem(Dim([n, s, MAX_BAYS]), false);
+        let mut bay_hp = Array3::<f32>::zeros(Dim([n, s, MAX_BAYS]));
+        let mut bay_max = Array3::<f32>::zeros(Dim([n, s, MAX_BAYS]));
+        for i in 0..n {
+            let m = self.batch.match_at(i);
+            for (k, ship) in m.ships.iter().enumerate() {
+                let hull = cat.hull(ship.hull);
+                for (j, t) in hull.turrets.iter().enumerate() {
+                    turret_alive[[i, k, j]] = ship.turret_alive(j);
+                    turret_hp[[i, k, j]] = ship.turret_hp[j];
+                    turret_max[[i, k, j]] = t.hp;
+                }
+                for (b, bay) in hull.bays.iter().enumerate() {
+                    bay_alive[[i, k, b]] = ship.bay_alive(b);
+                    bay_hp[[i, k, b]] = ship.bay_hp[b];
+                    bay_max[[i, k, b]] = bay.hp;
+                }
+            }
+        }
+        let out = PyDict::new(py);
+        out.set_item("turret_alive", turret_alive.into_pyarray(py))?;
+        out.set_item("turret_hp", turret_hp.into_pyarray(py))?;
+        out.set_item("turret_max_hp", turret_max.into_pyarray(py))?;
+        out.set_item("bay_alive", bay_alive.into_pyarray(py))?;
+        out.set_item("bay_hp", bay_hp.into_pyarray(py))?;
+        out.set_item("bay_max_hp", bay_max.into_pyarray(py))?;
+        Ok(out)
+    }
+
     /// Per-match determinism hash (SIM_SPEC §12), a new `uint64[N]` array.
     fn state_hash<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<u64>> {
         let mut out = vec![0u64; self.batch.n_envs()];
@@ -981,6 +1026,23 @@ impl VecEnv {
             d.set_item("act_mask", act_mask(s, m.tick()))?;
             d.set_item("thrust_level", &s.thrust_level[..hull.thrusters.len()])?;
             d.set_item("turret_angle", &s.turret_angle[..hull.turrets.len()])?;
+            // v10: per turret and bay, alive (not destroyed) and hardpoint hp (0 for a
+            // mount that is not a hardpoint).
+            let turrets = 0..hull.turrets.len();
+            d.set_item(
+                "turret_alive",
+                turrets
+                    .clone()
+                    .map(|j| s.turret_alive(j))
+                    .collect::<Vec<_>>(),
+            )?;
+            d.set_item("turret_hp", &s.turret_hp[..hull.turrets.len()])?;
+            let bays = 0..hull.bays.len();
+            d.set_item(
+                "bay_alive",
+                bays.map(|b| s.bay_alive(b)).collect::<Vec<_>>(),
+            )?;
+            d.set_item("bay_hp", &s.bay_hp[..hull.bays.len()])?;
             d.set_item("power", s.power.to_vec())?;
             // The reaction queue as `ACTION_WIDTH` rows, `queue[0]` applying next; only
             // the first `reaction_ticks` entries are live.
@@ -998,6 +1060,8 @@ impl VecEnv {
         for p in m.projectiles().iter().filter(|p| p.alive) {
             let d = PyDict::new(py);
             d.set_item("kind", p.kind.index())?;
+            // v10: the catalogue weapon id (rail and lance slugs are bullets).
+            d.set_item("weapon", p.weapon)?;
             d.set_item("team", p.team)?;
             d.set_item("owner", p.owner)?;
             d.set_item("pos", (p.pos.x, p.pos.y))?;

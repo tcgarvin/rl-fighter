@@ -62,6 +62,8 @@ def test_hull_costs_come_from_the_yaml() -> None:
     assert load_hull_costs() == {
         "bomber": 25.0,
         "carrier": 120.0,
+        "citadel": 320.0,
+        "dreadnought": 180.0,
         "fighter": 10.0,
         "freighter": 40.0,
         "gunship": 30.0,
@@ -72,7 +74,8 @@ def test_hull_costs_come_from_the_yaml() -> None:
 
 def test_hull_ids_keep_the_legacy_hulls_first() -> None:
     """SIM_VERSION 9: the v4 hulls keep their ids, the new ones follow by name, as the
-    sim numbers them (``rlf_sim.LEGACY_HULL_ORDER``, ``sim::data::hull_order``)."""
+    sim numbers them (``rlf_sim.LEGACY_HULL_ORDER``, ``sim::data::hull_order``); v10
+    freezes the v9 ones too (bomber 5, station 6) and adds citadel 7, dreadnought 8."""
     names = hull_names_by_id()
     assert names == [
         "carrier",
@@ -82,8 +85,10 @@ def test_hull_ids_keep_the_legacy_hulls_first() -> None:
         "strafer",
         "bomber",
         "station",
+        "citadel",
+        "dreadnought",
     ]
-    assert names[:5] == list(rlf_sim.LEGACY_HULL_ORDER)
+    assert names[:7] == list(rlf_sim.LEGACY_HULL_ORDER)
     # The ids the sim gives the hulls of a match agree.
     env = rlf_sim.VecEnv(
         str(DEFAULT_ASSETS),
@@ -98,7 +103,30 @@ def test_hull_ids_keep_the_legacy_hulls_first() -> None:
         "carrier",
         "strafer",
     ]
-    assert capital_hull_ids() == [0, 2, 6]
+    assert capital_hull_ids() == [0, 2, 6, 7, 8]
+
+
+def test_the_citadel_roster_is_opt_in_for_training() -> None:
+    """SIM_VERSION 10: a station assault trains on the sim's v9 roster unless
+    ``citadel_share`` asks for the citadel's, which has 19 ships in a 550 m arena."""
+    from spacefight.env.rosters import PilotsDistribution, citadel_roster, make_sampler
+
+    citadel = citadel_roster()
+    assert citadel.teams[0][0] == "citadel" and "dreadnought" in citadel.teams[1]
+    assert citadel.n_ships == 19 and citadel.arena_radius == 550.0
+    station_only = (0.0, 0.0, 0.0, 1.0)
+    plain = make_sampler(PilotsDistribution(mission_weights=station_only), 3)
+    assert all(r.teams[0][0] == "station" for r in plain.sample_many(200))
+    mixed = make_sampler(
+        PilotsDistribution(mission_weights=station_only, citadel_share=0.5), 3
+    )
+    stations = Counter(r.teams[0][0] for r in mixed.sample_many(400))
+    assert set(stations) == {"station", "citadel"}
+    assert 140 < stations["citadel"] < 260
+    with pytest.raises(ValueError, match="max_ships"):
+        PilotsDistribution(
+            mission_weights=station_only, citadel_share=0.5, max_ships=16
+        )
 
 
 def test_bomber_is_an_opt_in_strike_hull() -> None:
