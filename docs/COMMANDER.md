@@ -120,6 +120,15 @@ when the attacker sends its wing (all at once or piecemeal into the turrets), wh
 its escorts defend the bombers, and for the defender which attackers it intercepts
 (bombers first) and when it launches.
 
+**Citadel and dreadnought (SIM_VERSION 10).** No input changed. The citadel is team 0's
+carrier as the station was; a bay destroyed (`docs/SIM_SPEC.md` §0.8) is neither ready
+nor counted in "bays", so the launch mask closes when every bay is gone and a launch
+through a dead bay is refused (`bay_destroyed`). The attacker's dreadnought (role
+`line`) is a capital ship: never in a squad, never given an order, not counted as a
+strike craft (the scripted commander holds it at a staging point until the strike
+goes; a learned commander leaves it to its own script). It does count toward "repelled": the assault fails only when the
+carrier, the dreadnought and every strike craft are gone.
+
 **Masks** (a choice is allowed when its mask is true; "keep" and "hold" always are):
 
 - Launch a hull: my carrier alive, a reserve of that hull, a bay ready. Launches go
