@@ -481,10 +481,6 @@ class PPOConfig:
     # for missing it. Before order_reward_weight, like the rest of the order pay.
     goto_timed_bonus: float = DEFAULT_GOTO_TIMED_BONUS
     goto_miss_penalty: float = DEFAULT_GOTO_MISS_PENALTY
-    # SIM_VERSION 11: the sim's recall doctrine (damaged strike craft are sent home to
-    # dock and repair, whatever the commander), on as on the live page; False trains
-    # without it (the dock rules stay, so a dock drill or command still works).
-    recall_doctrine: bool = True
     # Reward hiding (run 2026-11-01-fighters-v2): a shot chosen on a row with an order
     # pays nothing from the team reward; the order reward pays what the order wants
     # (damage to its target or threat set). Damage taken, fire cost, arena and the
@@ -1529,7 +1525,6 @@ class SpikeTrainer:
             order_shaping_gamma=config.gamma,
             goto_timed_bonus=config.goto_timed_bonus,
             goto_miss_penalty=config.goto_miss_penalty,
-            recall_doctrine=config.recall_doctrine,
         )
         self.n_envs, self.n_ships = self.env.n_envs, self.env.n_ships
         self.rows = self.n_envs * self.n_ships

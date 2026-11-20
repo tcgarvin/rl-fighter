@@ -276,12 +276,10 @@ class RustVecEnv:
             match of the env.
         docking: The dock rules (SIM_VERSION 11, SIM_SPEC §5.11), for every match of
             the env: a strike craft under a dock order docks at a live bay of its
-            carrier, repairs and relaunches. False plays every match as SIM_VERSION 10.
-        recall_doctrine: The sim's recall doctrine (SIM_VERSION 11), for every match
-            of the env: each team whose pilots see orders recalls its strike craft
-            below ``rlf_sim.DOCK["recall_hull_frac"]`` of their hull to dock, whatever
-            its commander. A stopgap until a learned commander decides recalls; a
-            trainer may turn it off.
+            carrier, repairs and relaunches. Only a commander gives the order: the
+            scripted and random commanders recall craft below
+            ``rlf_sim.DOCK["recall_hull_frac"]`` of their hull; a learned commander
+            never does. False plays every match as SIM_VERSION 10.
 
     Raises:
         ValueError: Invalid arguments or assets (from ``rlf_sim``), or a sampled
@@ -308,7 +306,6 @@ class RustVecEnv:
         goto_timed_bonus: float = DEFAULT_GOTO_TIMED_BONUS,
         goto_miss_penalty: float = DEFAULT_GOTO_MISS_PENALTY,
         docking: bool = True,
-        recall_doctrine: bool = True,
     ) -> None:
         if max_ships is None and roster_sampler is not None:
             max_ships = roster_sampler.max_ships
@@ -332,7 +329,6 @@ class RustVecEnv:
             goto_timed_bonus=goto_timed_bonus,
             goto_miss_penalty=goto_miss_penalty,
             docking=docking,
-            recall_doctrine=recall_doctrine,
         )
         self.fleets: tuple[tuple[str, ...], ...] = tuple(tuple(t) for t in fleets)
         self.reaction_ticks = reaction_ticks
@@ -399,11 +395,6 @@ class RustVecEnv:
     def docking(self) -> bool:
         """Whether this env's matches run the dock rules (SIM_VERSION 11)."""
         return bool(self._env.docking)
-
-    @property
-    def recall_doctrine(self) -> bool:
-        """Whether this env's matches run the sim's recall doctrine (SIM_VERSION 11)."""
-        return bool(self._env.recall_doctrine)
 
     def dock_state(self) -> dict[str, np.ndarray]:
         """Every slot's dock state now (SIM_VERSION 11; ``rlf_sim.VecEnv.dock_state``):

@@ -2,7 +2,7 @@
 # tick state_hash aux_digest; end tick state_hash aux_digest phase winner
 300 1f162150b69e5920 f36d9951afc7751c
 600 fddc277ec3965057 e240b199abf31e39
-900 6a6466c8fa4eb8ce f614f5fbbaf23be1
-1200 6dd165636b18097c 710aab802be73de3
-end 1290 95f7a617caa4b91a 55afe6c29a80c8a5 over 1
+900 da7908c987ea6e81 ae2b21a494212034
+1200 e1825bf92e43d3e9 ffb5ae74fe4667da
+end 1294 51c2ab758fd8f012 4cff05ed30dee4d8 over 1
 reason station_destroyed

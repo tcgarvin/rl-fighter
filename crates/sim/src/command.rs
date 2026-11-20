@@ -511,12 +511,6 @@ impl Match {
                 });
             }
         }
-        // v11: the recall doctrine, after the team's own commands (`dock` module).
-        for team in 0..2u8 {
-            if due[usize::from(team)] {
-                self.apply_recall_doctrine(cat, team);
-            }
-        }
         // One `Order` per squad whose order differs from the last slow tick's, so a
         // cleared-then-reissued order is a single event and an unchanged one none.
         for (t, old) in before.iter().enumerate() {
@@ -732,7 +726,7 @@ impl Match {
                 .nearest_open_bay(carrier, self.ships[s].pos)
                 .ok_or(Refusal::BayDestroyed)?,
         };
-        self.set_dock_order(s, b, false);
+        self.set_dock_order(s, b);
         Ok(())
     }
 

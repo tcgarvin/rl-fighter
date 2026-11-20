@@ -96,7 +96,7 @@ fn rlf_sim(m: &Bound<'_, PyModule>) -> PyResult<()> {
         // v10: [kind, ship, turret or bay, x, y, 0, 0, shooter].
         ("turret_destroyed", events::KIND_TURRET_DESTROYED),
         ("bay_destroyed", events::KIND_BAY_DESTROYED),
-        // v11 (SIM_SPEC §9): dock_ordered [k, ship, carrier, x, y, by_doctrine, 0, bay],
+        // v11 (SIM_SPEC §9): dock_ordered [k, ship, carrier, x, y, 0, 0, bay],
         // docked [k, ship, carrier, x, y, hp_frac, 0, bay], repaired [k, ship, carrier,
         // 0...], relaunched [k, ship, carrier, 0, 0, hp_frac, 0, bay], dock_aborted [k,
         // ship, carrier, 0, 0, 0, 0, reason (0 carrier lost, 1 no bay left)].
@@ -116,9 +116,12 @@ fn rlf_sim(m: &Bound<'_, PyModule>) -> PyResult<()> {
     dock.set_item("point_offset", sim::dock::DOCK_POINT_OFFSET)?;
     dock.set_item("repair_frac_per_s", sim::dock::REPAIR_FRAC_PER_S)?;
     dock.set_item("turnaround_ticks", sim::dock::DOCK_TURNAROUND_TICKS)?;
-    dock.set_item("recall_hull_frac", sim::dock::RECALL_HULL_FRAC)?;
-    dock.set_item("recall_finish_frac", sim::dock::RECALL_FINISH_FRAC)?;
-    dock.set_item("recall_clear_margin", sim::dock::RECALL_CLEAR_MARGIN)?;
+    // The scripted (and random) commander's recall rule (`sim::scripted::commander`).
+    use sim::scripted::commander as sc;
+    dock.set_item("recall_hull_frac", sc::RECALL_HULL_FRAC)?;
+    dock.set_item("recall_finish_frac", sc::RECALL_FINISH_FRAC)?;
+    dock.set_item("recall_clear_margin", sc::RECALL_CLEAR_MARGIN)?;
+    dock.set_item("relaunch_hull_frac", sc::RELAUNCH_HULL_FRAC)?;
     m.add("DOCK", dock)?;
     m.add("DOCK_PHASES", vec!["none", "inbound", "repairing", "ready"])?;
 

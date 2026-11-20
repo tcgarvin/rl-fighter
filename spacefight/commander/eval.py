@@ -176,8 +176,9 @@ class OrderClock:
 
     def observe(self, env: RustVecEnv, running: NDArray[np.bool_]) -> None:
         tracks = env.order_tracks()
-        # SIM_VERSION 11: a dock order (kind 4) is the sim's recall doctrine's, not the
-        # commander's, so it does not count as an order given.
+        # SIM_VERSION 11: these stats time squad orders. A dock order (kind 4, the
+        # scripted commander's recall, a ship's own order) is not one, and a learned
+        # commander cannot give it, so it is left out to keep the two comparable.
         kind = np.asarray(tracks["standing_kind"]).copy()
         kind[kind == DOCK_KIND] = 0
         start = np.asarray(tracks["instance_start"])

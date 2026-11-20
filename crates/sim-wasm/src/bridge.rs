@@ -116,9 +116,6 @@ struct ConfigJson {
     /// v11: the dock rules (`MatchConfig.docking`); absent is true.
     #[serde(default = "default_true")]
     docking: bool,
-    /// v11: the recall doctrine (`MatchConfig.recall_doctrine`); absent is true.
-    #[serde(default = "default_true")]
-    recall_doctrine: bool,
 }
 
 fn default_true() -> bool {
@@ -171,7 +168,6 @@ pub fn parse_config(cat: &Catalogue, config_json: &str) -> Result<MatchConfig, S
         commanders,
         hide_orders: raw.hide_orders,
         docking: raw.docking,
-        recall_doctrine: raw.recall_doctrine,
         // The default: the live page reads no rewards, so no discount applies.
         ..MatchConfig::default()
     })

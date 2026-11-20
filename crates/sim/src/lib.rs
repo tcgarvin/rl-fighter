@@ -66,8 +66,8 @@ pub use rng::Pcg32;
 /// `ACTION_TURRETS` 6), and the station assault with a carrier and a dreadnought
 /// attacking (a 550 m arena). Obs and actions are v9's; no v9 hull has a hardpoint, so
 /// every v9 match replays bit for bit (SIM_SPEC §0.8).
-/// v11: dock and repair: a strike craft under a dock order (the recall doctrine's, or a
-/// `Dock` command's) docks at a live bay of its carrier when it reaches the bay's dock
+/// v11: dock and repair: a strike craft under a dock order (a commander's `Dock`
+/// command: the scripted and random commanders recall damaged craft) docks at a live bay of its carrier when it reaches the bay's dock
 /// point slowly enough, repairs in the hangar and relaunches as the same slot. The dock
 /// order reads to the pilot nets as a go-to, so obs and actions are v10's; with
 /// `MatchConfig.docking` off every match replays v10 bit for bit, and a match without a

@@ -130,19 +130,19 @@ goes; a learned commander leaves it to its own script). It does count toward "re
 carrier, the dreadnought and every strike craft are gone.
 
 **Dock and repair (SIM_VERSION 11).** No input or output changed (`COMMANDER_IO_VERSION`
-1). The learned commander cannot order a recall yet: the sim's **recall doctrine**
-(`docs/SIM_SPEC.md` §5.11, `MatchConfig.recall_doctrine`, on by default) sends every own
-strike craft below half its hull home to dock, whatever the commander mode, unless the
-team hides its orders (the eval's `unseen` side). A ship flying home holds a dock order
-of its own, which wins over its squad's (it is taken out of its squad when recalled;
-putting it back in one changes nothing until it docks), and its entity's order one-hot
-reads it as a go-to, as the pilots read it. A returned ship waits in the hangar
-("reserves" counts it) and may launch 4 s after docking (later if it docked so damaged
-that the doctrine would recall it again: not before it is repaired past half); the launch mask needs a reserve
-that may launch, so a hangar holding only returned ships inside their turnaround closes
-it. The trainer's `TrainConfig.recall_doctrine` (default true) turns the doctrine off for
-a run. Stage 4 of the dock plan (`lab/runs/2026-11-20-dock-repair/plan.md`) gives the
-commander the recall decision itself and retires the doctrine.
+1), so the learned commander cannot order a recall: its craft never go home until a
+commander is trained to send them (stage 4 of `lab/runs/2026-11-20-dock-repair/plan.md`,
+a new output). There is no sim-side stand-in (owner's call, 2026-11-20). The scripted
+commander does recall (`docs/SIM_SPEC.md` §5.11): every own strike craft below half its
+hull, unless it is finishing a kill or under an enemy capital ship's guns, and the random
+commander keeps those recalls with the scripted launches. So a learned commander's
+opponent recalls, and its entity inputs see it: a ship flying home holds a dock order of
+its own, which wins over its squad's (it is taken out of its squad when recalled), and
+its entity's order one-hot reads it as a go-to, as the pilots read it. A returned ship
+waits in the hangar ("reserves" counts it) and may launch 4 s after docking; the launch
+mask needs a reserve that may launch, so a hangar holding only returned ships inside
+their turnaround closes it. The eval's order timings (`orders_a` / `orders_b`) count
+squad orders only, not dock orders.
 
 **Masks** (a choice is allowed when its mask is true; "keep" and "hold" always are):
 

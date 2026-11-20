@@ -153,13 +153,12 @@ pub enum Event {
         shooter: u8,
     },
     /// v11: `ship` was ordered to dock at bay `bay` of `carrier` (`pos` that bay's dock
-    /// point when the order was given), by the recall doctrine or by a `Dock` command.
+    /// point when the order was given), by a commander's `Dock` command.
     DockOrdered {
         ship: u8,
         carrier: u8,
         bay: u8,
         pos: Vec2,
-        by_doctrine: bool,
     },
     /// v11: `ship` docked at bay `bay` of `carrier`; `pos` where it was (it leaves the
     /// field), `hp_frac` its hull fraction then.
@@ -223,7 +222,7 @@ impl Event {
     /// does not use are 0. `Fire` carries its weapon id in slot 5; `Beam` carries
     /// `to` in slots 5–6 and `hit` as 0/1 in `extra`; `Hit` carries `mult` in slot 5.
     /// v10: `TurretDestroyed` / `BayDestroyed` are `[k, ship, turret or bay, x, y, 0,
-    /// 0, shooter]`. v11: `DockOrdered` is `[k, ship, carrier, x, y, by_doctrine, 0,
+    /// 0, shooter]`. v11: `DockOrdered` is `[k, ship, carrier, x, y, 0, 0,
     /// bay]`, `Docked` `[k, ship, carrier, x, y, hp_frac, 0, bay]`, `Repaired` `[k,
     /// ship, carrier, 0, 0, 0, 0, 0]`, `Relaunched` `[k, ship, carrier, 0, 0, hp_frac,
     /// 0, bay]`, `DockAborted` `[k, ship, carrier, 0, 0, 0, 0, reason]`.
@@ -380,14 +379,13 @@ impl Event {
                 carrier,
                 bay,
                 pos,
-                by_doctrine,
             } => [
                 k,
                 f32::from(ship),
                 f32::from(carrier),
                 pos.x,
                 pos.y,
-                b(by_doctrine),
+                0.0,
                 0.0,
                 f32::from(bay),
             ],

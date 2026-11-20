@@ -45,12 +45,19 @@
 //!   the enemy nearest it, squad 1 the most damaged enemy within reach. The
 //!   scripted pilots do not follow a scripted deathmatch commander
 //!   (`scripted::orders`), so these orders are only shown.
-//! - **v11, dock and repair.** A ship flying home under a dock order (the sim's recall
-//!   doctrine, `dock`) is left out of the wing and the squads. Launches take the reserves
-//!   a launch may take (`Match::launchable`), in order, and a returned ship only once
-//!   repaired to `RELAUNCH_HULL_FRAC` of its hull, unless the carrier scrambles, it is
-//!   the last minute or the station is alarmed (`launch_queue`). Without docking every
-//!   reserve is fresh and ready, so all of this is the v10 commander.
+//! - **v11, dock and repair.** *Recalls* (`recalls`, every mission with a carrier,
+//!   after the mission's commands): a `Dock` command for every own strike craft on the
+//!   field below `RECALL_HULL_FRAC` of its hull while the carrier is up with a live bay,
+//!   except one finishing a kill (its attack target within its reach and below
+//!   `RECALL_FINISH_FRAC` of its hull) or under an enemy capital ship's guns (within its
+//!   longest range plus `RECALL_CLEAR_MARGIN`), which is recalled once clear. The random
+//!   commander keeps these, as it keeps the launches. A ship flying home is left out of
+//!   the wing and the squads. Launches take the reserves a launch may take
+//!   (`Match::launchable`), in order, and a returned ship only once repaired to
+//!   `RELAUNCH_HULL_FRAC` of its hull, or past `RECALL_HULL_FRAC` when the carrier
+//!   scrambles, it is the last minute or the station is alarmed (`launch_queue`), so
+//!   nothing launched is recalled at once. Without docking every reserve is fresh and
+//!   ready and nobody is recalled, so all of this is the v10 commander.
 
 use crate::command::{
     BAY_COOLDOWN_TICKS, Command, MAX_SQUADS, NO_DEADLINE, Order, Squad, Waypoint,
@@ -58,6 +65,7 @@ use crate::command::{
 use crate::data::Catalogue;
 use crate::math::Vec2;
 use crate::mission::{ConvoyEscort, JumpState, Mission, is_capital_ship, is_line};
+use crate::order::effective_order;
 use crate::state::{Attach, Match, NONE, Ship, ShipIdx};
 
 /// Strike craft a carrier keeps in space or on their way at the start.
@@ -142,6 +150,18 @@ pub const LINE_STAGING_MARGIN: f32 = 40.0;
 /// v11: a returned ship relaunches (outside a scramble) once repaired to this fraction
 /// of its hull.
 pub const RELAUNCH_HULL_FRAC: f32 = 0.9;
+/// v11: the commander recalls a strike craft below this fraction of its hull. Tuned
+/// 0.3 → 0.6 → 0.5: at 0.3 most recalled craft were shot down before they reached the
+/// bay, at 0.6 so many left the fight that the citadel assault moved further from v10's
+/// balance (`lab/runs/2026-11-20-dock-repair/results.md`).
+pub const RECALL_HULL_FRAC: f32 = 0.5;
+/// ... unless it is finishing a kill: its attack target within its reach and below this
+/// fraction of the target's hull.
+pub const RECALL_FINISH_FRAC: f32 = 0.25;
+/// ... or it is under an enemy capital ship's guns: within that ship's longest weapon
+/// range plus this margin (m). It finishes its run and is recalled once clear; recalled
+/// deep in the guns, most craft died on the way home.
+pub const RECALL_CLEAR_MARGIN: f32 = 40.0;
 
 const DEFEND: usize = 0;
 const STRIKE: usize = 1;
@@ -316,7 +336,76 @@ pub fn commands(m: &Match, cat: &Catalogue, team: u8) -> Vec<Command> {
         Mission::StationAssault(_) if team == 0 => station_defence(m, cat, &mut out),
         Mission::StationAssault(_) => station_attack(m, cat, &mut out),
     }
+    recalls(m, cat, team, &mut out);
     out
+}
+
+/// v11: `Dock` commands for `team`'s damaged strike craft (module docs); none unless
+/// the dock rules run and the carrier is up with a live bay.
+pub fn recalls(m: &Match, cat: &Catalogue, team: u8, out: &mut Vec<Command>) {
+    if !m.docking_live() {
+        return;
+    }
+    let carrier = m.mission.carrier[usize::from(team & 1)];
+    if carrier == NONE || !m.ships[usize::from(carrier)].active() {
+        return;
+    }
+    for (s, ship) in m.ships.iter().enumerate() {
+        let hull = cat.hull(ship.hull);
+        if ship.team != team
+            || !ship.active()
+            || is_capital_ship(hull)
+            || m.has_dock_order(s)
+            || ship.hp >= RECALL_HULL_FRAC * hull.hp
+            || finishing_kill(m, cat, s)
+            || under_capital_guns(m, cat, s)
+        {
+            continue;
+        }
+        if m.nearest_open_bay(carrier, ship.pos).is_none() {
+            return;
+        }
+        out.push(Command::Dock {
+            ship: s as ShipIdx,
+            bay: None,
+        });
+    }
+}
+
+/// Whether `ship`'s effective order is an attack on a target within its reach and
+/// below `RECALL_FINISH_FRAC` of its hull.
+fn finishing_kill(m: &Match, cat: &Catalogue, ship: usize) -> bool {
+    let Order::Attack { target } = effective_order(m, ship) else {
+        return false;
+    };
+    let t = &m.ships[usize::from(target)];
+    let near = (t.pos - m.ships[ship].pos).length() <= m.ship_reach[ship];
+    near && t.hp < RECALL_FINISH_FRAC * cat.hull(t.hull).hp
+}
+
+/// Whether `ship` is within an active enemy capital ship's longest weapon range plus
+/// `RECALL_CLEAR_MARGIN`.
+fn under_capital_guns(m: &Match, cat: &Catalogue, ship: usize) -> bool {
+    let me = &m.ships[ship];
+    m.ships.iter().enumerate().any(|(e, o)| {
+        o.active()
+            && o.team != me.team
+            && is_capital_ship(cat.hull(o.hull))
+            && (o.pos - me.pos).length() <= m.ship_reach[e] + RECALL_CLEAR_MARGIN
+    })
+}
+
+/// v11: whether a returned ship `s` may relaunch now by the commander's rule: repaired
+/// to `RELAUNCH_HULL_FRAC`, or past `RECALL_HULL_FRAC` if `urgent`. A fresh reserve
+/// always may.
+pub fn may_relaunch(m: &Match, cat: &Catalogue, s: ShipIdx, urgent: bool) -> bool {
+    let ship = &m.ships[usize::from(s)];
+    let frac = if urgent {
+        RECALL_HULL_FRAC
+    } else {
+        RELAUNCH_HULL_FRAC
+    };
+    !m.returned(usize::from(s)) || ship.hp >= frac * cat.hull(ship.hull).hp
 }
 
 /// Active enemy bombers of `team` (`scripted::is_bomber`).
@@ -534,18 +623,13 @@ fn own_wing(m: &Match, cat: &Catalogue, team: u8) -> u32 {
 }
 
 /// v11: the reserves of `team` this slow tick's launches may take, in the order the
-/// sim takes them (`Match::launchable`): a returned ship only once repaired to
-/// `RELAUNCH_HULL_FRAC` of its hull, unless `urgent` (a scramble, the last minute, the
-/// station attacker's commit), and nothing behind one that is not. Without docking every
-/// reserve is ready and fresh, so this is the hangar.
+/// sim takes them (`Match::launchable`): a returned ship only as `may_relaunch` says
+/// (`urgent`: a scramble, the last minute, an alarmed station), and nothing behind one
+/// that may not. Without docking every reserve is ready and fresh, so this is the
+/// hangar.
 fn launch_queue(m: &Match, cat: &Catalogue, team: u8, urgent: bool) -> Vec<ShipIdx> {
     m.launchable(team)
-        .take_while(|&s| {
-            let ship = &m.ships[usize::from(s)];
-            urgent
-                || !m.returned(usize::from(s))
-                || ship.hp >= RELAUNCH_HULL_FRAC * cat.hull(ship.hull).hp
-        })
+        .take_while(|&s| may_relaunch(m, cat, s, urgent))
         .collect()
 }
 

@@ -177,11 +177,7 @@ def test_ward_threat_and_hull_lost_follow_damage() -> None:
 
 def test_hidden_orders_zero_the_order_features_only_for_that_team() -> None:
     def build(hide: list[bool] | None) -> "rlf_sim.VecEnv":
-        # v11: a hidden-order team has no recall doctrine (it is the no-orders side),
-        # so with the doctrine on hiding would change the match; off, it changes none.
-        kw: dict[str, object] = {"recall_doctrine": False}
-        if hide is not None:
-            kw["hide_orders"] = hide
+        kw = {} if hide is None else {"hide_orders": hide}
         return carrier_env(n=3, seed=13, **kw)
 
     shown, hidden = build(None), build([True, False])

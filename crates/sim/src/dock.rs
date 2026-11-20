@@ -20,22 +20,15 @@
 //!   and it joins the back of the hangar (`Match.reserves`): `Docked`.
 //! - **Repair**: every step a returned ship is in a live carrier's hangar its hull gains
 //!   [`REPAIR_FRAC_PER_S`] of its maximum a second (`Repaired` once full). It may launch
-//!   again [`DOCK_TURNAROUND_TICKS`] after docking (`DockState::ready_at`), and while the
-//!   recall doctrine runs for its team not before it is repaired past
-//!   [`RECALL_HULL_FRAC`] (else it would be recalled as it left the bay); the launch
+//!   again [`DOCK_TURNAROUND_TICKS`] after docking (`DockState::ready_at`); the launch
 //!   takes the first *ready* reserve, so a fresh reserve, always ready, goes first. It
 //!   relaunches as the same slot, so its pilot and identity are unchanged (`Relaunched`
 //!   follows its `Launch`). If the carrier dies it dies with the hangar, as reserves do.
-//! - **The recall doctrine** (`MatchConfig.recall_doctrine`, on by default): on each of
-//!   its slow ticks, after its commands, a team whose orders its pilots see gives the
-//!   dock order to every strike craft on the field below [`RECALL_HULL_FRAC`] of its
-//!   hull, whatever its commander mode, while its carrier is up with a live bay, unless
-//!   the craft is finishing a kill (its attack target within its reach and below
-//!   [`RECALL_FINISH_FRAC`] of its hull) or under an enemy capital ship's guns (within
-//!   its longest range plus [`RECALL_CLEAR_MARGIN`]), recalled once clear: recalled deep
-//!   in the guns, most craft died on the way home (`lab/runs/2026-11-20-dock-repair`).
-//!   The bay is the one whose dock point is nearest the craft. A stopgap until a learned commander decides recalls itself (stage 4 of
-//!   the dock plan, `lab/runs/2026-11-20-dock-repair/plan.md`); training turns it off.
+//! - **Who recalls.** Only a commander, with `Command::Dock`: the scripted and random
+//!   commanders recall damaged craft as part of their (scripted) logistics
+//!   (`scripted::commander::recalls`); an external commander may send the command; a
+//!   learned commander has no recall output, so it never recalls (it will, once one is
+//!   trained to). The sim recalls nothing by itself.
 //!
 //! Gating: all of this needs `MatchConfig.docking` (default true) and a carrier in the
 //! match (a carrier battle or a station assault). With `docking = false` every match is
@@ -49,8 +42,6 @@ use crate::data::Catalogue;
 use crate::events::Event;
 use crate::hash::{StateHash, StateHasher};
 use crate::math::Vec2;
-use crate::mission::is_capital_ship;
-use crate::order::effective_order;
 use crate::state::{
     Attach, MAX_BAYS, MAX_REACTION_TICKS, MAX_SHIPS, MAX_THRUSTERS, Match, NONE, ShipIdx,
 };
@@ -70,18 +61,6 @@ pub const DOCK_MAX_REL_SPEED: f32 = 15.0;
 pub const REPAIR_FRAC_PER_S: f32 = 0.05;
 /// A docked ship may relaunch this many ticks after it docked (4 s).
 pub const DOCK_TURNAROUND_TICKS: u32 = 120;
-/// The recall doctrine recalls a strike craft below this fraction of its hull. Tuned
-/// 0.3 → 0.6 → 0.5: at 0.3 most recalled craft were killed before they reached the bay,
-/// at 0.6 the doctrine pulled so many out of the fight that the citadel assault moved
-/// further from v10's balance (`lab/runs/2026-11-20-dock-repair/results.md`).
-pub const RECALL_HULL_FRAC: f32 = 0.5;
-/// ... unless it is finishing a kill: its attack target within its reach and below this
-/// fraction of the target's hull.
-pub const RECALL_FINISH_FRAC: f32 = 0.25;
-/// ... or it is under an enemy capital ship's guns: within that ship's longest weapon
-/// range plus this margin (m). It finishes its run and is recalled once clear.
-pub const RECALL_CLEAR_MARGIN: f32 = 40.0;
-
 /// `DockAborted` reasons.
 pub const ABORT_CARRIER_LOST: u8 = 0;
 pub const ABORT_NO_BAY: u8 = 1;
@@ -287,7 +266,7 @@ impl Match {
 
     /// Give `ship` a dock order to `bay` of its carrier (the caller checked them): it
     /// leaves its squad, and `DockOrdered` is emitted.
-    pub(crate) fn set_dock_order(&mut self, ship: usize, bay: u8, by_doctrine: bool) {
+    pub(crate) fn set_dock_order(&mut self, ship: usize, bay: u8) {
         let carrier = self.own_carrier(ship);
         let t = usize::from(self.ships[ship].team & 1);
         self.dock.bay[ship] = bay;
@@ -300,66 +279,12 @@ impl Match {
             carrier,
             bay,
             pos: self.dock_point(carrier, bay),
-            by_doctrine,
         });
     }
 
     fn clear_dock_order(&mut self, ship: usize) {
         self.dock.bay[ship] = NO_BAY;
         self.dock.since[ship] = 0;
-    }
-
-    /// The recall doctrine (module docs) for `team`, after its slow tick's commands.
-    pub(crate) fn apply_recall_doctrine(&mut self, cat: &Catalogue, team: u8) {
-        let t = usize::from(team & 1);
-        if !self.docking_live() || !self.doctrine_applies(t) {
-            return;
-        }
-        let carrier = self.mission.carrier[t];
-        if carrier == NONE || !self.ships[usize::from(carrier)].active() {
-            return;
-        }
-        for s in 0..self.ships.len() {
-            let ship = &self.ships[s];
-            let hull = cat.hull(ship.hull);
-            if ship.team != team
-                || !ship.active()
-                || is_capital_ship(hull)
-                || self.has_dock_order(s)
-                || ship.hp >= RECALL_HULL_FRAC * hull.hp
-                || self.finishing_kill(cat, s)
-                || self.under_capital_guns(cat, s)
-            {
-                continue;
-            }
-            let Some(bay) = self.nearest_open_bay(carrier, ship.pos) else {
-                return;
-            };
-            self.set_dock_order(s, bay, true);
-        }
-    }
-
-    /// Whether `ship`'s effective order is an attack on a target within its reach and
-    /// below [`RECALL_FINISH_FRAC`] of its hull.
-    fn finishing_kill(&self, cat: &Catalogue, ship: usize) -> bool {
-        let Order::Attack { target } = effective_order(self, ship) else {
-            return false;
-        };
-        let t = &self.ships[usize::from(target)];
-        let near = (t.pos - self.ships[ship].pos).length() <= self.ship_reach[ship];
-        near && t.hp < RECALL_FINISH_FRAC * cat.hull(t.hull).hp
-    }
-
-    /// Whether `ship` is within an active enemy capital ship's longest weapon range
-    /// plus [`RECALL_CLEAR_MARGIN`].
-    fn under_capital_guns(&self, cat: &Catalogue, ship: usize) -> bool {
-        let me = &self.ships[ship];
-        self.ships.iter().enumerate().any(|(e, o)| {
-            o.active()
-                && o.team != me.team
-                && is_capital_ship(cat.hull(o.hull))
-                && (o.pos - me.pos).length() <= self.ship_reach[e] + RECALL_CLEAR_MARGIN
-        })
     }
 
     /// Stage 12c (v11, module docs): keep every dock order valid, dock the ships that
@@ -455,7 +380,7 @@ impl Match {
         ship.shield = hull.shield.map_or(0.0, |sh| sh.hp);
         self.clear_dock_order(s);
         self.dock.docked_at[s] = tick;
-        self.dock.ready_at[s] = tick + self.turnaround_ticks(t, hp_frac);
+        self.dock.ready_at[s] = tick + DOCK_TURNAROUND_TICKS;
         self.reserves[t].push(s as ShipIdx);
         for q in self.command.squads[t].iter_mut() {
             q.members &= !(1 << s);
@@ -468,25 +393,6 @@ impl Match {
             pos,
             hp_frac,
         });
-    }
-
-    /// Whether the recall doctrine runs for team `t` (docking itself is live).
-    fn doctrine_applies(&self, t: usize) -> bool {
-        self.cfg.recall_doctrine && !self.cfg.hide_orders[t]
-    }
-
-    /// Ticks from docking to the first launch of a ship of team `t` that docked at
-    /// `hp_frac` of its hull: [`DOCK_TURNAROUND_TICKS`], or longer while the doctrine runs
-    /// for the team, until the hangar has repaired it to [`RECALL_HULL_FRAC`] (one tick
-    /// spare for rounding), so a relaunched craft is never recalled on its first slow
-    /// tick out of the bay.
-    fn turnaround_ticks(&self, t: usize, hp_frac: f32) -> u32 {
-        if !self.doctrine_applies(t) || hp_frac >= RECALL_HULL_FRAC {
-            return DOCK_TURNAROUND_TICKS;
-        }
-        let per_tick = REPAIR_FRAC_PER_S * DT;
-        let repair = ((RECALL_HULL_FRAC - hp_frac) / per_tick).ceil() as u32 + 1;
-        repair.max(DOCK_TURNAROUND_TICKS)
     }
 
     /// Repair every returned ship in a live carrier's hangar.

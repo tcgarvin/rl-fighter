@@ -107,11 +107,6 @@ pub struct MatchConfig {
     /// live bay, repair and relaunch. They only run in a match with a carrier (a carrier
     /// battle, a station assault). `false` plays every match exactly as v10.
     pub docking: bool,
-    /// v11: the recall doctrine (`dock` module): with `docking`, each team whose orders
-    /// its pilots see recalls its badly damaged strike craft to its carrier on its slow
-    /// ticks, whatever its commander mode. A stopgap until a learned commander decides
-    /// recalls; the trainers turn it off.
-    pub recall_doctrine: bool,
 }
 
 impl Default for MatchConfig {
@@ -131,7 +126,6 @@ impl Default for MatchConfig {
             start_layout: None,
             drill: false,
             docking: true,
-            recall_doctrine: true,
         }
     }
 }

@@ -1,6 +1,7 @@
 """rlf_sim v11 dock and repair from Python (SIM_SPEC §0.9, §5.11, §10.1): the constants
-and event kinds, ``VecEnv.dock_state()``, the ``docking`` and ``recall_doctrine`` kwargs
-(off plays a v10 match), the ``dock`` command, and the wrapper's passthrough."""
+and event kinds, ``VecEnv.dock_state()``, the ``docking`` kwarg (off plays a v10 match),
+recalls by the scripted commander only, the ``dock`` command, and the wrapper's
+passthrough."""
 
 from __future__ import annotations
 
@@ -65,7 +66,7 @@ def test_v11_constants_and_event_kinds() -> None:
 
 def test_dock_state_shapes_and_a_carrier_battle_docks_and_relaunches() -> None:
     env = _carrier_env(8, 61)
-    assert env.docking and env.recall_doctrine
+    assert env.docking
     ds = env.dock_state()
     s = env.n_ships
     assert ds["phase"].shape == (8, s) and ds["phase"].dtype == np.int8
@@ -107,15 +108,15 @@ def test_docking_off_plays_the_v10_match_and_never_docks() -> None:
         assert counts.get(EV[k], 0) == 0
 
 
-def test_the_recall_doctrine_can_be_turned_off_and_a_dock_command_still_works() -> None:
-    env = _carrier_env(4, 61, recall_doctrine=False)
-    assert env.docking and not env.recall_doctrine
+def test_only_a_commander_recalls_and_an_external_dock_command_works() -> None:
+    # A learned commander has no recall output: nobody is recalled, the sim recalls
+    # nobody on its own.
+    env = _carrier_env(4, 61, commanders=["learned", "learned"])
+    assert env.docking
     counts = _run(env, 1500)
     assert counts.get(EV["dock_ordered"], 0) == 0
-    # The dock rules stay: an external dock command for a ship on the field.
-    ext = _carrier_env(
-        1, 61, recall_doctrine=False, commanders=["external", "external"]
-    )
+    # An external commander's dock command for a ship on the field.
+    ext = _carrier_env(1, 61, commanders=["external", "external"])
     for _ in range(200):
         ext.step()
     phase = ext.dock_state()["phase"]
@@ -155,9 +156,9 @@ def test_the_wrapper_passes_the_dock_kwargs_through() -> None:
         time_limit_s=CARRIER_S,
         n_threads=1,
         max_ships=len(WING_8[0]) + len(WING_8[1]),
-        recall_doctrine=False,
+        docking=False,
     )
-    assert env.docking and not env.recall_doctrine
+    assert not env.docking
     ds = env.dock_state()
     assert set(ds) >= {
         "phase",
@@ -168,3 +169,10 @@ def test_the_wrapper_passes_the_dock_kwargs_through() -> None:
         "live",
         "point",
     }
+
+
+def test_there_is_no_recall_doctrine_switch() -> None:
+    # The owner's call (2026-11-20): no sim-side recall of any kind, so no switch.
+    with pytest.raises(TypeError):
+        _carrier_env(1, 3, recall_doctrine=False)
+    assert "relaunch_hull_frac" in rlf_sim.DOCK

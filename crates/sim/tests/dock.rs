@@ -1,6 +1,6 @@
 //! v11 dock and repair (SIM_SPEC §0.9, §5.11; `sim::dock`): the dock order, the docking
 //! rule (capture by distance and relative speed, dead bays and carriers), repair and
-//! turnaround, relaunch as the same slot, the recall doctrine on and off, and the
+//! turnaround, relaunch as the same slot, the scripted commanders' recalls (and nobody else's), and the
 //! script's dock statistics (`diag_dock_stats`, ignored: a lab harness).
 
 mod common;
@@ -11,12 +11,13 @@ use sim::command::{Command, CommanderMode, Order, Outcome, Refusal};
 use sim::data::Catalogue;
 use sim::dock::{
     DOCK_CAPTURE_RADIUS, DOCK_MAX_REL_SPEED, DOCK_TURNAROUND_TICKS, DockPhase, NO_BAY,
-    RECALL_HULL_FRAC, REPAIR_FRAC_PER_S,
+    REPAIR_FRAC_PER_S,
 };
 use sim::events::Event;
 use sim::mission::{CarrierBattle, Mission, MissionKind, StationAssault, default_rosters};
 use sim::order::{effective_order, read_as};
 use sim::scripted;
+use sim::scripted::commander::{self, RECALL_HULL_FRAC, RELAUNCH_HULL_FRAC};
 use sim::setup::MatchConfig;
 use sim::state::{Attach, Match, MatchPhase};
 
@@ -67,8 +68,8 @@ fn place(m: &mut Match, s: usize, pos: Vec2, vel: Vec2) {
     m.ships[s].vel = vel;
 }
 
-/// A carrier battle with team 1 external (no doctrine on its own), a fighter of team 0
-/// at slot 1, settled. Returns the match and the slot of team 0's carrier.
+/// A carrier battle with external commanders on both sides (nobody recalls unless told
+/// to), a fighter of team 0 at slot 1, settled; team 0's carrier is slot 0.
 fn external_battle(cat: &Catalogue) -> Match {
     let cfg = carrier_cfg(
         cat,
@@ -290,33 +291,27 @@ fn dock_at(m: &mut Match, cat: &Catalogue, frac: f32) -> u32 {
 }
 
 #[test]
-fn under_the_doctrine_a_badly_damaged_ship_waits_until_it_would_not_be_recalled() {
+fn the_turnaround_is_plain_and_the_script_relaunches_a_returned_craft_only_once_repaired() {
     let cat = asset_catalogue();
-    // Doctrine on (external commanders too): docked at 0.1, it needs (0.5 - 0.1) / 0.05 =
-    // 8 s of repair, longer than the turnaround.
     let mut m = external_battle(&cat);
     let at = dock_at(&mut m, &cat, 0.1);
-    let wait = m.dock.ready_at[1] - at;
-    assert!(wait > DOCK_TURNAROUND_TICKS && wait <= 8 * 30 + 2, "{wait}");
+    // The sim's turnaround is the same however damaged the ship came in.
+    assert_eq!(m.dock.ready_at[1] - at, DOCK_TURNAROUND_TICKS);
     while m.tick() < m.dock.ready_at[1] {
-        assert_eq!(m.dock_phase(1), DockPhase::Repairing);
         m.step(&cat);
     }
+    assert!(m.launch_ready(1));
+    // The script's rule: past the recall threshold when urgent, else nearly whole.
     let max = cat.hull(m.ships[1].hull).hp;
-    assert!(m.ships[1].hp >= RECALL_HULL_FRAC * max);
-    assert_eq!(m.dock_phase(1), DockPhase::Ready);
-    // Doctrine off: the plain turnaround, however damaged.
-    let mut cfg = carrier_cfg(
-        &cat,
-        5,
-        &["fighter", "fighter"],
-        [CommanderMode::External, CommanderMode::External],
-    );
-    cfg.recall_doctrine = false;
-    let mut m = Match::new(&cat, &cfg).expect("setup");
-    settle(&mut m, &cat);
-    let at = dock_at(&mut m, &cat, 0.1);
-    assert_eq!(m.dock.ready_at[1] - at, DOCK_TURNAROUND_TICKS);
+    assert!(m.ships[1].hp < RECALL_HULL_FRAC * max);
+    assert!(!commander::may_relaunch(&m, &cat, 1, true));
+    m.ships[1].hp = RECALL_HULL_FRAC * max;
+    assert!(commander::may_relaunch(&m, &cat, 1, true));
+    assert!(!commander::may_relaunch(&m, &cat, 1, false));
+    m.ships[1].hp = RELAUNCH_HULL_FRAC * max;
+    assert!(commander::may_relaunch(&m, &cat, 1, false));
+    // A fresh reserve always may.
+    assert!(m.dock.docked_at[2] == 0 && commander::may_relaunch(&m, &cat, 2, false));
 }
 
 #[test]
@@ -485,8 +480,8 @@ fn docked_ships_die_with_their_carrier_and_inbound_orders_are_dropped() {
     assert_eq!(m.dock.bay[2], NO_BAY, "nothing to fly home to");
 }
 
-/// Run `cfg` with scripted pilots until it ends; count `DockOrdered` events by
-/// doctrine and the docks.
+/// Run `cfg` with scripted pilots until it ends; count `DockOrdered` events and the
+/// docks.
 fn run_counting(cat: &Catalogue, cfg: &MatchConfig) -> (u32, u32) {
     let mut m = Match::new(cat, cfg).expect("setup");
     let (mut ordered, mut docked) = (0, 0);
@@ -498,10 +493,7 @@ fn run_counting(cat: &Catalogue, cfg: &MatchConfig) -> (u32, u32) {
         m.step(cat);
         for e in m.events() {
             match e {
-                Event::DockOrdered { by_doctrine, .. } => {
-                    assert!(by_doctrine);
-                    ordered += 1;
-                }
+                Event::DockOrdered { .. } => ordered += 1,
                 Event::Docked { .. } => docked += 1,
                 _ => {}
             }
@@ -525,50 +517,47 @@ fn wing8_cfg(cat: &Catalogue, seed: u64) -> MatchConfig {
 }
 
 #[test]
-fn the_recall_doctrine_recalls_damaged_craft_under_any_commander_and_can_be_turned_off() {
+fn the_scripted_and_random_commanders_recall_and_learned_and_external_never_do() {
     let cat = asset_catalogue();
-    let mut recalls = 0;
-    for commanders in [
-        [CommanderMode::Scripted; 2],
-        [CommanderMode::Random; 2],
-        [CommanderMode::External; 2],
-    ] {
+    for commanders in [[CommanderMode::Scripted; 2], [CommanderMode::Random; 2]] {
+        let mut recalls = 0;
         for seed in 0..4 {
             let mut cfg = wing8_cfg(&cat, 300 + seed);
             cfg.commanders = commanders;
-            recalls += run_counting(&cat, &cfg).0;
-            cfg.recall_doctrine = false;
-            assert_eq!(run_counting(&cat, &cfg), (0, 0), "{commanders:?} off");
-            // A hidden-order team (the eval's "unseen") is never recalled.
-            cfg.recall_doctrine = true;
+            let shown = run_counting(&cat, &cfg);
+            recalls += shown.0;
+            // Hiding the orders from the pilots changes nothing the script does.
             cfg.hide_orders = [true, true];
-            assert_eq!(run_counting(&cat, &cfg).0, 0, "{commanders:?} unseen");
+            assert_eq!(run_counting(&cat, &cfg), shown, "{commanders:?} hidden");
+        }
+        assert!(recalls > 0, "{commanders:?}");
+    }
+    // The sim recalls nobody on its own: a learned commander has no recall output and
+    // an external one sends none here.
+    for commanders in [[CommanderMode::Learned; 2], [CommanderMode::External; 2]] {
+        for seed in 0..2 {
+            let mut cfg = wing8_cfg(&cat, 300 + seed);
+            cfg.commanders = commanders;
+            assert_eq!(run_counting(&cat, &cfg), (0, 0), "{commanders:?}");
         }
     }
-    assert!(recalls > 0);
 }
 
 #[test]
-fn the_doctrine_recalls_below_the_threshold_only() {
+fn the_script_recalls_below_the_threshold_only() {
     let cat = asset_catalogue();
     let mut m = external_battle(&cat);
     let max = cat.hull(m.ships[1].hull).hp;
     m.ships[1].hp = (RECALL_HULL_FRAC + 0.05) * max;
     m.ships[2].hp = (RECALL_HULL_FRAC - 0.05) * max;
-    while !m.command_due_for(0) {
-        m.step(&cat);
-    }
-    m.step(&cat);
-    assert!(!m.has_dock_order(1));
-    assert!(m.has_dock_order(2));
-    assert!(m.events().iter().any(|e| matches!(
-        e,
-        Event::DockOrdered {
-            ship: 2,
-            by_doctrine: true,
-            ..
-        }
-    )));
+    let mut out = Vec::new();
+    commander::recalls(&m, &cat, 0, &mut out);
+    assert_eq!(out, [Command::Dock { ship: 2, bay: None }]);
+    // Without the dock rules, none.
+    m.cfg.docking = false;
+    out.clear();
+    commander::recalls(&m, &cat, 0, &mut out);
+    assert!(out.is_empty());
 }
 
 #[test]

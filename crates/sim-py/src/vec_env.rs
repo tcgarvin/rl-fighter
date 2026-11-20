@@ -356,7 +356,7 @@ impl VecEnv {
     /// the one-shot charge for missing it (both finite and >= 0, SIM_SPEC §8); they
     /// hold for every match of the env too.
     #[new]
-    #[pyo3(signature = (assets_dir, n_envs, fleets, seed, arena_radius=450.0, time_limit_s=90.0, n_threads=0, record_events=false, reaction_ticks=2, max_ships=None, mission=None, commanders=None, hide_orders=None, order_shaping_gamma=sim::reward::ORDER_SHAPING_GAMMA, goto_timed_bonus=sim::reward::ORDER_TIMED_ARRIVAL_BONUS, goto_miss_penalty=sim::reward::ORDER_MISS_PENALTY, docking=true, recall_doctrine=true))]
+    #[pyo3(signature = (assets_dir, n_envs, fleets, seed, arena_radius=450.0, time_limit_s=90.0, n_threads=0, record_events=false, reaction_ticks=2, max_ships=None, mission=None, commanders=None, hide_orders=None, order_shaping_gamma=sim::reward::ORDER_SHAPING_GAMMA, goto_timed_bonus=sim::reward::ORDER_TIMED_ARRIVAL_BONUS, goto_miss_penalty=sim::reward::ORDER_MISS_PENALTY, docking=true))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         py: Python<'_>,
@@ -377,7 +377,6 @@ impl VecEnv {
         goto_timed_bonus: f32,
         goto_miss_penalty: f32,
         docking: bool,
-        recall_doctrine: bool,
     ) -> PyResult<Self> {
         if n_envs < 1 {
             return Err(PyValueError::new_err(format!(
@@ -425,7 +424,6 @@ impl VecEnv {
                 goto_timed_bonus,
                 goto_miss_penalty,
                 docking,
-                recall_doctrine,
                 roster: Roster {
                     fleets,
                     arena_radius,
@@ -566,13 +564,6 @@ impl VecEnv {
     #[getter]
     fn docking(&self) -> bool {
         self.batch.match_at(0).cfg.docking
-    }
-
-    /// v11: whether this env's matches run the recall doctrine (the constructor's
-    /// `recall_doctrine`; it needs `docking`).
-    #[getter]
-    fn recall_doctrine(&self) -> bool {
-        self.batch.match_at(0).cfg.recall_doctrine
     }
 
     /// v11: every slot's dock state now (`sim::dock`), a dict of new `[N, S]` arrays:

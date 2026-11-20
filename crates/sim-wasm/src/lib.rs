@@ -261,7 +261,7 @@ pub fn projectile_stride() -> usize {
 /// 6 arrival, 7 collision (v3), 8 launch, 9 order, 10 jump charge, 11 jump out,
 /// 12 match end (v4), 13 turret destroyed, 14 bay destroyed (v10: `[kind, ship,
 /// turret or bay index, x, y, 0, 0, shooter]`, the mount's world position), 15 dock
-/// ordered `[k, ship, carrier, x, y, by_doctrine, 0, bay]` (the dock point), 16 docked
+/// ordered `[k, ship, carrier, x, y, 0, 0, bay]` (the dock point), 16 docked
 /// `[k, ship, carrier, x, y, hp_frac, 0, bay]` (where it was), 17 repaired `[k, ship,
 /// carrier, 0, 0, 0, 0, 0]`, 18 relaunched `[k, ship, carrier, 0, 0, hp_frac, 0, bay]`
 /// (after its launch), 19 dock aborted `[k, ship, carrier, 0, 0, 0, 0, reason]` (v11)).
