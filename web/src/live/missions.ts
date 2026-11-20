@@ -12,11 +12,14 @@
 // The station assault (SIM_VERSION 9) rotates with the others on a bundle that has it
 // (the owner's call, 2026-11-19: all the live pilots, no special selection), though the
 // live pilots fly its bombers badly and the attacker wins only 0.36 to 0.39 with them
-// (lab/runs/2026-11-19-station-bomber).
+// (lab/runs/2026-11-19-station-bomber). From SIM_VERSION 10 it is always the citadel's
+// (the owner asked for the big station): the sim's "citadel" roster, a carrier and a
+// dreadnought against the citadel, whose turrets and bays can be shot off
+// (lab/runs/2026-11-19-citadel-dreadnought). A v9 bundle keeps its station.
 
 import type { Rng } from "./policy.js";
 import { chooseRoster, draftSide, draftableHulls, type Roster, type RosterMode, type RosterRules } from "./roster.ts";
-import { ROLE_CARRIER, ROLE_TRANSPORT, SIM_HZ, type ConvoyState, type HullInfo, type SimModule } from "./sim.ts";
+import { ROLE_CARRIER, ROLE_LINE, ROLE_TRANSPORT, SIM_HZ, isCapitalHull, type ConvoyState, type HullInfo, type SimModule } from "./sim.ts";
 import { TEAM_WORDS, teamSpan } from "./teams.ts";
 
 /** The sim's mission kind names (SIM_SPEC §10.3), in kind order (`mission_kind()`). */
@@ -28,6 +31,8 @@ export const ROTATION: readonly MissionName[] = ["deathmatch", "carrier_battle",
 
 /** The first sim version with the station assault, its station and its bombers. */
 export const STATION_SIM_VERSION = 9;
+/** The first sim version with the citadel and the dreadnought (a line-role hull). */
+export const CITADEL_SIM_VERSION = 10;
 
 /**
  * Strike hulls a mission is built around, flown as the sim's roster names them even
@@ -116,10 +121,10 @@ const DEFAULT_ROSTER_SHARE = 0.5;
 function fromSim(list: MissionRosterSpec[], rules: RosterRules, info: Record<string, HullInfo>, rng: Rng, kept: readonly string[] = []): Roster {
   const r = rng() < DEFAULT_ROSTER_SHARE || list.length === 1 ? list[0]! : list[1 + Math.floor(rng() * (list.length - 1))]!;
   const flyable = [...draftableHulls(rules, info), ...kept.filter((h) => info[h])];
+  // Capital ships (carriers, freighters, the dreadnought, stations) are the sim's scripts' to fly, never swapped.
   const swap = (hull: string): string => {
-    const role = info[hull]?.role;
     if (!info[hull]) throw new Error(`the sim's roster ${r.name} names hull ${hull}, which is not in the catalogue`);
-    return role === ROLE_CARRIER || role === ROLE_TRANSPORT || flyable.includes(hull) ? hull : flyable[0]!;
+    return isCapitalHull(info[hull]) || flyable.includes(hull) ? hull : flyable[0]!;
   };
   return { fleets: [r.fleets[0].map(swap), r.fleets[1].map(swap)], budget: null, name: r.name };
 }
@@ -152,11 +157,26 @@ export function hullWithRole(info: Record<string, HullInfo>, role: string, fixed
   return Object.keys(info).find((name) => info[name]!.role === role && Boolean(info[name]!.geometry?.static) === fixed) ?? null;
 }
 
+/** A roster with a line-role ship in it (v10's citadel assault brings a dreadnought). */
+function hasLineShip(r: MissionRosterSpec, info: Record<string, HullInfo>): boolean {
+  return r.fleets.some((f) => f.some((h) => info[h]?.role === ROLE_LINE));
+}
+
+/**
+ * The station assault's rosters this bundle plays: from SIM_VERSION 10 only the
+ * citadel's (the ones with a dreadnought), else the sim's list as it is.
+ */
+export function stationRosters(list: MissionRosterSpec[], info: Record<string, HullInfo>): MissionRosterSpec[] {
+  const big = list.filter((r) => hasLineShip(r, info));
+  return big.length > 0 ? big : list;
+}
+
 /**
  * The missions this bundle can stage: every mission needs a v4 sim; the carrier battle
  * a carrier-role hull and the convoy a transport-role hull in the catalogue, and the
  * station assault (v9) a static carrier-role hull, a mobile carrier and a bomber, each
- * with the renderer's model for it (`drawable`).
+ * with the renderer's model for it (`drawable`); from v10 also the dreadnought (a
+ * line-role hull) and the citadel.
  */
 export function availableMissions(simVersion: number, info: Record<string, HullInfo>, drawable: (hull: string) => boolean): MissionName[] {
   const out: MissionName[] = ["deathmatch"];
@@ -166,9 +186,10 @@ export function availableMissions(simVersion: number, info: Record<string, HullI
   if (has(carrier)) out.push("carrier_battle");
   if (has(hullWithRole(info, ROLE_TRANSPORT))) out.push("convoy_escort");
   const strike = MISSION_STRIKE_HULLS.station_assault ?? [];
-  if (simVersion >= STATION_SIM_VERSION && has(carrier) && has(hullWithRole(info, ROLE_CARRIER, true)) && strike.every(has)) {
-    out.push("station_assault");
-  }
+  const station = simVersion >= STATION_SIM_VERSION && has(carrier) && has(hullWithRole(info, ROLE_CARRIER, true)) && strike.every(has);
+  // Every static carrier and line ship the v10 assault may field must be drawable.
+  const v10Capitals = Object.keys(info).filter((h) => info[h]!.role === ROLE_LINE || (info[h]!.role === ROLE_CARRIER && info[h]!.geometry?.static));
+  if (station && (simVersion < CITADEL_SIM_VERSION || v10Capitals.every(has))) out.push("station_assault");
   return out;
 }
 
@@ -208,7 +229,8 @@ export function missionRoster(
   rosters: DefaultRosters = {},
 ): Roster {
   if (mission === "deathmatch") return chooseRoster(mode, rules, info, rng);
-  const list = rosters[mission];
+  const sims = rosters[mission];
+  const list = sims && mission === "station_assault" ? stationRosters(sims, info) : sims;
   if (list && list.length > 0) return fromSim(list, rules, info, rng, MISSION_STRIKE_HULLS[mission]);
   // Every wasm with the station assault has its rosters.
   if (mission === "station_assault") throw new Error("station assault: the sim gave no roster for it");
@@ -236,11 +258,20 @@ export interface Brief {
 
 /**
  * The mission brief at the muster. `convoy` is the sim's convoy view at tick 0, so the
- * numbers are the sim's thresholds, not ours; `timeLimitTicks` is the match's clock.
+ * numbers are the sim's thresholds, not ours; `timeLimitTicks` is the match's clock;
+ * `fleets` the match's (a station assault with a dreadnought is v10's citadel assault).
  */
-export function missionBrief(mission: MissionName, convoy: ConvoyState | null, timeLimitTicks = 0): Brief {
+export function missionBrief(mission: MissionName, convoy: ConvoyState | null, timeLimitTicks = 0, fleets?: readonly (readonly string[])[]): Brief {
   if (mission === "station_assault") {
     const clock = timeLimitTicks > 0 ? `${Math.round(timeLimitTicks / SIM_HZ)}&nbsp;s` : "the clock";
+    if (fleets?.[1]?.includes("dreadnought")) {
+      return {
+        headline: "Take the citadel, or&nbsp;hold&nbsp;it.",
+        brief:
+          `${teamSpan(1, TEAM_WORDS[1])} jumps in with a carrier, a dreadnought and bombers: the citadel falls, ${TEAM_WORDS[1]} wins. ` +
+          `${teamSpan(0, TEAM_WORDS[0])} holds it for ${clock}, or wipes out the attack. Turrets and bays can be shot&nbsp;off.`,
+      };
+    }
     return {
       headline: "Take the station, or&nbsp;hold&nbsp;it.",
       brief:

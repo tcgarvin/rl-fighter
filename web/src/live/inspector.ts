@@ -95,6 +95,15 @@ function ratingText(info: PilotEntry): string {
   return `Rated ${signed(info.rating)}`;
 }
 
+/** "9/12 turrets", "3/4 bays": a capital ship's mounts still standing (v10; none before). */
+function mountsLeft(ship: ShipState): string[] {
+  const standing = (state: Float32Array, n: number): number => state.subarray(0, n).reduce((k, v) => k + (v > 0 ? 1 : 0), 0);
+  const out: string[] = [];
+  if (ship.nTurrets > 0) out.push(`${standing(ship.turretState, ship.nTurrets)}/${ship.nTurrets} turrets`);
+  if (ship.nBays > 0) out.push(`${standing(ship.bayState, ship.nBays)}/${ship.nBays} bays`);
+  return out;
+}
+
 /** The order this ship's squad holds, in words. */
 function orderText(match: LiveMatch, i: number): string {
   const ship = match.ships[i]!;
@@ -535,6 +544,8 @@ export class Inspector {
     } else if (ship.role === ROLE_CARRIER) {
       parts.push(`${match.teams[ship.team]!.hangar} in hangar`);
     }
+    // v10: a capital ship's turrets and bays can be shot off one by one.
+    if (ship.role !== "strike") parts.push(...mountsLeft(ship));
     return parts.join(" · ");
   }
 }

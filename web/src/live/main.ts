@@ -8,9 +8,8 @@
 // the sim's scripts; each side's commander is drawn from the bundle's stable (the sim's
 // scripted one, or a learned net that decides once a second).
 //
-// URL parameters: seed (pin the match seeds), mission (deathmatch, carrier or convoy:
-// every match is that mission; default: rotate; station: the station assault, which
-// plays only when pinned), commander (an id from the stable for
+// URL parameters: seed (pin the match seeds), mission (deathmatch, carrier, convoy or
+// station: every match is that mission; default: rotate through them all), commander (an id from the stable for
 // both sides, or two ids, Azure's then Ember's, comma-separated; default: a draw per
 // side per match), fleets (duel or NvM for deathmatch,
 // implies it; default: a random draft), champion (replay a past champion), details
@@ -235,10 +234,10 @@ function startMatch(): void {
   matchNumber += 1;
   phase = "muster";
   phaseTime = 0;
-  hud.setCaption(bundle.manifest, bundleBase !== CURRENT_BUNDLE, next.ships.some((s) => s.role !== "strike"), commanders);
+  hud.setCaption(bundle.manifest, bundleBase !== CURRENT_BUNDLE, capitalKinds(next), commanders);
   hud.updateMission(next, showCommanderRow(next));
   cmdlog.newMatch(matchNumber, next);
-  const brief = missionBrief(mission, next.convoy, next.timeLimitTicks);
+  const brief = missionBrief(mission, next.convoy, next.timeLimitTicks, roster.fleets);
   muster.show({ number: matchNumber, mission, brief, roster, info: bundle.catalogue.info, thumbnails, duration: MUSTER_SECONDS });
   document.body.classList.add("mustering");
 }
@@ -282,6 +281,11 @@ function fastForward(seconds: number): void {
   }
   world.settle();
   if (match.over) finishMatch(match);
+}
+
+/** The hull of each capital ship in a match, slot order (the caption names them). */
+function capitalKinds(m: LiveMatch): string[] {
+  return m.ships.flatMap((s, i) => (s.role === "strike" ? [] : [m.hullNames[i]!]));
 }
 
 /** Say who commands each side once the stable holds a learned commander (or one is pinned). */

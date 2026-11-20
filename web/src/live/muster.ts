@@ -17,12 +17,14 @@ const ROLE_LINES: Record<string, string> = {
   anchor: "slow · 3 turrets",
   carrier: "launches the wing",
   transport: "unarmed · cargo",
+  line: "rails · armoured bow",
 };
 // Hulls that share a role with another but fight differently (a bomber flies in the
-// gunship's class; the station is its side's carrier).
+// gunship's class; the station and the citadel are their side's carrier).
 const HULL_LINES: Record<string, string> = {
   bomber: "slow · torpedo",
   station: "immobile · 6 turrets",
+  citadel: "immobile · 12 turrets",
 };
 const MAX_CARDS = 4;
 // Leaves time for the fade-out before the fleets jump.
@@ -46,7 +48,7 @@ function el(tag: string, className: string, html?: string): HTMLElement {
   return node;
 }
 
-const CAPITAL_FIRST: Record<string, number> = { carrier: 0, transport: 1 };
+const CAPITAL_FIRST: Record<string, number> = { carrier: 0, line: 1, transport: 1 };
 
 /** One [hull, count] per hull kind, capital ships first, then by count. */
 function grouped(fleet: string[], info: Record<string, HullInfo>): Array<[string, number]> {

@@ -305,8 +305,14 @@ def test_draws_match_the_live_page_s_own_code() -> None:
 def test_live_page_rotates_the_station_assault_on_v9() -> None:
     """The page's ``missions.ts``: a v9 catalogue can stage the station assault, the
     rotation picks it there (never on v8), a pin does, and its roster keeps the sim's bombers though
-    the champion is certified only for the v1 hulls."""
+    the champion is certified only for the v1 hulls. A v9 wasm lists only the v9 roster
+    (the citadel's is v10's)."""
     info = load_catalogue(Path(ASSETS))["info"]
+    v9_rosters = [
+        r
+        for r in rlf_sim.mission_rosters(STATION_ASSAULT)
+        if "dreadnought" not in r["fleets"][1]
+    ]
     payload = {
         "info": info,
         "rules": {
@@ -315,7 +321,7 @@ def test_live_page_rotates_the_station_assault_on_v9() -> None:
             "max_per_side": 4,
             "budget": 40,
         },
-        "rosters": {STATION_ASSAULT: rlf_sim.mission_rosters(STATION_ASSAULT)},
+        "rosters": {STATION_ASSAULT: v9_rosters},
     }
     script = """
     import { availableMissions, missionFor, missionRoster, parseMission } from "./web/src/live/missions.ts";
@@ -359,9 +365,64 @@ def test_live_page_rotates_the_station_assault_on_v9() -> None:
     assert page["rotated"] == sorted([*LIVE_MISSIONS, STATION_ASSAULT])
     assert page["rotated_v8"] == sorted(LIVE_MISSIONS)
     assert page["pinned"] == STATION_ASSAULT
-    sim_default = rlf_sim.mission_rosters(STATION_ASSAULT)[0]["fleets"]
+    sim_default = v9_rosters[0]["fleets"]
     assert page["fleets"] == [list(team) for team in sim_default]
     assert "bomber" in page["fleets"][1]
+
+
+@pytest.mark.skipif(NODE is None, reason="node is not on PATH")
+def test_live_page_plays_the_citadel_on_v10() -> None:
+    """On a v10 wasm, whose station-assault rosters are the v9 station's and the
+    citadel's, the page's station assault is always the citadel's, flown as the sim
+    names it: the dreadnought and the citadel are never swapped for strike craft, and a
+    catalogue that cannot draw the dreadnought does not stage it."""
+    info = load_catalogue(Path(ASSETS))["info"]
+    rosters = rlf_sim.mission_rosters(STATION_ASSAULT)
+    citadel = [r for r in rosters if "dreadnought" in r["fleets"][1]]
+    assert len(citadel) == 1 and len(rosters) > 1
+    payload = {
+        "info": info,
+        "rules": {
+            "hulls": ["fighter", "gunship", "strafer"],
+            "min_per_side": 1,
+            "max_per_side": 4,
+            "budget": 40,
+        },
+        "rosters": {STATION_ASSAULT: rosters},
+    }
+    script = """
+    import { availableMissions, missionRoster } from "./web/src/live/missions.ts";
+    let text = "";
+    for await (const chunk of process.stdin) text += chunk;
+    const { info, rules, rosters } = JSON.parse(text);
+    const fleets = [0.05, 0.3, 0.6, 0.95].map((u) => missionRoster("station_assault", { kind: "draft" }, rules, info, () => u, rosters).fleets);
+    console.log(JSON.stringify({
+      v10: availableMissions(10, info, () => true),
+      undrawable: availableMissions(10, info, (h) => h !== "dreadnought"),
+      fleets,
+    }));
+    """
+    done = subprocess.run(
+        [
+            str(NODE),
+            "--experimental-strip-types",
+            "--no-warnings",
+            "--input-type=module",
+            "-e",
+            script,
+        ],
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+        cwd=REPO,
+        timeout=120,
+    )
+    assert done.returncode == 0, done.stderr
+    page = json.loads(done.stdout)
+    assert STATION_ASSAULT in page["v10"]
+    assert STATION_ASSAULT not in page["undrawable"]
+    want = [list(team) for team in citadel[0]["fleets"]]
+    assert all(f == want for f in page["fleets"])
 
 
 @pytest.mark.skipif(NODE is None, reason="node is not on PATH")

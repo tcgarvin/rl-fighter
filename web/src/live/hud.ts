@@ -5,7 +5,7 @@
 // reason the match ended and, behind the "Technical details" toggle, per-ship numbers next to each hull.
 // The "Show commands" toggle's state lives on <body class="commands">.
 
-import { JUMP_CHARGING, JUMP_DEPARTED, SIM_HZ, TICK_BUDGET_MS } from "./sim.ts";
+import { JUMP_CHARGING, JUMP_DEPARTED, SIM_HZ, TICK_BUDGET_MS, type ShipState } from "./sim.ts";
 import type { LiveMatch } from "./match.ts";
 import { commanderName, type BundleManifest, type LiveCommander } from "./bundle.ts";
 import { TEAM_CLASSES, TEAM_NAMES, TEAM_WORDS, escapeHtml, teamSpan } from "./teams.ts";
@@ -92,13 +92,14 @@ export class Hud {
 
   /**
    * The caption under the battle; `replay` marks a past champion (?champion=),
-   * `capitals` a match with scripted carriers or freighters in it, and `commanders`
-   * each side's commander this match.
+   * `capitals` the kinds of capital ship in the match (its carriers, freighters,
+   * dreadnought, station: the sim's scripts fly them), and `commanders` each side's
+   * commander this match.
    */
-  setCaption(manifest: BundleManifest, replay = false, capitals = false, commanders: readonly LiveCommander[] = []): void {
+  setCaption(manifest: BundleManifest, replay = false, capitals: readonly string[] = [], commanders: readonly LiveCommander[] = []): void {
     const c = manifest.champion;
     const mixed = manifest.roster.hulls.length > 1 ? " One net flies every hull." : "";
-    const craft = capitals ? "fighter" : "ship";
+    const craft = capitals.length ? "fighter" : "ship";
     const scripts = scriptsSentence(capitals, commanders);
     const nPilots = manifest.pilots?.length ?? 1;
     if (!replay && nPilots > 1) {
@@ -240,13 +241,26 @@ function commanderRow(match: LiveMatch): string {
   return `<div class="mrow msub"><span class="mlabel">CMD</span>${side(0)} · ${side(1)}</div>`;
 }
 
+/**
+ * "The citadel, the carrier and the dreadnought", "Carriers": a match's capital ships
+ * (one hull name per ship, slot order) named for the caption, and whether they take "are".
+ */
+export function capitalSubject(ships: readonly string[]): { text: string; plural: boolean } {
+  const counts = new Map<string, number>();
+  for (const h of ships) counts.set(h, (counts.get(h) ?? 0) + 1);
+  const words = [...counts].map(([h, n]) => (n === 1 ? `the ${h}` : `${h}s`));
+  const list = words.length <= 1 ? (words[0] ?? "") : `${words.slice(0, -1).join(", ")} and ${words.at(-1)}`;
+  return { text: `${list.charAt(0).toUpperCase()}${list.slice(1)}`, plural: ships.length > 1 };
+}
+
 /** What the caption says is scripted, and which commander is a net. */
-function scriptsSentence(capitals: boolean, commanders: readonly LiveCommander[]): string {
+function scriptsSentence(capitals: readonly string[], commanders: readonly LiveCommander[]): string {
   const learned = [0, 1].filter((t) => commanders[t]?.net);
-  if (learned.length === 0) return capitals ? "Capital ships and both commanders are scripted. " : "";
+  const subject = capitalSubject(capitals);
+  if (learned.length === 0) return capitals.length ? `${subject.text} ${subject.plural ? "are" : "is"} scripted, as are both commanders. ` : "";
   const who = learned.length === 2 ? "Both commanders are neural networks" : `The ${TEAM_WORDS[learned[0]!]} commander is a neural network`;
   const net = `${who} too, giving orders once a second.`;
-  return capitals ? `Capital ships are scripted. ${net} ` : `${net} `;
+  return capitals.length ? `${subject.text} ${subject.plural ? "are" : "is"} scripted. ${net} ` : `${net} `;
 }
 
 function pct(hp: number, max: number): number {
@@ -279,21 +293,34 @@ function convoyDistance(match: LiveMatch): number | null {
   return best;
 }
 
+/** "9/12 guns": a capital ship's turrets still standing (v10 hardpoints). */
+function gunsLeft(ship: ShipState): string {
+  let standing = 0;
+  for (let k = 0; k < ship.nTurrets; k++) if (ship.turretState[k]! > 0 && ship.alive) standing += 1;
+  return `${standing}/${ship.nTurrets} guns`;
+}
+
 function missionPanel(match: LiveMatch): string {
   if (match.mission === "carrier_battle" || match.mission === "station_assault") {
     // A station assault's team 0 "carrier" is its station (the sim's team view).
     const station = match.mission === "station_assault";
-    return [0, 1]
-      .map((team) => {
-        const t = match.teams[team]!;
-        const p = t.carrier >= 0 ? pct(t.hp, t.maxHp) : 0;
-        const hangar = t.hangar > 0 ? `${t.hangar} in hangar` : "hangar empty";
-        return (
-          `<div class="mrow ${TEAM_CLASSES[team]}${p === 0 ? " down" : ""}"><span class="mlabel">${TEAM_NAMES[team]} ${station && team === 0 ? "STATION" : "CARRIER"}</span>` +
-          `<span class="mbar"><i style="width:${p}%"></i></span><span class="mval">${p}%</span><span class="mnote">${hangar}</span></div>`
-        );
-      })
-      .join("");
+    const row = (team: number, label: string, p: number, note: string): string =>
+      `<div class="mrow ${TEAM_CLASSES[team]}${p === 0 ? " down" : ""}"><span class="mlabel">${TEAM_NAMES[team]} ${label}</span>` +
+      `<span class="mbar"><i style="width:${p}%"></i></span><span class="mval">${p}%</span><span class="mnote">${note}</span></div>`;
+    const rows = [0, 1].map((team) => {
+      const t = match.teams[team]!;
+      const p = t.carrier >= 0 ? pct(t.hp, t.maxHp) : 0;
+      const hangar = t.hangar > 0 ? `${t.hangar} in hangar` : "hangar empty";
+      const ship = t.carrier >= 0 ? match.ships[t.carrier] : undefined;
+      // v10: a capital ship's guns can be shot off; the citadel's count is worth a glance.
+      const guns = station && team === 0 && ship ? ` · ${gunsLeft(ship)}` : "";
+      return row(team, station && team === 0 ? "STATION" : "CARRIER", p, hangar + guns);
+    });
+    // v10: the attackers' dreadnought, under their carrier.
+    match.ships.forEach((s, i) => {
+      if (s.role === "line") rows.push(row(s.team, "DREAD", s.alive ? pct(s.hp, match.maxHp[i] ?? 1) : 0, gunsLeft(s)));
+    });
+    return rows.join("");
   }
   const c = match.convoy;
   if (match.mission === "convoy_escort" && c) {

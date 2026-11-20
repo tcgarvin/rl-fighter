@@ -102,7 +102,7 @@ function counts(fleet: string[]): Map<string, number> {
 }
 
 // Capital ships lead the description ("a carrier, three fighters and ...").
-const ROLE_RANK: Record<string, number> = { carrier: 0, transport: 1 };
+const ROLE_RANK: Record<string, number> = { carrier: 0, line: 1, transport: 1 };
 
 /** "a gunship and two fighters"; with `info`, capital ships come first. */
 export function describeFleet(fleet: string[], info?: Record<string, HullInfo>): string {
