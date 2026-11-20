@@ -57,6 +57,30 @@ def test_the_pilots_option_names_the_list_both_sides_draw_from(
     assert seen["pilots"] == LIVE_PILOTS, "the live list unless another is named"
 
 
+def test_the_checkpoint_root_option_reaches_evaluate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: dict[str, Any] = {}
+
+    def evaluate(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        seen.update(kwargs)
+        orders = {"orders_ended": 0}
+        return {
+            "a": "x",
+            "b": "y",
+            "score_a": 0.5,
+            "orders_a": orders,
+            "orders_b": orders,
+        }
+
+    monkeypatch.setattr(commander_eval, "evaluate", evaluate)
+    base = ["--a", SCRIPTED, "--n-per-mission", "48", "--out", str(tmp_path / "e.json")]
+    assert commander_eval.main(base) == 0
+    assert seen["checkpoint_root"] == commander_eval.REPO_ROOT
+    assert commander_eval.main([*base, "--checkpoint-root", "/x"]) == 0
+    assert seen["checkpoint_root"] == Path("/x")
+
+
 def _checkpoints() -> list[tuple[str, Path]]:
     population = load_population(SEASON)
     return [(p, REPO / population.member(p).checkpoint) for p in PILOTS]

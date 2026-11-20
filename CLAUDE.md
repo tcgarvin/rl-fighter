@@ -105,11 +105,8 @@ uv run python -m tools.live_commanders list
 # the owner is idle after midnight and runs morning.sh after.
 uv run python -m spacefight.commander.eval --a <commander.pt|scripted|random|unseen> --b scripted \
     --n-per-mission 192 --out eval.json [--pilots <rlf.live_pilots/1 list>] \
-    [--pilot-draw ship|side] [--pilot-a <id>] [--pilot-b <id>] [--checkpoint-root <dir>]
-# Pairing (a side = one commander + one pilot): --pilot-draw side draws one pilot a side,
-# --pilot-a/--pilot-b pin one by id; the trainer's --set pilot_draw=side, the page's
-# ?pairing=side. --checkpoint-root: the main checkout, from a worktree. The grid of
-# commander x pilot pairings: lab/runs/2026-11-19-pairing/run.sh, then analyze.py.
+    [--checkpoint-root <dir>]
+# --checkpoint-root: the main checkout, from a worktree.
 nohup setsid lab/runs/2026-11-10-commander-2/launch_when_idle.sh \
     > lab/runs/2026-11-10-commander-2/launch.out 2>&1 &
 # Phase 3 (lab/runs/2026-11-15-commander-3: arms followers / followers_ent01 / live, half
@@ -123,7 +120,7 @@ uv run python -m pytest tests/test_commander_io.py tests/test_commander_orders.p
 # Parity of the browser policy and commander with torch; the headless live-match smoke
 # test (learned commanders: --commanders <azure>,<ember>|draw; default cycles them on both sides)
 uv run python -m pytest tests/test_web_policy.py tests/test_web_commander.py tests/test_live_commanders.py -v
-node --experimental-strip-types tools/web/live_smoke.mjs web/public/bundle 4 [--hulls fighter,strafer,gunship] [--pairing side]
+node --experimental-strip-types tools/web/live_smoke.mjs web/public/bundle 4 [--hulls fighter,strafer,gunship]
 # Screenshots (390x844, 1440x900) into web/shots/live/, and a 10-minute heap/GPU soak,
 # against a running preview / web/dist; RLF_GPU=1 uses the host GPU instead of SwiftShader
 node tools/web/live_shots.mjs http://localhost:4173    # RLF_SHOTS_COMMANDER=<id>: + scenes with it on

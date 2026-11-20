@@ -9,6 +9,10 @@ single cell clear of it). A side with one pilot scores about what the per-ship d
 does. The best side here is a pilot with no orders at all. No rule of the game changed
 (`SIM_VERSION` 8).
 
+The side-pairing options (`?pairing=side`, `--pilot-draw`, `--pilot-a` / `--pilot-b`,
+`pilot_draw`) were removed from the code on 2026-11-19 after this result; `run.sh` and
+`grid.py` need the code at commit `229877d` to rerun.
+
 <!-- summary: We tried each side being one commander and one pilot, every ship on it flown by the same network, to see whether some pairs are worth more together than apart. They are not, beyond what we knew: orders cost a side up to 0.28 with three of four pilots and nothing with the one that ignores them. With no orders on either side, a whole side of the best-rated pilot lost 0.38 to a side of the lowest-rated follower, the opposite of what its rating predicts, so a rating made in mixed sides under orders does not carry over. -->
 
 The owner asked to try each side being a consistent commander and pilot pairing,

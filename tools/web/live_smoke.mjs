@@ -16,7 +16,6 @@
 //   node --experimental-strip-types tools/web/live_smoke.mjs <bundle-dir> [matches=4]
 //        [--seed 1] [--modes draft,carrier_battle,convoy_escort,station_assault,2v2,3v3,4v4]
 //        [--hulls fighter,strafer,gunship] [--commanders <azure>,<ember>|draw]
-//        [--pairing ship|side]
 //
 // --modes cycles what each match stages: a mission name (carrier_battle,
 // convoy_escort, station_assault; the page's ?mission=) or a deathmatch roster mode
@@ -28,8 +27,6 @@
 // draws them as the page does. By default a bundle with a learned commander cycles
 // learned vs learned, learned vs scripted, scripted vs learned, then a draw, so the
 // bundle build's 4 smoke matches put a learned commander on each side.
-// --pairing side draws one pilot a side (the page's ?pairing=side) and fails a match
-// whose strike craft on one side do not all fly that side's pilot.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -51,8 +48,7 @@ const seed0 = Number(flags.seed ?? 1);
 const modes = (flags.modes ?? "draft,carrier_battle,convoy_escort,station_assault,2v2,3v3,4v4").split(",");
 
 const { mulberry32 } = await importRepo("web/src/live/policy.js");
-const { LiveMatch, assignCommanders, parsePairing } = await importRepo("web/src/live/match.ts");
-const pairing = parsePairing(flags.pairing ?? null);
+const { LiveMatch, assignCommanders } = await importRepo("web/src/live/match.ts");
 const { parseRosterMode, matchupLine } = await importRepo("web/src/live/roster.ts");
 const { availableMissions, defaultRosters, missionRoster, parseMission, missionBrief, MISSION_TITLES } = await importRepo("web/src/live/missions.ts");
 const { assembleBundle, commanderName, parseManifest } = await importRepo("web/src/live/bundle.ts");
@@ -103,7 +99,7 @@ const wasmKiB = fs.statSync(path.join(bundleDir, "pkg/sim_wasm_bg.wasm")).size /
 console.log(
   `live smoke: bundle ${manifest.bundle_id}, sim_version ${bundle.layout.simVersion}, wasm ${wasmKiB.toFixed(0)} KiB, ` +
     `champion ${manifest.champion.id} (${manifest.champion.hulls.join(", ")}), ${bundle.pilots.length} pilots, ` +
-    `commanders ${bundle.commanders.map((c) => `${c.id} (${c.kind})`).join(", ")}, pilots drawn by ${pairing}, drafting ${rules.hulls.join(", ")}; missions ${available.join(", ")}`,
+    `commanders ${bundle.commanders.map((c) => `${c.id} (${c.kind})`).join(", ")}, drafting ${rules.hulls.join(", ")}; missions ${available.join(", ")}`,
 );
 
 const stripTags = (html) => html.replace(/<[^>]+>/g, "");
@@ -125,13 +121,10 @@ for (let i = 0; i < Number(nArg); i++) {
   }
   const roster = missionRoster(mission, parseRosterMode(mission === "deathmatch" ? mode : null), rules, bundle.catalogue.info, mulberry32(seed ^ 0x5bd1e995), rosters);
   const commanders = commandersFor(i, seed);
-  const match = new LiveMatch({ ...bundle, settings: manifest.match, fleets: roster.fleets, seed, mission, commanders, pairing });
-  const sidePilotWrong = [];
+  const match = new LiveMatch({ ...bundle, settings: manifest.match, fleets: roster.fleets, seed, mission, commanders });
   for (let s = 0; s < match.nShips; s++) {
     const id = match.pilotId(s);
     if (id) flown.set(id, (flown.get(id) ?? 0) + 1);
-    const side = match.sidePilots?.[match.ships[s].team];
-    if (id && side && id !== side.id) sidePilotWrong.push(s);
   }
   const b = missionBrief(mission, match.convoy, match.timeLimitTicks);
   const brief = stripTags(`${b.headline ? `${b.headline} ` : ""}${b.brief}`);
@@ -164,8 +157,6 @@ for (let i = 0; i < Number(nArg); i++) {
     failed = true;
   };
   if (nonFinite) fail("non-finite ship state");
-  if (pairing === "side" && !match.sidePilots) fail("pairing side, but the match drew no side pilots");
-  if (sidePilotWrong.length) fail(`strike craft ${sidePilotWrong.join(", ")} do not fly their side's pilot`);
   if (counts.unknown) fail(`${counts.unknown} events of an unknown kind`);
   if (!match.over) {
     fail(`did not finish by tick ${match.tick}`);
@@ -211,8 +202,7 @@ for (let i = 0; i < Number(nArg); i++) {
     commanded.set(c.id, tally);
     if (c.net && st.decisions === 0) fail(`${["azure", "ember"][t]}'s learned commander ${c.id} never decided`);
     const cost = c.net ? `, ${st.decisions} decisions → ${st.commands} commands, ${(st.ms / Math.max(1, st.decisions)).toFixed(2)} ms/decision (worst ${st.worstMs.toFixed(2)})` : "";
-    const pilot = match.sidePilots ? ` + ${match.sidePilots[t].id}` : "";
-    return `${["azure", "ember"][t]} ${commanderName(c)}${pilot} (orders ${sideOrders[t]}, launches ${sideLaunches[t]}${cost})`;
+    return `${["azure", "ember"][t]} ${commanderName(c)} (orders ${sideOrders[t]}, launches ${sideLaunches[t]}${cost})`;
   });
   console.log(
     `live smoke: ${label}: ${w === -1 ? "draw" : `team ${w} wins`} (${match.simReason}) at tick ${match.tick} (${(match.tick / 30).toFixed(1)} s), value ${values}${extra}; ${ev}; peak ${peakPresent} ships on the field; ` +

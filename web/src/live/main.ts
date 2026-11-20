@@ -33,7 +33,7 @@ import { CommandLog } from "./cmdlog.ts";
 import { Hud, type Tally } from "./hud.ts";
 import { inspectFrame, pickShip, type OnScreen } from "./inspect.ts";
 import { Inspector } from "./inspector.ts";
-import { LiveMatch, assignCommanders, parsePairing } from "./match.ts";
+import { LiveMatch, assignCommanders } from "./match.ts";
 import { MISSION_TAGS, availableMissions, defaultRosters, missionBrief, missionFor, missionRoster, parseMission, type DefaultRosters, type MissionName } from "./missions.ts";
 import { Muster } from "./muster.ts";
 import { parseRosterMode, type Roster } from "./roster.ts";
@@ -78,8 +78,6 @@ const pinnedSeed = params.has("seed") ? Number(params.get("seed")) : null;
 // ?commander=<id> (both sides) or <azure>,<ember>: ids from the bundle's stable.
 const pinnedCommanders = (params.get("commander") ?? "").split(",").map((id) => id.trim()).filter(Boolean).slice(0, 2);
 const warnedCommanders = new Set<string>();
-// ?pairing=side: each side draws one pilot that all its strike craft fly (match.ts).
-const pairing = parsePairing(params.get("pairing"));
 const warmup = Math.max(0, Number(params.get("warmup") ?? 0));
 const speed = Math.min(32, Math.max(1, Number(params.get("speed") ?? 1) || 1));
 let showDetails = params.has("details");
@@ -226,7 +224,7 @@ function startMatch(): void {
   const mission = missionFor(seed, missions, pinnedMission);
   roster = missionRoster(mission, rosterMode, bundle.manifest.roster, bundle.catalogue.info, mulberry32(seed ^ ROSTER_SALT), rosters);
   const commanders = chooseCommanders(seed);
-  const next = new LiveMatch({ ...bundle, settings: bundle.manifest.match, fleets: roster.fleets, seed, mission, commanders, pairing });
+  const next = new LiveMatch({ ...bundle, settings: bundle.manifest.match, fleets: roster.fleets, seed, mission, commanders });
   world.setArena(next.arenaRadius);
   world.beginMatch(next);
   match?.free();
@@ -237,7 +235,7 @@ function startMatch(): void {
   matchNumber += 1;
   phase = "muster";
   phaseTime = 0;
-  hud.setCaption(bundle.manifest, bundleBase !== CURRENT_BUNDLE, next.ships.some((s) => s.role !== "strike"), commanders, next.sidePilots);
+  hud.setCaption(bundle.manifest, bundleBase !== CURRENT_BUNDLE, next.ships.some((s) => s.role !== "strike"), commanders);
   hud.updateMission(next, showCommanderRow(next));
   cmdlog.newMatch(matchNumber, next);
   const brief = missionBrief(mission, next.convoy, next.timeLimitTicks);
@@ -354,7 +352,7 @@ function frame(now: number): void {
   if (match) {
     hud.updateMission(match, showCommanderRow(match));
     hud.updateMarkers(match, showDetails, (i) => world.shipOnScreen(i, window.innerWidth, window.innerHeight), thrusterCounts);
-    const who = bundle.pilots.length <= 1 ? bundle.manifest.champion.name : match.sidePilots ? "a pilot a side" : `${bundle.pilots.length} pilots`;
+    const who = bundle.pilots.length > 1 ? `${bundle.pilots.length} pilots` : bundle.manifest.champion.name;
     hud.setMeta(statusLine(match), `seed ${match.seed} · ${who} · ${bundle.manifest.bundle_id.slice(0, 8)}`);
   }
   hud.updatePerf(dt, realDt, match, showDetails, world.renderScale);

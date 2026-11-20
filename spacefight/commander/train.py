@@ -41,8 +41,6 @@ from spacefight.commander.io import (
 )
 from spacefight.commander.pilots import (
     LIVE_PILOTS,
-    PILOT_DRAW_SHIP,
-    PILOT_DRAWS,
     REPO_ROOT as PILOTS_ROOT,
     PilotStable,
     live_pilot_checkpoints,
@@ -133,9 +131,6 @@ class TrainConfig:
     # SIM_VERSION 9) gets a station weight of 0, which draws exactly as before.
     mission_weights: tuple[float, ...] = (1.0, 1.0, 1.0, 0.0)
     live_pilots: str = str(LIVE_PILOTS)
-    # How strike craft get pilots: "ship" (one drawn per ship, as the live page does by
-    # default) or "side" (one per side that all its strike craft fly, ?pairing=side).
-    pilot_draw: str = PILOT_DRAW_SHIP
     # The chance a station assault reads to the nets as a convoy escort (station side
     # the convoy defender), else as a carrier battle. 0 draws exactly as before.
     station_convoy_share: float = 0.0
@@ -168,10 +163,6 @@ class TrainConfig:
         self.mission_weights = weights
         if self.decisions_per_update < self.minibatch:
             raise ValueError("decisions_per_update must be at least one minibatch")
-        if self.pilot_draw not in PILOT_DRAWS:
-            raise ValueError(
-                f"pilot_draw must be one of {PILOT_DRAWS}, got {self.pilot_draw!r}"
-            )
         if self.order_price < 0:
             raise ValueError(
                 f"order_price must not be negative, got {self.order_price}"
@@ -327,7 +318,6 @@ class Trainer:
             self.env.n_ships,
             cfg.seed + 11,
             ASSETS,
-            mode=cfg.pilot_draw,
         )
         self.current: list[Assignment] = [first] * cfg.n_envs
         self.queued: list[Assignment] = []

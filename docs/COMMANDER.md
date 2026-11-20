@@ -331,19 +331,11 @@ list): a file of the same schema naming other pilots, for example only those tha
 orders (`lab/runs/2026-11-15-commander-3/pilots_followers.json`). The critic has one
 identity per pilot in the file, so a run keeps the file it started with.
 
-**How strike craft get pilots** (`TrainConfig.pilot_draw`, default `"ship"`): `ship`
-draws a pilot for every strike craft alone, as the live page does by default; `side`
-draws one pilot per side and all that side's strike craft fly it, so each side is one
-commander and one pilot (the live page's `?pairing=side`). The default draws exactly
-what it did before the option existed (`PilotStable(mode=...)`, `spacefight/commander/
-pilots.py`).
-
 ## Eval
 
 `spacefight.commander.eval` plays commander `--a` against `--b` (JSON
 `rlf.eval.commander/1`): each mission's live rosters in turn, `a` on each side half the
-time, pilots drawn ship by ship (or a side at a time, below) with a fixed seed. A side is
-a checkpoint or one of:
+time, pilots drawn ship by ship with a fixed seed. A side is a checkpoint or one of:
 
 - `scripted`: the sim's scripted commander.
 - `random`: the script's launches with random squads and orders.
@@ -356,17 +348,7 @@ a checkpoint or one of:
 `--pilots <list.json>` draws both sides' pilots from another list of the live list's
 schema. The eval also times every ship's orders (`orders_a`, `orders_b`).
 
-`--pilot-draw side` draws one pilot per side instead of one per ship. `--pilot-a <id>` and
-`--pilot-b <id>` pin a side's pilot (an id on the list; all its strike craft fly it)
-whatever the draw; the draw is made as without the pin and the pinned side's ships are
-then overwritten, so the other side flies the pilots it would have, match by match. The
-JSON records `pilot_draw`, `pilot_a` and `pilot_b` (`draw` when not pinned).
 `--checkpoint-root` names the checkout the list's checkpoints are under, for a worktree.
 
-**The live page** (`web/src/live/match.ts`): `?pairing=side` (`PilotPairing`;
-`DEFAULT_PAIRING` is `"ship"`) draws each side's pilot with `assignSidePilots`, from the
-match seed with its own salt beside the commander draw, so a match is reproducible. The
-mission panel then gives a row a side, its commander (when the commander row shows) and
-its pilot; the caption names both pilots; the inspector still names the ship's pilot.
-`tools/web/live_smoke.mjs --pairing side` checks every strike craft flies its side's pilot.
-The 2026-11-19 measurement of pairings is `lab/runs/2026-11-19-pairing/results.md`.
+Drawing one pilot per side instead (each side one commander and one pilot) made no
+difference (`lab/runs/2026-11-19-pairing/results.md`), so the option was removed.
