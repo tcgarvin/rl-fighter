@@ -21,7 +21,8 @@ rlf_sim = pytest.importorskip(
 )
 
 ASSETS = str(Path(__file__).resolve().parent.parent / "assets")
-OBS_DIM = 587
+OBS_DIM = 592
+OBS_DIM_V10 = 587
 OBS_DIM_V7 = 583
 OBS_DIM_V5 = 403
 OBS_DIM_V4 = 385
@@ -72,9 +73,9 @@ def test_module_constants():
         5: OBS_DIM_V5,
         6: OBS_DIM_V7,
         7: OBS_DIM_V7,
-        8: OBS_DIM,
-        9: OBS_DIM,
-        10: OBS_DIM,
+        8: OBS_DIM_V10,
+        9: OBS_DIM_V10,
+        10: OBS_DIM_V10,
         11: OBS_DIM,
     }
     assert rlf_sim.OBS_DIM_V4 == OBS_DIM_V4
@@ -109,6 +110,7 @@ def test_module_constants():
         "ship_extras",
         "order_ships",
         "order_time",
+        "dock",
     ]
     offset = 0
     for off, width in layout.values():
@@ -122,6 +124,7 @@ def test_module_constants():
     assert layout["ship_extras"] == (OBS_DIM_V5, 70)
     assert layout["order_ships"] == (OBS_DIM_V5 + 70, 110)
     assert layout["order_time"] == (OBS_DIM_V7, 4)
+    assert layout["dock"] == (OBS_DIM_V10, 5)
     assert rlf_sim.OBS_SLOTS == {
         "self": 1,
         "thrusters": 8,
@@ -135,6 +138,7 @@ def test_module_constants():
         "ship_extras": 7,
         "order_ships": 5,
         "order_time": 1,
+        "dock": 1,
     }
     for name, (_, width) in layout.items():
         assert width % rlf_sim.OBS_SLOTS[name] == 0, name

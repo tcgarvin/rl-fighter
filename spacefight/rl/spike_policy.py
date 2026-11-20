@@ -29,8 +29,9 @@ Obs width. A net's input width is its ``obs_dim``: 385 for pilots of SIM_VERSION
 and 4, 403 for SIM_VERSION 5, whose obs appends an 18-float order block and keeps the
 first 385 floats exactly, 583 for SIM_VERSION 6 and 7, which append 180 floats of
 threat and order-point context and keep the first 403, and 587 for SIM_VERSION 8,
-which appends the 4-float ``order_time`` block and keeps the first 583
-(``PILOT_OBS_DIMS``). A narrower pilot flies a wider sim on
+which appends the 4-float ``order_time`` block and keeps the first 583 (and for v9
+and v10), and 592 for SIM_VERSION 11, which appends the 5-float ``dock`` block and keeps
+the first 587 (``PILOT_OBS_DIMS``). A narrower pilot flies a wider sim on
 the prefix ``obs[..., :obs_dim]`` (``fit_obs``), and ``widen_actor`` /
 ``widen_critic`` turn a 385-wide net into a 403-wide one whose new input columns are
 zero, so it computes exactly what the narrow net did on the prefix (stage B's warm
@@ -63,6 +64,11 @@ V6_OBS_DIM = ORDER_OBS_DIM + SHIP_EXTRAS_WIDTH + ORDER_SHIPS_WIDTH
 # (has_deadline, time left, urgency, closeness); the first 583 floats are v7's.
 ORDER_TIME_WIDTH = 4
 V8_OBS_DIM = V6_OBS_DIM + ORDER_TIME_WIDTH
+# SIM_VERSION 11 (dock and repair): the v8 to v10 obs plus the ``dock`` block (dock
+# flag, the dock point's velocity relative to me, the bay's outward direction); the
+# first 587 floats are v10's, where a dock order reads as a go-to to the bay.
+DOCK_WIDTH = 5
+V11_OBS_DIM = V8_OBS_DIM + DOCK_WIDTH
 # Pilot obs width per sim version (mirrors ``rlf_sim.PILOT_OBS_DIMS`` from v5 on).
 PILOT_OBS_DIMS: dict[int, int] = {
     2: OBS_DIM,
@@ -74,7 +80,7 @@ PILOT_OBS_DIMS: dict[int, int] = {
     8: V8_OBS_DIM,
     9: V8_OBS_DIM,  # v9 added a mission and hulls; obs unchanged
     10: V8_OBS_DIM,  # v10 added hardpoints, hulls and weapons; obs unchanged
-    11: V8_OBS_DIM,  # v11 added dock and repair; a dock order reads as a go-to
+    11: V11_OBS_DIM,
 }
 ACTION_WIDTH = 21
 N_LOGITS = 61

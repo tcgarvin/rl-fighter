@@ -7,7 +7,9 @@
 //!   (`order::standing_order`) and takes the ship out of its squad when given. To the
 //!   pilot nets it **reads as a go-to** (`order::read_as`) whose point is the ordered
 //!   bay's [`Match::dock_point`] now (the carrier moves, so the point moves with it),
-//!   radius [`DOCK_CAPTURE_RADIUS`], no deadline: no new input, `OBS_DIM` stays 587. It
+//!   radius [`DOCK_CAPTURE_RADIUS`], no deadline, so a pilot of 587 inputs or fewer
+//!   flies it as a go-to; the obs's v11 `dock` block (`obs::write_dock`) marks it as a
+//!   dock and gives the point's velocity and the bay's direction (`Match::dock_frame`). It
 //!   never completes on arrival like a go-to: it ends when the ship docks, or is
 //!   dropped (`DockAborted`) when the carrier is lost or no bay is left.
 //! - **Docking** is a sim rule, not an autopilot: the pilot flies the approach. At the
@@ -70,6 +72,14 @@ pub const ABORT_NO_BAY: u8 = 1;
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct BayMount {
     pub pos: Vec2,
+    pub dir: Vec2,
+}
+
+/// A dock order's bay in world now (`Match::dock_frame`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DockFrame {
+    pub point: Vec2,
+    pub vel: Vec2,
     pub dir: Vec2,
 }
 
@@ -188,6 +198,25 @@ impl Match {
         let me = &self.ships[ship];
         let rel = (me.vel - self.riding_velocity(carrier, p)).length();
         Some((p, (me.pos - p).length(), rel))
+    }
+
+    /// For a ship under a dock order, its bay's dock frame now (the obs's dock block):
+    /// the dock point, its velocity (riding on the carrier) and the bay's outward
+    /// direction (unit). `None` without a dock order.
+    pub fn dock_frame(&self, ship: usize) -> Option<DockFrame> {
+        if !self.has_dock_order(ship) {
+            return None;
+        }
+        let carrier = self.own_carrier(ship);
+        let bay = self.dock.bay[ship];
+        let c = &self.ships[usize::from(carrier)];
+        let mount = self.bay_mounts[usize::from(c.team & 1)][usize::from(bay) % MAX_BAYS];
+        let point = self.dock_point(carrier, bay);
+        Some(DockFrame {
+            point,
+            vel: self.riding_velocity(carrier, point),
+            dir: mount.dir.rotated(c.heading),
+        })
     }
 
     /// Whether bay `bay` of `carrier` exists and is not destroyed.

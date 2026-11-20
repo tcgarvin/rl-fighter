@@ -130,15 +130,15 @@ function check(cond, msg) {
 
 check(sim.SHIP_STRIDE() === 29 && sim.EVENT_STRIDE() === 8 && sim.PROJECTILE_STRIDE() === 9, "strides");
 check(sim.HARDPOINT_STRIDE() === 30 && sim.HARDPOINT_TURRET_STATE_OFFSET() === 14 && sim.HARDPOINT_BAY_STATE_OFFSET() === 26, "v10 hardpoint stride");
-check(sim.ACTION_WIDTH() === 21 && sim.OBS_DIM() === 587, "action/obs widths");
+check(sim.ACTION_WIDTH() === 21 && sim.OBS_DIM() === 592, "action/obs widths");
 check(sim.sim_version() === 11 && Array.from(sim.pilot_compat_versions()).join() === "3,4,5,6,7,8,9,10,11", "v11 + pilot compat");
 check(sim.DOCK_STRIDE() === 8, "v11 dock stride");
 check(
-  sim.pilotObsDim(3) === 385 && sim.pilotObsDim(4) === 385 && sim.pilotObsDim(5) === 403 && sim.pilotObsDim(6) === 583 && sim.pilotObsDim(7) === 583 && sim.pilotObsDim(8) === 587 && sim.pilotObsDim(9) === 587,
+  sim.pilotObsDim(3) === 385 && sim.pilotObsDim(4) === 385 && sim.pilotObsDim(5) === 403 && sim.pilotObsDim(6) === 583 && sim.pilotObsDim(7) === 583 && sim.pilotObsDim(8) === 587 && sim.pilotObsDim(9) === 587 && sim.pilotObsDim(10) === 587 && sim.pilotObsDim(11) === 592,
   "pilot obs dims",
 );
-check(JSON.stringify(JSON.parse(sim.pilotObsDimsJson())) === '{"3":385,"4":385,"5":403,"6":583,"7":583,"8":587,"9":587,"10":587,"11":587}', "pilotObsDimsJson");
-check(JSON.parse(sim.obsLayoutJson()).blocks.at(-1).join() === "order_time,583,4", "obs layout ends with the order_time block");
+check(JSON.stringify(JSON.parse(sim.pilotObsDimsJson())) === '{"3":385,"4":385,"5":403,"6":583,"7":583,"8":587,"9":587,"10":587,"11":592}', "pilotObsDimsJson");
+check(JSON.parse(sim.obsLayoutJson()).blocks.at(-1).join() === "dock,587,5", "obs layout ends with the v11 dock block");
 check(sim.MAX_TRAIN_SHIPS() === 12, "MAX_TRAIN_SHIPS");
 check(sim.pilot_compatible(3) && !sim.pilot_compatible(2), "pilot_compatible");
 check(sim.SHIP_EXT_STRIDE() === 10 && sim.SQUAD_STRIDE() === 9 && sim.TEAM_STRIDE() === 8 && sim.CONVOY_STRIDE() === 14, "v4 strides");

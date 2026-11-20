@@ -144,6 +144,8 @@ def obs_facts(obs_dim: int) -> dict[str, str]:
         "sim.version": str(rlf_sim.SIM_VERSION),
         "sim.obs_dim": str(rlf_sim.OBS_DIM),
         "sim.obs_unread": str(rlf_sim.OBS_DIM - obs_dim),
+        # v11: what pilots of v8 to v10 read (a dock order is a go-to in it).
+        "sim.obs_dim_v10": str(rlf_sim.OBS_DIM_V10),
         "sim.max_ships": str(rlf_sim.MAX_SHIPS),
         "sim.max_others": str(rlf_sim.MAX_SHIPS - 1),
         "sim.near_ships": str(rlf_sim.N_NEAR_SHIPS),

@@ -56,7 +56,7 @@ def run(env: "rlf_sim.VecEnv", steps: int) -> None:
 
 def test_v6_constants_and_layout() -> None:
     assert rlf_sim.SIM_VERSION == 11
-    assert rlf_sim.OBS_DIM == 587 and rlf_sim.OBS_DIM_V7 == 583
+    assert rlf_sim.OBS_DIM == 592 and rlf_sim.OBS_DIM_V7 == 583
     assert rlf_sim.OBS_DIM_V5 == 403 and rlf_sim.OBS_DIM_V4 == 385
     assert rlf_sim.PILOT_OBS_DIMS == {
         3: 385,
@@ -67,7 +67,7 @@ def test_v6_constants_and_layout() -> None:
         8: 587,
         9: 587,
         10: 587,
-        11: 587,
+        11: 592,
     }
     assert list(rlf_sim.PILOT_COMPAT_VERSIONS) == [3, 4, 5, 6, 7, 8, 9, 10, 11]
     assert rlf_sim.SHIP_EXTRA_W == 10 and rlf_sim.N_ORDER_SHIPS == 5

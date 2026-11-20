@@ -323,14 +323,17 @@
           </ul>
           <p>
             The sim itself (version <span data-fact="sim.version">11</span>) writes
-            <span data-fact="sim.obs_dim">587</span> numbers. The last
-            <span data-fact="sim.obs_unread">4</span> are for a go-to order with a deadline:
-            whether there is one, how much time is left, how hard the ship must fly to
-            make it, and how close it is to the point. This champion was trained before
-            those existed. It reads the first <span data-fact="obs.dim">583</span> and does
-            not see a deadline. Pilots trained since 2026-11-12 read all
-            <span data-fact="sim.obs_dim">587</span>, and some of them fly on the live
-            page; no commander on the page gives a deadline yet.
+            <span data-fact="sim.obs_dim">592</span> numbers. The last
+            <span data-fact="sim.obs_unread">9</span> are newer than this champion. Four
+            are for a go-to order with a deadline: whether there is one, how much time is
+            left, how hard the ship must fly to make it, and how close it is to the point.
+            Five are for an order to fly home and dock: whether the order is a dock, how
+            the bay is moving relative to the ship, and which way the bay's mouth faces.
+            This champion reads the first <span data-fact="obs.dim">583</span> and sees
+            neither. Pilots trained since 2026-11-12 read the first
+            <span data-fact="sim.obs_dim_v10">587</span>, where an order to dock looks
+            like an order to go to the bay's mouth; some of them fly on the live page. No
+            commander on the page gives a deadline yet.
           </p>
           <p>
             Nothing in the observation says "you are a gunship": other ships have a class

@@ -48,7 +48,9 @@ def _run(env: rlf_sim.VecEnv, steps: int) -> dict[int, int]:
 def test_v11_constants_and_event_kinds() -> None:
     assert rlf_sim.SIM_VERSION == 11
     assert 11 in rlf_sim.PILOT_COMPAT_VERSIONS
-    assert rlf_sim.PILOT_OBS_DIMS[11] == rlf_sim.OBS_DIM == 587
+    assert rlf_sim.PILOT_OBS_DIMS[11] == rlf_sim.OBS_DIM == 592
+    assert rlf_sim.OBS_DIM_V10 == 587
+    assert dict(rlf_sim.OBS_LAYOUT)["dock"] == (587, 5)
     assert [EV[k] for k in ("dock_ordered", "docked", "repaired", "relaunched")] == [
         15,
         16,

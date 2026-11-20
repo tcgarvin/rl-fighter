@@ -88,7 +88,7 @@ use sim::hash::StateHash;
 use sim::mission::{
     CarrierBattle, ConvoyEscort, EndReason, Mission, StationAssault, StationReadsAs,
 };
-use sim::obs::{OBS_DIM, OBS_DIM_V4, OBS_DIM_V5, OBS_DIM_V7};
+use sim::obs::{OBS_DIM, OBS_DIM_V4, OBS_DIM_V5, OBS_DIM_V7, OBS_DIM_V10};
 use sim::reward::ORDER_ARRIVAL_BONUS;
 use sim::rng::Pcg32;
 use sim::scripted;
@@ -209,7 +209,8 @@ impl Flavour {
     /// Obs floats the flavour's aux digest covers.
     fn obs_width(self) -> usize {
         match self {
-            Flavour::Current | Flavour::V8 | Flavour::V9 | Flavour::V10 => OBS_DIM,
+            Flavour::Current => OBS_DIM,
+            Flavour::V8 | Flavour::V9 | Flavour::V10 => OBS_DIM_V10,
             Flavour::V3 | Flavour::V4 => OBS_DIM_V4,
             Flavour::V5 => OBS_DIM_V5,
             Flavour::V7 => OBS_DIM_V7,

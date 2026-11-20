@@ -299,22 +299,24 @@ the numbers and how they were tuned: `lab/runs/2026-11-20-dock-repair/plan.md` a
 | # | change | why | sections |
 |---|---|---|---|
 | 1 | **`Order::Dock { carrier, bay }`** (kind 4), a ship's *own* order (`Match.dock`, per slot), never a squad's: a squad command carrying it is sanitised to none. Its standing order wins over its squad's (`order::standing_order`); it is valid while its carrier is active and the bay alive; it never completes on arrival (no go-to `arrived`) and ends when the ship docks. Giving it takes the ship out of its squads. `Command::Dock { ship, bay: Option<u8> }` (JSON `{"kind": "dock", "ship": s, "bay": b \| null}`; `None`: the live bay whose dock point is nearest) gives it; refusals `NotStrikeCraft`, `NotInSpace`, `DockingOff` appended, and `NoSuchBay`, `BayDestroyed`, `NoCarrier`, `CarrierLost`, `NotOwnShip`, `ShipLost` as for a launch | a recall is per ship, not per squad, and a squad order must not be able to say it | §5.9, §5.11, §10.3 |
-| 2 | **It reads to the nets as a go-to** (`order::read_as`): the point is the ordered bay's **dock point** now (the bay mouth plus `DOCK_POINT_OFFSET = 8` m along the bay direction, so it moves with the carrier), radius `DOCK_CAPTURE_RADIUS = 10`, no deadline. The pilot obs's order and order-time blocks, the order-ship extras and the learned commander's per-ship order one-hot all see a go-to; `OBS_DIM` stays 587, `COMMANDER_IO_VERSION` 1. The point's velocity is not in the obs (a go-to's point is still; the carrier moves at most 8 m/s) | today's pilots can try it untrained, and no input grows | §7.2, `docs/COMMANDER.md` |
+| 2 | **Obs `OBS_DIM` 587 → 592: block `dock` (5 floats) at offset 587**: dock flag, the dock point's velocity relative to the ship (2), the bay's outward direction (2), all body frame, zero unless the ship sees a dock order (§7.2). In the first 587 floats a dock order **reads as a go-to** (`order::read_as`): the point is the ordered bay's **dock point** now (the bay mouth plus `DOCK_POINT_OFFSET = 8` m along the bay direction, so it moves with the carrier), radius `DOCK_CAPTURE_RADIUS = 10`, no deadline, so a v8 to v10 pilot (587 inputs) flies it as the go-to it knows. `PILOT_OBS_DIMS`: 8 to 10 → 587, 11 → 592. The learned commander's per-ship order one-hot also reads it as a go-to; `COMMANDER_IO_VERSION` stays 1 | the owner's call: a separate "dock here" signal to teach docking with; the older view keeps the zero-shot measurement meaningful | §7.2, `docs/COMMANDER.md` |
 | 3 | **Docking** (stage 12c, a sim rule; the pilot flies): an active ship with a dock order docks when within `DOCK_CAPTURE_RADIUS` (10 m) of the dock point of **any** live bay of its carrier with its velocity within `DOCK_MAX_REL_SPEED` (15 m/s) of that point's (carrier velocity plus spin). It leaves the field like a reserve (`Attach::Docked`, `parent` the carrier, not present, at the carrier, thrust and queue cleared), its shield refills, it joins the back of `Match.reserves`, `Docked` is emitted. A destroyed ordered bay moves the order to the nearest live one; no bay left or the carrier lost drops it (`DockAborted`) | a bay that catches a slow pass, not a perfect stop; any live bay so a craft that lines up on the wrong mouth of a four-bay citadel is not punished for it | §5.11 |
 | 4 | **Repair and relaunch**: a returned ship in a live carrier's hangar gains `REPAIR_FRAC_PER_S = 0.05` of its hull a second (`Repaired` when full) and may launch from `DOCK_TURNAROUND_TICKS = 120` (4 s) after docking, however damaged. `Match::launch` takes the first reserve (of the hull) that may launch (`Refusal::Repairing` appended when only returned ships inside their turnaround are left); a fresh reserve, always ready, goes first. The relaunched ship is the same slot (pilot and identity unchanged); `Relaunched` follows its `Launch`. A dead carrier's hangar dies with it, returned ships included (stage 12b) | the repaired craft has to fight again, and the live page's per-ship pilot draw has to hold | §5.9, §5.11 |
 | 5 | **Only a commander recalls.** The sim recalls nobody by itself. The scripted commander (`scripted::commander::recalls`, after its mission's commands, every slow tick while docking is live and its carrier is active with a live bay) sends `Command::Dock` for every own strike craft on the field below `RECALL_HULL_FRAC = 0.5` of its hull, except one finishing a kill (its attack target within its reach, below `RECALL_FINISH_FRAC = 0.25` of its hull) or under an enemy capital ship's guns (within its longest weapon range + `RECALL_CLEAR_MARGIN = 40` m), which is recalled once clear; the random commander keeps these, as it keeps the scripted launches. An external commander may send `dock` itself. A learned commander has no recall output (`COMMANDER_IO_VERSION` 1), so it never recalls until one is trained to. `hide_orders` hides the order from the pilots only; the recalls are the same | the owner's call (2026-11-20): no shortcut where a model has not learned to dock; the scripted commander and pilots are the teacher | §5.9, §5.11, §11 |
 | 6 | **`MatchConfig.docking`** (default on): the rules above run only with it and a carrier in the match (`Match::docking_live`: a carrier battle or a station assault). The state hash appends `Match.dock` (per slot over the match's slots: bay, since, docked_at, ready_at) only while docking is live | gating: off, every match is v10's; a deathmatch or a convoy hashes as v10 either way | §3, §12 |
 | 7 | Order reward: a dock order is shaped as a go-to to the dock point (no shaping on the step it starts); docking pays `ORDER_ARRIVAL_BONUS` (0.2) on its step. Hit credit none | a trainer that wants docking can pay for it; no new config | §8 |
 | 8 | Scripts: a docking pilot flies a funnel along the bay axis (a station point `0.5 ×` its distance out from the dock point along the bay direction, at most 80 m), matches the carrier's velocity with a pull of 0.8 /s, runs engines (and shields) power, and leaves its own carrier out of crash avoidance (the dock point lies inside the carrier's bounding circle). The scripted and random commanders leave ships under a dock order out of their squads and launch from `Match::launchable` (the reserves a launch may take, in order); the scripted commander relaunches a returned ship only once repaired to `RELAUNCH_HULL_FRAC = 0.9` unless it is scrambling, in its last minute, or (station defender) alarmed. The learned commander's launch mask needs a reserve that may launch | §11, `docs/COMMANDER.md` |
-| 9 | Events 15 `DockOrdered`, 16 `Docked`, 17 `Repaired`, 18 `Relaunched`, 19 `DockAborted`, appended (§9). `PILOT_COMPAT_VERSIONS = [3, …, 11]`, `PILOT_OBS_DIMS` adds `11: 587`. Bindings: `rlf_sim.DOCK`, `DOCK_PHASES`, `EVENT_KINDS` 15–19, `VecEnv(docking=)` and its getter, `VecEnv.dock_state()`, render state `dock_phase`, `mission_state()` ship `dock`; WASM `docking` config key and the dock view (`DOCK_STRIDE` 8); the ships, mission, hardpoint and squad views keep their strides | §10 |
+| 9 | Events 15 `DockOrdered`, 16 `Docked`, 17 `Repaired`, 18 `Relaunched`, 19 `DockAborted`, appended (§9). `PILOT_COMPAT_VERSIONS = [3, …, 11]`, `PILOT_OBS_DIMS` adds `11: 592` (8 to 10 stay 587). Bindings: `rlf_sim.DOCK`, `DOCK_PHASES`, `EVENT_KINDS` 15–19, `VecEnv(docking=)` and its getter, `VecEnv.dock_state()`, render state `dock_phase`, `mission_state()` ship `dock`; WASM `docking` config key and the dock view (`DOCK_STRIDE` 8); the ships, mission, hardpoint and squad views keep their strides | §10 |
 
 **Compatibility.** With `MatchConfig.docking = false` every match is v10's: no dock order
 can exist, every reserve is ready, and the hash writes nothing new.
 `v10_compat_all_thirteen_scenarios_replay_bit_for_bit` replays the thirteen v10 traces
 (kept verbatim in `tests/golden/v10/`) with docking off and matches them line for line;
 the older compat replays play with docking off too. With the v11 default the
-deathmatch and convoy traces differ from v10's in their header only (no carrier: the
-rules never run), and the carrier-battle and station-assault traces change.
+deathmatch and convoy traces keep v10's state hashes (no carrier: the rules never run;
+their aux digest, over the wider obs, changes), and the carrier-battle and
+station-assault traces change. A v8 to v10 pilot reads the first 587 floats, which are
+v10's except that a dock order shows as a go-to.
 `golden_carrier_battle_dock_s61` is new: the live "wing of 8" roster, scripted
 commanders, with docks and relaunches. Python: `RustVecEnv(docking=)` (default true).
 
@@ -1410,7 +1412,7 @@ zero unused slots), and the consts `THROTTLE_DECREASE = 0`, `THROTTLE_HOLD = 1`,
 
 ### 7.2 Observation (fixed vector for the spike)
 
-`OBS_DIM = 587` `f32` (v8; 583 in v6 and v7, 403 in v5, 385 in v2–v4, 204 in v1), body frame of the observing ship (relative
+`OBS_DIM = 592` `f32` (v11; 587 in v8 to v10, 583 in v6 and v7, 403 in v5, 385 in v2–v4, 204 in v1), body frame of the observing ship (relative
 vectors rotated by `-heading`, so forward = +x). Scales: `R` = arena radius,
 `VS = 100` m/s, `OM = 4` rad/s, `L = 20` m, `A = 100` m/s², `HP = 400`, `DMG = 60`,
 `T_H = 2.0` s (threat horizon). Values are clamped to `[-5, 5]` after scaling. Absent
@@ -1445,7 +1447,8 @@ entities/slots are all-zero with `present = 0`. Blocks (offset: width — featur
 403: 70  v6 ship_extras, 7 × 10, one per `ships` slot (below); 403 = OBS_DIM_V5
 473: 110 v6 order_ships, 5 × 22 (below)
 583: 4   v8 order_time (below); 583 = OBS_DIM_V7, the obs of a v6 or v7 pilot
-587 = OBS_DIM
+587: 5   v11 dock (below); 587 = OBS_DIM_V10, the obs of a v8, v9 or v10 pilot
+592 = OBS_DIM
 ```
 
 **Order block (v5, `write_order`).** The ship's effective order (§5.9), body frame,
@@ -1469,8 +1472,8 @@ a v4 obs padded with zeros.
 
 Pilots see their order in every mission, the scripted deathmatch commander's advisory
 orders included. A pilot of sim version `v` reads `obs[..., :PILOT_OBS_DIMS[v]]`:
-385 for v3/v4 (no order block), 403 for v5, 583 for v6 and v7, 587 for v8
-(`sim::pilot_obs_dim`).
+385 for v3/v4 (no order block), 403 for v5, 583 for v6 and v7, 587 for v8 to v10,
+592 for v11 (`sim::pilot_obs_dim`).
 
 **Ship extras (v6, `write_ship_extras`).** One 10-float record per `ships` slot, same
 order (zero for an empty slot), so a pilot can judge threats:
@@ -1511,8 +1514,34 @@ urgency 1 needs at least an even split, and a ship that had to start from rest o
 first cannot make urgency 1 at an even split; above about 1.26 no power split makes
 it.
 
+**Dock (v11, `write_dock`).** A dock order (§5.11) shows in two places. In the first
+587 floats it is the go-to it is to every older pilot (`order::read_as`): kind go-to,
+the point the ordered bay's dock point now, radius `DOCK_CAPTURE_RADIUS` (10 m), no
+deadline; so the order block, the extras, `order_ships` and `order_time` read it as
+such, and a v8 to v10 pilot flies it as the go-to it was trained on. In those floats a
+dock order and a go-to to the same point are the same; what tells them apart is this
+block, five floats, all zero unless the order the ship sees is a dock order (so zero
+with no order, any other order, or on a hidden-order team):
+
+| offset | feature |
+|---|---|
+| 0 | dock: 1. With the order block's go-to entry it is the order kind's own entry: for a v11 pilot the kinds are none, attack, defend, go-to (go-to 1, dock 0) and dock (go-to 1, dock 1) |
+| 1–2 | (dock point velocity − own velocity), body, / VS. The point rides on the carrier (its velocity plus `omega × r`); the bay catches the ship when this is at most `DOCK_MAX_REL_SPEED` (15 m/s) and the ship within 10 m. The order block's 6–7 give −own velocity for any go-to, so without this a pilot cannot tell how the bay is moving except from the carrier's `ships` slot, if it is among the seven nearest |
+| 3–4 | the bay's outward direction, body (unit): the dock point lies 8 m along it from the mouth, so it says which side of the carrier to come in from |
+
+Why these and no more: the flag is what the owner asked for ("a separate 'dock here'
+signal"); the zero-shot pilots that reached the mouth mostly went through it at 26 m/s
+(`lab/runs/2026-11-20-dock-repair/results.md`), and matching the bay's velocity is the
+one thing a go-to never asked for and the obs did not give; the direction is the
+approach side, which the point alone does not say. Distance, closeness and the capture
+radius are already in the go-to reading. Why the go-to entry stays set: the obs is one
+vector per ship and every reader cuts a prefix of it, so a dock order cannot read as a
+go-to to a 587-input pilot and as "not a go-to" to a 592-input one; a v11 pilot reads
+the pair.
+
 **Hidden-order mode (v6).** `MatchConfig.hide_orders[team]`: that team's ships see
-no order: the order block, `order_ships`, extras 7–9 and (v8) `order_time` are zero,
+no order: the order block, `order_ships`, extras 7–9, (v8) `order_time` and (v11)
+`dock` are zero,
 exactly as for a ship without one. Everything else (rewards, tracks, scripts, the commander) is
 unchanged: the order-following eval's control arm on paired seeds.
 
@@ -1826,7 +1855,8 @@ env.render_state(i)  # ships gain turret_alive, turret_hp, bay_alive, bay_hp;
                      # projectiles gain weapon (weapon id)
 env.mission_state(i)["ships"][k]["hardpoints"]  # only for hulls with hardpoints
 # v11:
-rlf_sim.SIM_VERSION == 11; PILOT_COMPAT_VERSIONS == [3, ..., 11]; PILOT_OBS_DIMS adds 11: 587
+rlf_sim.SIM_VERSION == 11; PILOT_COMPAT_VERSIONS == [3, ..., 11]; PILOT_OBS_DIMS adds 11: 592
+rlf_sim.OBS_DIM == 592, OBS_DIM_V10 == 587; OBS_LAYOUT/OBS_SLOTS + "dock" (587, 5; 1)
 rlf_sim.EVENT_KINDS: dock_ordered 15, docked 16, repaired 17, relaunched 18, dock_aborted 19
 rlf_sim.DOCK          # {"capture_radius", "max_rel_speed", "point_offset", "repair_frac_per_s",
                       #  "turnaround_ticks", and the scripted commander's
@@ -1845,7 +1875,9 @@ env.submit_command(i, team, {"kind": "dock", "ship": s, "bay": None})
 ```
 
 v11 Python side: `RustVecEnv(docking=)` (default true) with its property and
-`dock_state()`; `spike_policy.PILOT_OBS_DIMS[11] = 587`. Training under scripted or
+`dock_state()`; `spike_policy.PILOT_OBS_DIMS[11] = V11_OBS_DIM = 592` (a 587-input
+pilot widens with `--set obs_dim=592 --set new_input_lr_mult=3`; `fit_obs` cuts the obs
+for every older one). Training under scripted or
 random commanders now sees recalls (dock orders); a learned commander gives none.
 
 v10 Python side: `rosters.CAPITAL_ROLES` adds `line`; `PilotsDistribution.citadel_share`

@@ -1,8 +1,8 @@
 # sim golden trace station_assault_convoy_random_s47 (SIM_VERSION 11); regenerate with UPDATE_GOLDEN=1
 # tick state_hash aux_digest; end tick state_hash aux_digest phase winner
-300 1f162150b69e5920 f36d9951afc7751c
-600 fddc277ec3965057 e240b199abf31e39
-900 da7908c987ea6e81 ae2b21a494212034
-1200 e1825bf92e43d3e9 ffb5ae74fe4667da
-end 1294 51c2ab758fd8f012 4cff05ed30dee4d8 over 1
+300 1f162150b69e5920 6036bbf90633becc
+600 fddc277ec3965057 bf4cb17ff771db09
+900 da7908c987ea6e81 3fcb18715da37b35
+1200 e1825bf92e43d3e9 371ba1600c9023e1
+end 1294 51c2ab758fd8f012 9cf0273fe67f51e7 over 1
 reason station_destroyed

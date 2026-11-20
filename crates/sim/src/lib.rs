@@ -68,8 +68,9 @@ pub use rng::Pcg32;
 /// every v9 match replays bit for bit (SIM_SPEC §0.8).
 /// v11: dock and repair: a strike craft under a dock order (a commander's `Dock`
 /// command: the scripted and random commanders recall damaged craft) docks at a live bay of its carrier when it reaches the bay's dock
-/// point slowly enough, repairs in the hangar and relaunches as the same slot. The dock
-/// order reads to the pilot nets as a go-to, so obs and actions are v10's; with
+/// point slowly enough, repairs in the hangar and relaunches as the same slot. The obs
+/// appends the 5-float `dock` block (`OBS_DIM` 592; a dock order reads as a go-to in
+/// the first 587, which a v8 to v10 pilot reads unchanged); actions are v10's. With
 /// `MatchConfig.docking` off every match replays v10 bit for bit, and a match without a
 /// carrier is v10's either way (SIM_SPEC §0.9).
 pub const SIM_VERSION: u32 = 11;
@@ -84,16 +85,17 @@ pub const PILOT_COMPAT_VERSIONS: &[u32] = &[3, 4, 5, 6, 7, 8, 9, 10, 11];
 
 /// `(sim version, obs width)` for every pilot-compatible version: a pilot of that
 /// version consumes `obs[..width]` (v3 and v4 pilots the 385-float prefix, v5 pilots
-/// the 403-float one, v6 and v7 pilots the 583-float one, v8 to v11 pilots all 587).
+/// the 403-float one, v6 and v7 pilots the 583-float one, v8 to v10 pilots the
+/// 587-float one, v11 pilots all 592).
 pub const PILOT_OBS_DIMS: &[(u32, usize)] = &[
     (3, obs::OBS_DIM_V4),
     (4, obs::OBS_DIM_V4),
     (5, obs::OBS_DIM_V5),
     (6, obs::OBS_DIM_V7),
     (7, obs::OBS_DIM_V7),
-    (8, obs::OBS_DIM),
-    (9, obs::OBS_DIM),
-    (10, obs::OBS_DIM),
+    (8, obs::OBS_DIM_V10),
+    (9, obs::OBS_DIM_V10),
+    (10, obs::OBS_DIM_V10),
     (11, obs::OBS_DIM),
 ];
 

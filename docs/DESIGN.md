@@ -104,8 +104,9 @@ retire from the active league, though they stay in history.
 - **Bays:** launch a hull from the fleet's queue at the bay's mount point. Strike craft
   below a hull threshold may fly back, dock, repair and relaunch (prototyped in the
   story demo's flagship mission); docking is flown by the pilot, not automated. Built in
-  SIM_VERSION 11 (`docs/SIM_SPEC.md` §5.11): a dock order reads to the pilot as a go-to
-  to the bay's mouth; the bay catches a ship that comes within 10 m of it slowly enough
+  SIM_VERSION 11 (`docs/SIM_SPEC.md` §5.11): a dock order has its own signal in the pilot
+  obs (a dock flag, the bay's velocity and direction) and reads as a go-to to the bay's
+  mouth to older pilots; the bay catches a ship that comes within 10 m of it slowly enough
   (15 m/s relative); the hangar repairs it and it relaunches as the same ship. Only a
   commander recalls: the scripted commander sends home craft below half their hull; a
   learned commander will recall once one is trained to (no sim-side shortcut).

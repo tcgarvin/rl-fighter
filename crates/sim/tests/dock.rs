@@ -148,6 +148,70 @@ fn a_dock_order_reads_as_a_goto_to_the_bay_and_leaves_the_squad() {
 }
 
 #[test]
+fn the_dock_block_flags_the_dock_and_gives_the_bay_velocity_and_direction() {
+    use sim::obs::{DOCK_OFF, OBS_DIM, OBS_DIM_V10, VS, dock_f};
+    let cat = asset_catalogue();
+    let mut m = external_battle(&cat);
+    let mut obs = vec![0.0; OBS_DIM];
+    m.write_obs(&cat, 1, &mut obs);
+    assert!(
+        obs[DOCK_OFF..].iter().all(|&f| f == 0.0),
+        "no dock order: zero"
+    );
+    // A go-to to the same point, for comparison.
+    let point = m.dock_point(0, 1);
+    let goto = Order::GoTo {
+        point,
+        radius: DOCK_CAPTURE_RADIUS,
+        deadline: sim::command::NO_DEADLINE,
+    };
+    let mut as_goto = m.clone();
+    command(
+        &mut as_goto,
+        &cat,
+        Command::Squad {
+            squad: 0,
+            members: 0b10,
+            order: goto,
+        },
+    );
+    command(
+        &mut m,
+        &cat,
+        Command::Dock {
+            ship: 1,
+            bay: Some(1),
+        },
+    );
+    // Same tick, same ships; only the order differs.
+    let mut a = vec![0.0; OBS_DIM];
+    let mut b = vec![0.0; OBS_DIM];
+    m.write_obs(&cat, 1, &mut a);
+    as_goto.write_obs(&cat, 1, &mut b);
+    // Both read as a go-to in the order block (a 587-input pilot cannot tell them
+    // apart); only the dock block says "dock".
+    let kind = sim::obs::ORDER_OFF + sim::obs::order_f::KIND;
+    assert_eq!(a[kind..kind + 3], b[kind..kind + 3]);
+    assert_eq!(a[DOCK_OFF + dock_f::DOCK], 1.0);
+    assert!(b[DOCK_OFF..].iter().all(|&f| f == 0.0));
+    // The dock block, in the ship's body frame.
+    let me = m.ships[1].clone();
+    let frame = m.dock_frame(1).expect("a dock order");
+    let rel = sim::math::rot(-me.heading, frame.vel - me.vel) / VS;
+    let dir = sim::math::rot(-me.heading, frame.dir);
+    let got = &a[DOCK_OFF..];
+    assert!((got[dock_f::REL_VEL_X] - rel.x).abs() < 1e-5);
+    assert!((got[dock_f::REL_VEL_Y] - rel.y).abs() < 1e-5);
+    assert!((got[dock_f::BAY_DIR_X] - dir.x).abs() < 1e-5);
+    assert!((got[dock_f::BAY_DIR_Y] - dir.y).abs() < 1e-5);
+    assert!((dir.length() - 1.0).abs() < 1e-4);
+    // Hidden from its team: the whole block is zero, like the rest of the order.
+    m.cfg.hide_orders = [true, false];
+    m.write_obs(&cat, 1, &mut a);
+    assert!(a[OBS_DIM_V10..].iter().all(|&f| f == 0.0));
+}
+
+#[test]
 fn a_squad_cannot_hold_a_dock_order_and_bad_dock_commands_are_refused() {
     let cat = asset_catalogue();
     let mut m = external_battle(&cat);

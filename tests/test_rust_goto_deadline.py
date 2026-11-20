@@ -134,11 +134,12 @@ def order_time(env: RustVecEnv, slot: int = 0) -> np.ndarray:
 # -- constants and kwargs ---------------------------------------------------------------
 
 
-def test_the_obs_is_587_wide_with_the_order_time_block_last() -> None:
+def test_the_order_time_block_ends_the_587_float_v8_prefix() -> None:
     assert rust_env.SIM_VERSION == 11
-    assert (rust_env.OBS_DIM, rust_env.OBS_DIM_V7) == (587, 583)
+    assert (rust_env.OBS_DIM, rust_env.OBS_DIM_V7) == (592, 583)
     assert (ORDER_TIME_OFF, ORDER_TIME_W) == (583, 4)
-    assert list(rust_env.OBS_LAYOUT)[-1] == "order_time"
+    # v11 appends the dock block after it.
+    assert list(rust_env.OBS_LAYOUT)[-2:] == ["order_time", "dock"]
     assert rust_env.OBS_SLOTS["order_time"] == 1
     assert rust_env.PILOT_OBS_DIMS == {
         3: 385,
@@ -149,13 +150,13 @@ def test_the_obs_is_587_wide_with_the_order_time_block_last() -> None:
         8: 587,
         9: 587,
         10: 587,
-        11: 587,
+        11: 592,
     }
-    assert PILOT_OBS_DIMS[8] == V8_OBS_DIM == rust_env.OBS_DIM
+    assert PILOT_OBS_DIMS[8] == V8_OBS_DIM == ORDER_TIME_OFF + ORDER_TIME_W
     assert PILOT_OBS_DIMS[6] == PILOT_OBS_DIMS[7] == V6_OBS_DIM == rust_env.OBS_DIM_V7
     assert rust_env.NO_DEADLINE == rosters.NO_DEADLINE == 0
     env = play(goto_drill(rosters.NO_DEADLINE))
-    assert env.obs.shape == (1, 2, 587)
+    assert env.obs.shape == (1, 2, 592)
 
 
 def test_goto_pay_defaults_to_the_sim_s_constants() -> None:
@@ -406,7 +407,7 @@ def test_a_command_s_deadline_must_be_a_tick(bad: object) -> None:
 # -- older pilots -------------------------------------------------------------------------
 
 
-def test_a_583_input_pilot_loads_and_flies_the_587_float_sim(tmp_path: Path) -> None:
+def test_a_583_input_pilot_loads_and_flies_the_wider_sim(tmp_path: Path) -> None:
     path = tmp_path / "v7_pilot.pt"
     width = PILOT_OBS_DIMS[7]
     save_policy(
@@ -428,7 +429,7 @@ def test_a_583_input_pilot_loads_and_flies_the_587_float_sim(tmp_path: Path) -> 
         actions = np.zeros_like(env.actions)
         actions[rows] = acts
         env.step(actions)
-    assert env.obs.shape[-1] == 587 and order_time(env)[HAS_DEADLINE] == 1.0
+    assert env.obs.shape[-1] == 592 and order_time(env)[HAS_DEADLINE] == 1.0
     # It read exactly the 583-float prefix: the deadline block does not reach it.
     masks = HeadMasks.from_numpy(
         env.thruster_mask[rows], env.turret_mask[rows], env.fixed_turret[rows]

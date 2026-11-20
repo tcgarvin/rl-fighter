@@ -138,7 +138,8 @@ hull, unless it is finishing a kill or under an enemy capital ship's guns, and t
 commander keeps those recalls with the scripted launches. So a learned commander's
 opponent recalls, and its entity inputs see it: a ship flying home holds a dock order of
 its own, which wins over its squad's (it is taken out of its squad when recalled), and
-its entity's order one-hot reads it as a go-to, as the pilots read it. A returned ship
+its entity's order one-hot reads it as a go-to (a v8 to v10 pilot reads it so too; a v11
+pilot also sees the obs's dock block). A returned ship
 waits in the hangar ("reserves" counts it) and may launch 4 s after docking; the launch
 mask needs a reserve that may launch, so a hangar holding only returned ships inside
 their turnaround closes it. The eval's order timings (`orders_a` / `orders_b`) count

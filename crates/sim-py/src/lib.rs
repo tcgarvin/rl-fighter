@@ -46,6 +46,8 @@ fn rlf_sim(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // v8: the v6 / v7 obs width, and the sentinel of a go-to without a deadline.
     m.add("OBS_DIM_V7", sim::obs::OBS_DIM_V7)?;
     m.add("NO_DEADLINE", sim::command::NO_DEADLINE)?;
+    // v11: the v8 to v10 obs width (a dock order reads as a go-to in it).
+    m.add("OBS_DIM_V10", sim::obs::OBS_DIM_V10)?;
     m.add("ORDER_TIME_TICKS", sim::obs::ORDER_TIME_TICKS)?;
     m.add("CLOSENESS_RANGE", sim::obs::CLOSENESS_RANGE)?;
     m.add("SHIP_EXTRA_W", SHIP_EXTRA_W)?;

@@ -1,11 +1,13 @@
 //! Observation layout constants and `Match::write_obs` (SIM_SPEC §7.2, v2; v5 order
-//! block; v6 threat blocks; v8 order-time block).
+//! block; v6 threat blocks; v8 order-time block; v11 dock block).
 //!
-//! The obs is a fixed 587-float vector (385 through v4; v5 appends the 18-float
+//! The obs is a fixed 592-float vector (385 through v4; v5 appends the 18-float
 //! `order` block, so the first `OBS_DIM_V4` floats are exactly v4's and a v3/v4
 //! pilot reads `obs[..OBS_DIM_V4]`; v6 appends `ship_extras` and `order_ships`, so
 //! the first `OBS_DIM_V5` floats are exactly v5's; v8 appends the 4-float
-//! `order_time` block, so the first `OBS_DIM_V7` floats are exactly v6's and v7's)
+//! `order_time` block, so the first `OBS_DIM_V7` floats are exactly v6's and v7's;
+//! v11 appends the 5-float `dock` block, so the first `OBS_DIM_V10` floats are exactly
+//! v8's to v10's)
 //! in the observing ship's body frame (relative
 //! vectors rotated by `-heading`, so forward = +x, port = +y). Every block is a
 //! sequence of fixed-width records of one entity (self, thruster, turret, ship,
@@ -60,6 +62,16 @@
 //!   arrived or missed). "Distance" is to the circle's edge, `max(0, d − radius)`.
 //!   Time left counts the steps in which an arrival is still in time: on the deadline
 //!   tick itself it is 0, and the urgency of a ship still outside reads its ceiling.
+//! - v11 dock order: the order block, the order-dependent extras, `order_ships` and
+//!   `order_time` read it as the go-to it is to every pilot of 587 inputs or fewer
+//!   (`order::read_as`: the dock point now, radius `DOCK_CAPTURE_RADIUS`, no deadline),
+//!   so the first `OBS_DIM_V10` floats of a docking ship are what such a pilot was
+//!   trained to follow. The `dock` block (`write_dock`) is what tells a v11 pilot it is
+//!   a dock and not a go-to: a flag (the order kind's own entry), the dock point's
+//!   velocity relative to the ship (the bay catches a ship moving with it, within
+//!   `DOCK_MAX_REL_SPEED`; the go-to point's velocity in the order block is zero), and
+//!   the bay's outward direction (the side to come in from). All zero without a dock
+//!   order or on a hidden-order team.
 
 use crate::DT;
 use crate::actions::{POWER_MAX, ShipAction, THROTTLE_HOLD};
@@ -72,8 +84,12 @@ use crate::state::{
     ACTION_TURRETS, MAX_REACTION_TICKS, MAX_SHIPS, MAX_THRUSTERS, Match, Projectile, Ship, ShipIdx,
 };
 
-/// Total obs width (v8; 583 in v6 and v7, 403 in v5, 385 through v4).
-pub const OBS_DIM: usize = 587;
+/// Total obs width (v11; 587 in v8 to v10, 583 in v6 and v7, 403 in v5, 385 through
+/// v4).
+pub const OBS_DIM: usize = 592;
+/// Width of the v8 to v10 obs, the prefix every v11 obs starts with unchanged: what a
+/// pilot trained under SIM_VERSION 8, 9 or 10 reads (`crate::PILOT_OBS_DIMS`).
+pub const OBS_DIM_V10: usize = 587;
 /// Width of the v6 and v7 obs, the prefix every v8 obs starts with unchanged: what a
 /// pilot trained under SIM_VERSION 6 or 7 reads (`crate::PILOT_OBS_DIMS`).
 pub const OBS_DIM_V7: usize = 583;
@@ -146,6 +162,8 @@ pub const ORDER_TIME_W: usize = 4;
 pub const ORDER_TIME_TICKS: f32 = 900.0;
 /// v8: the time-left and urgency features are clamped to `[0, ORDER_TIME_CLIP]`.
 pub const ORDER_TIME_CLIP: f32 = 2.0;
+/// v11: the dock block's width (`dock_f`).
+pub const DOCK_W: usize = 5;
 /// v8: the closeness feature rises from 0 at this distance (m) outside the go-to
 /// circle to 1 at its edge.
 pub const CLOSENESS_RANGE: f32 = 100.0;
@@ -175,11 +193,14 @@ pub const ORDER_SHIPS_OFF: usize = SHIP_EXTRAS_OFF + SHIP_EXTRAS_WIDTH;
 pub const ORDER_SHIPS_WIDTH: usize = N_ORDER_SHIPS * ORDER_SHIP_W;
 pub const ORDER_TIME_OFF: usize = ORDER_SHIPS_OFF + ORDER_SHIPS_WIDTH;
 pub const ORDER_TIME_WIDTH: usize = ORDER_TIME_W;
+pub const DOCK_OFF: usize = ORDER_TIME_OFF + ORDER_TIME_WIDTH;
+pub const DOCK_WIDTH: usize = DOCK_W;
 
 const _: () = assert!(ORDER_OFF == OBS_DIM_V4);
 const _: () = assert!(SHIP_EXTRAS_OFF == OBS_DIM_V5);
 const _: () = assert!(ORDER_TIME_OFF == OBS_DIM_V7);
-const _: () = assert!(ORDER_TIME_OFF + ORDER_TIME_WIDTH == OBS_DIM);
+const _: () = assert!(DOCK_OFF == OBS_DIM_V10);
+const _: () = assert!(DOCK_OFF + DOCK_WIDTH == OBS_DIM);
 const _: () = assert!(SHIP_EXTRA_W == 10 && ORDER_SHIP_W == 22);
 const _: () = assert!(PENDING_W == 22);
 
@@ -198,6 +219,7 @@ pub const OBS_LAYOUT: &[(&str, usize, usize)] = &[
     ("ship_extras", SHIP_EXTRAS_OFF, SHIP_EXTRAS_WIDTH),
     ("order_ships", ORDER_SHIPS_OFF, ORDER_SHIPS_WIDTH),
     ("order_time", ORDER_TIME_OFF, ORDER_TIME_WIDTH),
+    ("dock", DOCK_OFF, DOCK_WIDTH),
 ];
 
 /// `(name, records)` per block, in `OBS_LAYOUT` order; each block's width is
@@ -215,6 +237,7 @@ pub const OBS_SLOTS: &[(&str, usize)] = &[
     ("ship_extras", N_NEAR_SHIPS),
     ("order_ships", N_ORDER_SHIPS),
     ("order_time", 1),
+    ("dock", 1),
 ];
 
 /// Feature indices within the self record.
@@ -359,6 +382,23 @@ pub mod order_time_f {
     pub const URGENCY: usize = 2;
     /// `1 − min(1, distance to the circle's edge / CLOSENESS_RANGE)`, deadline or not.
     pub const CLOSENESS: usize = 3;
+}
+
+/// v11: feature indices within the dock block (module docs), all in the observer's body
+/// frame.
+pub mod dock_f {
+    /// 1 if the order the ship sees is a dock order: the order kind's dock entry (the
+    /// order block's kind one-hot reads go-to for older pilots).
+    pub const DOCK: usize = 0;
+    /// (Dock point velocity − own velocity) / `VS`: the point rides on the carrier
+    /// (its velocity plus spin); the bay catches a ship when this is within
+    /// `DOCK_MAX_REL_SPEED` and the ship within `DOCK_CAPTURE_RADIUS` of the point.
+    pub const REL_VEL_X: usize = 1;
+    pub const REL_VEL_Y: usize = 2;
+    /// The bay's outward direction (unit): the dock point lies along it from the mouth,
+    /// so the open side to approach from.
+    pub const BAY_DIR_X: usize = 3;
+    pub const BAY_DIR_Y: usize = 4;
 }
 
 /// Feature indices within a v6 ship-extras record.
@@ -717,6 +757,30 @@ pub fn write_order_time(m: &Match, cat: &Catalogue, ship: &Ship, out: &mut [f32]
     clamp_record(out);
 }
 
+/// v11: `ship`'s dock block (`DOCK_W` floats, module docs): all zero unless it holds a
+/// dock order its team sees.
+pub fn write_dock(m: &Match, ship: &Ship, out: &mut [f32]) {
+    let out = &mut out[..DOCK_W];
+    out.fill(0.0);
+    let s = usize::from(ship.slot);
+    if m.cfg.hide_orders[usize::from(ship.team & 1)]
+        || !matches!(effective_order(m, s), Order::Dock { .. })
+    {
+        return;
+    }
+    let Some(frame) = m.dock_frame(s) else {
+        return;
+    };
+    let rel = to_body(ship, frame.vel - ship.vel) / VS;
+    let dir = to_body(ship, frame.dir);
+    out[dock_f::DOCK] = 1.0;
+    out[dock_f::REL_VEL_X] = rel.x;
+    out[dock_f::REL_VEL_Y] = rel.y;
+    out[dock_f::BAY_DIR_X] = dir.x;
+    out[dock_f::BAY_DIR_Y] = dir.y;
+    clamp_record(out);
+}
+
 /// v6: what a ship's order-dependent obs features are measured against: the order
 /// it sees ([`seen_order`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -911,5 +975,6 @@ impl Match {
             me,
             &mut out[ORDER_TIME_OFF..ORDER_TIME_OFF + ORDER_TIME_WIDTH],
         );
+        write_dock(self, me, &mut out[DOCK_OFF..DOCK_OFF + DOCK_WIDTH]);
     }
 }

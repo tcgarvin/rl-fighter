@@ -101,6 +101,8 @@ OBS_DIM_V5: int = int(rlf_sim.OBS_DIM_V5)
 # SIM_VERSION 8: the v6 / v7 obs width (the prefix a v6 or v7 pilot reads), and the
 # deadline tick of a go-to without a deadline.
 OBS_DIM_V7: int = int(rlf_sim.OBS_DIM_V7)
+# SIM_VERSION 11: the v8 to v10 width; the dock block follows it.
+OBS_DIM_V10: int = int(rlf_sim.OBS_DIM_V10)
 NO_DEADLINE: int = int(rlf_sim.NO_DEADLINE)
 SHIP_EXTRA_W: int = int(rlf_sim.SHIP_EXTRA_W)
 N_ORDER_SHIPS: int = int(rlf_sim.N_ORDER_SHIPS)
