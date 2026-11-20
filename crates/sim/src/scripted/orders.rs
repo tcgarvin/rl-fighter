@@ -16,6 +16,9 @@
 //!   radius, so a squad does not stack); once the ship has arrived the order is
 //!   complete (`order::completed`) and it falls back to its role.
 //! - **None**: the role's own choice, exactly as before orders existed.
+//! - **Dock** (v11, a ship's own order, flown in every mission): fly a funnel along the
+//!   bay axis into its dock point at the carrier's velocity (`dock_approach`), engines
+//!   power, its own carrier left out of crash avoidance; the bay catches it (`dock`).
 //!
 //! Station keeping is velocity matching: the pilot wants the ward's velocity plus a
 //! pull toward its station (a point on a ring round the ward or the go-to point,
@@ -35,7 +38,7 @@ use crate::data::{Catalogue, HullDef};
 use crate::math::{Vec2, wrap_angle};
 use crate::mission::{Mission, is_capital_ship};
 use crate::order;
-use crate::state::{Match, Ship};
+use crate::state::{Match, Ship, ShipIdx};
 
 /// An attack-ordered pilot fights an enemy strike craft this close (× its gun range)
 /// first, while its target is more than twice as far.
@@ -57,17 +60,27 @@ const STATION_DEADBAND: f32 = 4.0;
 const STATION_BURN_CONE: f32 = 0.5;
 /// Angle between successive slots' stations on the ring, radians (golden angle).
 const STATION_SPREAD: f32 = 2.399_963;
+/// v11, docking: the station point sits this fraction of the ship's distance to the
+/// dock point out along the bay direction, at most `DOCK_FUNNEL_MAX` m.
+const DOCK_FUNNEL: f32 = 0.5;
+const DOCK_FUNNEL_MAX: f32 = 80.0;
+/// v11, docking: the pull toward the funnel point, 1/s (station keeping's is 0.5).
+const DOCK_GAIN: f32 = 0.8;
 
 /// The order `me` flies by: its squad's order if it follows orders (module docs) and
 /// has not completed it (a go-to it arrived at), else `Order::None`.
 pub(crate) fn active_order(m: &Match, me: &Ship) -> Order {
     let team = usize::from(me.team & 1);
+    let slot = usize::from(me.slot);
+    // v11: a dock order is the ship's own and always flown (`dock` module).
+    if m.has_dock_order(slot) {
+        return order::valid_order(m, slot);
+    }
     if matches!(m.cfg.mission, Mission::Deathmatch)
         && m.cfg.commanders[team] == CommanderMode::Scripted
     {
         return Order::None;
     }
-    let slot = usize::from(me.slot);
     let squad = m.command.squads[team]
         .iter()
         .find(|q| q.contains(slot))
@@ -153,27 +166,60 @@ pub(crate) fn order_target<'a>(
             Some(t)
         }
         Order::Defend { ward } => defend_target(m, cat, usize::from(ward)),
-        Order::GoTo { .. } => None,
+        Order::GoTo { .. } | Order::Dock { .. } => None,
     }
 }
 
-/// Where `me` keeps station under `order`, the velocity of what it keeps station on,
-/// and the fraction of its speed cap it may fly at. `None` for orders without a
-/// station (none, attack).
-fn station(m: &Match, cat: &Catalogue, me: &Ship, order: Order) -> Option<(Vec2, Vec2, f32)> {
+/// Where a pilot keeps station: the point, the velocity of what it keeps station on,
+/// the fraction of its speed cap it may fly at and the pull toward the point (1/s).
+struct Station {
+    at: Vec2,
+    vel: Vec2,
+    speed_frac: f32,
+    gain: f32,
+}
+
+/// Where `me` keeps station under `order` (`None` for orders without a station: none,
+/// attack).
+fn station(m: &Match, cat: &Catalogue, me: &Ship, order: Order) -> Option<Station> {
     let ring = Vec2::from_angle(f32::from(me.slot) * STATION_SPREAD);
     match order {
         Order::Defend { ward } => {
             let w = &m.ships[usize::from(ward)];
             let r = cat.hull(w.hull).bound_radius + DEFEND_STATION;
-            Some((w.pos + ring * r, w.vel, STATION_SPEED_FRAC))
+            Some(Station {
+                at: w.pos + ring * r,
+                vel: w.vel,
+                speed_frac: STATION_SPEED_FRAC,
+                gain: STATION_GAIN,
+            })
         }
-        Order::GoTo { point, radius, .. } => Some((
-            point + ring * (GOTO_STATION_FRAC * radius),
-            Vec2::ZERO,
-            GOTO_SPEED_FRAC,
-        )),
+        Order::GoTo { point, radius, .. } => Some(Station {
+            at: point + ring * (GOTO_STATION_FRAC * radius),
+            vel: Vec2::ZERO,
+            speed_frac: GOTO_SPEED_FRAC,
+            gain: STATION_GAIN,
+        }),
+        Order::Dock { carrier, bay } => Some(dock_approach(m, me, carrier, bay)),
         Order::None | Order::Attack { .. } => None,
+    }
+}
+
+/// v11: where a docking pilot keeps station: a point on the bay's axis that slides in to
+/// the dock point as the ship closes (`DOCK_FUNNEL` of its distance out along the bay
+/// direction), so it comes in from the open side of the bay, at the dock point's
+/// velocity (the carrier's), at the transit speed while far.
+fn dock_approach(m: &Match, me: &Ship, carrier: ShipIdx, bay: u8) -> Station {
+    let point = m.dock_point(carrier, bay);
+    let c = &m.ships[usize::from(carrier)];
+    let mount = m.bay_mounts[usize::from(c.team & 1)][usize::from(bay)];
+    let dir = mount.dir.rotated(c.heading);
+    let out = DOCK_FUNNEL * (me.pos - point).length();
+    Station {
+        at: point + dir * out.min(DOCK_FUNNEL_MAX),
+        vel: c.vel,
+        speed_frac: GOTO_SPEED_FRAC,
+        gain: DOCK_GAIN,
     }
 }
 
@@ -190,10 +236,16 @@ pub(crate) fn station_manoeuvre(
         force_body: Vec2::ZERO,
         heading: me.heading,
     };
-    let Some((at, base_vel, speed_frac)) = station(m, cat, me, order) else {
+    let Some(Station {
+        at,
+        vel: base_vel,
+        speed_frac,
+        gain,
+    }) = station(m, cat, me, order)
+    else {
         return coast;
     };
-    let pull = (at - me.pos) * STATION_GAIN;
+    let pull = (at - me.pos) * gain;
     let cap = speed_frac * hull.speed_cap;
     let pull = if pull.length() > cap {
         pull.normalized() * cap

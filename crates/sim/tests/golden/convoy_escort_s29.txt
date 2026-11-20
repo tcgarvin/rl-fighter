@@ -1,4 +1,4 @@
-# sim golden trace convoy_escort_s29 (SIM_VERSION 10); regenerate with UPDATE_GOLDEN=1
+# sim golden trace convoy_escort_s29 (SIM_VERSION 11); regenerate with UPDATE_GOLDEN=1
 # tick state_hash aux_digest; end tick state_hash aux_digest phase winner
 300 97de0fae58a639b4 23fe9de96c94563f
 600 9764a3fe035c0764 1e748626f62ac5f5

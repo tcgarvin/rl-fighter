@@ -888,6 +888,7 @@ fn random_commander_issues_only_valid_commands() {
                                 assert!((GOTO_RADIUS_MIN..GOTO_RADIUS_MAX).contains(&radius));
                             }
                             Order::None => {}
+                            Order::Dock { .. } => panic!("a squad never holds a dock order"),
                         }
                     }
                 }

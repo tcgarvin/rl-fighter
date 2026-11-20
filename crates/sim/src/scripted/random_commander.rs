@@ -273,12 +273,14 @@ pub fn commands(m: &Match, cat: &Catalogue, team: u8, st: &mut RandomCommander) 
         .iter()
         .filter(|c| matches!(c, Command::Launch { .. }))
         .count();
-    let launched = m.reserves[t]
-        .iter()
+    // v11: launches take the first reserves that may launch (`Match::launchable`), and a
+    // ship flying home under a dock order is out of the squads.
+    let launched = m
+        .launchable(team)
         .take(launches)
-        .fold(0u32, |a, &s| a | 1 << s);
+        .fold(0u32, |a, s| a | 1 << s);
     let wing = mask_of(m, |s| {
-        strike(s) && m.in_match(s) && m.ships[s].attach == Attach::None
+        strike(s) && m.in_match(s) && m.ships[s].attach == Attach::None && !m.has_dock_order(s)
     }) | launched;
     let current: [Squad; MAX_SQUADS] = m.command.squads[t];
     for (k, cur) in current.iter().enumerate().take(RANDOM_SQUADS) {

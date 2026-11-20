@@ -67,7 +67,7 @@ use crate::arrival::ARRIVAL_LOCK_TICKS;
 use crate::command::{NO_DEADLINE, Order};
 use crate::data::{Catalogue, HullDef, ThrusterDef};
 use crate::math::{TAU, Vec2, clamp, rot};
-use crate::order::{N_HULL_CLASSES, effective_order, order_geometry};
+use crate::order::{N_HULL_CLASSES, effective_order, order_geometry, read_as};
 use crate::state::{
     ACTION_TURRETS, MAX_REACTION_TICKS, MAX_SHIPS, MAX_THRUSTERS, Match, Projectile, Ship, ShipIdx,
 };
@@ -633,12 +633,14 @@ pub fn write_pending(a: &ShipAction, out: &mut [f32]) {
     clamp_record(out);
 }
 
-/// The order `ship` sees: its effective order, or none on a hidden-order team.
+/// The order `ship` sees: its effective order as the nets read it (v11: a dock order
+/// as a go-to to its bay's dock point, `order::read_as`), or none on a hidden-order
+/// team.
 pub fn seen_order(m: &Match, ship: &Ship) -> Order {
     if m.cfg.hide_orders[usize::from(ship.team & 1)] {
         Order::None
     } else {
-        effective_order(m, usize::from(ship.slot))
+        read_as(m, effective_order(m, usize::from(ship.slot)))
     }
 }
 
@@ -655,7 +657,7 @@ pub fn write_order(m: &Match, cat: &Catalogue, ship: &Ship, out: &mut [f32]) {
     let target = match order {
         Order::Attack { target } => Some(&m.ships[usize::from(target)]),
         Order::Defend { ward } => Some(&m.ships[usize::from(ward)]),
-        Order::GoTo { .. } | Order::None => None,
+        Order::GoTo { .. } | Order::Dock { .. } | Order::None => None,
     };
     let delta = point - ship.pos;
     let rel_pos = to_body(ship, delta);

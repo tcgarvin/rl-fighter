@@ -30,6 +30,12 @@ pub const KIND_MATCH_END: u8 = 12;
 /// v10 (hardpoints), appended so codes 0–12 stay stable.
 pub const KIND_TURRET_DESTROYED: u8 = 13;
 pub const KIND_BAY_DESTROYED: u8 = 14;
+/// v11 (dock and repair), appended so codes 0–14 stay stable.
+pub const KIND_DOCK_ORDERED: u8 = 15;
+pub const KIND_DOCKED: u8 = 16;
+pub const KIND_REPAIRED: u8 = 17;
+pub const KIND_RELAUNCHED: u8 = 18;
+pub const KIND_DOCK_ABORTED: u8 = 19;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Event {
@@ -146,10 +152,48 @@ pub enum Event {
         pos: Vec2,
         shooter: u8,
     },
+    /// v11: `ship` was ordered to dock at bay `bay` of `carrier` (`pos` that bay's dock
+    /// point when the order was given), by the recall doctrine or by a `Dock` command.
+    DockOrdered {
+        ship: u8,
+        carrier: u8,
+        bay: u8,
+        pos: Vec2,
+        by_doctrine: bool,
+    },
+    /// v11: `ship` docked at bay `bay` of `carrier`; `pos` where it was (it leaves the
+    /// field), `hp_frac` its hull fraction then.
+    Docked {
+        ship: u8,
+        carrier: u8,
+        bay: u8,
+        pos: Vec2,
+        hp_frac: f32,
+    },
+    /// v11: a returned ship in `carrier`'s hangar is fully repaired.
+    Repaired {
+        ship: u8,
+        carrier: u8,
+    },
+    /// v11: a returned ship launched again (follows its `Launch`, same step), at
+    /// `hp_frac` of its hull.
+    Relaunched {
+        ship: u8,
+        carrier: u8,
+        bay: u8,
+        hp_frac: f32,
+    },
+    /// v11: `ship`'s dock order was dropped: its carrier was lost (`reason` 0) or no bay
+    /// of it is left (1).
+    DockAborted {
+        ship: u8,
+        carrier: u8,
+        reason: u8,
+    },
 }
 
 impl Event {
-    /// Flat-encoding kind code (0..14 in declaration order).
+    /// Flat-encoding kind code (0..19 in declaration order).
     pub fn kind(&self) -> u8 {
         match self {
             Event::Fire { .. } => KIND_FIRE,
@@ -167,6 +211,11 @@ impl Event {
             Event::MatchEnd { .. } => KIND_MATCH_END,
             Event::TurretDestroyed { .. } => KIND_TURRET_DESTROYED,
             Event::BayDestroyed { .. } => KIND_BAY_DESTROYED,
+            Event::DockOrdered { .. } => KIND_DOCK_ORDERED,
+            Event::Docked { .. } => KIND_DOCKED,
+            Event::Repaired { .. } => KIND_REPAIRED,
+            Event::Relaunched { .. } => KIND_RELAUNCHED,
+            Event::DockAborted { .. } => KIND_DOCK_ABORTED,
         }
     }
 
@@ -174,7 +223,10 @@ impl Event {
     /// does not use are 0. `Fire` carries its weapon id in slot 5; `Beam` carries
     /// `to` in slots 5–6 and `hit` as 0/1 in `extra`; `Hit` carries `mult` in slot 5.
     /// v10: `TurretDestroyed` / `BayDestroyed` are `[k, ship, turret or bay, x, y, 0,
-    /// 0, shooter]`.
+    /// 0, shooter]`. v11: `DockOrdered` is `[k, ship, carrier, x, y, by_doctrine, 0,
+    /// bay]`, `Docked` `[k, ship, carrier, x, y, hp_frac, 0, bay]`, `Repaired` `[k,
+    /// ship, carrier, 0, 0, 0, 0, 0]`, `Relaunched` `[k, ship, carrier, 0, 0, hp_frac,
+    /// 0, bay]`, `DockAborted` `[k, ship, carrier, 0, 0, 0, 0, reason]`.
     pub fn encode(&self) -> [f32; EVENT_STRIDE] {
         let k = f32::from(self.kind());
         let b = |v: bool| if v { 1.0 } else { 0.0 };
@@ -322,6 +374,77 @@ impl Event {
                 0.0,
                 0.0,
                 slot_or_minus_one(shooter),
+            ],
+            Event::DockOrdered {
+                ship,
+                carrier,
+                bay,
+                pos,
+                by_doctrine,
+            } => [
+                k,
+                f32::from(ship),
+                f32::from(carrier),
+                pos.x,
+                pos.y,
+                b(by_doctrine),
+                0.0,
+                f32::from(bay),
+            ],
+            Event::Docked {
+                ship,
+                carrier,
+                bay,
+                pos,
+                hp_frac,
+            } => [
+                k,
+                f32::from(ship),
+                f32::from(carrier),
+                pos.x,
+                pos.y,
+                hp_frac,
+                0.0,
+                f32::from(bay),
+            ],
+            Event::Repaired { ship, carrier } => [
+                k,
+                f32::from(ship),
+                f32::from(carrier),
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+            ],
+            Event::Relaunched {
+                ship,
+                carrier,
+                bay,
+                hp_frac,
+            } => [
+                k,
+                f32::from(ship),
+                f32::from(carrier),
+                0.0,
+                0.0,
+                hp_frac,
+                0.0,
+                f32::from(bay),
+            ],
+            Event::DockAborted {
+                ship,
+                carrier,
+                reason,
+            } => [
+                k,
+                f32::from(ship),
+                f32::from(carrier),
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                f32::from(reason),
             ],
             Event::MatchEnd { winner, reason } => [
                 k,

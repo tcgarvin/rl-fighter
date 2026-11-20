@@ -200,13 +200,16 @@ enum Flavour {
     V8,
     /// As SIM_VERSION 9 rendered it: exactly as the current version (module docs).
     V9,
+    /// As SIM_VERSION 10 rendered it: the current hash and digest of a match played
+    /// with `MatchConfig.docking` off (module docs).
+    V10,
 }
 
 impl Flavour {
     /// Obs floats the flavour's aux digest covers.
     fn obs_width(self) -> usize {
         match self {
-            Flavour::Current | Flavour::V8 | Flavour::V9 => OBS_DIM,
+            Flavour::Current | Flavour::V8 | Flavour::V9 | Flavour::V10 => OBS_DIM,
             Flavour::V3 | Flavour::V4 => OBS_DIM_V4,
             Flavour::V5 => OBS_DIM_V5,
             Flavour::V7 => OBS_DIM_V7,
@@ -222,7 +225,13 @@ impl Flavour {
             Flavour::V7 => 7,
             Flavour::V8 => 8,
             Flavour::V9 => 9,
+            Flavour::V10 => 10,
         }
+    }
+
+    /// Every flavour but the current one replays a version without the v11 dock rules.
+    fn docking(self) -> bool {
+        self == Flavour::Current
     }
 }
 
@@ -401,7 +410,9 @@ fn state_hash(flavour: Flavour, cat: &Catalogue, m: &Match, v5: &V5Tracks) -> u6
     match flavour {
         // v9 hashes exactly what v8 did: no new state, the old hulls' ids unchanged;
         // v10 writes its new state only for `wide` ships, which no v9 hull makes.
-        Flavour::Current | Flavour::V8 | Flavour::V9 => m.state_hash(),
+        // v11 appends the dock state only while docking is live, and the older
+        // flavours play with it off.
+        Flavour::Current | Flavour::V8 | Flavour::V9 | Flavour::V10 => m.state_hash(),
         Flavour::V3 => v3_state_hash(cat, m),
         Flavour::V4 => v4_state_hash(m),
         Flavour::V5 => v5_state_hash(m, v5),
@@ -451,7 +462,7 @@ fn digest_outputs(
     }
     if matches!(
         flavour,
-        Flavour::Current | Flavour::V5 | Flavour::V8 | Flavour::V9
+        Flavour::Current | Flavour::V5 | Flavour::V8 | Flavour::V9 | Flavour::V10
     ) {
         for &r in m.order_rewards() {
             aux.write_f32(r);
@@ -480,6 +491,9 @@ fn trace(
     flavour: Flavour,
 ) -> String {
     let cat = asset_catalogue();
+    let mut cfg = cfg.clone();
+    cfg.docking = flavour.docking();
+    let cfg = &cfg;
     let mut m = Match::new(&cat, cfg).expect("match setup");
     if flavour == Flavour::V7 {
         // v7 started every track not arrived; a ship inside a go-to radius at setup
@@ -1267,6 +1281,221 @@ fn v9_compat_all_eleven_scenarios_replay_bit_for_bit() {
         assert_eq!(
             *embedded, actual,
             "{name} diverged from SIM_VERSION 9 (SIM_SPEC §0.8)"
+        );
+    }
+}
+
+/// Every v10 golden scenario (the eleven of v9 and both citadel assaults), played with
+/// `MatchConfig.docking` off and rendered with the v11 hash and digest under a v10
+/// header, against the v10 record (never rewritten): v11 adds the dock rules and
+/// nothing else, so with them off every line matches (SIM_SPEC §0.9).
+#[test]
+fn v10_compat_all_thirteen_scenarios_replay_bit_for_bit() {
+    let golden = [
+        (
+            "duel_fighter_s7",
+            include_str!("golden/v10/duel_fighter_s7.txt"),
+        ),
+        (
+            "2v2_mixed_s11",
+            include_str!("golden/v10/2v2_mixed_s11.txt"),
+        ),
+        (
+            "3v3_mixed_s13",
+            include_str!("golden/v10/3v3_mixed_s13.txt"),
+        ),
+        (
+            "3v3_random_s17",
+            include_str!("golden/v10/3v3_random_s17.txt"),
+        ),
+        (
+            "carrier_battle_s23",
+            include_str!("golden/v10/carrier_battle_s23.txt"),
+        ),
+        (
+            "convoy_escort_s29",
+            include_str!("golden/v10/convoy_escort_s29.txt"),
+        ),
+        (
+            "carrier_battle_random_s31",
+            include_str!("golden/v10/carrier_battle_random_s31.txt"),
+        ),
+        (
+            "convoy_escort_random_s37",
+            include_str!("golden/v10/convoy_escort_random_s37.txt"),
+        ),
+        (
+            "3v3_random_commander_s41",
+            include_str!("golden/v10/3v3_random_commander_s41.txt"),
+        ),
+        (
+            "station_assault_s43",
+            include_str!("golden/v10/station_assault_s43.txt"),
+        ),
+        (
+            "station_assault_convoy_random_s47",
+            include_str!("golden/v10/station_assault_convoy_random_s47.txt"),
+        ),
+        (
+            "station_assault_v10_s53",
+            include_str!("golden/v10/station_assault_v10_s53.txt"),
+        ),
+        (
+            "station_assault_v10_convoy_random_s59",
+            include_str!("golden/v10/station_assault_v10_convoy_random_s59.txt"),
+        ),
+    ];
+    let cat = asset_catalogue();
+    let mut scenarios = golden_scenarios();
+    scenarios.push((
+        "station_assault_s43",
+        station_assault_config(&cat, 43, StationReadsAs::Carrier),
+        Driver::Scripted,
+        MISSION_TICKS,
+    ));
+    let mut convoy = station_assault_config(&cat, 47, StationReadsAs::Convoy);
+    convoy.commanders = [CommanderMode::Random; 2];
+    scenarios.push((
+        "station_assault_convoy_random_s47",
+        convoy,
+        Driver::Scripted,
+        MISSION_TICKS,
+    ));
+    scenarios.push((
+        "station_assault_v10_s53",
+        citadel_config(&cat, 53, StationReadsAs::Carrier),
+        Driver::Scripted,
+        MISSION_TICKS,
+    ));
+    let mut citadel_random = citadel_config(&cat, 59, StationReadsAs::Convoy);
+    citadel_random.commanders = [CommanderMode::Random; 2];
+    scenarios.push((
+        "station_assault_v10_convoy_random_s59",
+        citadel_random,
+        Driver::Scripted,
+        MISSION_TICKS,
+    ));
+    assert_eq!(scenarios.len(), golden.len());
+    for (name, cfg, driver, ticks) in scenarios {
+        let (_, embedded) = golden
+            .iter()
+            .find(|(n, _)| *n == name)
+            .unwrap_or_else(|| panic!("no v10 golden for {name}"));
+        let every = match name {
+            "3v3_random_s17" => Some(RANDOM_SAMPLE_EVERY),
+            _ if ticks == MISSION_TICKS => Some(MISSION_SAMPLE_EVERY),
+            _ => None,
+        };
+        let sample = |t: u32| match every {
+            Some(n) => t % n == 0,
+            None => SCRIPTED_SAMPLES.contains(&t),
+        };
+        let actual = trace(name, &cfg, driver, ticks, sample, Flavour::V10);
+        assert_eq!(
+            *embedded, actual,
+            "{name} diverged from SIM_VERSION 10 with docking off (SIM_SPEC §0.9)"
+        );
+    }
+}
+
+/// v11: the live carrier battle roster ("wing of 8") under the scripted commanders, a
+/// seed whose strike craft are recalled, dock, repair and relaunch: the dock rules
+/// native against wasm32.
+pub fn carrier_dock_config(cat: &Catalogue, seed: u64) -> MatchConfig {
+    let kind = sim::mission::MissionKind::CarrierBattle;
+    let roster = sim::mission::default_rosters(kind)[0];
+    let mut cfg = config(cat, seed, roster.fleets[0], roster.fleets[1]);
+    cfg.mission = Mission::CarrierBattle(CarrierBattle::default());
+    cfg.time_limit_ticks = MISSION_TICKS;
+    cfg
+}
+
+/// Docks and relaunches in a scenario.
+fn dock_counts(cfg: &MatchConfig, mut driver: Driver, ticks: u32) -> (u32, u32) {
+    use sim::events::Event;
+    let cat = asset_catalogue();
+    let mut m = Match::new(&cat, cfg).expect("match setup");
+    let (mut docked, mut relaunched) = (0u32, 0u32);
+    while m.tick() < ticks && m.phase() == MatchPhase::Running {
+        let actions: Vec<ShipAction> = match &mut driver {
+            Driver::Scripted => (0..m.ships().len())
+                .map(|i| scripted::act(&m, &cat, i as u8))
+                .collect(),
+            Driver::Random(r) => r.next(),
+        };
+        for (i, a) in actions.into_iter().enumerate() {
+            m.set_action(i as u8, a);
+        }
+        m.step(&cat);
+        for e in m.events() {
+            match e {
+                Event::Docked { .. } => docked += 1,
+                Event::Relaunched { .. } => relaunched += 1,
+                _ => {}
+            }
+        }
+    }
+    (docked, relaunched)
+}
+
+/// The seed of the v11 dock golden.
+const DOCK_GOLDEN_SEED: u64 = 61;
+
+#[test]
+fn golden_carrier_battle_dock_seed61() {
+    let cat = asset_catalogue();
+    let cfg = carrier_dock_config(&cat, DOCK_GOLDEN_SEED);
+    let (docked, relaunched) = dock_counts(&cfg, Driver::Scripted, MISSION_TICKS);
+    assert!(
+        docked >= 2 && relaunched >= 1,
+        "{docked} docked, {relaunched} relaunched"
+    );
+    let actual = mission_trace("carrier_battle_dock_s61", &cfg, Flavour::Current);
+    check_golden(
+        "carrier_battle_dock_s61.txt",
+        include_str!("golden/carrier_battle_dock_s61.txt"),
+        &actual,
+    );
+}
+
+/// v11: the golden scenarios without a carrier (deathmatches, convoys) never dock; the
+/// others report their docks.
+#[test]
+fn only_golden_scenarios_with_a_carrier_dock() {
+    let cat = asset_catalogue();
+    let mut scenarios = golden_scenarios();
+    scenarios.push((
+        "station_assault_s43",
+        station_assault_config(&cat, 43, StationReadsAs::Carrier),
+        Driver::Scripted,
+        MISSION_TICKS,
+    ));
+    scenarios.push((
+        "station_assault_v10_s53",
+        citadel_config(&cat, 53, StationReadsAs::Carrier),
+        Driver::Scripted,
+        MISSION_TICKS,
+    ));
+    for (name, cfg, driver, ticks) in scenarios {
+        let carrier = !matches!(cfg.mission, Mission::Deathmatch | Mission::ConvoyEscort(_));
+        let (docked, relaunched) = dock_counts(&cfg, driver, ticks);
+        println!("{name}: {docked} docked, {relaunched} relaunched");
+        if !carrier {
+            assert_eq!(docked, 0, "{name}");
+        }
+    }
+}
+
+/// Diagnostic: docks and relaunches of the dock golden's config by seed.
+#[test]
+#[ignore = "diagnostic: lists dock counts by seed"]
+fn dock_golden_seed_search() {
+    let cat = asset_catalogue();
+    for seed in 0..80 {
+        let cfg = carrier_dock_config(&cat, seed);
+        println!(
+            "seed {seed}: {:?}",
+            dock_counts(&cfg, Driver::Scripted, MISSION_TICKS)
         );
     }
 }

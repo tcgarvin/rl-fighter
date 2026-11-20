@@ -1172,9 +1172,12 @@ impl Match {
         }
         let enemies_left =
             (0..self.ships.len()).any(|s| self.ships[s].team == 1 && self.in_match(s));
-        let going = pilots
-            .iter()
-            .any(|&s| matches!(effective_order(self, s), Order::GoTo { .. }));
+        let going = pilots.iter().any(|&s| {
+            matches!(
+                effective_order(self, s),
+                Order::GoTo { .. } | Order::Dock { .. }
+            )
+        });
         if enemies_left || going {
             None
         } else {

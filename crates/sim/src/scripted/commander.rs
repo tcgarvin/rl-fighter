@@ -45,6 +45,12 @@
 //!   the enemy nearest it, squad 1 the most damaged enemy within reach. The
 //!   scripted pilots do not follow a scripted deathmatch commander
 //!   (`scripted::orders`), so these orders are only shown.
+//! - **v11, dock and repair.** A ship flying home under a dock order (the sim's recall
+//!   doctrine, `dock`) is left out of the wing and the squads. Launches take the reserves
+//!   a launch may take (`Match::launchable`), in order, and a returned ship only once
+//!   repaired to `RELAUNCH_HULL_FRAC` of its hull, unless the carrier scrambles, it is
+//!   the last minute or the station is alarmed (`launch_queue`). Without docking every
+//!   reserve is fresh and ready, so all of this is the v10 commander.
 
 use crate::command::{
     BAY_COOLDOWN_TICKS, Command, MAX_SQUADS, NO_DEADLINE, Order, Squad, Waypoint,
@@ -133,6 +139,9 @@ pub const ASSAULT_TICKS: u32 = 1200;
 /// v10: until the assault goes, the attacker's dreadnought holds this far (m) beyond the
 /// station's longest weapon range, on its own bearing from the station.
 pub const LINE_STAGING_MARGIN: f32 = 40.0;
+/// v11: a returned ship relaunches (outside a scramble) once repaired to this fraction
+/// of its hull.
+pub const RELAUNCH_HULL_FRAC: f32 = 0.9;
 
 const DEFEND: usize = 0;
 const STRIKE: usize = 1;
@@ -318,10 +327,19 @@ fn enemy_bombers(m: &Match, cat: &Catalogue, team: u8) -> u32 {
 }
 
 /// Launch commands for `team`'s carrier, `n` at most (the sim picks the bays and
-/// refuses what they cannot do); the launched ships join `wing`.
-fn launch(m: &Match, team: u8, n: usize, wing: &mut u32, out: &mut Vec<Command>) {
-    let reserves = &m.reserves[usize::from(team)];
-    for &slot in &reserves[..n.min(reserves.len())] {
+/// refuses what they cannot do); the launched ships join `wing`. v11: from
+/// [`launch_queue`].
+fn launch(
+    m: &Match,
+    cat: &Catalogue,
+    team: u8,
+    n: usize,
+    urgent: bool,
+    wing: &mut u32,
+    out: &mut Vec<Command>,
+) {
+    let queue = launch_queue(m, cat, team, urgent);
+    for &slot in &queue[..n.min(queue.len())] {
         out.push(Command::Launch {
             hull: None,
             bay: None,
@@ -360,7 +378,7 @@ fn station_defence(m: &Match, cat: &Catalogue, out: &mut Vec<Command>) {
     } else {
         0
     };
-    launch(m, 0, launches, &mut wing, out);
+    launch(m, cat, 0, launches, alarmed, &mut wing, out);
 
     let squads = &m.command.squads[0];
     let from_station = |s: usize| (m.ships[s].pos - at).length();
@@ -426,7 +444,7 @@ fn station_attack(m: &Match, cat: &Catalogue, out: &mut Vec<Command>) {
     let mut wing = own_wing(m, cat, 1);
     if carrier_up {
         let bays = cat.hull(m.ships[own].hull).bays.len();
-        launch(m, 1, bays, &mut wing, out);
+        launch(m, cat, 1, bays, false, &mut wing, out);
     }
     let bombers = mask_of(m, |i, s| {
         wing & (1 << i) != 0 && super::is_bomber(cat, cat.hull(s.hull))
@@ -503,14 +521,32 @@ fn station_attack(m: &Match, cat: &Catalogue, out: &mut Vec<Command>) {
     }
 }
 
-/// Own strike craft in the match and not docked (on the field or on the way in).
+/// Own strike craft in the match and not docked (on the field or on the way in); v11:
+/// not flying home under a dock order either.
 fn own_wing(m: &Match, cat: &Catalogue, team: u8) -> u32 {
     mask_of(m, |i, s| {
         s.team == team
             && m.in_match(i)
             && s.attach == Attach::None
+            && !m.has_dock_order(i)
             && !is_capital_ship(cat.hull(s.hull))
     })
+}
+
+/// v11: the reserves of `team` this slow tick's launches may take, in the order the
+/// sim takes them (`Match::launchable`): a returned ship only once repaired to
+/// `RELAUNCH_HULL_FRAC` of its hull, unless `urgent` (a scramble, the last minute, the
+/// station attacker's commit), and nothing behind one that is not. Without docking every
+/// reserve is ready and fresh, so this is the hangar.
+fn launch_queue(m: &Match, cat: &Catalogue, team: u8, urgent: bool) -> Vec<ShipIdx> {
+    m.launchable(team)
+        .take_while(|&s| {
+            let ship = &m.ships[usize::from(s)];
+            urgent
+                || !m.returned(usize::from(s))
+                || ship.hp >= RELAUNCH_HULL_FRAC * cat.hull(ship.hull).hp
+        })
+        .collect()
 }
 
 /// Active enemy strike craft of `team`.
@@ -585,7 +621,8 @@ fn carrier_battle(m: &Match, cat: &Catalogue, team: u8, out: &mut Vec<Command>) 
 
     // Launches (the sim refuses what the bays cannot do).
     let mut wing = own_wing(m, cat, team);
-    let reserves = &m.reserves[t];
+    let urgent = late || threats >= THREAT_COUNT;
+    let reserves = launch_queue(m, cat, team, urgent);
     let bays = cat.hull(carrier.hull).bays.len();
     let target = WING_BASE + (m.tick / WING_GROWTH_TICKS) as usize;
     // The last launch: the latest bay cooldown, less the cooldown.
@@ -594,7 +631,7 @@ fn carrier_battle(m: &Match, cat: &Catalogue, team: u8, out: &mut Vec<Command>) 
         .max()
         .map_or(0, |&r| r.saturating_sub(BAY_COOLDOWN_TICKS));
     let paced = m.tick >= last_launch + LAUNCH_INTERVAL_TICKS || last_launch == 0;
-    let launches = if late || threats >= THREAT_COUNT {
+    let launches = if urgent {
         bays
     } else if count(wing) < target && paced {
         1

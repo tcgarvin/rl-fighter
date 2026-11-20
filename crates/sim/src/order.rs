@@ -40,12 +40,19 @@
 //!   that damaged the ward in the last `RECENT_HIT_TICKS` ticks (`Match.hit_by`,
 //!   hashed). No fixed radius: a gunship's torpedo outranges any fixed guard ring.
 //!
+//! - v11, **dock orders** (`dock` module): a ship's own dock order is its standing order
+//!   ahead of its squad's (a waypoint still comes first, but capital ships never dock).
+//!   It is valid while its carrier is on the field and its bay live, never completes on
+//!   arrival (it ends when the ship docks), and reads to the nets as a go-to to the
+//!   bay's dock point ([`read_as`]). Its instance is keyed on the kind and the carrier.
+//!
 //! The tracks and `hit_by` are refreshed at the end of every step (stage 13b, before
 //! rewards), the tracks also once at setup, so the obs written after a step shows the
 //! order and its age as of that step's end.
 
 use crate::command::{NO_DEADLINE, Order, Waypoint};
 use crate::data::{Catalogue, HullDef};
+use crate::dock::DOCK_CAPTURE_RADIUS;
 use crate::hash::{StateHash, StateHasher};
 use crate::math::Vec2;
 use crate::mission::{ROLE_CARRIER, ROLE_TRANSPORT};
@@ -108,6 +115,10 @@ pub fn standing_order(m: &Match, slot: usize) -> Order {
             deadline: NO_DEADLINE,
         };
     }
+    // v11: a ship's own dock order wins over its squad's (`dock` module).
+    if m.has_dock_order(slot) {
+        return m.dock_order(slot);
+    }
     let ship = &m.ships[slot];
     m.command.squads[usize::from(ship.team & 1)]
         .iter()
@@ -128,6 +139,28 @@ pub fn valid_order(m: &Match, slot: usize) -> Order {
     match order {
         Order::Attack { target } if !ok(target, false) => Order::None,
         Order::Defend { ward } if !ok(ward, true) => Order::None,
+        // v11: a dock order needs its carrier on the field and the bay live (stage 12c
+        // re-picks a destroyed bay or drops the order).
+        Order::Dock { carrier, bay }
+            if !ok(carrier, true) || !m.ships[usize::from(carrier)].bay_alive(usize::from(bay)) =>
+        {
+            Order::None
+        }
+        o => o,
+    }
+}
+
+/// v11: `order` as the pilot nets read it: a dock order is a go-to to its bay's dock
+/// point now, radius `dock::DOCK_CAPTURE_RADIUS`, no deadline (no new input: `OBS_DIM`
+/// stays 587); every other order as it is. The pilot obs and the learned commander's
+/// order one-hot use it.
+pub fn read_as(m: &Match, order: Order) -> Order {
+    match order {
+        Order::Dock { carrier, bay } => Order::GoTo {
+            point: m.dock_point(carrier, bay),
+            radius: DOCK_CAPTURE_RADIUS,
+            deadline: NO_DEADLINE,
+        },
         o => o,
     }
 }
@@ -158,6 +191,7 @@ pub fn order_geometry(m: &Match, order: Order) -> Option<(Vec2, f32)> {
         Order::Attack { target } => Some((m.ships[usize::from(target)].pos, 0.0)),
         Order::Defend { ward } => Some((m.ships[usize::from(ward)].pos, 0.0)),
         Order::GoTo { point, radius, .. } => Some((point, radius)),
+        Order::Dock { carrier, bay } => Some((m.dock_point(carrier, bay), DOCK_CAPTURE_RADIUS)),
     }
 }
 
@@ -317,7 +351,7 @@ impl Match {
     /// ward's threat set (among the active ships) is empty.
     pub fn order_transit(&self, cat: &Catalogue, slot: usize) -> bool {
         match effective_order(self, slot) {
-            Order::GoTo { .. } => true,
+            Order::GoTo { .. } | Order::Dock { .. } => true,
             Order::Defend { ward } => {
                 self.threat_set(cat, usize::from(ward), self.active_mask()) == 0
             }

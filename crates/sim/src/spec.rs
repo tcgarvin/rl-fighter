@@ -188,6 +188,12 @@ pub enum OrderSpec {
         #[serde(default)]
         deadline: u32,
     },
+    /// v11: a ship's own dock order (views only: a squad's dock order is sanitised to
+    /// none; ships are sent home with the `dock` command).
+    Dock {
+        carrier: u8,
+        bay: u8,
+    },
 }
 
 impl From<Order> for OrderSpec {
@@ -196,6 +202,7 @@ impl From<Order> for OrderSpec {
             Order::None => OrderSpec::None {},
             Order::Attack { target } => OrderSpec::Attack { target },
             Order::Defend { ward } => OrderSpec::Defend { ward },
+            Order::Dock { carrier, bay } => OrderSpec::Dock { carrier, bay },
             Order::GoTo {
                 point,
                 radius,
@@ -215,6 +222,7 @@ impl From<OrderSpec> for Order {
             OrderSpec::None {} => Order::None,
             OrderSpec::Attack { target } => Order::Attack { target },
             OrderSpec::Defend { ward } => Order::Defend { ward },
+            OrderSpec::Dock { carrier, bay } => Order::Dock { carrier, bay },
             OrderSpec::GoTo {
                 point,
                 radius,
@@ -230,10 +238,16 @@ impl From<OrderSpec> for Order {
 
 /// `{"kind": "launch", "hull": "fighter" | null, "bay": 0 | null}`,
 /// `{"kind": "waypoint", "ship": slot, "pos": [x, y] | null}` (null unsets),
-/// `{"kind": "squad", "squad": 0, "members": [slots], "order": {...}}`.
+/// `{"kind": "squad", "squad": 0, "members": [slots], "order": {...}}`,
+/// (v11) `{"kind": "dock", "ship": slot, "bay": 0 | null}` (null: the nearest live bay).
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum CommandSpec {
+    Dock {
+        ship: u8,
+        #[serde(default)]
+        bay: Option<u8>,
+    },
     Launch {
         #[serde(default)]
         hull: Option<String>,
@@ -257,6 +271,10 @@ impl CommandSpec {
     /// member slots that cannot exist (`>= 32`); everything else is the sim's call.
     pub fn to_command(&self, cat: &Catalogue) -> Result<Command, String> {
         Ok(match self {
+            CommandSpec::Dock { ship, bay } => Command::Dock {
+                ship: *ship,
+                bay: *bay,
+            },
             CommandSpec::Launch { hull, bay } => Command::Launch {
                 hull: match hull {
                     None => None,
@@ -470,6 +488,7 @@ impl OutcomeView {
             Command::Launch { .. } => "launch",
             Command::Waypoint { .. } => "waypoint",
             Command::Squad { .. } => "squad",
+            Command::Dock { .. } => "dock",
         };
         let mut view = OutcomeView {
             command,
@@ -515,6 +534,45 @@ pub struct ShipMissionView {
     /// an older match's view is unchanged).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hardpoints: Option<HardpointsView>,
+    /// v11: the ship's dock state, only while the dock rules are live
+    /// (`Match::docking_live`; absent otherwise, so an older match's view is unchanged).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dock: Option<DockView>,
+}
+
+/// v11: what a ship is doing about docking (`dock` module). `phase` is `"none"`,
+/// `"inbound"` (flying home under a dock order to `bay`, given at tick `since`),
+/// `"repairing"` or `"ready"` (back in the hangar since tick `docked_at`, may launch
+/// from tick `ready_at`).
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct DockView {
+    pub phase: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bay: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub since: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub docked_at: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ready_at: Option<u32>,
+}
+
+impl DockView {
+    /// Slot `s`'s view, `None` unless docking is live in `m`.
+    pub fn of(m: &Match, s: usize) -> Option<DockView> {
+        if !m.docking_live() {
+            return None;
+        }
+        let inbound = m.has_dock_order(s);
+        let back = m.returned(s);
+        Some(DockView {
+            phase: m.dock_phase(s).name(),
+            bay: inbound.then_some(m.dock.bay[s]),
+            since: inbound.then_some(m.dock.since[s]),
+            docked_at: back.then_some(m.dock.docked_at[s]),
+            ready_at: back.then_some(m.dock.ready_at[s]),
+        })
+    }
 }
 
 /// v10: a capital ship's turret and bay hardpoints, in hull order. `*_hp` is the
@@ -621,6 +679,7 @@ impl MissionStateView {
                     },
                     squad: m.squad_of(s.slot).map_or(-1, |k| k as i8),
                     hardpoints: HardpointsView::of(hull, s),
+                    dock: DockView::of(m, usize::from(s.slot)),
                 }
             })
             .collect();
