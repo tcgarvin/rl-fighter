@@ -243,40 +243,150 @@ function station(b,h) {
   return [[0,2.85,0],[5,2.2,2],[-5,2.2,-2],[0,2.15,19],[0,2.15,-19],[18.5,2.15,0],[-18.5,2.15,0],[12.5,2.15,12.5],[-12.5,2.15,12.5],[12.5,2.15,-12.5]];
 }
 
+const CITADEL_BAY={depth:8,width:7.2,y:-.64};
 function citadel(b,h) {
-  // PLACEHOLDER (art draft pending): core, six modules, spokes.
-  const hub=Array.from({length:12},(_,i)=>radial(20,i*Math.PI/6));
-  b.add('machinery',plate(hub,-1,2.25,.22));
+  // The rim stops at each launch cutout: a solid core plate would roof the wells.
+  const hub=Array.from({length:12},(_,i)=>radial(14,i*Math.PI/6));
+  b.add('machinery',plate(hub,-1.2,3,.24));
+  for (let i=0;i<12;i++) {
+    const a=i*Math.PI/6;
+    if ([1,5,7,11].includes(i)) continue;
+    b.add('machinery',plate(ringSector(13,20,a,Math.PI/12),-1.2,3,.18));
+    b.add('paint',plate(ringSector(13.6,19.5,a,Math.PI/12-.025),2.08,.45,.13));
+    b.add('trim',plate(ringSector(18.7,19.65,a,Math.PI/12-.04),2.7,.18,.07));
+    b.add('glow',plate(ringSector(17.9,18.15,a,.14),2.7,.045,.02));
+  }
+  for (const bay of h.bays) {
+    const a=Math.atan2(bay.dir[1],bay.dir[0]);
+    const add=(slot,g)=>b.add(slot,g,0,0,0,a);
+    add('machinery',plate(clipped(18,0,CITADEL_BAY.depth,CITADEL_BAY.width,.3),-1,.25,.1));
+    add('machinery',plate(clipped(14.1,0,.8,7.2,.15),-.8,2.8,.1));
+    for (const s of [-1,1]) {
+      add('machinery',plate([[13.2,s*3.6],[13.2,s*3.9],[19.32,s*5.18],[22,s*4.65],[22,s*3.65]],-1.1,3,.12));
+      add('paint',plate([[14.5,s*3.95],[19,s*4.8],[21.6,s*4.4],[21.6,s*3.9]],2.1,.4,.1));
+      add('trim',plate(clipped(18.2,s*3.85,7.5,.45,.1),2.55,.18,.055));
+      add('glow',plate(clipped(18.3,s*3.61,6.8,.16,.04),2.53,.07,.02));
+      add('trim',plate(clipped(18,s*2.25,6.3,.22,.06),-.62,.08,.025));
+      add('glow',plate(clipped(21.25,s*2.25,.9,.35,.06),-.49,.04,.02));
+    }
+  }
+  // Six narrow bridges only on module bearings; the inter-module annulus stays empty.
+  const damage=[[0,4.95,0],[9,3.8,4],[-9,3.8,-4],[0,2.9,-16]];
   for (let k=0;k<6;k++) {
     const a=k*Math.PI/3, [x,z]=radial(38,a);
-    b.add('machinery',plate(Array.from({length:6},(_,i)=>radial(11,i*Math.PI/3).map((v,j)=>v+(j?z:x))),-1,2.25,.2));
-    b.add('machinery',plate(clipped(29,0,18,4,.4),-.6,1.4,.12),0,0,0,-a);
+    const add=(slot,g)=>b.add(slot,g,x,0,z,-a);
+    b.add('machinery',plate(clipped(24,0,12,3.6,.5),-.8,1.7,.14),0,0,0,-a);
+    b.add('trim',plate(clipped(24,0,10,1.7,.3),1.1,.22,.08),0,0,0,-a);
+    const hex=Array.from({length:6},(_,i)=>radial(11,i*Math.PI/3));
+    add('machinery',plate(hex,-1.1,2.8,.2));
+    // Separated armour leaves dark seams and a pale perimeter, as on the v9 station.
+    for (let j=0;j<6;j++) {
+      const q=j*Math.PI/3+Math.PI/6, half=Math.PI/6-.035;
+      add('paint',plate([radial(2.9,q-half),radial(10.4,q-half),radial(9.08,q),
+        radial(10.4,q+half),radial(2.9,q+half)],1.96,.4,.12));
+      add('trim',plate([radial(9.6,q-half+.02),radial(10.4,q-half+.02),radial(9.08,q),
+        radial(10.4,q+half-.02),radial(9.6,q+half-.02),radial(8.4,q)],2.52,.16,.065));
+    }
+    add('paint',plate(clipped(-3,0,7.4,6.6,.9),2.42,.34,.12));
+    add('machinery',plate(clipped(-6.2,0,2.4,3.5,.3),2.88,.12,.06));
+    for (const s of [-1,1]) {
+      add('glow',plate(clipped(-3.2,s*7,3.1,.22,.05),2.57,.05,.02));
+      add('trim',plate(clipped(-5,s*4.5,2.5,.65,.15),2.56,.14,.06));
+    }
+    damage.push([x,3,z]);
   }
-  for (const t of h.turrets) b.panel('trim',t.pos[0],-t.pos[1],6,6,1.3,.5,.2);
-  return [[0,2.5,0],[30,2,0],[-30,2,0],[15,2,26],[-15,2,-26]];
+  for (const t of h.turrets) {
+    const heavy=t.weapon==='lance', l=heavy?7.6:5.2, w=heavy?7.2:4.9;
+    const x=t.pos[0], z=-t.pos[1], a=(t.rest??0)*Math.PI/180;
+    b.add('machinery',plate(clipped(0,0,l,w,.7),2.25,t.height-2.7,.14),x,0,z,a);
+    b.add('trim',plate(clipped(0,0,l-.45,w-.45,.6),t.height-.53,.23,.1),x,0,z,a);
+  }
+  b.add('trim',plate(hub.map(([x,z])=>[x*.85,z*.85]),2.12,.55,.17));
+  b.add('paint',plate(hub.map(([x,z])=>[x*.76,z*.76]),2.93,.58,.16));
+  b.panel('trim',0,0,13,13,3.72,.4,.18);
+  return damage;
 }
 function dreadnought(b,h) {
-  // PLACEHOLDER (art draft pending): the four collision discs as a hull.
-  b.add('machinery',plate([[27,0],[13,9],[-31,9],[-31,-9],[13,-9]],-1.1,2.2,.25));
-  b.add('paint',plate([[25,0],[12,8],[-30,8],[-30,-8],[12,-8]],1.1,.4,.2));
-  for (const t of h.turrets) b.panel('trim',t.pos[0],-t.pos[1],4,4,1.6,.3,.15);
-  return [[-20,2,4],[-20,2,-4],[0,2,0],[14,2,0],[20,2,3]];
+  // A deep arrowhead belt thins into exposed engineering aft, never a flight deck.
+  const outline=[[27,0],[22,7],[8,9.6],[-17,8.6],[-23,7.5],[-31,7],[-31,-7],[-23,-7.5],[-17,-8.6],[8,-9.6],[22,-7]];
+  b.add('machinery',plate(outline,-1.25,2.5,.24));
+  for (const s of [-1,1]) {
+    b.add('trim',plate([[26,s*.35],[21.6,s*6.7],[8,s*9.15],[-17,s*8.15],[-18,s*6.2],[9,s*6.6],[21,s*4.4]],1.38,.35,.16));
+    b.add('paint',plate([[25.6,s*.55],[21.3,s*6.25],[8,s*8.65],[-17,s*7.65],[-17,s*3.5],[10,s*3.4],[20.5,s*2.8]],1.96,.46,.15));
+    // Overlapping bow cheeks make the armoured end readable even at phone scale.
+    b.add('machinery',plate([[24.8,s*.7],[21,s*5.6],[10,s*7.7],[5.6,s*5.9],[10,s*3.65],[21,s*2.4]],2.58,.3,.12));
+    b.add('paint',plate([[24.2,s*.9],[20.6,s*5.05],[10.4,s*7.15],[7.2,s*5.8],[11,s*4],[20.8,s*2.6]],3.03,.42,.14));
+    b.add('trim',plate([[22.8,s*1.6],[20.4,s*4.7],[11.5,s*6.6],[12.5,s*5.7],[20.1,s*3.8]],3.64,.16,.065));
+    b.panel('glow',-7,s*7.45,3.3,.2,2.56,.05,.025);
+    // Low flak sponsons project from the belt, below the rail barbettes.
+    b.add('machinery',plate(clipped(0,s*8.6,6.1,4.6,.8),.4,1.05,.13));
+    b.panel('trim',0,s*9,4.6,4,1.72,.28,.1);
+    b.panel('machinery',-23.8,s*5,10.2,3.5,.7,.7,.15);
+    b.panel('trim',-24,s*5,7.6,2.7,1.62,.18,.08);
+    for (let i=0;i<5;i++) b.panel('machinery',-27+i*1.35,s*5,.62,2.3,1.88,.22,.04);
+    b.panel('paint',-20,s*6.8,2.6,1.5,1.72,.3,.1);
+  }
+  b.panel('machinery',0,0,35,6.8,1.35,1,.2);
+  b.panel('trim',0,0,34,5.8,2.58,.25,.12);
+  b.panel('paint',0,0,32.8,4.8,2.99,.18,.09);
+  for (const t of h.turrets.filter(t=>t.weapon==='rail')) {
+    b.add('machinery',new THREE.CylinderGeometry(3.35,3.8,.62,12),t.pos[0],2.65,0);
+    b.add('trim',new THREE.CylinderGeometry(3.25,3.35,.22,12),t.pos[0],3.05,0);
+  }
+  // The tiny bow gun overhangs a low nose deck; it must not bury in the bow cheeks.
+  b.add('trim',plate([[27,0],[25.2,2.3],[23.5,1.5],[23.5,-1.5],[25.2,-2.3]],1.42,.3,.1));
+  b.panel('machinery',-2,0,7.5,4.6,3.27,.6,.17);
+  b.panel('trim',-2.5,0,5.5,4.1,4.1,.45,.14);
+  b.panel('paint',-2.8,0,4.7,3.6,4.75,.45,.12);
+  b.panel('machinery',1.05,0,.5,3.5,3.9,.9,.06);
+  b.panel('glow',1.33,0,.12,2.9,4.22,.25,.025);
+  // Three independent engine blocks leave the stern visibly less armoured.
+  for (const z of [-5,0,5]) {
+    b.panel('machinery',-28.7,z,4.6,4.2,-1.4,2.7,.18);
+    b.panel('trim',-28.6,z,2.1,3.7,1.55,.22,.09);
+    b.panel('machinery',-28.6,z,.65,3.2,1.87,.12,.035);
+  }
+  b.panel('paint',-22.6,0,6.1,5.2,1.5,.45,.13);
+  return [[21,3.9,4],[21,3.9,-4],[10,3.6,6],[10,3.6,-6],[-2.8,5.75,0],
+    [-14,2.8,6],[-23,2.3,5],[-23,2.3,-5],[-28.6,2.1,0]];
 }
 
 // Capital turret kits by weapon (body frame: barrel along +X; y up from the base ring).
 // Each fills the batch and returns where its muzzle is: {tip, muzzleHeight}.
 const TURRET_KITS={
   lance(tb,r) {
-    // PLACEHOLDER (art draft pending).
-    tb.panel('trim',0,0,r*1.6,r*1.5,.08,.9,.2);
-    tb.panel('machinery',r*1.6+.4,0,r*2.2,.7,.4,.6,.06);
-    return {tip:r*2.7+.4,muzzleHeight:.7};
+    // A single coil-wrapped accelerator, much heavier than the point-defence guns.
+    tb.panel('machinery',-.35,0,r*1.95,r*1.6,.02,.65,.2);
+    tb.panel('trim',-.4,0,r*1.7,r*1.45,.81,.65,.18);
+    tb.panel('paint',-.85,0,r*1.12,r*1.25,1.63,.3,.12);
+    const y=1.18, tip=11.8;
+    tb.add('machinery',cylinder(.48,.62,10.2),6.5,y,0);
+    for (const x of [2.2,4.15,6.1,8.05,10]) {
+      tb.add('trim',cylinder(.81,.81,.42),x,y,0);
+      tb.add('machinery',cylinder(.88,.88,.14),x-.16,y,0);
+    }
+    for (const s of [-1,1]) {
+      tb.panel('machinery',3.2,s*.88,4.1,.38,.9,.62,.07);
+      tb.panel('glow',1.9,s*r*.61,1.2,.15,1.62,.06,.02);
+    }
+    tb.add('trim',cylinder(.72,.72,.65),11.35,y,0);
+    tb.add('machinery',cylinder(.57,.57,.11),11.72,y,0);
+    tb.add('glow',cylinder(.4,.4,.07),tip,y,0);
+    return {tip:tip+.04,muzzleHeight:y};
   },
   rail(tb,r) {
-    // PLACEHOLDER (art draft pending).
-    tb.panel('trim',0,0,r*1.6,r*1.5,.08,.8,.2);
-    for (const s of [-1,1]) tb.panel('machinery',r*1.4+.4,s*.5,r*1.8,.45,.35,.5,.05);
-    return {tip:r*2.3+.4,muzzleHeight:.6};
+    // Two broad rails keep a visible dark slot; there is no tube joining their tips.
+    tb.panel('machinery',-.45,0,r*1.95,r*1.65,.03,.6,.18);
+    tb.panel('trim',-.7,0,r*1.65,r*1.46,.79,.85,.2);
+    tb.panel('paint',-1.05,0,r*1.16,r*1.2,1.85,.23,.1);
+    for (const s of [-1,1]) {
+      tb.panel('machinery',5.15,s*.95,8.1,.95,.77,.63,.08);
+      tb.panel('trim',5.05,s*1.15,7.8,.5,1.55,.24,.055);
+      tb.panel('glow',6.6,s*.51,4.4,.12,1.44,.07,.02);
+      for (const x of [2.3,4.4,6.5]) tb.panel('paint',x,s*1.13,.42,.62,1.86,.12,.04);
+      tb.panel('trim',8.98,s*.96,.4,1.08,.74,.75,.08);
+    }
+    return {tip:9.22,muzzleHeight:1.17};
   },
 };
 
@@ -285,9 +395,22 @@ const TURRET_KITS={
  * mount, y from the base ring's top): scorched, torn plate and a snapped barrel root.
  */
 function stump(sb,r,weapon) {
-  // PLACEHOLDER (art draft pending).
-  sb.add('scorch',plate(Array.from({length:9},(_,i)=>radial(r*(.75+.25*((i*7)%3)/2),i*TAU9)),.02,.3,.06));
-  sb.panel('scorch',r*.6,0,r*.8,r*.35,.2,.25,.04);
+  // Separate teeth leave the centre hollow; a dark solid disc reads as a live cap.
+  sb.add('scorch',new THREE.CylinderGeometry(r*.55,r*.65,.13,9),0,.04,0);
+  for (let i=0;i<9;i++) {
+    const a=i*TAU9, outer=r*(i%3===0?1.04:.87), half=TAU9*.42;
+    sb.add('scorch',plate([radial(r*.52,a-half),radial(outer,a-half),radial(outer*.78,a),
+      radial(outer,a+half),radial(r*.46,a+half)],.02,.18+(i%3)*.06,.035));
+  }
+  const heavy=weapon==='lance'||weapon==='rail';
+  sb.add('scorch',plate([[-r*.15,-r*.22],[r*.85,-r*.22],[r*.61,0],[r*.92,r*.13],[-r*.15,r*.25]],.16,heavy?.36:.22,.035));
+  sb.add('machinery',plate([[r*.6,-r*.2],[r*.84,-r*.21],[r*.63,-r*.06],[r*.8,r*.12],[r*.57,r*.17]],heavy?.54:.4,.045,.015));
+  for (const s of [-1,1]) {
+    const g=plate([[-r*.65,0],[-r*.2,-s*r*.14],[r*.12,s*r*.16],[-r*.42,s*r*.29]],0,.08,.02);
+    g.rotateX(s*.42);g.rotateZ(-s*.18);
+    sb.add('scorch',g,0,.25,s*r*.62);
+    sb.add('trim',plate([[-r*.63,s*r*.63],[-r*.18,s*r*.56],[-r*.31,s*r*.65]],.39,.035,.01));
+  }
 }
 const TAU9=Math.PI*2/9;
 
@@ -301,14 +424,27 @@ function bayFrame(name,h,bay) {
     const s=Math.sign(-bay.pos[1]), outer=Math.abs(bay.pos[1]), inner=3.35;
     return {x:bay.pos[0],z:s*(inner+outer)/2,angle:0,y:-.76,size:[10.7,outer-inner]};
   }
-  const a=Math.atan2(bay.dir[1],bay.dir[0]), depth=name==='citadel'?5:3;
-  return {x:bay.pos[0]-bay.dir[0]*depth/2,z:-(bay.pos[1]-bay.dir[1]*depth/2),angle:a,y:1.3,
-    size:name==='citadel'?[depth,7]:[depth,5]};
+  const a=Math.atan2(bay.dir[1],bay.dir[0]), depth=name==='citadel'?CITADEL_BAY.depth:3;
+  return {x:bay.pos[0]-bay.dir[0]*depth/2,z:-(bay.pos[1]-bay.dir[1]*depth/2),angle:a,
+    y:name==='citadel'?CITADEL_BAY.y:1.3,size:[depth,name==='citadel'?CITADEL_BAY.width:5]};
 }
 /** A destroyed bay: a dark, burnt-out mouth of length l (along the launch) and width w. */
 function bayHole(hb,l,w) {
-  // PLACEHOLDER (art draft pending).
-  hb.panel('scorch',0,0,l,w,0,.12,.05);
+  hb.panel('scorch',0,0,l,w,.02,.25,.04);
+  for (const s of [-1,1]) {
+    hb.add('scorch',plate([[-l*.5,s*w*.54],[-l*.29,s*w*.52],[-l*.18,s*w*.3],
+      [-l*.04,s*w*.49],[l*.16,s*w*.36],[l*.33,s*w*.51],[l*.5,s*w*.46],
+      [l*.5,s*w*.61],[-l*.5,s*w*.61]],.17,.23,.035));
+    // Wreck caps cover the permanent edge lights: these bays have no live node to hide.
+    const citadel=Math.abs(l-CITADEL_BAY.depth)<.01, y=citadel?3.35:2.43;
+    if (citadel) hb.panel('scorch',0,s*(w/2+.12),l-.65,.54,y,.12,.04);
+    else hb.panel('scorch',s*(l/2-.35),0,.55,w-.2,y,.12,.04);
+    hb.panel('scorch',0,s*(w/2-.08),l-.4,.46,citadel?3.15:2.4,.12,.04);
+    const g=plate([[-l*.5,-w*.3],[-l*.35,-w*.28],[-l*.4,w*.04],[-l*.3,w*.18],[-l*.5,w*.28]],0,.12,.025);
+    g.rotateZ(s*.2);
+    hb.add('scorch',g,s*l*.03,.55,s*w*.09,s<0?Math.PI:0);
+    hb.add('machinery',plate([[s*l*.42,-w*.26],[s*l*.35,-w*.23],[s*l*.39,w*.02]],.81,.045,.015));
+  }
 }
 
 // Keyed by look (spec.model ?? spec.role). `transport` is the role's default look.
@@ -356,11 +492,14 @@ function largeMarkings(b,kind,team) {
     stripe(-8.35,0,engineTop+.015*.65,7.1,.9);
     insignia(b,team,8.25,0,cabTop+.08*1.05*.65,1.05);
   } else if (kind==='citadel') {
-    // PLACEHOLDER (art draft pending).
-    insignia(b,team,0,0,2.72,5);
+    for (const s of [-1,1]) stripe(s*35,0,2.87,5.3,2.5);
+    for (const s of [-1,1]) stripe(0,s*9,3.65,2.6,2.7);
+    insignia(b,team,0,0,4.28,6);
   } else if (kind==='dreadnought') {
-    // PLACEHOLDER (art draft pending).
-    insignia(b,team,-22,0,2.2,2.6);
+    for (const s of [-1,1]) stripe(-9,s*5.65,2.56,3.5,2);
+    stripe(-20.5,0,2.08,4.1,1.2);
+    // Keep the badge on the bridge, clear of the aft gun's long rest-bearing rails.
+    insignia(b,team,-2.8,0,5.3,1.95);
   } else {
     for (const s of [-1,1]) stripe(0,s*17.2,1.99,6.6,3);
     insignia(b,team,0,0,2.72,3.6);
@@ -464,6 +603,8 @@ const STROBES={
   carrier:[[19.3,1.6,4.6],[19.3,1.6,-4.6],[-18.9,1.6,6.6],[-18.9,1.6,-6.6],[-10.6,3.2,0]],
   freighter:[[12.2,2.2,0],[-12.8,1.6,4.2],[-12.8,1.6,-4.2]],
   station:[[21.4,2.2,0],[-21.4,2.2,0],[0,2.2,21.4],[0,2.2,-21.4]],
+  citadel:Array.from({length:6},(_,i)=>{const [x,z]=radial(48.5,i*Math.PI/3);return [x,2.9,z];}),
+  dreadnought:[[25.2,2.1,2.2],[25.2,2.1,-2.2],[10,3.7,8.8],[10,3.7,-8.8],[-30.6,1.9,6.6],[-30.6,1.9,-6.6],[-2.8,5.7,0]],
 };
 STROBES.transport=STROBES.freighter;
 

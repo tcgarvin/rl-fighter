@@ -57,6 +57,8 @@ const SHOTS = {
   "hardpoints&close=110": [1.0, 7.05],
   // Lances leave at 0.2, 2.4; rails at 0.5, 1.1, 2.1; a lance lands about 0.8 s later.
   lance: [0.45, 0.75, 2.75],
+  "wreckage&close=90": [2],
+  "citadelwreck&close=70": [0.85, 6],
   "lance&close=160": [0.47, 0.78],
 };
 const only = process.env.RLF_ART_SCENES?.split(",").filter(Boolean);

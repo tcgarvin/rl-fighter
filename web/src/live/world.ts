@@ -58,7 +58,7 @@ const HULK_EMBER_FLOOR = 0.35;
 const HULK_COOL = 8;
 const BEAM_TTL = 0.06;
 // Weapon ids are assets/weapons.yaml file order (SIM_SPEC §4.2); `Fire` carries one.
-const WEAPON_NAMES = ["gauss", "laser", "flak", "torpedo"];
+const WEAPON_NAMES = ["gauss", "laser", "flak", "torpedo", "rail", "lance"];
 // The defenders' jump-out at the end of a convoy the escort won: after a beat, one
 // ship every QUICK_JUMP_GAP seconds, freighters first.
 const QUICK_JUMP_DELAY = 0.7;
@@ -107,8 +107,14 @@ interface HullModel {
   /** One per thruster, in the spec's order: its mount, plume size, smoothed throttle, and whether it is a main engine. */
   thrusters: Array<{ node: THREE.Object3D; size: number; level: number; main: boolean }>;
   setThrottles(throttles: ArrayLike<number>, dt: number): void;
+  /** Show turret or bay `index` (the spec's order) as a stump / dark hole, or whole again. */
+  setHardpointDestroyed(kind: HardpointKind, index: number, destroyed?: boolean): boolean;
+  hardpointDestroyed(kind: HardpointKind, index: number): boolean;
   dispose(): void;
 }
+
+/** A capital hull's destroyable parts (v10): its turrets and its launch bays. */
+export type HardpointKind = "turret" | "bay";
 
 interface DamageFx {
   update(hpFraction: number, visible: boolean, dt: number): void;
@@ -167,6 +173,7 @@ interface Effects {
   attachDamage(model: HullModel): DamageFx;
   trail(e: { team: number; width: number }): Trail;
   beacons(model: HullModel, team: number): Beacons;
+  destroyHardpoint(e: { model: HullModel; kind: HardpointKind; index: number; team?: number; burst?: boolean }): boolean;
   update(dt: number): void;
 }
 
@@ -410,6 +417,21 @@ export class World {
   setShowOrders(on: boolean): void {
     this.showOrders = on;
     if (!on) this.effects.drawOrders([]);
+  }
+
+  /**
+   * Show turret or bay `index` of ship `i` shot off (v10 hardpoints, in the hull spec's
+   * order): its model swaps the gun for a scorched stump or the bay mouth for a dark
+   * hole, and the wound smokes or sparks from then on. `burst` plays the moment of
+   * destruction; pass false for one already lost when the match was joined. Calling it
+   * again for a hardpoint already down does nothing, so it may be driven every tick
+   * from the sim's alive bits. Returns whether anything changed.
+   */
+  setHardpointDestroyed(i: number, kind: HardpointKind, index: number, burst = true): boolean {
+    const v = this.views[i];
+    const ship = this.match?.ships[i];
+    if (!v || !ship) return false;
+    return this.effects.destroyHardpoint({ model: v.model, kind, index, team: ship.team, burst });
   }
 
   /** Bring the camera in on ship `i` and follow it; -1 goes back to framing the fleet. */

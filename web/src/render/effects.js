@@ -254,7 +254,7 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
   // that the smoke, fire and vent looks are shaded from (vents use heat for lateral
   // lag / width). Vents use a world axis with a view-facing width, never an "up".
   function batch(geo, cap, billboard = false, smoke = false, additive = true, flame = false, trace = 0, ringWidth = 0, ringMin = .022, opts = {}) {
-    const { minPx = 0, fire = false } = opts;
+    const { minPx = 0, fire = false, floorPx = trace === 1 ? 2.8 : .95 } = opts;
     const shaded = smoke || fire || flame;
     const rgba = new T.InstancedBufferAttribute(new Float32Array(cap * 4), 4).setUsage(T.DynamicDrawUsage);
     geo.setAttribute('tint', rgba);
@@ -280,7 +280,7 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
         vVentSide=dot(side.xy,across)/max(length(side.xy),.0001);` : ''}
         float width=length(instanceMatrix[1].xyz);
         float pixelWorld=2.*max(1.,-center.z)/(projectionMatrix[1][1]*viewportHeight);
-        width=max(width,pixelWorld*${trace === 1 ? '2.8' : '.95'});
+        width=max(width,pixelWorld*${floorPx.toFixed(2)});
         ${flame ? 'center.xyz+=axis*position.x; center.xy+=across*position.y*width;' : 'center.xy+=axis.xy*position.x+across*position.y*width;'}
         gl_Position=projectionMatrix*center;` : ringWidth ? `float radius=length(position.xz);
         vec3 rim=position/max(radius,.0001);
@@ -389,6 +389,10 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
   const tracers = batch(new T.PlaneGeometry(1, 1), 1200, false, false, true, false, 1);
   const cores = batch(new T.PlaneGeometry(1, 1), 1200, false, false, true, false, 2);
   const bolts = batch(new T.BoxGeometry(1, 1, 1), 512);
+  // Capital guns' slugs: a wider pixel floor, so a lance or rail shot stays a bold
+  // stroke on a phone's battle-wide view where gauss tracers thin to hairlines.
+  const heavyTracers = batch(new T.PlaneGeometry(1, 1), 128, false, false, true, false, 1, 0, .022, { floorPx: 6 });
+  const heavyCores = batch(new T.PlaneGeometry(1, 1), 128, false, false, true, false, 2, 0, .022, { floorPx: 2.2 });
   // Launch trails (tapered, like tracers) and the commander overlay's hairlines; both
   // keep a minimum pixel width, so they read on a phone at any zoom.
   const trails = batch(new T.PlaneGeometry(1, 1), 256, false, false, true, false, 1);
@@ -843,15 +847,15 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
   function lanceShot(x, z, a, teamIndex) {
     const c=lanceColor[teamIndex] || white, dx=Math.cos(a), dz=-Math.sin(a);
     put(tracers,x-dx*30,1.9,z-dz*30,60,2.2,1,a,c,.22);
-    put(tracers,x-dx*12,2,z-dz*12,26,3.4,1,a,c,.8);
-    put(cores,x-dx*8,2.05,z-dz*8,18,.9,1,a,lanceCore,1);
+    put(heavyTracers,x-dx*12,2,z-dz*12,26,3.4,1,a,c,.8);
+    put(heavyCores,x-dx*8,2.05,z-dz*8,18,.9,1,a,lanceCore,1);
   }
   // The rail: a heavy, fast slug, short and white-hot, with a short warm trail.
   const railColor = shot.map(c => c.clone().lerp(new T.Color(0xffe3b0), .55).multiplyScalar(1.4));
   function railShot(x, z, a, teamIndex) {
     const c=railColor[teamIndex] || white, dx=Math.cos(a), dz=-Math.sin(a);
-    put(tracers,x-dx*6,1.8,z-dz*6,14,1.9,1,a,c,.7);
-    put(cores,x-dx*.8,1.85,z-dz*.8,4.2,.75,1,a,white,1);
+    put(heavyTracers,x-dx*6,1.8,z-dz*6,14,1.9,1,a,c,.7);
+    put(heavyCores,x-dx*.8,1.85,z-dz*.8,4.2,.75,1,a,white,1);
   }
   // ---- Hardpoints shot off (v10) ----
   // A destroyed turret's stump smokes and glints, a destroyed bay sparks and flickers,
@@ -904,8 +908,10 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
         w.smoke+=dt*(1.6+2.5*fresh);
         while(w.smoke>=1) {
           w.smoke--;
-          particle(x+(Math.random()-.5)*s,y+.3,z+(Math.random()-.5)*s,s*(.9+.5*Math.random()),1.8+.8*Math.random(),smokeColor,5,
-            (Math.random()-.5)*1.5,2,(Math.random()-.5)*1.5).gain=.75;
+          // Thin, and drifting off the stump: smoke over a still hull must not hide it.
+          const b=Math.random()*TAU;
+          particle(x+(Math.random()-.5)*s,y+.3,z+(Math.random()-.5)*s,s*(.6+.4*Math.random()),1.8+.8*Math.random(),smokeColor,5,
+            Math.cos(b)*3,2,Math.sin(b)*3).gain=.4;
         }
         w.spark+=dt*(2+6*fresh);
         while(w.spark>=1) {
@@ -923,7 +929,8 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
         w.smoke+=dt*(.8+2*fresh);
         while(w.smoke>=1) {
           w.smoke--;
-          particle(x,y+.3,z,s*(.7+.4*Math.random()),1.6+.8*Math.random(),smokeColor,5,(Math.random()-.5),1.6,(Math.random()-.5)).gain=.6;
+          const b=Math.random()*TAU;
+          particle(x,y+.3,z,s*(.5+.3*Math.random()),1.6+.8*Math.random(),smokeColor,5,Math.cos(b)*2.5,1.6,Math.sin(b)*2.5).gain=.35;
         }
         // Shorting power: irregular showers of sparks, and a fire flickering deep inside.
         w.spark-=dt;
@@ -953,11 +960,13 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
       return true;
     },
     updateProjectiles(projectiles, beams, alpha) {
-      tracers.n=cores.n=0;
+      tracers.n=cores.n=heavyTracers.n=heavyCores.n=0;
       // CSS pixels keep the minimum width stable at phone DPR 1–2 and desktop.
       const height=Math.max(1,renderer.domElement.clientHeight || renderer.domElement.height);
       tracers.mesh.material.uniforms.viewportHeight.value=height;
       cores.mesh.material.uniforms.viewportHeight.value=height;
+      heavyTracers.mesh.material.uniforms.viewportHeight.value=height;
+      heavyCores.mesh.material.uniforms.viewportHeight.value=height;
       for(let i=0;i<Math.min(projectiles.length,1024);i++) {
         const p=projectiles[i], flak=p.kind==='flak';
         const c=(flak?pellet:shot)[p.team] || white, a=Math.atan2(p.vy,p.vx);
@@ -981,7 +990,7 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
         segment(tracers,b.x1,1.6,-b.y1,b.x2,1.6,-b.y2,1.25,c,.42*fade);
         segment(cores,b.x1,1.6,-b.y1,b.x2,1.6,-b.y2,.22,white,.95*fade);
       }
-      finish(tracers);finish(cores);
+      finish(tracers);finish(cores);finish(heavyTracers);finish(heavyCores);
     },
     muzzle(e) {
       const c=shot[e.team] || white, dx=Math.cos(e.angle), dz=-Math.sin(e.angle);

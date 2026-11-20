@@ -221,7 +221,7 @@ function volley(events: Scene["events"], ship: Ship, turret: number, target: () 
 /** Knock out hardpoints on a schedule: [at, ship, kind, index]. */
 function knockouts(events: Scene["events"], list: Array<[number, Ship, "turret" | "bay", number]>): void {
   for (const [at, ship, kind, index] of list) {
-    events.push({ at, run: () => void fx.destroyHardpoint({ model: ship.model, kind, index, team: ship.team === 0 ? 1 : 0 }) });
+    events.push({ at, run: () => void fx.destroyHardpoint({ model: ship.model, kind, index, team: ship.team }) });
   }
 }
 
@@ -231,6 +231,8 @@ interface Scene {
   orders?: (t: number) => Order[];
   /** Extra points to keep in frame (markers), sim metres. */
   frame?: Array<[number, number]>;
+  /** Frame only these points (a close look at part of a big hull), sim metres. */
+  focus?: Array<[number, number]>;
   caption: string;
 }
 
@@ -535,6 +537,34 @@ const SCENES: Record<string, () => Scene> = {
     ]);
     return { ships: [cit, dread, carrier], events, caption: "hardpoints: turrets become stumps, bays dark holes (citadel lance, bays, flak, gauss; dreadnought fore rail, port flak; carrier bay and fore flak)" };
   },
+  // Wreckage up close (?close=90): a dreadnought with every gun shot off, a carrier with
+  // both bays and its fore flak gone, all lost before the scene starts (no bursts).
+  wreckage: () => {
+    const dread = new Ship("dreadnought", 1, 0, 18, 0.1, 0);
+    const carrier = new Ship("carrier", 0, -4, -18, 0.1, 0);
+    const events: Scene["events"] = [];
+    events.push({
+      at: 0,
+      run: () => {
+        for (let i = 0; i < 5; i++) fx.destroyHardpoint({ model: dread.model, kind: "turret", index: i, team: 1, burst: false });
+        for (const [kind, index] of [["bay", 0], ["bay", 1], ["turret", 0]] as const) fx.destroyHardpoint({ model: carrier.model, kind, index, team: 0, burst: false });
+      },
+    });
+    return { ships: [dread, carrier], events, caption: "wreckage: dreadnought with every turret shot off (orange); carrier with both bays and fore flak gone (blue)" };
+  },
+  // One citadel module up close (?close=60): its lance and flak, and the two core bays
+  // either side of it, shot off; the 60 deg module stays whole for comparison.
+  citadelwreck: () => {
+    const cit = new Ship("citadel", 1, 0, 0, 0);
+    const events: Scene["events"] = [];
+    knockouts(events, [
+      [0.2, cit, "turret", 0],
+      [0.5, cit, "turret", 1],
+      [0.8, cit, "bay", 0],
+      [1.1, cit, "bay", 3],
+    ]);
+    return { ships: [cit], events, focus: [[18, 26], [50, -14]], caption: "citadelwreck: the 0 deg module's lance and flak and the bays either side shot off (orange)" };
+  },
   // The capital guns: the citadel's lances and the dreadnought's rails trade fire across
   // 190 m; flak and gauss work on the strike craft between them.
   lance: () => {
@@ -623,6 +653,10 @@ function advance(dt: number): void {
     if (s.hull.length > 50) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) growBounds(bounds, s.x + (dx * s.hull.length) / 2, s.y + (dy * s.hull.beam) / 2);
   }
   for (const [x, y] of current.frame ?? []) growBounds(bounds, x, y);
+  if (current.focus) {
+    Object.assign(bounds, emptyBounds());
+    for (const [x, y] of current.focus) growBounds(bounds, x, y);
+  }
   // Departed ships keep their last spot in frame, so the streak's origin stays put.
   for (const s of current.ships) if (time - s.departAt >= JUMP_OUT_DURATION) growBounds(bounds, s.x, s.y);
   if (current.orders) fx.drawOrders(current.orders(time));

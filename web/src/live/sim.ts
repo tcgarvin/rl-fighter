@@ -325,6 +325,11 @@ export interface ConvoyState {
 export interface ProjectileState {
   slot: number;
   kind: ProjectileKind;
+  /**
+   * The weapon's name (assets/weapons.yaml) when the bridge reports it: v10's rail and
+   * lance are kind "bullet" but drawn with looks of their own (render/effects.js).
+   */
+  weapon?: string;
   team: number;
   owner: number;
   x: number;
