@@ -76,8 +76,8 @@ EXTRAS_ORDER_COL = 7
 NODE = shutil.which("node")
 
 
-# The missions the live page rotates through (``web/src/live/missions.ts``); the
-# station assault (SIM_VERSION 9) plays there only when pinned (?mission=station).
+# The missions every live bundle can stage (``web/src/live/missions.ts``); the station
+# assault (SIM_VERSION 9) joins them, and the rotation, on a v9 bundle.
 LIVE_MISSIONS = tuple(m for m in MISSIONS if m != STATION_ASSAULT)
 
 
@@ -302,9 +302,9 @@ def test_draws_match_the_live_page_s_own_code() -> None:
 
 
 @pytest.mark.skipif(NODE is None, reason="node is not on PATH")
-def test_live_page_stages_the_station_assault_only_when_pinned() -> None:
+def test_live_page_rotates_the_station_assault_on_v9() -> None:
     """The page's ``missions.ts``: a v9 catalogue can stage the station assault, the
-    rotation never picks it, a pin does, and its roster keeps the sim's bombers though
+    rotation picks it there (never on v8), a pin does, and its roster keeps the sim's bombers though
     the champion is certified only for the v1 hulls."""
     info = load_catalogue(Path(ASSETS))["info"]
     payload = {
@@ -324,12 +324,14 @@ def test_live_page_stages_the_station_assault_only_when_pinned() -> None:
     const { info, rules, rosters } = JSON.parse(text);
     const v9 = availableMissions(9, info, () => true);
     const rotated = new Set(Array.from({ length: 64 }, (_, seed) => missionFor(seed, v9, null)));
+    const rotatedV8 = new Set(Array.from({ length: 64 }, (_, seed) => missionFor(seed, availableMissions(8, info, () => true), null)));
     const roster = missionRoster("station_assault", { kind: "draft" }, rules, info, () => 0.3, rosters);
     console.log(JSON.stringify({
       v8: availableMissions(8, info, () => true),
       v9,
       undrawable: availableMissions(9, info, (h) => h !== "bomber"),
       rotated: [...rotated].sort(),
+      rotated_v8: [...rotatedV8].sort(),
       pinned: missionFor(7, v9, parseMission("station")),
       fleets: roster.fleets,
     }));
@@ -354,7 +356,8 @@ def test_live_page_stages_the_station_assault_only_when_pinned() -> None:
     assert STATION_ASSAULT not in page["v8"]
     assert page["v9"] == [*LIVE_MISSIONS, STATION_ASSAULT]
     assert STATION_ASSAULT not in page["undrawable"]
-    assert page["rotated"] == sorted(LIVE_MISSIONS)
+    assert page["rotated"] == sorted([*LIVE_MISSIONS, STATION_ASSAULT])
+    assert page["rotated_v8"] == sorted(LIVE_MISSIONS)
     assert page["pinned"] == STATION_ASSAULT
     sim_default = rlf_sim.mission_rosters(STATION_ASSAULT)[0]["fleets"]
     assert page["fleets"] == [list(team) for team in sim_default]
