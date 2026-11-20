@@ -643,6 +643,47 @@ fn a_scripted_v10_assault_destroys_hardpoints_and_ends() {
 }
 
 #[test]
+fn a_citadel_flown_through_action_rows_flies_as_the_script() {
+    // The bindings and the web send action rows (six turret slots); stage 0 gives the
+    // citadel's other six turrets the script's heads, so a row-driven match is the
+    // script-driven one bit for bit.
+    let cat = asset_catalogue();
+    let cfg = citadel_cfg(&cat, 61);
+    let mut whole = Match::new(&cat, &cfg).unwrap();
+    let mut rows = Match::new(&cat, &cfg).unwrap();
+    let mut row = [0i8; sim::actions::ACTION_WIDTH];
+    let mut extra_fired = 0;
+    for _ in 0..2400 {
+        if whole.phase() != MatchPhase::Running {
+            break;
+        }
+        for i in 0..whole.ships().len() {
+            let a = scripted::act(&whole, &cat, i as u8);
+            whole.set_action(i as u8, a);
+            scripted::act(&rows, &cat, i as u8).to_row(&mut row);
+            rows.set_action(i as u8, sim::actions::ShipAction::from_row(&row));
+        }
+        whole.step(&cat);
+        rows.step(&cat);
+        assert_eq!(
+            whole.state_hash(),
+            rows.state_hash(),
+            "tick {}",
+            whole.tick()
+        );
+        extra_fired += whole
+            .events()
+            .iter()
+            .filter(|e| matches!(e, Event::Fire { ship: 0, turret, .. } if usize::from(*turret) >= ACTION_TURRETS))
+            .count();
+    }
+    assert!(
+        extra_fired > 0,
+        "the citadel's turrets past the sixth fired"
+    );
+}
+
+#[test]
 fn the_action_row_keeps_six_turret_slots() {
     assert_eq!(ACTION_TURRETS, 6);
     assert_eq!(sim::actions::ACTION_WIDTH, 21);
