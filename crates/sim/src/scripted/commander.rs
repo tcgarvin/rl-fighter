@@ -36,7 +36,11 @@
 //!   scrambles while attackers are near its station; squad 0 **defends** the station,
 //!   squad 1 **intercepts** bombers first (`station_defence`). The attacker launches
 //!   everything, gathers its wing on the carrier, then sends the bombers at the station
-//!   with the rest **defending** the lead bomber (`station_attack`).
+//!   with the rest **defending** the lead bomber (`station_attack`). v10: an attacking
+//!   dreadnought waits at a staging point outside the station's reach while the wing
+//!   gathers and advances with the strike (its waypoint unset, its script closes in);
+//!   the defender's interceptors go for it once no strike craft and no carrier is left.
+//!   The dreadnought is never in a squad.
 //! - **Deathmatch.** Two squads (the fleet split in slot order): squad 0 attacks
 //!   the enemy nearest it, squad 1 the most damaged enemy within reach. The
 //!   scripted pilots do not follow a scripted deathmatch commander
@@ -47,7 +51,7 @@ use crate::command::{
 };
 use crate::data::Catalogue;
 use crate::math::Vec2;
-use crate::mission::{ConvoyEscort, JumpState, Mission, is_capital_ship};
+use crate::mission::{ConvoyEscort, JumpState, Mission, is_capital_ship, is_line};
 use crate::state::{Attach, Match, NONE, Ship, ShipIdx};
 
 /// Strike craft a carrier keeps in space or on their way at the start.
@@ -126,6 +130,9 @@ pub const STATION_ALARM_RADIUS: f32 = 320.0;
 /// Station assault: the attackers hold at their carrier until every strike craft is
 /// launched and on the field, or until this tick (40 s), then go in together.
 pub const ASSAULT_TICKS: u32 = 1200;
+/// v10: until the assault goes, the attacker's dreadnought holds this far (m) beyond the
+/// station's longest weapon range, on its own bearing from the station.
+pub const LINE_STAGING_MARGIN: f32 = 40.0;
 
 const DEFEND: usize = 0;
 const STRIKE: usize = 1;
@@ -382,11 +389,22 @@ fn station_defence(m: &Match, cat: &Catalogue, out: &mut Vec<Command>) {
             .map_or(Order::None, attack)
     } else if foe != NONE && m.ships[usize::from(foe)].active() {
         attack(usize::from(foe))
+    } else if let Some(line) = line_ship(m, cat, 1) {
+        // v10: the dreadnought, once its carrier and wing are gone.
+        attack(line)
     } else {
         Order::None
     };
     set_squad(m, 0, DEFEND, defend, defend_order, out);
     set_squad(m, 0, INTERCEPT, intercept, intercept_order, out);
+}
+
+/// v10: `team`'s active line ship (the dreadnought), the first in slot order.
+fn line_ship(m: &Match, cat: &Catalogue, team: u8) -> Option<usize> {
+    (0..m.ships.len()).find(|&s| {
+        let ship = &m.ships[s];
+        ship.team == team && ship.active() && is_line(cat.hull(ship.hull))
+    })
 }
 
 /// Station assault, the attacker (v9). *Launches*: one per bay per slow tick until the
@@ -465,6 +483,23 @@ fn station_attack(m: &Match, cat: &Catalogue, out: &mut Vec<Command>) {
             Vec2::new(HOME_FRAC * m.cfg.arena_radius, leg * PATROL_Y)
         };
         set_waypoint(m, own, goal, out);
+    }
+    // v10: the dreadnought stages outside the station's reach until the assault goes,
+    // then its waypoint is unset and its script closes on the station.
+    if let Some(line) = line_ship(m, cat, 1) {
+        let current = m.command.waypoints[line];
+        if go {
+            if current != Waypoint::Unset {
+                out.push(Command::Waypoint {
+                    ship: line as ShipIdx,
+                    waypoint: Waypoint::Unset,
+                });
+            }
+        } else {
+            let reach = crate::order::hull_reach(cat, cat.hull(m.ships[station].hull));
+            let from = (m.ships[line].pos - at).normalized();
+            set_waypoint(m, line, at + from * (reach + LINE_STAGING_MARGIN), out);
+        }
     }
 }
 

@@ -24,10 +24,19 @@
 //!   `ARRIVE_RADIUS` it cuts the mains and holds heading (no orbiting a point it
 //!   overshot). It never evades, never reacts to threats, keeps the balanced power
 //!   split and has no guns.
+//! - **Dreadnought** (v10, role `line`): with a waypoint (the scripted commander's
+//!   staging point) it flies there as the carrier does. Otherwise it closes on the
+//!   nearest enemy capital ship, nose on until it is `LINE_CLOSE_MARGIN` beyond its
+//!   standoff (`LINE_RANGE_FRAC` × its main guns' range), then holds it
+//!   `LINE_OFF_BOW` off the bow (the side that needs the smaller turn), so the armoured
+//!   bow faces the enemy and both rails bear (the aft rail cannot fire within 30° of
+//!   the bow); inside the standoff it cuts the mains and coasts. Its main guns aim at
+//!   the enemy's hardpoints (`Aim::Hardpoints`), flak and gauss as the carrier's.
 
 use super::{
-    Manoeuvre, aim_turrets, allocate_thrusters, choose_power, levels_to_throttle_heads,
-    lookahead_ticks, nearest_enemy, predict, projected_levels, weapons_multiplier_after_slew,
+    Aim, Manoeuvre, aim_turrets, allocate_thrusters, choose_power, is_main_gun,
+    levels_to_throttle_heads, lookahead_ticks, nearest_enemy, predict, projected_levels,
+    weapons_multiplier_after_slew,
 };
 use crate::DT;
 use crate::actions::ShipAction;
@@ -75,6 +84,13 @@ pub const RCS_ON_REQUEST: f32 = 0.4;
 /// The mains come on below `want − MAIN_HYSTERESIS` (m/s) and, once on, stay on up to
 /// `want`.
 pub const MAIN_HYSTERESIS: f32 = 0.5;
+/// v10, the dreadnought: it stands off at this fraction of its main guns' range from
+/// the enemy capital ship it fights.
+pub const LINE_RANGE_FRAC: f32 = 0.8;
+/// It holds that ship this far off the bow (rad, 40°; the plan's 35-45°).
+pub const LINE_OFF_BOW: f32 = 0.698_131_7;
+/// Beyond the standoff plus this (m) it closes nose on, at full speed.
+pub const LINE_CLOSE_MARGIN: f32 = 120.0;
 
 fn turn_torque(me: &Ship, heading: f32) -> f32 {
     let err = wrap_angle(heading - me.heading);
@@ -168,36 +184,68 @@ fn carrier_torque(me: &Ship, hull: &HullDef, heading: f32, rcs_on: bool) -> f32 
     }
 }
 
-/// The carrier pilot's action (module docs).
-pub(crate) fn carrier(m: &Match, cat: &Catalogue, me_now: &Ship, hull: &HullDef) -> ShipAction {
-    let ahead = lookahead_ticks(me_now);
-    let me = &predict(me_now, ahead, true);
-    let mains_on = firing(m, me_now, hull, is_main);
-    let rcs_on = firing(m, me_now, hull, |t| !is_main(t));
+/// The mains request of a capital ship `dist` from where it is going, with its nose
+/// wanted on `heading`, that should come to rest `stop` short of it: on (`+x`) while
+/// it roughly faces `heading` and is slower than the approach speed (`APPROACH_GAIN`
+/// per metre beyond `stop`, capped), with the `MAIN_HYSTERESIS` band; else off.
+fn approach_force(
+    me: &Ship,
+    hull: &HullDef,
+    dist: f32,
+    stop: f32,
+    heading: f32,
+    mains_on: bool,
+) -> Vec2 {
+    let want = (APPROACH_GAIN * (dist - stop)).min(hull.speed_cap);
+    let facing = wrap_angle(heading - me.heading).abs() < BURN_CONE;
+    let below = if mains_on {
+        want
+    } else {
+        want - MAIN_HYSTERESIS
+    };
+    // At cruise the soft speed cap holds the speed, so the mains stay lit rather than
+    // pulse.
+    let cruise = want >= hull.speed_cap;
+    if facing && (cruise || forward_speed(me) < below) {
+        Vec2::X
+    } else {
+        Vec2::ZERO
+    }
+}
+
+/// The plan toward the ship's waypoint, if it has one (the carrier's flying): nose on
+/// the waypoint and `approach_force` until within `ARRIVE_RADIUS`, then hold heading
+/// and coast. `None` without a waypoint.
+fn waypoint_plan(m: &Match, me: &Ship, hull: &HullDef, mains_on: bool) -> Option<Manoeuvre> {
+    let Waypoint::At(goal) = m.command.waypoints[usize::from(me.slot)] else {
+        return None;
+    };
     let mut plan = Manoeuvre {
         force_body: Vec2::ZERO,
         heading: me.heading,
     };
-    if let Waypoint::At(goal) = m.command.waypoints[usize::from(me.slot)] {
-        let rel = goal - me.pos;
-        let dist = rel.length();
-        if dist > ARRIVE_RADIUS {
-            plan.heading = rel.angle();
-            let want = (APPROACH_GAIN * (dist - ARRIVE_RADIUS)).min(hull.speed_cap);
-            let facing = wrap_angle(plan.heading - me.heading).abs() < BURN_CONE;
-            let below = if mains_on {
-                want
-            } else {
-                want - MAIN_HYSTERESIS
-            };
-            // At cruise the soft speed cap holds the speed, so the mains stay lit
-            // rather than pulse.
-            let cruise = want >= hull.speed_cap;
-            if facing && (cruise || forward_speed(me) < below) {
-                plan.force_body = Vec2::X;
-            }
-        }
+    let rel = goal - me.pos;
+    let dist = rel.length();
+    if dist > ARRIVE_RADIUS {
+        plan.heading = rel.angle();
+        plan.force_body = approach_force(me, hull, dist, ARRIVE_RADIUS, plan.heading, mains_on);
     }
+    Some(plan)
+}
+
+/// The shared tail of the carrier and the dreadnought: the arena turn-back overrides
+/// `plan`, then the turn profile, the levels, the power split and the turrets (`aim`).
+#[allow(clippy::too_many_arguments)]
+fn capital_tail(
+    m: &Match,
+    cat: &Catalogue,
+    me_now: &Ship,
+    me: &Ship,
+    hull: &HullDef,
+    mut plan: Manoeuvre,
+    rcs_on: bool,
+    aim: Aim,
+) -> ShipAction {
     if me.pos.length() > ARENA_TURN_BACK * m.cfg.arena_radius {
         plan = Manoeuvre {
             force_body: Vec2::X,
@@ -215,8 +263,85 @@ pub(crate) fn carrier(m: &Match, cat: &Catalogue, me_now: &Ship, hull: &HullDef)
         .map_or(f32::INFINITY, |e| (e.pos - me.pos).length());
     action.power = choose_power(m, cat, me, hull, dist);
     let p_w = weapons_multiplier_after_slew(me, hull, action.power);
-    aim_turrets(m, cat, me, hull, p_w, ahead, true, &mut action);
+    aim_turrets(
+        m,
+        cat,
+        me,
+        hull,
+        p_w,
+        lookahead_ticks(me_now),
+        aim,
+        &mut action,
+    );
     action
+}
+
+/// The carrier pilot's action (module docs).
+pub(crate) fn carrier(m: &Match, cat: &Catalogue, me_now: &Ship, hull: &HullDef) -> ShipAction {
+    let ahead = lookahead_ticks(me_now);
+    let me = &predict(me_now, ahead, true);
+    let mains_on = firing(m, me_now, hull, is_main);
+    let rcs_on = firing(m, me_now, hull, |t| !is_main(t));
+    let hold = Manoeuvre {
+        force_body: Vec2::ZERO,
+        heading: me.heading,
+    };
+    let plan = waypoint_plan(m, me, hull, mains_on).unwrap_or(hold);
+    capital_tail(m, cat, me_now, me, hull, plan, rcs_on, Aim::ThreatsFirst)
+}
+
+/// The range of `hull`'s main guns (`scripted::is_main_gun`), else of its longest
+/// weapon; 0 without turrets.
+pub fn main_gun_range(cat: &Catalogue, hull: &HullDef) -> f32 {
+    let range = |main: bool| {
+        hull.turrets
+            .iter()
+            .map(|t| cat.weapon(t.weapon))
+            .filter(|w| !main || is_main_gun(w))
+            .map(|w| w.range)
+            .fold(0.0, f32::max)
+    };
+    let main = range(true);
+    if main > 0.0 { main } else { range(false) }
+}
+
+/// The dreadnought pilot's action (v10, module docs).
+pub(crate) fn dreadnought(m: &Match, cat: &Catalogue, me_now: &Ship, hull: &HullDef) -> ShipAction {
+    let ahead = lookahead_ticks(me_now);
+    let me = &predict(me_now, ahead, true);
+    let mains_on = firing(m, me_now, hull, is_main);
+    let rcs_on = firing(m, me_now, hull, |t| !is_main(t));
+    let mut plan = Manoeuvre {
+        force_body: Vec2::ZERO,
+        heading: me.heading,
+    };
+    if let Some(p) = waypoint_plan(m, me, hull, mains_on) {
+        plan = p;
+    } else if let Some(foe) =
+        nearest_enemy(m, cat, me.team, me.pos, f32::INFINITY, HullDef::is_capital)
+    {
+        let foe = predict(foe, ahead, false);
+        let rel = foe.pos - me.pos;
+        let dist = rel.length();
+        let standoff = LINE_RANGE_FRAC * main_gun_range(cat, hull);
+        let bearing = rel.angle();
+        plan.heading = if dist > standoff + LINE_CLOSE_MARGIN {
+            bearing
+        } else {
+            // The enemy on the port or the starboard bow, whichever is the smaller turn.
+            let port = bearing - LINE_OFF_BOW;
+            let starboard = bearing + LINE_OFF_BOW;
+            if wrap_angle(port - me.heading).abs() <= wrap_angle(starboard - me.heading).abs() {
+                port
+            } else {
+                starboard
+            }
+        };
+        if dist > standoff {
+            plan.force_body = approach_force(me, hull, dist, standoff, plan.heading, mains_on);
+        }
+    }
+    capital_tail(m, cat, me_now, me, hull, plan, rcs_on, Aim::Hardpoints)
 }
 
 /// The transport pilot's action (module docs): cruise at the waypoint, hold heading.

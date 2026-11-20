@@ -12,7 +12,7 @@ use crate::data::{DataError, life_ticks};
 use crate::math::Vec2;
 
 pub use crate::data::hull::MAX_ARMOUR_ARCS;
-pub use crate::state::{MAX_BAYS, MAX_REACTION_TICKS, MAX_THRUSTERS, MAX_TURRETS};
+pub use crate::state::{ACTION_TURRETS, MAX_BAYS, MAX_REACTION_TICKS, MAX_THRUSTERS, MAX_TURRETS};
 /// Rule 3: largest allowed `bound_radius`, metres.
 pub const MAX_BOUND_RADIUS: f32 = 60.0;
 /// Rule 4: accepted range for authored direction lengths before renormalising.
@@ -79,6 +79,45 @@ pub(crate) fn validate_hull(
     check_reaction(&mut e, raw);
     check_armour(&mut e, raw);
     check_impact(&mut e, raw);
+    check_hardpoints(&mut e, raw);
+}
+
+/// Rule 14 (v10): hardpoints and turret slots. A turret's or bay's `hp` is finite and
+/// `>= 0` (0: not a hardpoint) and its `hit_radius` finite and `> 0`; only a capital
+/// hull (role `carrier`, `transport` or `line`, or any `static` hull) may give a mount
+/// hp, or carry more than `ACTION_TURRETS` turrets: a strike craft is flown through
+/// the action row, which has that many turret slots.
+fn check_hardpoints(e: &mut HullErrors, raw: &RawHull) {
+    let capital = crate::data::hull::is_capital_role(&raw.role, raw.is_static);
+    let mounts = raw
+        .turrets
+        .iter()
+        .map(|t| (&t.id, t.hp, t.hit_radius))
+        .chain(raw.bays.iter().map(|b| (&b.id, b.hp, b.hit_radius)));
+    for (id, hp, hit_radius) in mounts {
+        if !(hp.is_finite() && hp >= 0.0) {
+            e.push(format!(
+                "rule 14: {id} hp must be finite and >= 0, got {hp}"
+            ));
+        }
+        if !(hit_radius.is_finite() && hit_radius > 0.0) {
+            e.push(format!(
+                "rule 14: {id} hit_radius must be finite and > 0, got {hit_radius}"
+            ));
+        }
+        if hp > 0.0 && !capital {
+            e.push(format!(
+                "rule 14: {id} has hp but role {:?} is not a capital ship (strike craft take whole-ship damage)",
+                raw.role
+            ));
+        }
+    }
+    if raw.turrets.len() > ACTION_TURRETS && !capital {
+        e.push(format!(
+            "rule 14: {} turrets exceeds ACTION_TURRETS = {ACTION_TURRETS} for a strike craft",
+            raw.turrets.len()
+        ));
+    }
 }
 
 fn check_name(e: &mut HullErrors, dir_name: &str, raw: &RawHull) {

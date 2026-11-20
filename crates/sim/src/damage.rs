@@ -6,7 +6,7 @@
 
 use crate::DT;
 use crate::TICK_HZ;
-use crate::data::{Catalogue, HullDef, armour_mult, impact_mult};
+use crate::data::{Catalogue, HullDef, WeaponDef, armour_mult, impact_mult};
 use crate::events::{Event, HitRecord};
 use crate::math::{Vec2, wrap_angle};
 use crate::power::{self, SHIELDS};
@@ -27,6 +27,104 @@ pub fn can_hit(shooter_team: u8, shooter: &Ship, target: &Ship) -> bool {
     target.active() && target.team != shooter_team && !same_entity(shooter, target)
 }
 
+/// [`can_hit`] for a shot of weapon `w` (v10): a `capital_only` weapon hits capital
+/// ships only (`HullDef::is_capital`); its shots pass through strike craft.
+#[inline]
+pub fn can_hit_with(
+    cat: &Catalogue,
+    w: &WeaponDef,
+    shooter_team: u8,
+    shooter: &Ship,
+    target: &Ship,
+) -> bool {
+    can_hit(shooter_team, shooter, target)
+        && (!w.capital_only || cat.hull(target.hull).is_capital())
+}
+
+/// A turret or a bay of a ship (v10 hardpoints).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Hardpoint {
+    Turret(usize),
+    Bay(usize),
+}
+
+/// v10 (SIM_SPEC §5.4): the live hardpoint of `ship` a hull hit at world `point`
+/// lands on: the nearest whose world mount lies strictly within its `hit_radius` of
+/// the point (ties: turrets before bays, lower index first), if any.
+pub fn struck_hardpoint(hull: &HullDef, ship: &Ship, point: Vec2) -> Option<Hardpoint> {
+    let mut best: Option<(f32, Hardpoint)> = None;
+    let mut consider = |d: f32, r: f32, hp: Hardpoint| {
+        if d < r && best.is_none_or(|(bd, _)| d < bd) {
+            best = Some((d, hp));
+        }
+    };
+    for (j, t) in hull.turrets.iter().enumerate() {
+        if t.is_hardpoint() && ship.turret_alive(j) {
+            let d = (ship.to_world(t.pos) - point).length();
+            consider(d, t.hit_radius, Hardpoint::Turret(j));
+        }
+    }
+    for (b, bay) in hull.bays.iter().enumerate() {
+        if bay.is_hardpoint() && ship.bay_alive(b) {
+            let d = (ship.to_world(bay.pos) - point).length();
+            consider(d, bay.hit_radius, Hardpoint::Bay(b));
+        }
+    }
+    best.map(|(_, hp)| hp)
+}
+
+/// v10: a hull hit of `dealt` (after armour) at `point` also lands on the struck
+/// hardpoint, if any; at 0 hp it is destroyed (`TurretDestroyed` / `BayDestroyed`).
+/// The hull took the full hit already: a hardpoint never soaks damage.
+fn damage_hardpoint(
+    m: &mut Match,
+    cat: &Catalogue,
+    target: ShipIdx,
+    point: Vec2,
+    dealt: f32,
+    shooter: ShipIdx,
+) {
+    let ship = &mut m.ships[target as usize];
+    if !ship.wide {
+        return;
+    }
+    let hull = cat.hull(ship.hull);
+    let Some(struck) = struck_hardpoint(hull, ship, point) else {
+        return;
+    };
+    let (hp, pos) = match struck {
+        Hardpoint::Turret(j) => (&mut ship.turret_hp[j], hull.turrets[j].pos),
+        Hardpoint::Bay(b) => (&mut ship.bay_hp[b], hull.bays[b].pos),
+    };
+    *hp -= dealt;
+    if *hp > 0.0 {
+        return;
+    }
+    *hp = 0.0;
+    let pos = ship.to_world(pos);
+    let event = match struck {
+        Hardpoint::Turret(j) => {
+            ship.dead_turrets |= 1 << j;
+            Event::TurretDestroyed {
+                ship: target,
+                turret: j as u8,
+                pos,
+                shooter,
+            }
+        }
+        Hardpoint::Bay(b) => {
+            ship.dead_bays |= 1 << b;
+            Event::BayDestroyed {
+                ship: target,
+                bay: b as u8,
+                pos,
+                shooter,
+            }
+        }
+    };
+    m.events.push(event);
+}
+
 /// Apply `amount` damage to `target` at world point `point` from `shooter`, fired
 /// on `fire_tick` from an action chosen at `decision_tick` (SIM_SPEC §5.4). A raised
 /// shield takes the whole hit (absorbed amount scaled by `1 / (0.7 + 0.3 * P_s)`, no
@@ -34,7 +132,8 @@ pub fn can_hit(shooter_team: u8, shooter: &Ship, target: &Ship) -> bool {
 /// times the armour multiplier at the impact bearing (`impact_bearing`,
 /// `armour_mult`) and `Hit` is emitted. Either way one `HitRecord` is recorded with
 /// the damage actually applied: raw `amount` for a shield hit, the armour-scaled
-/// amount for a hull hit.
+/// amount for a hull hit. v10: a hull hit on a ship with hardpoints also damages the
+/// struck hardpoint by the same amount (`struck_hardpoint`), after the `Hit` event.
 #[allow(clippy::too_many_arguments)]
 pub fn apply_damage(
     m: &mut Match,
@@ -87,6 +186,9 @@ pub fn apply_damage(
         decision_tick,
         shield: shield_hit,
     });
+    if !shield_hit {
+        damage_hardpoint(m, cat, target, point, recorded, shooter);
+    }
 }
 
 /// Body-frame bearing of world `point` seen from `ship` (radians, CCW from the

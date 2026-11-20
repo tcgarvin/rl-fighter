@@ -1,6 +1,7 @@
-# Rule 4: 9 thrusters (> MAX_THRUSTERS) and 7 turrets (> MAX_TURRETS).
+# Rule 4: 9 thrusters (> MAX_THRUSTERS) and 13 turrets (> MAX_TURRETS, v10: 12). A
+# capital role, so rule 14's six-turret limit for strike craft does not fire too.
 name: bad
-role: fighter
+role: carrier
 hp: 60
 mass: 10.0
 inertia: 55.0
@@ -30,4 +31,10 @@ turrets:
   - {id: turret.t4, pos: [0.0, 0.0], rest_deg: 0, arc_deg: 0, slew_deg_s: 0, weapon: gauss}
   - {id: turret.t5, pos: [0.0, 0.0], rest_deg: 0, arc_deg: 0, slew_deg_s: 0, weapon: gauss}
   - {id: turret.t6, pos: [0.0, 0.0], rest_deg: 0, arc_deg: 0, slew_deg_s: 0, weapon: gauss}
+  - {id: turret.t7, pos: [0.0, 0.0], rest_deg: 0, arc_deg: 0, slew_deg_s: 0, weapon: gauss}
+  - {id: turret.t8, pos: [0.0, 0.0], rest_deg: 0, arc_deg: 0, slew_deg_s: 0, weapon: gauss}
+  - {id: turret.t9, pos: [0.0, 0.0], rest_deg: 0, arc_deg: 0, slew_deg_s: 0, weapon: gauss}
+  - {id: turret.t10, pos: [0.0, 0.0], rest_deg: 0, arc_deg: 0, slew_deg_s: 0, weapon: gauss}
+  - {id: turret.t11, pos: [0.0, 0.0], rest_deg: 0, arc_deg: 0, slew_deg_s: 0, weapon: gauss}
+  - {id: turret.t12, pos: [0.0, 0.0], rest_deg: 0, arc_deg: 0, slew_deg_s: 0, weapon: gauss}
 bays: []

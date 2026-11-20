@@ -310,6 +310,8 @@ pub enum Refusal {
     BadPoint,
     /// Squad index `>= MAX_SQUADS`.
     NoSuchSquad,
+    /// v10: the requested bay (or, with no bay requested, every bay) was destroyed.
+    BayDestroyed,
 }
 
 impl Refusal {
@@ -326,6 +328,7 @@ impl Refusal {
             Refusal::NotCapital => "not_capital",
             Refusal::BadPoint => "bad_point",
             Refusal::NoSuchSquad => "no_such_squad",
+            Refusal::BayDestroyed => "bay_destroyed",
         }
     }
 }
@@ -677,11 +680,17 @@ impl Match {
         };
         let n_bays = c_hull.bays.len();
         let ready = |b: usize| self.tick >= self.mission.bay_ready[t][b];
+        // v10: a destroyed bay never launches; with every bay destroyed the hangar is
+        // stuck.
+        let alive = |b: usize| c.bay_alive(b);
         let b = match bay {
             Some(b) => {
                 let b = usize::from(b);
                 if b >= n_bays {
                     return Err(Refusal::NoSuchBay);
+                }
+                if !alive(b) {
+                    return Err(Refusal::BayDestroyed);
                 }
                 if !ready(b) {
                     return Err(Refusal::BayBusy);
@@ -689,10 +698,12 @@ impl Match {
                 b
             }
             None => (0..n_bays)
-                .filter(|&b| ready(b))
+                .filter(|&b| alive(b) && ready(b))
                 .min_by_key(|&b| (self.mission.bay_ready[t][b], b))
                 .ok_or(if n_bays == 0 {
                     Refusal::NoSuchBay
+                } else if (0..n_bays).all(|b| !alive(b)) {
+                    Refusal::BayDestroyed
                 } else {
                     Refusal::BayBusy
                 })?,
@@ -785,7 +796,7 @@ impl Match {
             obs.own_carrier = Some(self.capital_status(cat, own));
             let c = &self.ships[usize::from(own)];
             obs.bays_ready = (0..cat.hull(c.hull).bays.len())
-                .map(|b| c.active() && self.tick >= self.mission.bay_ready[t][b])
+                .map(|b| c.active() && c.bay_alive(b) && self.tick >= self.mission.bay_ready[t][b])
                 .collect();
         }
         let enemy = self.mission.carrier[1 - t];

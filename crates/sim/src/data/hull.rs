@@ -36,6 +36,18 @@ pub struct TurretDef {
     /// Radians per second; 0 for fixed guns.
     pub slew_rate: f32,
     pub weapon: WeaponId,
+    /// v10: hardpoint hit points; 0 is not a hardpoint (it cannot be destroyed). Only
+    /// capital hulls may set it (validation rule 14, SIM_SPEC §5.4).
+    pub hp: f32,
+    /// v10: a hull hit within this distance (m) of the mount damages the hardpoint.
+    pub hit_radius: f32,
+}
+
+impl TurretDef {
+    /// v10: the turret has its own hit points and can be destroyed.
+    pub fn is_hardpoint(&self) -> bool {
+        self.hp > 0.0
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -68,6 +80,33 @@ pub struct BayDef {
     pub pos: Vec2,
     /// Unit launch direction in the body frame.
     pub dir: Vec2,
+    /// v10: hardpoint hit points; 0 is not a hardpoint (as for turrets).
+    pub hp: f32,
+    /// v10: a hull hit within this distance (m) of the mouth damages the bay.
+    pub hit_radius: f32,
+}
+
+impl BayDef {
+    /// v10: the bay has its own hit points and can be destroyed.
+    pub fn is_hardpoint(&self) -> bool {
+        self.hp > 0.0
+    }
+}
+
+/// v10: default `hit_radius` of a turret or bay hardpoint, metres.
+pub const DEFAULT_HARDPOINT_HIT_RADIUS: f32 = 8.0;
+
+/// Hull roles of capital ships (v10 adds `line`, the dreadnought): flown by the
+/// capital-ship scripts, never in squads, and the only hulls whose turrets and bays may
+/// be hardpoints (any `static` hull too).
+pub const ROLE_CARRIER: &str = "carrier";
+pub const ROLE_TRANSPORT: &str = "transport";
+pub const ROLE_LINE: &str = "line";
+
+/// Whether a hull of `role` (and `is_static`) is a capital ship for the hardpoint rule
+/// (SIM_SPEC §5.4, v10).
+pub fn is_capital_role(role: &str, is_static: bool) -> bool {
+    is_static || matches!(role, ROLE_CARRIER | ROLE_TRANSPORT | ROLE_LINE)
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -108,6 +147,18 @@ pub struct HullDef {
 impl HullDef {
     pub fn has_shield(&self) -> bool {
         self.shield.is_some()
+    }
+
+    /// v10: a capital ship for the hardpoint rule and `capital_only` weapons: role
+    /// `carrier`, `transport` or `line`, or any static hull ([`is_capital_role`]).
+    pub fn is_capital(&self) -> bool {
+        is_capital_role(&self.role, self.is_static)
+    }
+
+    /// v10: any turret or bay of the hull is a hardpoint.
+    pub fn has_hardpoints(&self) -> bool {
+        self.turrets.iter().any(TurretDef::is_hardpoint)
+            || self.bays.iter().any(BayDef::is_hardpoint)
     }
 
     /// Fill the derived fields from the authored ones. The loader calls this; tests

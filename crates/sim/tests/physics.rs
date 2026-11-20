@@ -251,8 +251,8 @@ fn locked_match(d: u8, lock: u32) -> (Catalogue, Match, ShipAction) {
     }
     let mut a = ShipAction::IDLE;
     a.throttle = [THROTTLE_INCREASE; 8];
-    a.slew = [0; 6];
-    a.fire = [1; 6];
+    a.slew[..6].fill(0);
+    a.fire[..6].fill(1);
     a.power = 3;
     for s in 0..2 {
         m.ships[s].control_lock_until = lock;
@@ -412,8 +412,9 @@ fn multiplier_table_values() {
 fn action_row_round_trip() {
     let a = ShipAction {
         throttle: [0, 1, 2, 0, 1, 2, 0, 1],
-        slew: [0, 1, 2, 2, 1, 0],
-        fire: [1, 0, 1, 0, 0, 1],
+        // v10: the row carries the first six turret slots; the rest decode held.
+        slew: [0, 1, 2, 2, 1, 0, 1, 1, 1, 1, 1, 1],
+        fire: [1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0],
         power: 6,
     };
     let mut row = [0i8; ACTION_WIDTH];
@@ -448,16 +449,16 @@ fn action_row_clamps_out_of_range() {
     // to_row clamps too.
     let wild = ShipAction {
         throttle: [9; 8],
-        slew: [7; 6],
-        fire: [3; 6],
+        slew: [7; 12],
+        fire: [3; 12],
         power: 200,
     };
     let mut out = [0i8; ACTION_WIDTH];
     wild.to_row(&mut out);
     let clamped = ShipAction {
         throttle: [2; 8],
-        slew: [2; 6],
-        fire: [1; 6],
+        slew: [2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1],
+        fire: [1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0],
         power: 6,
     };
     assert_eq!(ShipAction::from_row(&out), clamped);
@@ -541,8 +542,8 @@ fn setup_rejects_bad_configs() {
         SetupError::TooManyShips { count: 21 }
     );
     assert_eq!(
-        Match::new(&cat, &cfg(vec![0], vec![7])).unwrap_err(),
-        SetupError::UnknownHull { team: 1, hull: 7 }
+        Match::new(&cat, &cfg(vec![0], vec![9])).unwrap_err(),
+        SetupError::UnknownHull { team: 1, hull: 9 }
     );
     let mut bad = cfg(vec![0], vec![0]);
     bad.arena_radius = 0.0;

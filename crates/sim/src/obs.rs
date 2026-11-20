@@ -69,7 +69,7 @@ use crate::data::{Catalogue, HullDef, ThrusterDef};
 use crate::math::{TAU, Vec2, clamp, rot};
 use crate::order::{N_HULL_CLASSES, effective_order, order_geometry};
 use crate::state::{
-    MAX_REACTION_TICKS, MAX_SHIPS, MAX_THRUSTERS, MAX_TURRETS, Match, Projectile, Ship, ShipIdx,
+    ACTION_TURRETS, MAX_REACTION_TICKS, MAX_SHIPS, MAX_THRUSTERS, Match, Projectile, Ship, ShipIdx,
 };
 
 /// Total obs width (v8; 583 in v6 and v7, 403 in v5, 385 through v4).
@@ -109,7 +109,9 @@ pub const SELF_W: usize = 21;
 pub const THRUSTER_W: usize = 7;
 pub const N_THRUSTER_SLOTS: usize = MAX_THRUSTERS;
 pub const TURRET_W: usize = 10;
-pub const N_TURRET_SLOTS: usize = MAX_TURRETS;
+/// v10: the action row's turret slots (`ACTION_TURRETS`, the v9 `MAX_TURRETS`); a
+/// capital hull with more turrets shows its first six.
+pub const N_TURRET_SLOTS: usize = ACTION_TURRETS;
 pub const SHIP_W: usize = 12;
 /// Other active ships observed, nearest first. v2 sized it as every other slot of an
 /// 8-ship match; v4 raises `MAX_SHIPS` to 20 but keeps 7, so the obs layout (and
@@ -120,7 +122,7 @@ pub const PROJ_W: usize = 8;
 /// Hostile live projectiles observed, most threatening first.
 pub const N_NEAR_PROJ: usize = 8;
 /// Pending-action record: present, throttle[8], slew[6], fire[6], power.
-pub const PENDING_W: usize = 1 + MAX_THRUSTERS + 2 * MAX_TURRETS + 1;
+pub const PENDING_W: usize = 1 + MAX_THRUSTERS + 2 * ACTION_TURRETS + 1;
 /// Pending-action slots: the whole reaction queue.
 pub const N_PENDING_SLOTS: usize = MAX_REACTION_TICKS;
 /// Per-turret extras (arc, range), split across the two trailing blocks.
@@ -298,7 +300,7 @@ pub mod proj_f {
 
 /// Feature indices within a pending-action record.
 pub mod pending_f {
-    use crate::state::{MAX_THRUSTERS, MAX_TURRETS};
+    use crate::state::{ACTION_TURRETS, MAX_THRUSTERS};
 
     pub const PRESENT: usize = 0;
     /// Throttle heads as −1 (decrease) / 0 (hold) / +1 (increase), 8 slots.
@@ -306,9 +308,9 @@ pub mod pending_f {
     /// Slew heads as +1 (left, CCW) / 0 (hold) / −1 (right), 6 slots.
     pub const SLEW: usize = THROTTLE + MAX_THRUSTERS;
     /// Fire heads as 0/1, 6 slots.
-    pub const FIRE: usize = SLEW + MAX_TURRETS;
+    pub const FIRE: usize = SLEW + ACTION_TURRETS;
     /// `power / POWER_MAX`.
-    pub const POWER: usize = FIRE + MAX_TURRETS;
+    pub const POWER: usize = FIRE + ACTION_TURRETS;
 }
 
 /// Feature indices within the v5 order record.
@@ -623,7 +625,7 @@ pub fn write_pending(a: &ShipAction, out: &mut [f32]) {
     for (i, &t) in a.throttle.iter().enumerate() {
         out[pending_f::THROTTLE + i] = f32::from(t) - f32::from(THROTTLE_HOLD);
     }
-    for j in 0..MAX_TURRETS {
+    for j in 0..ACTION_TURRETS {
         out[pending_f::SLEW + j] = a.slew_sign(j);
         out[pending_f::FIRE + j] = f32::from(a.fire[j]);
     }

@@ -3,7 +3,7 @@
 //! shield-first target shape shared with beams.
 
 use crate::DT;
-use crate::damage::{apply_damage, can_hit};
+use crate::damage::{apply_damage, can_hit_with};
 use crate::data::{Catalogue, HullDef, WeaponKind};
 use crate::events::Event;
 use crate::math::{Vec2, clamp, wrap_angle};
@@ -235,7 +235,8 @@ impl Match {
         }
     }
 
-    /// First enemy ship in slot order that the segment `p.pos → next` hits.
+    /// First enemy ship in slot order that the segment `p.pos → next` hits (v10: a
+    /// `capital_only` shot passes through strike craft).
     fn first_swept_hit(
         &self,
         cat: &Catalogue,
@@ -243,9 +244,10 @@ impl Match {
         next: Vec2,
     ) -> Option<(ShipIdx, Vec2)> {
         let owner = &self.ships[p.owner as usize];
+        let w = cat.weapon(p.weapon);
         self.ships
             .iter()
-            .filter(|s| can_hit(p.team, owner, s))
+            .filter(|s| can_hit_with(cat, w, p.team, owner, s))
             .find_map(|s| swept_hit(cat, s, p.pos, next).map(|pt| (s.slot, pt)))
     }
 
@@ -257,10 +259,11 @@ impl Match {
             pos: at,
             radius: burst_radius,
         });
+        let w = cat.weapon(p.weapon);
         for j in 0..self.ships.len() {
             let owner = &self.ships[p.owner as usize];
             let s = &self.ships[j];
-            if !can_hit(p.team, owner, s) {
+            if !can_hit_with(cat, w, p.team, owner, s) {
                 continue;
             }
             let reach = burst_radius + hit_radius(cat, s);

@@ -32,6 +32,15 @@ pub(crate) struct RawTurret {
     pub arc_deg: f32,
     pub slew_deg_s: f32,
     pub weapon: String,
+    /// v10: hardpoint hit points (absent or 0: not a hardpoint).
+    #[serde(default)]
+    pub hp: f32,
+    #[serde(default = "default_hit_radius")]
+    pub hit_radius: f32,
+}
+
+fn default_hit_radius() -> f32 {
+    crate::data::hull::DEFAULT_HARDPOINT_HIT_RADIUS
 }
 
 #[derive(Clone, Copy, Debug, Deserialize)]
@@ -58,6 +67,11 @@ pub(crate) struct RawBay {
     pub id: String,
     pub pos: [f32; 2],
     pub dir: [f32; 2],
+    /// v10: hardpoint hit points (absent or 0: not a hardpoint).
+    #[serde(default)]
+    pub hp: f32,
+    #[serde(default = "default_hit_radius")]
+    pub hit_radius: f32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -123,6 +137,9 @@ pub(crate) struct RawWeapon {
     pub lock_cone_deg: f32,
     #[serde(default = "one")]
     pub life_factor: f32,
+    /// v10: hits capital ships only.
+    #[serde(default)]
+    pub capital_only: bool,
 }
 
 /// The weapons file as an ordered list: weapon ids are assigned in file order, which a

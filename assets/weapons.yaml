@@ -13,3 +13,12 @@ flak:    {kind: flak,    speed: 180, range: 230, damage: 4,  interval: 0.09, spr
 # damage 55, interval 3.2, turn 40 deg/s.
 torpedo: {kind: torpedo, speed: 90,  range: 240, damage: 150, interval: 4.5, spread_deg: 0,
           turn_rate_deg_s: 30, lock_cone_deg: 30, life_factor: 1.3}
+# v10 (citadel and dreadnought), appended so the v9 weapon ids stay. rail: the
+# dreadnought's main gun; hits anything, but its slew makes fighters hard to track.
+# lance: the citadel's heavy slug (rendered beam-like); capital_only, so its shots pass
+# through strike craft and scripted fire control aims it at capital ships only. Tuned
+# script vs script (lab/runs/2026-11-19-citadel-dreadnought/results.md): the plan's start
+# was rail 40 damage, lance 55; at those the attackers won every assault.
+rail:    {kind: bullet,  speed: 260, range: 380, damage: 22, interval: 1.6, spread_deg: 0.3}
+lance:   {kind: bullet,  speed: 300, range: 430, damage: 130, interval: 2.2, spread_deg: 0.2,
+          capital_only: true}

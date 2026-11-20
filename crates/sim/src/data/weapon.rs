@@ -37,6 +37,9 @@ pub struct WeaponDef {
     pub lock_cone: f32,
     /// Multiplier on projectile lifetime (torpedoes fly past their nominal range).
     pub life_factor: f32,
+    /// v10: its shots pass through strike craft and hit capital ships only, and
+    /// scripted fire control aims it at capital ships only (the lance).
+    pub capital_only: bool,
 
     // Derived on load.
     /// `round(range / speed * 30 * life_factor)`; 0 for beams.

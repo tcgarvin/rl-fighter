@@ -49,13 +49,17 @@ impl Match {
     /// Stage 6 of SIM_SPEC §5 (turrets), for every active ship: slewing turrets
     /// (`arc > 0`) move by `slew_sign * slew_rate * DT` from the applied action (v2:
     /// `LOCKED` while locked, so they hold) and clamp to their arc; every turret's
-    /// cooldown drops by `DT * 0.65 * P_w`, floored at 0. Fixed guns ignore slew.
+    /// cooldown drops by `DT * 0.65 * P_w`, floored at 0. Fixed guns ignore slew. v10:
+    /// a destroyed turret is skipped (it never moves again).
     pub fn step_turrets(&mut self, cat: &Catalogue) {
         for ship in self.ships.iter_mut().filter(|s| s.active()) {
             let hull = cat.hull(ship.hull);
             let action = self.applied[ship.slot as usize];
             let p_w = power::ship_multipliers(ship, hull)[WEAPONS];
             for (j, t) in hull.turrets.iter().enumerate() {
+                if !ship.turret_alive(j) {
+                    continue;
+                }
                 if t.arc > 0.0 {
                     let (lo, hi) = arc_limits(t);
                     let angle = ship.turret_angle[j] + action.slew_sign(j) * t.slew_rate * DT;

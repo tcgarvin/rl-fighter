@@ -15,6 +15,8 @@ const CARRIER: &str = include_str!("../../../assets/hulls/carrier/hull.yaml");
 const FREIGHTER: &str = include_str!("../../../assets/hulls/freighter/hull.yaml");
 const BOMBER: &str = include_str!("../../../assets/hulls/bomber/hull.yaml");
 const STATION: &str = include_str!("../../../assets/hulls/station/hull.yaml");
+const CITADEL: &str = include_str!("../../../assets/hulls/citadel/hull.yaml");
+const DREADNOUGHT: &str = include_str!("../../../assets/hulls/dreadnought/hull.yaml");
 
 const DEG: f32 = PI / 180.0;
 
@@ -23,7 +25,9 @@ fn shipped() -> Catalogue {
     Catalogue::from_yaml(
         &[
             ("strafer", STRAFER),
+            ("dreadnought", DREADNOUGHT),
             ("station", STATION),
+            ("citadel", CITADEL),
             ("freighter", FREIGHTER),
             ("gunship", GUNSHIP),
             ("bomber", BOMBER),
@@ -87,7 +91,9 @@ fn shipped_hulls_in_hull_order() {
             "gunship",
             "strafer",
             "bomber",
-            "station"
+            "station",
+            "citadel",
+            "dreadnought"
         ]
     );
     assert_eq!(cat.hull_id("carrier"), Some(0));
@@ -97,6 +103,8 @@ fn shipped_hulls_in_hull_order() {
     assert_eq!(cat.hull_id("strafer"), Some(4));
     assert_eq!(cat.hull_id("bomber"), Some(5));
     assert_eq!(cat.hull_id("station"), Some(6));
+    assert_eq!(cat.hull_id("citadel"), Some(7));
+    assert_eq!(cat.hull_id("dreadnought"), Some(8));
 }
 
 #[test]
@@ -144,22 +152,100 @@ fn legacy_hulls_keep_their_ids_and_new_hulls_follow_by_name() {
             "gunship",
             "strafer",
             "bomber",
-            "station"
+            "station",
+            "citadel",
+            "dreadnought"
         ]
     );
-    assert_eq!(&names[..5], sim::data::LEGACY_HULL_ORDER.as_slice());
-    // Without the legacy hulls the order is plain name order, as before v9.
-    let two =
-        Catalogue::from_yaml(&[("station", STATION), ("bomber", BOMBER)], WEAPONS).expect("loads");
-    assert_eq!(two.hulls[0].name, "bomber");
-    assert_eq!(two.hulls[1].name, "station");
+    // v10: the v9 ids are frozen (bomber 5, station 6), though `citadel` and
+    // `dreadnought` sort among them by name.
+    assert_eq!(&names[..7], sim::data::LEGACY_HULL_ORDER.as_slice());
+    assert_eq!(cat.hull_id("bomber"), Some(5));
+    assert_eq!(cat.hull_id("station"), Some(6));
+    assert_eq!(cat.hull_id("citadel"), Some(7));
+    assert_eq!(cat.hull_id("dreadnought"), Some(8));
+    // Without the v4 hulls the v9 ones keep their v9 order (bomber before station, as
+    // by name), and the new ones follow by name.
+    let some = Catalogue::from_yaml(
+        &[
+            ("station", STATION),
+            ("dreadnought", DREADNOUGHT),
+            ("bomber", BOMBER),
+            ("citadel", CITADEL),
+        ],
+        WEAPONS,
+    )
+    .expect("loads");
+    let names: Vec<&str> = some.hulls.iter().map(|h| h.name.as_str()).collect();
+    assert_eq!(names, ["bomber", "station", "citadel", "dreadnought"]);
+}
+
+#[test]
+fn v10_hardpoints_load_from_the_yaml() {
+    let cat = shipped();
+    let citadel = cat.hull(cat.hull_id("citadel").expect("citadel"));
+    assert!(citadel.is_static && citadel.is_capital() && citadel.has_hardpoints());
+    assert_eq!(citadel.turrets.len(), 12);
+    assert_eq!(citadel.bays.len(), 4);
+    assert!(
+        citadel
+            .turrets
+            .iter()
+            .all(|t| t.is_hardpoint() && t.hit_radius == 8.0)
+    );
+    assert!(
+        citadel
+            .bays
+            .iter()
+            .all(|b| b.hp == 200.0 && b.hit_radius == 7.0)
+    );
+    let ids: Vec<&str> = citadel.turrets.iter().map(|t| t.id.as_str()).collect();
+    assert_eq!(
+        ids,
+        [
+            "turret.lance.0",
+            "turret.flak.0",
+            "turret.flak.1",
+            "turret.gauss.0",
+            "turret.flak.2",
+            "turret.gauss.1",
+            "turret.lance.1",
+            "turret.flak.3",
+            "turret.flak.4",
+            "turret.gauss.2",
+            "turret.flak.5",
+            "turret.gauss.3"
+        ]
+    );
+    let dread = cat.hull(cat.hull_id("dreadnought").expect("dreadnought"));
+    assert_eq!(dread.role, "line");
+    assert!(dread.is_capital() && dread.bays.is_empty());
+    assert_eq!(dread.turrets.len(), 5);
+    // Old hulls have no hardpoints: their matches replay v9 exactly.
+    for name in ["carrier", "freighter", "station", "fighter", "bomber"] {
+        let h = cat.hull(cat.hull_id(name).expect("hull"));
+        assert!(!h.has_hardpoints(), "{name}");
+        assert!(h.turrets.iter().all(|t| t.hit_radius == 8.0));
+    }
+}
+
+#[test]
+fn rule14_hardpoints() {
+    let errors = hull_errors(include_str!("fixtures/rule14_hardpoints.yaml"));
+    assert_rule(&errors, 14, 4);
 }
 
 #[test]
 fn weapons_in_file_order_with_resolved_units() {
     let cat = shipped();
     let names: Vec<&str> = cat.weapons.iter().map(|w| w.name.as_str()).collect();
-    assert_eq!(names, ["gauss", "laser", "flak", "torpedo"]);
+    assert_eq!(
+        names,
+        ["gauss", "laser", "flak", "torpedo", "rail", "lance"]
+    );
+    // v10: only the lance hits capital ships alone.
+    let capital_only: Vec<bool> = cat.weapons.iter().map(|w| w.capital_only).collect();
+    assert_eq!(capital_only, [false, false, false, false, false, true]);
 
     let gauss = &cat.weapons[0];
     assert_eq!(gauss.kind, WeaponKind::Bullet);
@@ -413,8 +499,17 @@ fn shipped_armour_arcs() {
         assert!(approx(got.0, want.0) && approx(got.1, want.1), "{got:?}");
         assert_eq!(got.2, want.2);
     }
+    // v10: the dreadnought's armoured bow and soft stern.
+    let dread = cat.hull(cat.hull_id("dreadnought").expect("dreadnought"));
+    assert_eq!(armour_mult(dread, 0.0), 0.4);
+    assert_eq!(armour_mult(dread, 0.5 * PI), 0.7);
+    assert_eq!(armour_mult(dread, PI), 1.3);
     // Every other hull carries no armour block: uniform 1x.
-    for hull in cat.hulls.iter().filter(|h| h.name != "fighter") {
+    for hull in cat
+        .hulls
+        .iter()
+        .filter(|h| h.name != "fighter" && h.name != "dreadnought")
+    {
         assert!(hull.armour.is_empty(), "{}", hull.name);
         assert_eq!(armour_mult(hull, PI), 1.0);
     }
