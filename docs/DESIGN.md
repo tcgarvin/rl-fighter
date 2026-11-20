@@ -522,3 +522,23 @@ Feedback from round 1 (2026-10-27):
   control?
 - How much the commander's plan is shown on screen. Too much clutters the view; too
   little loses the story.
+
+## 14. Long-term direction (owner, 2026-11-20)
+
+Filed for later, not scheduled. Getting the commander working comes first.
+
+- **Approach planning.** If damage is localised to components (hardpoints on stations
+  today; later dreadnoughts and carriers), the relative angle of attack starts to
+  matter. Open question: do the current pilot net and the commander's I/O give a ship
+  enough to plan an approach, and a commander enough to say how to approach?
+- **Self-formed squadrons, learned rather than taught.** What the owner wants to see
+  eventually: a commander groups ships of its own volition into a squadron that
+  branches off together (say to the right) and vectors in on a specific component.
+  This should be learned or emergent, not scripted or taught (see the no-autopilot rule).
+- **Longer, RTS-like scenarios.** For example, stations launching supply convoys, with
+  the AI deciding when to launch them. One team runs logistics while the other raids
+  it, or both do logistics and attack at once.
+- **Compute in the browser.** Today the sim is Rust compiled to WASM, inference is an
+  MLP in JS on the CPU, and rendering is three.js on WebGL. There is no WebGPU yet.
+  Bigger nets, more ships and longer scenarios will likely need WebGPU (inference, and
+  possibly parts of the sim).
