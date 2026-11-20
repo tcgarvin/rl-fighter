@@ -10,6 +10,9 @@ import { SCRIPTED_COMMANDER, type LiveCommander, type LivePilot } from "./bundle
 import type { MissionName } from "./missions.ts";
 import {
   ACTION_TURRETS,
+  DOCK_NONE,
+  DOCK_REPAIRING,
+  DOCK_READY,
   END_REASONS,
   EVENT_KINDS,
   JUMP_DEPARTED,
@@ -95,6 +98,10 @@ export interface ShipRecord {
   damage: number;
   /** Ships that died with this one's shot the last to hit them. */
   kills: number;
+  /** v11: times it was recalled, docked and relaunched. */
+  recalls: number;
+  docks: number;
+  relaunches: number;
 }
 
 /** The last action of the ship being inspected: a pilot's logits, or a script's row alone. */
@@ -131,6 +138,12 @@ export interface LiveMatchOptions {
   mission?: MissionName;
   /** Each side's commander (assignCommanders over Bundle.commanders); default: both scripted. */
   commanders?: [LiveCommander, LiveCommander];
+  /**
+   * Tests only (tools/web/live_smoke.mjs): the sim's script flies the strike craft too, as
+   * in the lab's script-against-script runs, so a match docks reliably (the live pilots
+   * were never trained to). Each slot keeps its pilot draw, so identities still check.
+   */
+  scriptStrikeCraft?: boolean;
 }
 
 function emptyShip(i: number): ShipState {
@@ -144,6 +157,7 @@ function emptyShip(i: number): ShipState {
     bayState: new Float32Array(MAX_BAYS),
     power: new Float32Array(3),
     role: "strike", docked: false, jump: 0, chargeUntil: 0, hasWaypoint: false, waypointX: 0, waypointY: 0, squad: -1,
+    dockPhase: DOCK_NONE, dockBay: -1, dockX: 0, dockY: 0, dockSince: 0, dockedAt: 0, readyAt: 0,
   };
 }
 
@@ -186,8 +200,15 @@ export class LiveMatch {
   readonly watchedShots = new Int32Array(MAX_TURRETS).fill(-1);
   /** The watched row came from the sim's script, so its logits mean nothing. */
   watchedScripted = false;
+  /**
+   * v11: per slot, the bay of its carrier a returned ship docked through (it shows busy
+   * while the ship repairs), or -1 when it is not back in the hangar.
+   */
+  readonly hangarBay: number[];
   /** Each side's commander. */
   readonly commanders: [LiveCommander, LiveCommander];
+  /** Per slot, 1 if a pilot's net chose its action on the last step (for the smoke test). */
+  readonly flown: Uint8Array;
   readonly commanderStats: [CommanderStats, CommanderStats] = [
     { decisions: 0, commands: 0, ms: 0, worstMs: 0 },
     { decisions: 0, commands: 0, ms: 0, worstMs: 0 },
@@ -210,6 +231,7 @@ export class LiveMatch {
   /** Per side: the learned commander's sampling stream and decision buffer. */
   private readonly commanderRngs: [Rng, Rng];
   private readonly decisions: [Int32Array, Int32Array];
+  private readonly scriptStrike: boolean;
 
   constructor(o: LiveMatchOptions) {
     this.sim = o.sim;
@@ -218,7 +240,9 @@ export class LiveMatch {
     this.fleets = o.fleets;
     this.settings = o.settings;
     this.mission = o.mission ?? "deathmatch";
+    this.scriptStrike = o.scriptStrikeCraft ?? false;
     this.nShips = o.fleets[0].length + o.fleets[1].length;
+    this.flown = new Uint8Array(this.nShips);
     this.shipPilots = assignPilots(o.pilots, this.nShips, o.seed);
     this.v4 = typeof o.sim.arenaRadiusForMission === "function";
     const deathmatch = this.mission === "deathmatch";
@@ -247,7 +271,8 @@ export class LiveMatch {
     );
     this.row = new Int8Array(o.layout.actionWidth);
     this.lastHitBy = Array.from({ length: this.nShips }, () => -1);
-    this.records = Array.from({ length: this.nShips }, () => ({ shots: 0, hits: 0, damage: 0, kills: 0 }));
+    this.records = Array.from({ length: this.nShips }, () => ({ shots: 0, hits: 0, damage: 0, kills: 0, recalls: 0, docks: 0, relaunches: 0 }));
+    this.hangarBay = Array.from({ length: this.nShips }, () => -1);
     this.watched = { tick: -1, logits: new Float32Array(o.pilots[0]!.policy.manifest.n_logits), row: new Int8Array(o.layout.actionWidth) };
     this.watchHistory = Array.from({ length: WATCH_HISTORY }, () => ({
       tick: -1,
@@ -334,6 +359,18 @@ export class LiveMatch {
     return s.alive && s.present && !s.docked && s.jump !== JUMP_DEPARTED;
   }
 
+  /** Back in its carrier's hangar after docking (v11): alive, off the field, repairing or ready. */
+  returned(s: ShipState): boolean {
+    return s.alive && (s.dockPhase === DOCK_REPAIRING || s.dockPhase === DOCK_READY);
+  }
+
+  /** `team`'s returned ships in its hangar now. */
+  repairing(team: number): number {
+    let n = 0;
+    for (const s of this.ships) if (s.team === team && this.returned(s)) n += 1;
+    return n;
+  }
+
   /** Each team's time-limit value (hull plus half of shields, ships still in the match). */
   teamValues(): [number, number] {
     const v: [number, number] = [0, 0];
@@ -366,12 +403,13 @@ export class LiveMatch {
     const m = this.wasm;
     let nn = this.decide(m);
     let script = 0;
+    this.flown.fill(0);
     for (let s = 0; s < this.nShips; s++) {
       const ship = this.ships[s]!;
-      // An absent or dead ship's row is discarded by the sim (SIM_SPEC §7.1), so skip
-      // its forward pass.
-      if (!ship.alive || !ship.present) continue;
-      if (ship.role !== "strike") {
+      // An absent, docked or dead ship's row is discarded by the sim (SIM_SPEC §7.1), so
+      // skip its forward pass.
+      if (!ship.alive || !ship.present || ship.docked) continue;
+      if (ship.role !== "strike" || this.scriptStrike) {
         const t0 = performance.now();
         const row = m.scripted_action(s);
         m.set_action(s, row);
@@ -386,6 +424,7 @@ export class LiveMatch {
       pilot.policy.actFromLogits(logits, this.headValid[s]!, this.rngs[s]!, this.row);
       nn += performance.now() - t0;
       m.set_action(s, this.row);
+      this.flown[s] = 1;
       if (s === this.watching) this.watch(this.row, logits);
     }
     const t1 = performance.now();
@@ -453,6 +492,17 @@ export class LiveMatch {
     } else if (e.kind === "death") {
       const by = this.records[this.lastHitBy[e.a] ?? -1];
       if (by) by.kills += 1;
+    } else if (e.kind === "dockOrdered" || e.kind === "docked" || e.kind === "relaunched") {
+      const r = this.records[e.a];
+      if (!r) return;
+      if (e.kind === "dockOrdered") r.recalls += 1;
+      else if (e.kind === "docked") {
+        r.docks += 1;
+        this.hangarBay[e.a] = e.extra;
+      } else {
+        r.relaunches += 1;
+        this.hangarBay[e.a] = -1;
+      }
     }
   }
 
@@ -492,6 +542,7 @@ export class LiveMatch {
       s.power.set(v.subarray(o + L.powerOffset, o + L.powerOffset + 3));
     }
     this.readHardpoints(n);
+    this.readDock(n);
     if (!this.v4) return;
     const stride = this.sim.SHIP_EXT_STRIDE();
     const x = this.view(this.wasm.ship_ext_ptr(), this.wasm.ship_ext_len());
@@ -523,6 +574,27 @@ export class LiveMatch {
       s.turretAngles.set(v.subarray(o + H.turretAngleOffset, o + H.turretAngleOffset + MAX_TURRETS));
       s.turretState.set(v.subarray(o + H.turretStateOffset, o + H.turretStateOffset + MAX_TURRETS));
       s.bayState.set(v.subarray(o + H.bayStateOffset, o + H.bayStateOffset + MAX_BAYS));
+    }
+  }
+
+  /** v11: each ship's dock phase, its dock order's bay and point, its turnaround. */
+  private readDock(n: number): void {
+    const stride = this.layout.dockStride;
+    const m = this.wasm;
+    if (!stride || !m.dock_ptr || !m.dock_len) return;
+    const v = this.view(m.dock_ptr(), m.dock_len());
+    for (let i = 0; i < n && (i + 1) * stride <= v.length; i++) {
+      const o = i * stride;
+      const s = this.ships[i]!;
+      s.dockPhase = v[o]!;
+      s.dockBay = v[o + 1]!;
+      s.dockX = v[o + 2]!;
+      s.dockY = v[o + 3]!;
+      s.dockSince = v[o + 4]!;
+      s.dockedAt = v[o + 5]!;
+      s.readyAt = v[o + 6]!;
+      // A hangar that died with its carrier, or a ship that died: no longer back in it.
+      if (!s.alive) this.hangarBay[i] = -1;
     }
   }
 

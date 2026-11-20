@@ -422,7 +422,10 @@ function shipAt(x: number, y: number): number {
 function updateInspected(realDt: number): void {
   const m = match;
   if (!m || selected < 0) return;
-  if (!m.active(m.ships[selected]!)) {
+  const ship = m.ships[selected]!;
+  // A craft docked in its hangar (v11) is not gone: the inspector waits with it for its relaunch.
+  if (m.returned(ship)) goneFor = 0;
+  else if (!m.active(ship)) {
     goneFor += realDt;
     if (goneFor > GONE_HOLD) return select(-1);
   }
@@ -576,7 +579,9 @@ async function boot(): Promise<void> {
   startMatch();
   if (warmup > 0) fastForward(warmup);
   const inspect = Number(params.get("inspect") ?? -1);
-  if (match && inspect >= 0 && phase === "battle" && match.ships[inspect] && match.active(match.ships[inspect]!)) select(inspect);
+  const shown = match?.ships[inspect];
+  // A craft docked for repairs (v11) may be inspected too: the panel waits with it in the hangar.
+  if (match && shown && phase === "battle" && (match.active(shown) || match.returned(shown))) select(inspect);
   layout();
   keepAwake();
   setInterval(() => void checkBundle(true), BUNDLE_RECHECK_MS);

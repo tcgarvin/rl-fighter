@@ -337,6 +337,16 @@ def live_pilot_count(path: Path = LIVE_PILOTS) -> int:
     return len(data["pilots"])
 
 
+def dock_facts() -> dict[str, str]:
+    """SIM_VERSION 11's recalls, which only the scripted commander gives (``rlf_sim.DOCK``)."""
+    dock = rlf_sim.DOCK
+    return {
+        "sim.version": str(rlf_sim.SIM_VERSION),
+        "dock.recall_hull": _pct(dock["recall_hull_frac"]),
+        "dock.relaunch_hull": _pct(dock["relaunch_hull_frac"]),
+    }
+
+
 def compute_facts(
     doc_path: Path = DESIGN_DOC, live_pilots: Path = LIVE_PILOTS
 ) -> dict[str, str]:
@@ -348,6 +358,7 @@ def compute_facts(
         io_facts(),
         network_facts(n_pilots),
         training_facts(),
+        dock_facts(),
     ):
         overlap = facts.keys() & part.keys()
         if overlap:

@@ -5,10 +5,12 @@
 // where that tick's command would take it, fading over half a second, so a steady net
 // draws one bright line and a wavering one a smear. A toggle swaps them for the odds the
 // net gave each choice on the last tick, with numbers. The views are built once per ship;
-// the bars redraw every frame, the odds a few times a second.
+// the bars redraw every frame, the odds a few times a second. A craft called home (v11)
+// says so; once docked it stays inspected in the hangar ("docked", its repair and when it
+// may launch) and is followed back out on its relaunch, the same slot and pilot.
 
 import { TEAM_CLASSES, TEAM_NAMES, TEAM_WORDS, escapeHtml } from "./teams.ts";
-import { JUMP_CHARGING, JUMP_DEPARTED, ROLE_CARRIER, type ShipState } from "./sim.ts";
+import { DOCK_INBOUND, DOCK_REPAIRING, JUMP_CHARGING, JUMP_DEPARTED, ROLE_CARRIER, type ShipState } from "./sim.ts";
 import {
   POWER_NAMES,
   outputRows,
@@ -37,6 +39,13 @@ const SHOT_FLASH = 0.3;
 const LINE_ALPHA = 0.6;
 // A trigger lamp's light per tick held: about half a second held lights it full.
 const LAMP_ALPHA = 0.22;
+/**
+ * The hull share the scripted commander relaunches a returned craft at (sim
+ * scripted::commander RELAUNCH_HULL_FRAC; tests/test_web_dock.py holds it to rlf_sim.DOCK),
+ * and the share of its hull a hangar repairs a second (REPAIR_FRAC_PER_S).
+ */
+export const SCRIPT_RELAUNCH_HULL = 0.9;
+export const REPAIR_PER_SECOND = 0.05;
 
 // The odds view's groups, and what each choice of theirs is.
 const GROUPS: Array<{ kind: OutputKind; title: string; legend: string }> = [
@@ -104,9 +113,13 @@ function mountsLeft(ship: ShipState): string[] {
   return out;
 }
 
-/** The order this ship's squad holds, in words. */
+/** The order this ship's squad holds, in words; a craft called home has its own. */
 function orderText(match: LiveMatch, i: number): string {
   const ship = match.ships[i]!;
+  if (ship.dockPhase === DOCK_INBOUND) {
+    const metres = Math.round(Math.hypot(ship.dockX - ship.x, ship.dockY - ship.y));
+    return `called home · ${metres} m to the bay`;
+  }
   const squad = match.squads.find((q) => q.team === ship.team && q.index === ship.squad);
   if (!squad || squad.order === "none") return "no order";
   if (squad.order === "goto") return "ordered to a point";
@@ -359,13 +372,14 @@ export class Inspector {
 
   private refresh(match: LiveMatch, i: number): void {
     const ship = match.ships[i]!;
-    this.setTitle(match, i, this.stateWord(ship));
+    this.setTitle(match, i, this.stateWord(match, ship));
     const max = match.maxHp[i] ?? 1;
     this.hullBar.style.width = percent(Math.max(0, ship.hp) / Math.max(1, max));
     setText(this.line, this.statusText(match, i, ship, max));
     if (this.more.hidden) return;
     const r = match.records[i]!;
-    setText(this.record, `This match: ${plural(r.shots, "shot")} · ${plural(r.hits, "hit")} · ${Math.round(r.damage)} hull damage · ${plural(r.kills, "kill")}`);
+    const home = r.recalls > 0 ? ` · called home ${r.recalls}× · docked ${r.docks}×` : "";
+    setText(this.record, `This match: ${plural(r.shots, "shot")} · ${plural(r.hits, "hit")} · ${Math.round(r.damage)} hull damage · ${plural(r.kills, "kill")}${home}`);
     const w = match.watched;
     if (!this.showOdds || w.tick < 0 || match.watching !== i) return;
     const logits = match.watchedScripted ? null : w.logits;
@@ -528,21 +542,40 @@ export class Inspector {
     }
   }
 
-  private stateWord(ship: ShipState): string {
+  private stateWord(match: LiveMatch, ship: ShipState): string {
     if (!ship.alive) return "destroyed";
+    if (match.returned(ship)) return "docked";
+    if (ship.dockPhase === DOCK_INBOUND) return "returning";
     if (ship.jump === JUMP_DEPARTED) return "jumped out";
     if (ship.jump === JUMP_CHARGING) return "charging jump";
     return "";
   }
 
+  /** A returned craft in its hangar: how far its repair is and when it may go again. */
+  private hangarText(match: LiveMatch, ship: ShipState, max: number): string {
+    const share = Math.max(0, ship.hp) / Math.max(1, max);
+    const parts = [`${Math.ceil(Math.max(0, ship.hp))}/${max}`, share >= 1 ? "repaired" : `repairing ${percent(share)}`];
+    if (ship.dockPhase === DOCK_REPAIRING) {
+      parts.push(`ready in ${Math.max(1, Math.ceil((ship.readyAt - match.tick) / SIM_HZ))} s`);
+    } else if (!match.commanders[ship.team === 0 ? 0 : 1].net && share < SCRIPT_RELAUNCH_HULL) {
+      // The scripted commander (the only one that recalls yet) waits for most of its hull.
+      parts.push(`out at ${percent(SCRIPT_RELAUNCH_HULL)} in ~${Math.ceil((SCRIPT_RELAUNCH_HULL - share) / REPAIR_PER_SECOND)} s`);
+    } else {
+      parts.push("ready to launch");
+    }
+    return parts.join(" · ");
+  }
+
   private statusText(match: LiveMatch, i: number, ship: ShipState, max: number): string {
+    if (match.returned(ship)) return this.hangarText(match, ship, max);
     const parts = [`${Math.ceil(Math.max(0, ship.hp))}/${max}`];
     if (ship.shield > 0) parts.push(`shield ${Math.ceil(ship.shield)}`);
     parts.push(`${Math.round(Math.hypot(ship.vx, ship.vy))} m/s`);
     if (ship.role === "strike") {
       parts.push(match.pilot(i).obsDim < ORDER_OBS_DIM ? "can't read orders" : orderText(match, i));
     } else if (ship.role === ROLE_CARRIER) {
-      parts.push(`${match.teams[ship.team]!.hangar} in hangar`);
+      const repairing = match.repairing(ship.team);
+      parts.push(`${match.teams[ship.team]!.hangar} in hangar${repairing ? ` · ${repairing} repairing` : ""}`);
     }
     // v10: a capital ship's turrets and bays can be shot off one by one.
     if (ship.role !== "strike") parts.push(...mountsLeft(ship));

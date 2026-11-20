@@ -4,8 +4,10 @@
 // battle, the convoy escort and the station assault the muster, the opening, mid-battle
 // with the commander layer on (lines, markers and the command log) and the result, and
 // the station assault's heavy guns (rail and lance), its torpedo run, the citadel with
-// turrets and bays shot off, and an inspected citadel, dreadnought and bomber. Serve web/dist (with
-// the bundle) first, e.g. `cd web && npx vite preview --port 4173`.
+// turrets and bays shot off, and an inspected citadel, dreadnought and bomber; and (v11) a
+// craft called home to its carrier, its dock flash, the inspector on it repairing in the
+// hangar and its relaunch. Serve web/dist (with the bundle) first, e.g. `cd web && npx vite
+// preview --port 4173`.
 //
 // Usage: node tools/web/live_shots.mjs [base=http://localhost:4173] [out=web/shots/live]
 // Env: RLF_SHOTS_ONLY=<substring> takes only the scenes whose name contains it;
@@ -37,6 +39,21 @@ const MISSION_SCENES = (mission, seed, mid) => [
   { name: `${mission}-opening`, query: `seed=${seed}&mission=${mission}&warmup=1.5&commands=0`, phase: "battle", after: 1.0 },
   { name: `${mission}-mid-commands`, query: `seed=${seed}&mission=${mission}&warmup=${mid}&commands=1`, phase: "battle", after: 1.5 },
   { name: `${mission}-result`, query: `seed=${seed}&mission=${mission}&warmup=999&commands=0`, phase: "result", after: 1.0 },
+];
+// v11 dock and repair, seed 108's carrier battle under the scripted commander (the only
+// one that recalls; the live pilots rarely make it home, tools/web/live_smoke.mjs): Ember's
+// fighter 2 (slot 13) is called home at 8.0 s, docks at tick ~417 (13.9 s) with 4% of its
+// hull and relaunches at tick ~720 (24.0 s). A scene with `tick` plays from its warm-up and
+// is frozen on the first frame at or past that tick (bundle-dependent: re-find the seed
+// with a new pilot list).
+const DOCK = "seed=108&mission=carrier&commander=scripted";
+const DOCK_SCENES = [
+  { name: "dock-recall", query: `${DOCK}&warmup=10.5&commands=0&inspect=13&outputs=0`, phase: "battle", tick: 362 },
+  { name: "dock-recall-commands", query: `${DOCK}&warmup=11&commands=1`, phase: "battle", tick: 375 },
+  { name: "dock-flash", query: `${DOCK}&warmup=13&commands=0&inspect=13&outputs=0`, phase: "battle", tick: 431 },
+  { name: "dock-flash-wide", query: `${DOCK}&warmup=13&commands=0`, phase: "battle", tick: 431 },
+  { name: "dock-repairing", query: `${DOCK}&warmup=15&commands=0&inspect=13&outputs=0`, phase: "battle", tick: 500 },
+  { name: "dock-relaunch", query: `${DOCK}&warmup=23&commands=0&inspect=13&outputs=0`, phase: "battle", tick: 724 },
 ];
 const learnedScenes = (id) =>
   id
@@ -72,6 +89,7 @@ const SCENES = [
   { name: "station-inspect-bomber", query: "seed=2&mission=station&warmup=14&commands=0&inspect=11&outputs=0", phase: "battle", after: 3 },
   // Played, not fast-forwarded, through the citadel's death, so its blast is in the shot.
   { name: "station-falls", query: "seed=2&mission=station&warmup=99.6&commands=0", phase: "result", after: 0.8 },
+  ...DOCK_SCENES,
   ...learnedScenes(process.env.RLF_SHOTS_COMMANDER ?? ""),
   ...(process.env.RLF_SHOTS_EXTRA ?? "").split(";").filter(Boolean).map((s) => {
     const [name, query, phase, after] = s.split("|");
@@ -90,14 +108,28 @@ for (const vp of VIEWPORTS) {
     const pageErrors = watchErrors(page, `${vp.name}/${scene.name}`);
     // scale=1: full resolution, whatever a software renderer's frame rate would ask for.
     await page.goto(`${base}/?${scene.query}&scale=1&debug`, { waitUntil: "load" });
-    await page.waitForFunction(
-      ({ phase, after }) => {
-        const s = window.rlfLive?.stats();
-        return s && s.phase === phase && s.phaseTime >= after;
-      },
-      scene,
-      { timeout: 240000, polling: 100 },
-    );
+    if (scene.tick !== undefined) {
+      // Checked every frame, and frozen in the same frame, so a brief effect is caught.
+      await page.waitForFunction(
+        ({ phase, tick }) => {
+          const s = window.rlfLive?.stats();
+          const due = s && s.phase === phase && s.tick >= tick;
+          if (due) window.rlfLive.pause();
+          return due;
+        },
+        scene,
+        { timeout: 300000, polling: "raf" },
+      );
+    } else {
+      await page.waitForFunction(
+        ({ phase, after }) => {
+          const s = window.rlfLive?.stats();
+          return s && s.phase === phase && s.phaseTime >= after;
+        },
+        scene,
+        { timeout: 240000, polling: 100 },
+      );
+    }
     // Freeze sim and effects time: a loaded machine can take seconds per frame.
     await page.evaluate(() => window.rlfLive.pause());
     const file = path.join(out, `${scene.name}-${vp.name}-${vp.width}x${vp.height}.png`);

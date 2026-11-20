@@ -109,7 +109,11 @@ retire from the active league, though they stay in history.
   mouth to older pilots; the bay catches a ship that comes within 10 m of it slowly enough
   (15 m/s relative); the hangar repairs it and it relaunches as the same ship. Only a
   commander recalls: the scripted commander sends home craft below half their hull; a
-  learned commander will recall once one is trained to (no sim-side shortcut).
+  learned commander will recall once one is trained to (no sim-side shortcut). On the
+  live page a recalled craft draws a fine line home to its bay in the commands layer (and
+  whenever it is inspected), slides into the bay well under a brief soft flash (no ring,
+  no afterglow), its bay's well breathes a soft light while it repairs, and it relaunches
+  through the ordinary bay launch; the inspector waits with it in the hangar.
 - **Collision:** each hull is a compound of circles derived from the model's
   footprint. Projectiles are tested against those circles, using swept segments for
   fast bullets. Ships can collide with each other; the impulse depends on mass.

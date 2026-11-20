@@ -249,6 +249,13 @@ export function missionRoster(
   return { fleets: [[...convoy, ...escorts], attackers], budget: null };
 }
 
+/**
+ * v11 (dock and repair, SIM_SPEC §5.11): a carrier's or station's damaged craft may be
+ * sent home, dock, repair and relaunch. Only the scripted commander recalls yet (learned
+ * commanders have no recall output), so the brief says so.
+ */
+export const DOCK_LINE = "Damaged craft can be called home to repair (only the scripted commander does so&nbsp;yet).";
+
 /** The muster's objective-first headline and the brief under it (HTML). */
 export interface Brief {
   /** The objective; null for deathmatch, whose headline is the matchup. */
@@ -269,18 +276,18 @@ export function missionBrief(mission: MissionName, convoy: ConvoyState | null, t
         headline: "Take the citadel, or&nbsp;hold&nbsp;it.",
         brief:
           `${teamSpan(1, TEAM_WORDS[1])} jumps in with a carrier, a dreadnought and bombers: the citadel falls, ${TEAM_WORDS[1]} wins. ` +
-          `${teamSpan(0, TEAM_WORDS[0])} holds it for ${clock}, or wipes out the attack. Turrets and bays can be shot&nbsp;off.`,
+          `${teamSpan(0, TEAM_WORDS[0])} holds it for ${clock}, or wipes out the attack. Turrets and bays can be shot&nbsp;off. ${DOCK_LINE}`,
       };
     }
     return {
       headline: "Take the station, or&nbsp;hold&nbsp;it.",
       brief:
         `${teamSpan(1, TEAM_WORDS[1])} jumps in with a carrier and bombers: the station falls, ${TEAM_WORDS[1]} wins. ` +
-        `${teamSpan(0, TEAM_WORDS[0])} holds it for ${clock}, or wipes out the attack.`,
+        `${teamSpan(0, TEAM_WORDS[0])} holds it for ${clock}, or wipes out the attack. ${DOCK_LINE}`,
     };
   }
   if (mission === "carrier_battle") {
-    return { headline: "Destroy the enemy carrier.", brief: "Each carrier launches its wing from its bays. Lose yours and you lose the&nbsp;match." };
+    return { headline: "Destroy the enemy carrier.", brief: `Each carrier launches its wing from its bays. Lose yours and you lose the&nbsp;match. ${DOCK_LINE}` };
   }
   if (mission === "convoy_escort" && convoy) {
     return {
