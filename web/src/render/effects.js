@@ -392,7 +392,7 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
   // Capital guns' slugs: a wider pixel floor, so a lance or rail shot stays a bold
   // stroke on a phone's battle-wide view where gauss tracers thin to hairlines.
   const heavyTracers = batch(new T.PlaneGeometry(1, 1), 128, false, false, true, false, 1, 0, .022, { floorPx: 6 });
-  const heavyCores = batch(new T.PlaneGeometry(1, 1), 128, false, false, true, false, 2, 0, .022, { floorPx: 2.2 });
+  const heavyCores = batch(new T.PlaneGeometry(1, 1), 128, false, false, true, false, 2, 0, .022, { floorPx: 3 });
   // Launch trails (tapered, like tracers) and the commander overlay's hairlines; both
   // keep a minimum pixel width, so they read on a phone at any zoom.
   const trails = batch(new T.PlaneGeometry(1, 1), 256, false, false, true, false, 1);
@@ -844,11 +844,15 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
   // reads across a phone screen and never as gauss fire.
   const lanceColor = [new T.Color(0x9a7bff).multiplyScalar(1.6), new T.Color(0xff5f8a).multiplyScalar(1.6)];
   const lanceCore = new T.Color(0xf4ecff).multiplyScalar(1.8);
+  // The slug's body: hot, but still in the lance's hue, so over a bright planet it stays
+  // a thick violet (rose) bar rather than thinning to a white thread.
+  const lanceBody = lanceColor.map(c => c.clone().lerp(new T.Color(0xffffff), .4).multiplyScalar(1.1));
   function lanceShot(x, z, a, teamIndex) {
     const c=lanceColor[teamIndex] || white, dx=Math.cos(a), dz=-Math.sin(a);
     put(tracers,x-dx*35,1.9,z-dz*35,72,2.6,1,a,c,.28);
-    put(heavyTracers,x-dx*18,2,z-dz*18,38,4.2,1,a,c,1);
-    put(heavyCores,x-dx*7,2.05,z-dz*7,16,.65,1,a,lanceCore,.72);
+    put(heavyTracers,x-dx*20,2,z-dz*20,44,5,1,a,c,1);
+    put(heavyCores,x-dx*12,2.05,z-dz*12,26,1.5,1,a,lanceBody[teamIndex] || lanceCore,1);
+    put(heavyCores,x-dx*4,2.1,z-dz*4,8,.6,1,a,lanceCore,.9);
   }
   // The rail: a heavy, fast slug, short and white-hot, with a short warm trail.
   const railColor = shot.map(c => c.clone().lerp(new T.Color(0xffe3b0), .55).multiplyScalar(1.4));
