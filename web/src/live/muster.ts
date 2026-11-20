@@ -99,7 +99,8 @@ export class Muster {
       );
       const cards = el("div", "m-cards");
       const groups = fleet.length > MAX_CARDS ? grouped(fleet, o.info) : fleet.map((h) => [h, 1] as [string, number]);
-      cards.style.setProperty("--n", String(groups.length));
+      // More kinds than fit across a phone (the citadel's attackers bring six) go in two rows.
+      cards.style.setProperty("--n", String(groups.length <= MAX_CARDS ? groups.length : Math.ceil(groups.length / 2)));
       groups.forEach(([hull, n], k) => cards.append(this.card(hull, n, team, k, o)));
       side.append(cards);
       sides.append(side);

@@ -674,8 +674,10 @@ body.inspecting #cmdlog {
   display: none;
 }
 
-/* The muster stands alone: no caption or controls showing through its scrim. */
-body.mustering #bottom {
+/* The muster stands alone: no scoreboard, caption or controls showing through its scrim
+   (a big roster's cards, two rows of them, reach up under the scoreboard on a phone). */
+body.mustering #bottom,
+body.mustering #topbar {
   visibility: hidden;
 }
 

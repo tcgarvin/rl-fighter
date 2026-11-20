@@ -344,6 +344,10 @@ export function resultText(match: LiveMatch): [string, string] {
   const c = match.convoy;
   const title = w === -1 ? "DRAW" : teamSpan(w, `${TEAM_NAMES[w]} WINS`);
   const word = (t: number) => teamSpan(t, TEAM_WORDS[t]!);
+  // A station assault's defending hull by name (the station, v10's citadel).
+  const station = match.teams[0].carrier >= 0 ? (match.hullNames[match.teams[0].carrier] ?? "station") : "station";
+  // v10's attackers bring a dreadnought, which must go too.
+  const attackers = match.ships.some((s) => s.role === "line" && s.team === 1) ? "carrier, dreadnought and wing" : "carrier and wing";
   switch (reason) {
     case "carrier":
       return [title, w === -1 ? `Both carriers destroyed · ${secs}` : `${word(1 - w)}'s carrier destroyed · ${secs}`];
@@ -352,9 +356,9 @@ export function resultText(match: LiveMatch): [string, string] {
     case "convoy_destroyed":
       return [title, c ? `Convoy destroyed — ${c.destroyed} of ${c.total} lost · ${secs}` : `Convoy destroyed · ${secs}`];
     case "station_destroyed":
-      return [title, `${word(0)}'s station destroyed · ${secs}`];
+      return [title, `${word(0)}'s ${station} destroyed · ${secs}`];
     case "assault_repelled":
-      return [title, `Assault repelled — ${word(1)}'s carrier and wing destroyed · ${secs}`];
+      return [title, `Assault repelled — ${word(1)}'s ${attackers} destroyed · ${secs}`];
     case "mutual":
       return [title, `Both fleets destroyed · ${secs}`];
     case "eliminated": {
@@ -365,7 +369,7 @@ export function resultText(match: LiveMatch): [string, string] {
     case "time": {
       if (c) return [title, `Time limit — the convoy didn't get through · ${c.escaped} of ${c.total} escaped`];
       if (match.mission === "station_assault") {
-        return [title, `Time limit — the station held at ${teamSpan(0, `${pct(match.teams[0].hp, match.teams[0].maxHp)}%`)}`];
+        return [title, `Time limit — the ${station} held at ${teamSpan(0, `${pct(match.teams[0].hp, match.teams[0].maxHp)}%`)}`];
       }
       if (match.mission === "carrier_battle") {
         const [a, b] = match.teams.map((t) => pct(t.hp, t.maxHp));
