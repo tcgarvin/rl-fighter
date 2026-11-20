@@ -105,6 +105,8 @@ enum Role {
     /// v4: capital ships, flown to their waypoint (`capital.rs`).
     Carrier,
     Transport,
+    /// v10: the dreadnought, a gun capital ship (`capital::dreadnought`).
+    Line,
 }
 
 impl Role {
@@ -115,6 +117,7 @@ impl Role {
             "anchor" => Some(Role::Anchor),
             crate::mission::ROLE_CARRIER => Some(Role::Carrier),
             crate::mission::ROLE_TRANSPORT => Some(Role::Transport),
+            crate::mission::ROLE_LINE => Some(Role::Line),
             _ => None,
         }
     }
@@ -132,9 +135,9 @@ fn is_bomber(cat: &Catalogue, hull: &HullDef) -> bool {
             .is_some_and(|t| cat.weapon(t.weapon).kind == WeaponKind::Torpedo)
 }
 
-/// Roles torpedo racks prefer (sim.js `CAPITAL_ROLES`).
+/// Roles torpedo racks prefer (sim.js `CAPITAL_ROLES`; v10 adds `line`).
 fn is_capital(role: &str) -> bool {
-    matches!(role, "carrier" | "station" | "anchor")
+    matches!(role, "carrier" | "station" | "anchor" | "line")
 }
 
 /// What a role's pilot wants this tick: body-frame force request (each component in
@@ -181,6 +184,7 @@ pub fn act(m: &Match, cat: &Catalogue, ship: ShipIdx) -> ShipAction {
     match role {
         Role::Carrier => return capital::carrier(m, cat, me, hull),
         Role::Transport => return capital::transport(m, me, hull),
+        Role::Line => return capital::dreadnought(m, cat, me, hull),
         Role::Fighter | Role::Skirmisher | Role::Anchor => {}
     }
     // WP-S2: a squad order picks the target (orders.rs); without one, the role's own
@@ -222,7 +226,9 @@ pub fn act(m: &Match, cat: &Catalogue, ship: ShipIdx) -> ShipAction {
             gunship::nose_on(&eng)
         }
         Role::Anchor => gunship::manoeuvre(&eng),
-        Role::Carrier | Role::Transport => unreachable!("capital roles returned above"),
+        Role::Carrier | Role::Transport | Role::Line => {
+            unreachable!("capital roles returned above")
+        }
     };
     // The fighter deconflicts a strike-craft target itself (keeping the gun on it); a
     // capital ship is too big to sidestep late on the RCS, so it is avoided here.
@@ -261,7 +267,7 @@ fn steer_and_fight(
     action.throttle = levels_to_throttle_heads(hull, &projected, &target_levels);
     action.power = choose_power(m, cat, me, hull, dist);
     let p_w = weapons_multiplier_after_slew(me, hull, action.power);
-    aim_turrets(m, cat, me, hull, p_w, ahead, false, &mut action);
+    aim_turrets(m, cat, me, hull, p_w, ahead, Aim::Nearest, &mut action);
     action
 }
 
@@ -463,6 +469,67 @@ fn lead_point(weapon: &WeaponDef, me: &Ship, target: &Ship, rel: Vec2) -> Vec2 {
     rel + v_rel * (rel.length() / weapon.speed)
 }
 
+/// How a ship's turrets pick their targets (`aim_turrets`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Aim {
+    /// The nearest enemy in reach (strike craft).
+    Nearest,
+    /// The carrier's point defence (WP-S2): the nearest enemy strike craft in reach, a
+    /// capital ship only when no strike craft is.
+    ThreatsFirst,
+    /// v10, the dreadnought: point defence as `ThreatsFirst`, and its main guns
+    /// ([`is_main_gun`]) aim at the nearest live enemy hardpoint in range (lance
+    /// turrets first), else the nearest enemy capital ship's centre in reach.
+    Hardpoints,
+}
+
+/// v10: a heavy gun (the rail): a bullet weapon dealing at least this much a shot.
+pub const MAIN_GUN_DAMAGE: f32 = 30.0;
+
+/// v10: whether a dreadnought aims `weapon` at hardpoints (`Aim::Hardpoints`).
+pub fn is_main_gun(weapon: &WeaponDef) -> bool {
+    weapon.kind == WeaponKind::Bullet && !weapon.capital_only && weapon.damage >= MAIN_GUN_DAMAGE
+}
+
+/// v10: what a main gun at `muzzle` aims at: the nearest live hardpoint of an active
+/// enemy capital ship within `range` (turrets whose weapon is `capital_only`, the
+/// lances, before any other), as the ship and the mount in its body frame; else the
+/// nearest enemy capital ship within `reach`, as the ship and no mount (its centre).
+fn hardpoint_target<'a>(
+    m: &'a Match,
+    cat: &Catalogue,
+    me: &Ship,
+    muzzle: Vec2,
+    range: f32,
+    reach: f32,
+) -> Option<(&'a Ship, Option<Vec2>)> {
+    let mut best: Option<((u8, f32), &Ship, Vec2)> = None;
+    for s in &m.ships {
+        let hull = cat.hull(s.hull);
+        if !s.active() || s.team == me.team || !hull.is_capital() || !s.wide {
+            continue;
+        }
+        let turrets = hull.turrets.iter().enumerate().filter_map(|(j, t)| {
+            let prio = u8::from(!cat.weapon(t.weapon).capital_only);
+            (t.is_hardpoint() && s.turret_alive(j)).then_some((prio, t.pos))
+        });
+        let bays =
+            hull.bays.iter().enumerate().filter_map(|(b, bay)| {
+                (bay.is_hardpoint() && s.bay_alive(b)).then_some((1, bay.pos))
+            });
+        for (prio, mount) in turrets.chain(bays) {
+            let d = (s.to_world(mount) - muzzle).length();
+            if d < range && best.is_none_or(|(k, _, _)| (prio, d) < k) {
+                best = Some(((prio, d), s, mount));
+            }
+        }
+    }
+    if let Some((_, s, mount)) = best {
+        return Some((s, Some(mount)));
+    }
+    nearest_enemy(m, cat, me.team, muzzle, reach, HullDef::is_capital).map(|s| (s, None))
+}
+
 /// Slew and fire heads for every turret (sim.js `aimTurrets`, adapted to the
 /// left/hold/right slew head and the linear arc clamp of stage 6).
 ///
@@ -471,10 +538,10 @@ fn lead_point(weapon: &WeaponDef, me: &Ship, target: &Ship, rel: Vec2) -> Vec2 {
 /// applies (`ahead` ticks of cooldown at weapons multiplier `p_w`), since stage 7
 /// fires right after: gating on the cooldown as read now would fire late.
 ///
-/// Bullet, beam and flak turrets aim at the nearest enemy in reach; with
-/// `threats_first` (the carrier's point defence, WP-S2) at the nearest enemy strike
-/// craft in reach, and at a capital ship only when no strike craft is. (Flak cannot
-/// hit projectiles, so a torpedo is a threat through the ship that launched it.)
+/// Bullet, beam and flak turrets aim per `aim` ([`Aim`]); torpedo racks at the nearest
+/// capital ship in range. (Flak cannot hit projectiles, so a torpedo is a threat
+/// through the ship that launched it.) v10: a destroyed turret holds and never fires;
+/// a `capital_only` weapon (the lance) only aims at capital ships.
 #[allow(clippy::too_many_arguments)]
 fn aim_turrets(
     m: &Match,
@@ -483,13 +550,19 @@ fn aim_turrets(
     hull: &HullDef,
     p_w: f32,
     ahead: u32,
-    threats_first: bool,
+    aim: Aim,
     action: &mut ShipAction,
 ) {
     for (j, turret) in hull.turrets.iter().enumerate() {
+        action.slew[j] = SLEW_HOLD;
+        action.fire[j] = 0;
+        if !me.turret_alive(j) {
+            continue;
+        }
         let weapon = cat.weapon(turret.weapon);
         let muzzle = me.to_world(turret.pos);
-        let target = if weapon.kind == WeaponKind::Torpedo {
+        let reach = weapon.range * TURRET_SEARCH_FACTOR;
+        let picked: Option<(&Ship, Option<Vec2>)> = if weapon.kind == WeaponKind::Torpedo {
             nearest_enemy(m, cat, me.team, muzzle, weapon.range, |h| {
                 is_capital(&h.role)
             })
@@ -497,21 +570,31 @@ fn aim_turrets(
                 let reach = weapon.range * TORPEDO_FALLBACK_FACTOR;
                 nearest_enemy(m, cat, me.team, muzzle, reach, |_| true)
             })
+            .map(|s| (s, None))
+        } else if weapon.capital_only {
+            nearest_enemy(m, cat, me.team, muzzle, reach, HullDef::is_capital).map(|s| (s, None))
         } else {
-            let reach = weapon.range * TURRET_SEARCH_FACTOR;
             let strike = |h: &HullDef| !crate::mission::is_capital_ship(h);
-            threats_first
-                .then(|| nearest_enemy(m, cat, me.team, muzzle, reach, strike))
-                .flatten()
-                .or_else(|| nearest_enemy(m, cat, me.team, muzzle, reach, |_| true))
+            let main = (aim == Aim::Hardpoints && is_main_gun(weapon))
+                .then(|| hardpoint_target(m, cat, me, muzzle, weapon.range, reach))
+                .flatten();
+            main.or_else(|| {
+                (aim != Aim::Nearest)
+                    .then(|| nearest_enemy(m, cat, me.team, muzzle, reach, strike))
+                    .flatten()
+                    .or_else(|| nearest_enemy(m, cat, me.team, muzzle, reach, |_| true))
+                    .map(|s| (s, None))
+            })
         };
-        action.slew[j] = SLEW_HOLD;
-        action.fire[j] = 0;
-        let Some(target) = target else {
+        let Some((target, mount)) = picked else {
             continue;
         };
         let target = &predict(target, ahead, false);
-        let rel = target.pos - muzzle;
+        let at = match mount {
+            None => target.pos,
+            Some(local) => target.to_world(local),
+        };
+        let rel = at - muzzle;
         let aim = wrap_angle(lead_point(weapon, me, target, rel).angle() - me.heading);
         let angle = me.turret_angle[j];
         if turret.arc > 0.0 {

@@ -147,8 +147,9 @@ export function pilotObsDim(layout: SimLayout, version: number): number {
   return dim;
 }
 
-/** The hulls of SIM_VERSION 4 to 8 in their id order (sim::data::LEGACY_HULL_ORDER). */
-const LEGACY_HULL_ORDER = ["carrier", "fighter", "freighter", "gunship", "strafer"];
+/** The hulls of SIM_VERSION 4 to 9 in their id order, frozen (sim::data::LEGACY_HULL_ORDER; v10 adds
+ * the citadel and the dreadnought after them, by name). */
+const LEGACY_HULL_ORDER = ["carrier", "fighter", "freighter", "gunship", "strafer", "bomber", "station"];
 
 /**
  * `hulls` in the sim's id order (sim::data::hull_order): the legacy hulls first, in

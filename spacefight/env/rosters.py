@@ -36,7 +36,10 @@ a carrier battle is a carrier plus a wing of strike craft a side; a convoy is
 freighters plus escorts (team 0, the sim's convoy side) against a strike force.
 Each team's commander is ``random`` with ``random_commander_p``. Matches pad to
 ``MAX_TRAIN_SHIPS`` (12) slots. Capital ships (``CAPITAL_ROLES``) are flown by the
-sim's scripts, never by the learned pilot.
+sim's scripts, never by the learned pilot. SIM_VERSION 10 adds role ``line`` (the
+dreadnought) to them, and a second default station roster ("citadel": the citadel
+against a carrier, a dreadnought and nine, 19 ships in a 550 m arena); a station
+assault of ``OrdersDistribution`` still plays the sim's first (v9) station roster.
 
 Live rosters (``docs/PILOT_TRAINING.md`` §3, preset ``pilots_v1``,
 ``PilotsDistribution``): a training match is drawn the way the live page draws one, so
@@ -133,8 +136,9 @@ EXTERNAL = "external"
 # ``LEARNED_COMMAND_TICKS`` through ``RustVecEnv.submit_commander_actions``.
 LEARNED = "learned"
 COMMANDER_MODES: tuple[str, ...] = (SCRIPTED, RANDOM, EXTERNAL, LEARNED)
-# Hull roles the learned pilot never flies (SIM_SPEC §11: scripts fly them).
-CAPITAL_ROLES: frozenset[str] = frozenset({"carrier", "transport"})
+# Hull roles the learned pilot never flies (SIM_SPEC §11: scripts fly them; SIM_VERSION
+# 10 adds ``line``, the dreadnought).
+CAPITAL_ROLES: frozenset[str] = frozenset({"carrier", "transport", "line"})
 
 _ABBREV = {
     "fighter": "F",
@@ -144,6 +148,8 @@ _ABBREV = {
     "freighter": "T",
     "bomber": "B",
     "station": "X",
+    "citadel": "Z",
+    "dreadnought": "D",
 }
 _MISSION_ABBREV = {
     CARRIER_BATTLE: "carrier",
@@ -549,7 +555,7 @@ def hull_names_by_id(assets_dir: Path = DEFAULT_ASSETS) -> list[str]:
     """Hull names in hull-id order, the sim's (``Catalogue::load_dir``,
     ``sim::data::hull_order``): the hulls of ``rlf_sim.LEGACY_HULL_ORDER`` first, in
     that order (they keep their v4-v8 ids), then every other hull directory by name
-    (SIM_VERSION 9: bomber, station).
+    (SIM_VERSION 9: bomber, station; v10 freezes those too and adds citadel, dreadnought).
 
     Raises:
         FileNotFoundError: No hull directories.
@@ -702,9 +708,8 @@ class OrdersDistribution:
             2 * MAX_PER_SIDE,
         )
         if self.mission_weights[MISSIONS.index(STATION_ASSAULT)] > 0:
-            widest = max(
-                widest, max(r.n_ships for r in live_mission_rosters(STATION_ASSAULT))
-            )
+            # It plays the sim's first station roster (v9's), whatever v10 appended.
+            widest = max(widest, live_mission_rosters(STATION_ASSAULT)[0].n_ships)
         if widest > self.max_ships:
             raise ValueError(
                 f"rosters reach {widest} ships > max_ships {self.max_ships}"
@@ -744,6 +749,22 @@ def live_mission_rosters(mission: str) -> tuple[Roster, ...]:
     return tuple(
         Roster.of(r["fleets"][0], r["fleets"][1], mission=mission) for r in raw
     )
+
+
+# The sim's v10 station roster: the citadel against a carrier and a dreadnought.
+CITADEL_ROSTER = "citadel"
+
+
+def citadel_roster() -> Roster:
+    """The sim's v10 "citadel" station-assault roster (``rlf_sim.mission_rosters``).
+
+    Raises:
+        ValueError: The sim has no such roster (a build before SIM_VERSION 10).
+    """
+    for r in rlf_sim.mission_rosters(STATION_ASSAULT):
+        if r["name"] == CITADEL_ROSTER:
+            return Roster.of(r["fleets"][0], r["fleets"][1], mission=STATION_ASSAULT)
+    raise ValueError(f"the sim has no {CITADEL_ROSTER!r} station roster")
 
 
 PILOTS_KIND = "pilots"
@@ -793,6 +814,10 @@ class PilotsDistribution:
             convoy escort (``Roster.station_as`` ``"convoy"``), else as a carrier
             battle. 0 draws no extra number (every assault reads as a carrier battle,
             the sim's default).
+        citadel_share: Chance a station assault plays the sim's v10 "citadel" roster
+            (the citadel against a carrier, a dreadnought and nine: 19 ships, so
+            ``max_ships`` must hold them), else the sim's first (v9) station roster.
+            0 draws no extra number, so the draws are those of v9.
         bomber_share: Training only: in a deathmatch, carrier battle or convoy, each
             strike slot (a ``FLEET_HULLS`` hull, either team) becomes a bomber with this
             chance, drawn slot by slot. A draft keeps its size, so a swapped side's cost
@@ -825,6 +850,7 @@ class PilotsDistribution:
     station_as_convoy_share: float = 0.0
     bomber_share: float = 0.0
     drill_bomber_share: float = 0.0
+    citadel_share: float = 0.0
 
     def __post_init__(self) -> None:
         if self.kind != PILOTS_KIND:
@@ -844,6 +870,7 @@ class PilotsDistribution:
             "station_as_convoy_share",
             "bomber_share",
             "drill_bomber_share",
+            "citadel_share",
         ):
             if not 0.0 <= getattr(self, name) <= 1.0:
                 raise ValueError(f"{name} must be in [0, 1], got {getattr(self, name)}")
@@ -870,11 +897,14 @@ class PilotsDistribution:
         for mission, weight in zip(MISSIONS, self.mission_weights):
             if weight <= 0:
                 continue
-            widest = (
-                2 * self.draft_max_per_side
-                if mission == DEATHMATCH
-                else max(r.n_ships for r in live_mission_rosters(mission))
-            )
+            if mission == DEATHMATCH:
+                widest = 2 * self.draft_max_per_side
+            elif mission == STATION_ASSAULT:
+                station = live_mission_rosters(mission)[0].n_ships
+                citadel = citadel_roster().n_ships if self.citadel_share > 0 else 0
+                widest = max(station, citadel)
+            else:
+                widest = max(r.n_ships for r in live_mission_rosters(mission))
             if widest > self.max_ships:
                 raise ValueError(
                     f"{mission} rosters reach {widest} ships > max_ships "
@@ -1159,6 +1189,11 @@ class PilotsRosterSampler:
             for mission, weight in zip(MISSIONS, d.mission_weights)
             if mission != DEATHMATCH and weight > 0
         }
+        # A station assault plays the sim's first (v9) roster; the v10 citadel one only
+        # by ``citadel_share``.
+        if STATION_ASSAULT in self.live:
+            self.live[STATION_ASSAULT] = self.live[STATION_ASSAULT][:1]
+        self.citadel: Roster | None = citadel_roster() if d.citadel_share > 0 else None
         self.drills: DrillSource | None = None
         if d.drill_share > 0:
             # Imported here: spacefight.env.drills builds Rosters from this module.
@@ -1184,6 +1219,8 @@ class PilotsRosterSampler:
         mission = MISSIONS[int(rng.choice(len(MISSIONS), p=p / p.sum()))]
         roster = self._draft() if mission == DEATHMATCH else self._live_roster(mission)
         if mission == STATION_ASSAULT:
+            if self.citadel is not None and rng.random() < d.citadel_share:
+                roster = self.citadel
             if d.station_as_convoy_share > 0 and (
                 rng.random() < d.station_as_convoy_share
             ):
@@ -1233,8 +1270,7 @@ class PilotsRosterSampler:
         share, rng = self.distribution.bomber_share, self.rng
         teams = tuple(
             tuple(
-                BOMBER if h in FLEET_HULLS and rng.random() < share else h
-                for h in team
+                BOMBER if h in FLEET_HULLS and rng.random() < share else h for h in team
             )
             for team in roster.teams
         )

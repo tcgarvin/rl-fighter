@@ -26,7 +26,10 @@
 //!   one of its strike craft are gone. The station sits in `MissionState.carrier[0]`,
 //!   so hangars, launches, the capital-ship script and both commanders treat it as
 //!   team 0's carrier. `StationAssault.reads_as` picks what the nets read: a carrier
-//!   battle for both sides, or a convoy escort (team 0 the defender).
+//!   battle for both sides, or a convoy escort (team 0 the defender). v10: the attacker
+//!   may bring a `line`-role ship (the dreadnought) beside its carrier; it starts present
+//!   at tick 0 next to the carrier, and the assault is repelled only once it is gone
+//!   too. The defender may be any static carrier-role hull (the v10 `citadel`).
 //!
 //! RNG draw order at setup (changing it is a `SIM_VERSION` bump): deathmatch draws
 //! exactly as v3 (`arrival.rs`). A carrier battle draws, per team in order, the
@@ -51,10 +54,10 @@ use crate::state::{
     ShipIdx, WINNER_DRAW,
 };
 
-/// Hull role of the ship a carrier battle is won and lost by (and that owns bays).
-pub const ROLE_CARRIER: &str = "carrier";
-/// Hull role of the ships a convoy escort is about.
-pub const ROLE_TRANSPORT: &str = "transport";
+/// Hull roles: `carrier`, the ship a carrier battle is won and lost by (and that owns
+/// bays); `transport`, the ships a convoy escort is about; v10 `line`, a gun capital
+/// ship (the dreadnought) with no bays. Defined with the hull data (rule 14).
+pub use crate::data::hull::{ROLE_CARRIER, ROLE_LINE, ROLE_TRANSPORT};
 
 /// A carrier sits this fraction of the arena radius from the centre, on its team's
 /// side, clear of where its jump-in squads appear (`0.5 R + [0, 30)` m).
@@ -108,6 +111,17 @@ pub const PICKET_SPREAD: f32 = 0.45;
 /// Default `jump_in` of a station assault: the defender's picket, the attacker's first
 /// wave.
 pub const DEFAULT_STATION_JUMP_IN: [u8; 2] = [2, 3];
+/// v10: the attacker's line ship (the dreadnought) starts this far ahead of its carrier
+/// (toward the station) and `LINE_START_SIDE` m to the side of it, toward the arena's
+/// centre line, under way at `CARRIER_START_SPEED_FRAC` of its cap.
+pub const LINE_START_AHEAD: f32 = 40.0;
+pub const LINE_START_SIDE: f32 = 75.0;
+/// v10: a station assault of more than this many ships (the v9 roster's 16; the v10
+/// citadel roster has 19) fights in `BIG_STATION_ARENA_RADIUS`: the arena grows with
+/// the fleets (DESIGN §6), and the dreadnought has to start outside the citadel's lance
+/// range (430 m).
+pub const STATION_SHIPS_V9: usize = 16;
+pub const BIG_STATION_ARENA_RADIUS: f32 = 550.0;
 
 /// Default time limits per mission, ticks.
 pub const DEATHMATCH_TIME_LIMIT_TICKS: u32 = 2700;
@@ -125,10 +139,15 @@ pub fn is_transport(hull: &HullDef) -> bool {
     hull.role == ROLE_TRANSPORT
 }
 
-/// Carriers and transports: flown to waypoints by the capital-ship script, never in
-/// squads.
+/// v10: a line ship (the dreadnought).
+pub fn is_line(hull: &HullDef) -> bool {
+    hull.role == ROLE_LINE
+}
+
+/// Carriers, transports and (v10) line ships: flown by the capital-ship scripts, never
+/// in squads (a waypoint, not an order, steers them).
 pub fn is_capital_ship(hull: &HullDef) -> bool {
-    is_carrier(hull) || is_transport(hull)
+    is_carrier(hull) || is_transport(hull) || is_line(hull)
 }
 
 /// Mission without its parameters; the code the bindings exchange.
@@ -187,12 +206,16 @@ impl MissionKind {
 }
 
 /// The arena radius for a mission with `n_ships` ships in total: the one per-mission
-/// rule (DESIGN §6). Every mission uses [`arena_radius_for`] (450 m) today: the pilot
-/// obs scales distances by the radius, so pilot v1 sees the inputs it trained on, and
-/// both mission layouts fit (a carrier at `0.72 R`, the convoy route from `-0.55 R` to
-/// `+0.75 R` across the centre). The WP-S2 mission survey kept it: the missions balance at 450 m (lab/runs/2026-10-30-mission-survey); a change belongs here.
+/// rule (DESIGN §6). Every mission uses [`arena_radius_for`] (450 m): the pilot obs
+/// scales distances by the radius, so pilot v1 sees the inputs it trained on, and both
+/// mission layouts fit (a carrier at `0.72 R`, the convoy route from `-0.55 R` to
+/// `+0.75 R` across the centre). The WP-S2 mission survey kept it: the missions balance
+/// at 450 m (lab/runs/2026-10-30-mission-survey); a change belongs here. v10: a station
+/// assault of more than `STATION_SHIPS_V9` ships (the citadel's) uses
+/// `BIG_STATION_ARENA_RADIUS` (550 m).
 pub fn arena_radius_for_mission(kind: MissionKind, n_ships: usize) -> f32 {
     match kind {
+        MissionKind::StationAssault if n_ships > STATION_SHIPS_V9 => BIG_STATION_ARENA_RADIUS,
         MissionKind::Deathmatch
         | MissionKind::CarrierBattle
         | MissionKind::ConvoyEscort
@@ -273,6 +296,25 @@ const STATION_GARRISON_6: &[&str] = &[
 const STATION_STRIKE_8: &[&str] = &[
     "carrier", "fighter", "bomber", "fighter", "bomber", "strafer", "bomber", "fighter", "gunship",
 ];
+// Station assault v10 (the citadel; lab/runs/2026-11-19-citadel-dreadnought/plan.md and
+// results.md): the citadel and seven against a carrier, a dreadnought and nine. 19 ships,
+// so a 550 m arena (`arena_radius_for_mission`).
+const CITADEL_GARRISON_7: &[&str] = &[
+    "citadel", "fighter", "strafer", "fighter", "gunship", "fighter", "strafer", "fighter",
+];
+const CITADEL_STRIKE_9: &[&str] = &[
+    "carrier",
+    "dreadnought",
+    "fighter",
+    "bomber",
+    "fighter",
+    "bomber",
+    "strafer",
+    "bomber",
+    "fighter",
+    "gunship",
+    "fighter",
+];
 
 const CARRIER_ROSTERS: &[MissionRoster] = &[
     MissionRoster {
@@ -288,10 +330,17 @@ const CARRIER_ROSTERS: &[MissionRoster] = &[
         fleets: [CARRIER_WING_9, CARRIER_WING_9],
     },
 ];
-const STATION_ROSTERS: &[MissionRoster] = &[MissionRoster {
-    name: "strike of 8",
-    fleets: [STATION_GARRISON_6, STATION_STRIKE_8],
-}];
+const STATION_ROSTERS: &[MissionRoster] = &[
+    MissionRoster {
+        name: "strike of 8",
+        fleets: [STATION_GARRISON_6, STATION_STRIKE_8],
+    },
+    // v10.
+    MissionRoster {
+        name: "citadel",
+        fleets: [CITADEL_GARRISON_7, CITADEL_STRIKE_9],
+    },
+];
 const CONVOY_ROSTERS: &[MissionRoster] = &[
     MissionRoster {
         name: "5 freighters",
@@ -627,8 +676,16 @@ pub(crate) fn validate(cat: &Catalogue, cfg: &MatchConfig) -> Result<(), SetupEr
     let count = |team: usize, f: fn(&HullDef) -> bool| {
         cfg.fleets[team].iter().filter(|&&h| f(cat.hull(h))).count()
     };
+    let lines = |team: usize| count(team, is_line);
     match &cfg.mission {
         Mission::Deathmatch => Ok(()),
+        Mission::CarrierBattle(_) | Mission::ConvoyEscort(_) if lines(0) + lines(1) > 0 => {
+            Err(mission_error(format!(
+                "{}: line ships (the dreadnought) fight only in a deathmatch or a station \
+                 assault",
+                cfg.mission.kind().name()
+            )))
+        }
         Mission::CarrierBattle(_) => {
             for team in 0..2 {
                 let carriers = count(team, is_carrier);
@@ -672,6 +729,14 @@ pub(crate) fn validate(cat: &Catalogue, cfg: &MatchConfig) -> Result<(), SetupEr
                     "station assault: team 1 attacks with a mobile carrier, not a station"
                         .to_string(),
                 ));
+            }
+            if lines(0) != 0 || lines(1) > 1 {
+                return Err(mission_error(format!(
+                    "station assault: only the attacker may bring a line ship, at most one \
+                     (team 0 has {}, team 1 {})",
+                    lines(0),
+                    lines(1)
+                )));
             }
             Ok(())
         }
@@ -779,7 +844,26 @@ impl Match {
             }
             self.mission.carrier[t] = carrier as ShipIdx;
 
-            let wing: Vec<usize> = slots.into_iter().filter(|&i| i != carrier).collect();
+            // v10: the attacker's line ship starts beside its carrier, under way, with no
+            // waypoint (its script closes on the station; the scripted commander may hold
+            // it back). Validated: at most one, and only on team 1.
+            let line = slots
+                .iter()
+                .copied()
+                .find(|&i| is_line(cat.hull(self.ships[i].hull)));
+            if let Some(i) = line {
+                let side = if y >= 0.0 { -1.0 } else { 1.0 };
+                let s = &mut self.ships[i];
+                s.pos = pos + fwd * LINE_START_AHEAD + Vec2::new(0.0, side * LINE_START_SIDE);
+                s.heading = heading;
+                s.vel = fwd * (CARRIER_START_SPEED_FRAC * cat.hull(s.hull).speed_cap);
+                s.present = true;
+            }
+
+            let wing: Vec<usize> = slots
+                .into_iter()
+                .filter(|&i| i != carrier && Some(i) != line)
+                .collect();
             let n_first = usize::from(sa.jump_in[t]).min(wing.len());
             for (j, &i) in wing[..n_first].iter().enumerate() {
                 if attacker {

@@ -1,0 +1,3 @@
+dreadnought vs lone carrier: wins 1.000 (40/40), mean 79s, dreadnought hull left 1800
+dreadnought vs carrier + 4: wins 0.975 (39/40), mean 115s, dreadnought hull left 569
+dreadnought vs carrier + wing of 8: wins 0.000 (0/40), mean 38s, dreadnought hull left 0

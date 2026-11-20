@@ -73,6 +73,7 @@ PILOT_OBS_DIMS: dict[int, int] = {
     7: V6_OBS_DIM,  # v7 changed crash damage only
     8: V8_OBS_DIM,
     9: V8_OBS_DIM,  # v9 added a mission and hulls; obs unchanged
+    10: V8_OBS_DIM,  # v10 added hardpoints, hulls and weapons; obs unchanged
 }
 ACTION_WIDTH = 21
 N_LOGITS = 61

@@ -59,7 +59,13 @@ pub use rng::Pcg32;
 /// keep v4's for the old hulls (`data::LEGACY_HULL_ORDER`), the obs and commander
 /// layouts are unchanged (a station assault reads as a carrier battle or a convoy), and
 /// every older mission and roster replays v8 bit for bit (SIM_SPEC §0.7).
-pub const SIM_VERSION: u32 = 9;
+/// v10: hardpoints (a capital ship's turrets and bays with their own hp, destroyed for
+/// good at 0), `capital_only` weapons, the `rail` and the `lance`, role `line` and the
+/// `dreadnought`, the `citadel` (12 turrets: `MAX_TURRETS` 12, the action row keeps
+/// `ACTION_TURRETS` 6), and the station assault with a carrier and a dreadnought
+/// attacking (a 550 m arena). Obs and actions are v9's; no v9 hull has a hardpoint, so
+/// every v9 match replays bit for bit (SIM_SPEC §0.8).
+pub const SIM_VERSION: u32 = 10;
 
 /// Sim versions whose trained pilots fly correctly in this build: their obs prefix
 /// and action layout are identical (SIM_SPEC §0.2–§0.5). Through v6 deathmatch
@@ -67,11 +73,11 @@ pub const SIM_VERSION: u32 = 9;
 /// fighter duel still replays bit for bit (`tests/determinism.rs::v*_compat_duel_*`). The bundle and the champion registry accept a pilot whose
 /// `sim_version` is in this list; it reads the first [`pilot_obs_dim`] floats of the
 /// obs.
-pub const PILOT_COMPAT_VERSIONS: &[u32] = &[3, 4, 5, 6, 7, 8, 9];
+pub const PILOT_COMPAT_VERSIONS: &[u32] = &[3, 4, 5, 6, 7, 8, 9, 10];
 
 /// `(sim version, obs width)` for every pilot-compatible version: a pilot of that
 /// version consumes `obs[..width]` (v3 and v4 pilots the 385-float prefix, v5 pilots
-/// the 403-float one, v6 and v7 pilots the 583-float one, v8 and v9 pilots all 587).
+/// the 403-float one, v6 and v7 pilots the 583-float one, v8 to v10 pilots all 587).
 pub const PILOT_OBS_DIMS: &[(u32, usize)] = &[
     (3, obs::OBS_DIM_V4),
     (4, obs::OBS_DIM_V4),
@@ -80,6 +86,7 @@ pub const PILOT_OBS_DIMS: &[(u32, usize)] = &[
     (7, obs::OBS_DIM_V7),
     (8, obs::OBS_DIM),
     (9, obs::OBS_DIM),
+    (10, obs::OBS_DIM),
 ];
 
 /// Whether a pilot trained under sim `version` flies in this build.

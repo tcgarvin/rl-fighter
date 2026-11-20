@@ -1,0 +1,48 @@
+# Citadel (SIM_VERSION 10, station assault v10): the big station. A hexagonal ring, a
+# core and six modules on spokes with gaps a strike craft can fly through (and crash
+# in). Role `carrier` and `static` as the v9 station: its team's carrier (hangar,
+# launches, the capital-ship script, the nets' carrier class), no thrusters. Every turret
+# and bay is a hardpoint (v10 rule 1): a hull hit within its hit_radius also damages it,
+# and at 0 hp it is destroyed for the rest of the match. Mounts are the contract with the
+# art agent (lab/runs/2026-11-19-citadel-dreadnought/plan.md): module at angle t, the
+# lance on the spoke at r 44, the other turrets at r 42, t - 8 / t + 8 degrees; body
+# frame +x toward the attackers. Starting numbers retuned by the script-vs-script
+# balance (lab/runs/2026-11-19-citadel-dreadnought/results.md).
+name: citadel
+role: carrier
+hp: 3200
+mass: 20000.0
+inertia: 10000000.0
+speed_cap: 0.0
+static: true
+shield: {hp: 600, regen_rate: 30, regen_delay: 5, radius: 56}
+impact:
+  - {from_deg: -180, to_deg: 180, mult: 0.5}
+cost: 320
+collision:
+  - {pos: [0.0, 0.0], r: 20.0}
+  - {pos: [38.0, 0.0], r: 11.0}
+  - {pos: [19.0, 32.91], r: 11.0}
+  - {pos: [-19.0, 32.91], r: 11.0}
+  - {pos: [-38.0, 0.0], r: 11.0}
+  - {pos: [-19.0, -32.91], r: 11.0}
+  - {pos: [19.0, -32.91], r: 11.0}
+thrusters: []
+turrets:               # hp: hardpoint hit points; hit_radius 8 (the default)
+  - {id: turret.lance.0, pos: [44.0, 0.0], rest_deg: 0, arc_deg: 240, slew_deg_s: 20, weapon: lance, hp: 250}
+  - {id: turret.flak.0, pos: [41.59, -5.85], rest_deg: 0, arc_deg: 200, slew_deg_s: 90, weapon: flak, hp: 120}
+  - {id: turret.flak.1, pos: [25.86, 33.1], rest_deg: 60, arc_deg: 200, slew_deg_s: 90, weapon: flak, hp: 120}
+  - {id: turret.gauss.0, pos: [15.73, 38.94], rest_deg: 60, arc_deg: 200, slew_deg_s: 120, weapon: gauss, hp: 100}
+  - {id: turret.flak.2, pos: [-15.73, 38.94], rest_deg: 120, arc_deg: 200, slew_deg_s: 90, weapon: flak, hp: 120}
+  - {id: turret.gauss.1, pos: [-25.86, 33.1], rest_deg: 120, arc_deg: 200, slew_deg_s: 120, weapon: gauss, hp: 100}
+  - {id: turret.lance.1, pos: [-44.0, 0.0], rest_deg: 180, arc_deg: 240, slew_deg_s: 20, weapon: lance, hp: 250}
+  - {id: turret.flak.3, pos: [-41.59, 5.85], rest_deg: 180, arc_deg: 200, slew_deg_s: 90, weapon: flak, hp: 120}
+  - {id: turret.flak.4, pos: [-25.86, -33.1], rest_deg: -120, arc_deg: 200, slew_deg_s: 90, weapon: flak, hp: 120}
+  - {id: turret.gauss.2, pos: [-15.73, -38.94], rest_deg: -120, arc_deg: 200, slew_deg_s: 120, weapon: gauss, hp: 100}
+  - {id: turret.flak.5, pos: [15.73, -38.94], rest_deg: -60, arc_deg: 200, slew_deg_s: 90, weapon: flak, hp: 120}
+  - {id: turret.gauss.3, pos: [25.86, -33.1], rest_deg: -60, arc_deg: 200, slew_deg_s: 120, weapon: gauss, hp: 100}
+bays:                  # on the core facing the gaps; a launch leaves the mouth along dir
+  - {id: bay.0, pos: [19.05, 11.0], dir: [0.866, 0.5], hp: 200, hit_radius: 7}
+  - {id: bay.1, pos: [-19.05, 11.0], dir: [-0.866, 0.5], hp: 200, hit_radius: 7}
+  - {id: bay.2, pos: [-19.05, -11.0], dir: [-0.866, -0.5], hp: 200, hit_radius: 7}
+  - {id: bay.3, pos: [19.05, -11.0], dir: [0.866, -0.5], hp: 200, hit_radius: 7}

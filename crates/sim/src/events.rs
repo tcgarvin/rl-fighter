@@ -27,6 +27,9 @@ pub const KIND_ORDER: u8 = 9;
 pub const KIND_JUMP_CHARGE: u8 = 10;
 pub const KIND_JUMP_OUT: u8 = 11;
 pub const KIND_MATCH_END: u8 = 12;
+/// v10 (hardpoints), appended so codes 0–12 stay stable.
+pub const KIND_TURRET_DESTROYED: u8 = 13;
+pub const KIND_BAY_DESTROYED: u8 = 14;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Event {
@@ -128,10 +131,25 @@ pub enum Event {
         winner: i8,
         reason: EndReason,
     },
+    /// v10: turret `turret` of `ship` (a hardpoint) was destroyed by a hit from
+    /// `shooter`; `pos` is its mount in world.
+    TurretDestroyed {
+        ship: u8,
+        turret: u8,
+        pos: Vec2,
+        shooter: u8,
+    },
+    /// v10: bay `bay` of `ship` was destroyed; `pos` is its mouth in world.
+    BayDestroyed {
+        ship: u8,
+        bay: u8,
+        pos: Vec2,
+        shooter: u8,
+    },
 }
 
 impl Event {
-    /// Flat-encoding kind code (0..12 in declaration order).
+    /// Flat-encoding kind code (0..14 in declaration order).
     pub fn kind(&self) -> u8 {
         match self {
             Event::Fire { .. } => KIND_FIRE,
@@ -147,12 +165,16 @@ impl Event {
             Event::JumpCharge { .. } => KIND_JUMP_CHARGE,
             Event::JumpOut { .. } => KIND_JUMP_OUT,
             Event::MatchEnd { .. } => KIND_MATCH_END,
+            Event::TurretDestroyed { .. } => KIND_TURRET_DESTROYED,
+            Event::BayDestroyed { .. } => KIND_BAY_DESTROYED,
         }
     }
 
     /// `[kind, a, b, x, y, nx_or_x2, ny_or_y2, extra]` (SIM_SPEC §9). Fields a kind
     /// does not use are 0. `Fire` carries its weapon id in slot 5; `Beam` carries
     /// `to` in slots 5–6 and `hit` as 0/1 in `extra`; `Hit` carries `mult` in slot 5.
+    /// v10: `TurretDestroyed` / `BayDestroyed` are `[k, ship, turret or bay, x, y, 0,
+    /// 0, shooter]`.
     pub fn encode(&self) -> [f32; EVENT_STRIDE] {
         let k = f32::from(self.kind());
         let b = |v: bool| if v { 1.0 } else { 0.0 };
@@ -280,6 +302,27 @@ impl Event {
             Event::JumpOut { ship, pos, heading } => {
                 [k, f32::from(ship), 0.0, pos.x, pos.y, 0.0, 0.0, heading]
             }
+            Event::TurretDestroyed {
+                ship,
+                turret: index,
+                pos,
+                shooter,
+            }
+            | Event::BayDestroyed {
+                ship,
+                bay: index,
+                pos,
+                shooter,
+            } => [
+                k,
+                f32::from(ship),
+                f32::from(index),
+                pos.x,
+                pos.y,
+                0.0,
+                0.0,
+                slot_or_minus_one(shooter),
+            ],
             Event::MatchEnd { winner, reason } => [
                 k,
                 f32::from(winner),

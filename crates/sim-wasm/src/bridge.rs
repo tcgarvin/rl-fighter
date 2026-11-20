@@ -7,7 +7,7 @@ use sim::actions::{self, ACTION_WIDTH, ShipAction};
 use sim::command::{CommanderMode, MAX_SQUADS, Order, Waypoint};
 use sim::commander_io::{self, CommanderLocks};
 use sim::data::{Catalogue, HullId};
-use sim::mission::{JumpState, Mission, is_carrier, is_transport};
+use sim::mission::{JumpState, Mission, is_carrier, is_line, is_transport};
 use sim::obs::OBS_DIM;
 use sim::scripted;
 use sim::setup::{
@@ -17,24 +17,41 @@ use sim::spec::{
     CommandSpec, CommanderObsView, MissionSpec, MissionStateView, OutcomeView, parse_commanders,
     to_json,
 };
-use sim::state::{Attach, MAX_THRUSTERS, MAX_TURRETS, Match, NONE, ShipIdx};
+use sim::state::{
+    ACTION_TURRETS, Attach, MAX_BAYS, MAX_THRUSTERS, MAX_TURRETS, Match, NONE, ShipIdx,
+};
 
 /// Floats per ship in the ships view:
 /// `[pos.x, pos.y, vel.x, vel.y, heading, omega, hp, shield, alive, present, team,
 /// hull, thrust_level[8], turret_angle[6], power[3]]` (bools as 0/1, thrust levels
 /// in `[0, 1]` (v2; v1 wrote throttles 0/1/2), power shares shields, engines, weapons).
-pub const SHIP_STRIDE: usize = 12 + MAX_THRUSTERS + MAX_TURRETS + 3;
+/// v10: the first `ACTION_TURRETS` (6) turret angles, as before; a hull with more (the
+/// citadel's 12) has all of them in the hardpoints view.
+pub const SHIP_STRIDE: usize = 12 + MAX_THRUSTERS + ACTION_TURRETS + 3;
 /// Floats per live projectile in the projectiles view:
-/// `[pool_slot, kind, team, owner, pos.x, pos.y, vel.x, vel.y]`. Only live pool
+/// `[pool_slot, kind, team, owner, pos.x, pos.y, vel.x, vel.y, weapon]`. Only live pool
 /// slots are listed, in pool order; `pool_slot` identifies a projectile across
-/// ticks (a slot is reused only after its projectile dies or is overwritten).
-pub const PROJECTILE_STRIDE: usize = 8;
+/// ticks (a slot is reused only after its projectile dies or is overwritten). v10
+/// appends `weapon` (the catalogue weapon id, file order of `weapons.yaml`), so the
+/// renderer can tell a rail or lance slug from a gauss round (all `bullet`s).
+pub const PROJECTILE_STRIDE: usize = 9;
+/// v10: floats per ship in the hardpoints view (`hardpoints_*`, ship order):
+/// `[n_turrets, n_bays, turret_angle[12], turret_state[12], bay_state[4]]`. Angles are
+/// body frame (radians), every turret of the hull (`MAX_TURRETS` slots). A state is the
+/// mount's hardpoint hit points as a fraction of its maximum, `0` once destroyed (it
+/// never slews, fires or launches again), `1` for a mount that is not a hardpoint (it
+/// cannot be destroyed), `0` for slots past the hull's mounts.
+pub const HARDPOINT_STRIDE: usize = 2 + 2 * MAX_TURRETS + MAX_BAYS;
+pub const HARDPOINT_TURRET_ANGLE_OFFSET: usize = 2;
+pub const HARDPOINT_TURRET_STATE_OFFSET: usize = HARDPOINT_TURRET_ANGLE_OFFSET + MAX_TURRETS;
+pub const HARDPOINT_BAY_STATE_OFFSET: usize = HARDPOINT_TURRET_STATE_OFFSET + MAX_TURRETS;
+const _: () = assert!(HARDPOINT_BAY_STATE_OFFSET + MAX_BAYS == HARDPOINT_STRIDE);
 /// Offset of the thrust-level block within a ship record.
 pub const SHIP_THROTTLE_OFFSET: usize = 12;
 /// Offset of the turret-angle block within a ship record.
 pub const SHIP_TURRET_OFFSET: usize = SHIP_THROTTLE_OFFSET + MAX_THRUSTERS;
 /// Offset of the power split within a ship record.
-pub const SHIP_POWER_OFFSET: usize = SHIP_TURRET_OFFSET + MAX_TURRETS;
+pub const SHIP_POWER_OFFSET: usize = SHIP_TURRET_OFFSET + ACTION_TURRETS;
 
 const _: () = assert!(SHIP_POWER_OFFSET + 3 == SHIP_STRIDE);
 const _: () = assert!(SHIP_STRIDE == 29);
@@ -42,7 +59,7 @@ const _: () = assert!(SHIP_STRIDE == 29);
 /// v4: floats per ship in the mission view (`ship_ext_*`), same ship order as the
 /// ships view: `[role, docked, parent, jump, charge_until, has_waypoint, waypoint.x,
 /// waypoint.y, squad, order_kind]`. `role` 0 strike craft (or any other role), 1
-/// carrier, 2 transport; `parent` the carrier a docked ship waits in, else -1; `jump`
+/// carrier, 2 transport, 3 (v10) line (the dreadnought); `parent` the carrier a docked ship waits in, else -1; `jump`
 /// 0 idle, 1 charging (until tick `charge_until`), 2 jumped out (escaped); `squad`
 /// its squad index in its team or -1, `order_kind` that squad's order (0 none, 1
 /// attack, 2 defend, 3 go-to; v5: guard, hold).
@@ -146,6 +163,7 @@ pub struct MatchCore {
     locks: [CommanderLocks; 2],
     ships: Vec<f32>,
     ship_ext: Vec<f32>,
+    hardpoints: Vec<f32>,
     projectiles: Vec<f32>,
     events: Vec<f32>,
 }
@@ -181,6 +199,7 @@ impl MatchCore {
             locks: Default::default(),
             ships: Vec::new(),
             ship_ext: Vec::new(),
+            hardpoints: Vec::new(),
             projectiles: Vec::new(),
             events: Vec::new(),
         };
@@ -236,7 +255,7 @@ impl MatchCore {
         let fixed = actions::fixed_turret(hull);
         let mut out = Vec::with_capacity(ACTION_WIDTH);
         out.extend(thruster.iter().map(|&t| u8::from(t)));
-        out.extend((0..MAX_TURRETS).map(|j| u8::from(turret[j] && !fixed[j])));
+        out.extend((0..ACTION_TURRETS).map(|j| u8::from(turret[j] && !fixed[j])));
         out.extend(turret.iter().map(|&t| u8::from(t)));
         out.push(1);
         debug_assert_eq!(out.len(), ACTION_WIDTH);
@@ -263,6 +282,11 @@ impl MatchCore {
     /// v4: the per-ship mission view (`SHIP_EXT_STRIDE` floats per ship).
     pub fn ship_ext_view(&self) -> &[f32] {
         &self.ship_ext
+    }
+
+    /// v10: the hardpoints view (`HARDPOINT_STRIDE` floats per ship).
+    pub fn hardpoints_view(&self) -> &[f32] {
+        &self.hardpoints
     }
 
     /// v4: `MissionKind` code (0 deathmatch, 1 carrier battle, 2 convoy escort; v9: 3
@@ -423,7 +447,9 @@ impl MatchCore {
         let hull = self.cat.hull(ship.hull);
         let ready = (0..hull.bays.len())
             .filter(|&b| {
-                ship.active() && self.m.tick() >= self.m.mission.bay_ready[usize::from(t)][b]
+                ship.active()
+                    && ship.bay_alive(b)
+                    && self.m.tick() >= self.m.mission.bay_ready[usize::from(t)][b]
             })
             .count();
         Ok(vec![
@@ -516,8 +542,31 @@ impl MatchCore {
                 f32::from(s.hull),
             ]);
             self.ships.extend_from_slice(&s.thrust_level);
-            self.ships.extend_from_slice(&s.turret_angle);
+            self.ships
+                .extend_from_slice(&s.turret_angle[..ACTION_TURRETS]);
             self.ships.extend_from_slice(&s.power);
+        }
+        self.hardpoints.clear();
+        for s in self.m.ships() {
+            let hull = self.cat.hull(s.hull);
+            let state = |hp: f32, max: f32, alive: bool| match (alive, max > 0.0) {
+                (false, _) => 0.0,
+                (true, true) => hp / max,
+                (true, false) => 1.0,
+            };
+            let mut rec = [0.0f32; HARDPOINT_STRIDE];
+            rec[0] = hull.turrets.len() as f32;
+            rec[1] = hull.bays.len() as f32;
+            rec[HARDPOINT_TURRET_ANGLE_OFFSET..HARDPOINT_TURRET_STATE_OFFSET]
+                .copy_from_slice(&s.turret_angle);
+            for (j, t) in hull.turrets.iter().enumerate() {
+                rec[HARDPOINT_TURRET_STATE_OFFSET + j] =
+                    state(s.turret_hp[j], t.hp, s.turret_alive(j));
+            }
+            for (b, bay) in hull.bays.iter().enumerate() {
+                rec[HARDPOINT_BAY_STATE_OFFSET + b] = state(s.bay_hp[b], bay.hp, s.bay_alive(b));
+            }
+            self.hardpoints.extend_from_slice(&rec);
         }
         self.ship_ext.clear();
         for s in self.m.ships() {
@@ -526,6 +575,8 @@ impl MatchCore {
                 1.0
             } else if is_transport(hull) {
                 2.0
+            } else if is_line(hull) {
+                3.0
             } else {
                 0.0
             };
@@ -572,6 +623,7 @@ impl MatchCore {
                 p.pos.y,
                 p.vel.x,
                 p.vel.y,
+                f32::from(p.weapon),
             ]);
         }
         self.m.events.encode_into(&mut self.events);

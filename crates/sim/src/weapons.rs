@@ -7,7 +7,7 @@
 //!
 //! Nothing else in stages 6–9 consumes the match rng.
 
-use crate::damage::{apply_damage, can_hit};
+use crate::damage::{apply_damage, can_hit_with};
 use crate::data::{Catalogue, WeaponDef, WeaponId, WeaponKind};
 use crate::events::Event;
 use crate::math::{Vec2, wrap_angle};
@@ -39,7 +39,11 @@ impl Match {
             // v2: the firing action was chosen d + 1 ticks before it applies (§8).
             let decision_tick = tick.saturating_sub(1 + u32::from(ship.reaction_ticks));
             for (j, t) in hull.turrets.iter().enumerate() {
-                if action.fire[j] != 1 || self.ships[s].turret_cooldown[j] != 0.0 {
+                // v10: a destroyed turret never fires.
+                if action.fire[j] != 1
+                    || self.ships[s].turret_cooldown[j] != 0.0
+                    || !self.ships[s].turret_alive(j)
+                {
                     continue;
                 }
                 let w = cat.weapon(t.weapon);
@@ -89,7 +93,7 @@ impl Match {
             WeaponKind::Torpedo => (
                 dir * w.speed,
                 w.life_ticks,
-                self.torpedo_lock(owner, w, muzzle, angle),
+                self.torpedo_lock(cat, owner, w, muzzle, angle),
             ),
             WeaponKind::Flak => {
                 let u = self.rng.uniform();
@@ -120,7 +124,14 @@ impl Match {
     /// Torpedo target at spawn: the hittable enemy within `range` of the muzzle and
     /// within `lock_cone / 2` of the muzzle line with the smallest angular error
     /// (lowest slot on ties); `NONE` if there is none or `lock_cone == 0`.
-    fn torpedo_lock(&self, owner: ShipIdx, w: &WeaponDef, muzzle: Vec2, angle: f32) -> ShipIdx {
+    fn torpedo_lock(
+        &self,
+        cat: &Catalogue,
+        owner: ShipIdx,
+        w: &WeaponDef,
+        muzzle: Vec2,
+        angle: f32,
+    ) -> ShipIdx {
         if w.lock_cone <= 0.0 {
             return NONE;
         }
@@ -131,7 +142,7 @@ impl Match {
         for s in self
             .ships
             .iter()
-            .filter(|s| can_hit(shooter.team, shooter, s))
+            .filter(|s| can_hit_with(cat, w, shooter.team, shooter, s))
         {
             let rel = s.pos - muzzle;
             if rel.length() > w.range {
@@ -164,7 +175,7 @@ impl Match {
         for s in self
             .ships
             .iter()
-            .filter(|s| can_hit(shooter.team, shooter, s))
+            .filter(|s| can_hit_with(cat, w, shooter.team, shooter, s))
         {
             if let Some(t) = segment_shape_entry(cat, s, muzzle, end) {
                 if best.is_none_or(|(bt, _)| t < bt) {

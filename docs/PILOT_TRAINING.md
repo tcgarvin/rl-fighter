@@ -610,6 +610,7 @@ a mean over all the learner side's rows like `reward_order`, so the two add up t
 | Condition | `commander_p`, default 0.5: both teams' orders shown, else hidden from both |
 | Mixed (experiment) | `mixed_p`, default 0: of the shown matches, the share with one random side's orders hidden |
 | Station reading | `station_as_convoy_share`, default 0: the share of station assaults the nets read as a convoy escort (station side the defender), else as a carrier battle |
+| Citadel (SIM_VERSION 10) | `citadel_share`, default 0: the share of station assaults that play the sim's "citadel" roster (the citadel and 7 against a carrier, a dreadnought and 9: 19 ships, so `max_ships` must be at least 19), else the v9 station roster. The dreadnought reads to the nets as the obs class `spare`; pilots never fly it (`CAPITAL_ROLES`) |
 | Bombers (training only) | `bomber_share`, default 0: in a deathmatch, carrier battle or convoy, each strike slot of either team is a bomber with this chance (a swapped draft side's cost moves by the hull difference); a station assault keeps the sim's roster, which has three bombers. `drill_bomber_share`, default 0: the same for each pilot slot of an attack or defend drill (go-to drills keep their hulls, whose speeds set the deadline) |
 
 A family sets its own share with `roster_overrides`, e.g. `commander_p: 0.3`.

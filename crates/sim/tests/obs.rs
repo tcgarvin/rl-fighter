@@ -710,7 +710,7 @@ fn values_stay_within_clip_under_extreme_states() {
         s.omega = -1.0e6;
         s.hp = 1.0e9;
         s.shield = -1.0e9;
-        s.turret_cooldown = [1.0e6; 6];
+        s.turret_cooldown = [1.0e6; 12];
         s.control_lock_until = u32::MAX;
         s.reaction_ticks = MAX_REACTION_TICKS as u8;
         s.thrust_level = [1.0; 8];

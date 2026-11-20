@@ -511,6 +511,48 @@ pub struct ShipMissionView {
     pub waypoint: Option<[f32; 2]>,
     /// Squad index in its team, or -1.
     pub squad: i8,
+    /// v10: the ship's hardpoints, only for a hull that has any (absent otherwise, so
+    /// an older match's view is unchanged).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hardpoints: Option<HardpointsView>,
+}
+
+/// v10: a capital ship's turret and bay hardpoints, in hull order. `*_hp` is the
+/// hardpoint's hit points now (`null` for a mount that is not a hardpoint), `*_alive`
+/// whether it still works.
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct HardpointsView {
+    pub turret_hp: Vec<Option<f32>>,
+    pub turret_alive: Vec<bool>,
+    pub bay_hp: Vec<Option<f32>>,
+    pub bay_alive: Vec<bool>,
+}
+
+impl HardpointsView {
+    /// The view of `ship` (hull `hull`), `None` for a hull without hardpoints.
+    pub fn of(hull: &crate::data::HullDef, ship: &crate::state::Ship) -> Option<HardpointsView> {
+        if !hull.has_hardpoints() {
+            return None;
+        }
+        Some(HardpointsView {
+            turret_hp: hull
+                .turrets
+                .iter()
+                .enumerate()
+                .map(|(j, t)| t.is_hardpoint().then_some(ship.turret_hp[j]))
+                .collect(),
+            turret_alive: (0..hull.turrets.len())
+                .map(|j| ship.turret_alive(j))
+                .collect(),
+            bay_hp: hull
+                .bays
+                .iter()
+                .enumerate()
+                .map(|(b, bay)| bay.is_hardpoint().then_some(ship.bay_hp[b]))
+                .collect(),
+            bay_alive: (0..hull.bays.len()).map(|b| ship.bay_alive(b)).collect(),
+        })
+    }
 }
 
 /// The whole mission and command state of a match (bindings, debugging, the web).
@@ -578,6 +620,7 @@ impl MissionStateView {
                         Waypoint::At(p) => Some([p.x, p.y]),
                     },
                     squad: m.squad_of(s.slot).map_or(-1, |k| k as i8),
+                    hardpoints: HardpointsView::of(hull, s),
                 }
             })
             .collect();

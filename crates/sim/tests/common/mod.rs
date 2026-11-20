@@ -12,8 +12,8 @@
 #![allow(dead_code)]
 
 use sim::data::{
-    ArmourArc, BayDef, Catalogue, Circle, HullDef, HullId, ShieldDef, ThrusterDef, TurretDef,
-    WeaponDef, WeaponId, WeaponKind,
+    ArmourArc, BayDef, Catalogue, Circle, DEFAULT_HARDPOINT_HIT_RADIUS, HullDef, HullId, ShieldDef,
+    ThrusterDef, TurretDef, WeaponDef, WeaponId, WeaponKind,
 };
 use sim::setup::MatchConfig;
 use sim::state::Match;
@@ -23,6 +23,9 @@ pub const GAUSS: WeaponId = 0;
 pub const LASER: WeaponId = 1;
 pub const FLAK: WeaponId = 2;
 pub const TORPEDO: WeaponId = 3;
+/// v10.
+pub const RAIL: WeaponId = 4;
+pub const LANCE: WeaponId = 5;
 
 pub const CARRIER: HullId = 0;
 pub const FIGHTER: HullId = 1;
@@ -32,6 +35,9 @@ pub const STRAFER: HullId = 4;
 /// v9.
 pub const BOMBER: HullId = 5;
 pub const STATION: HullId = 6;
+/// v10.
+pub const CITADEL: HullId = 7;
+pub const DREADNOUGHT: HullId = 8;
 
 fn v(x: f32, y: f32) -> Vec2 {
     Vec2::new(x, y)
@@ -65,6 +71,36 @@ fn turret(
         arc: arc_deg.to_radians(),
         slew_rate: slew_deg_s.to_radians(),
         weapon,
+        hp: 0.0,
+        hit_radius: DEFAULT_HARDPOINT_HIT_RADIUS,
+    }
+}
+
+/// v10: a turret hardpoint of `hp` hit points (default hit radius).
+#[allow(clippy::too_many_arguments)]
+fn hard_turret(
+    id: &str,
+    pos: (f32, f32),
+    rest_deg: f32,
+    arc_deg: f32,
+    slew_deg_s: f32,
+    weapon: WeaponId,
+    hp: f32,
+) -> TurretDef {
+    TurretDef {
+        hp,
+        ..turret(id, pos, rest_deg, arc_deg, slew_deg_s, weapon)
+    }
+}
+
+/// A bay; `hp` 0 is not a hardpoint.
+fn bay(id: &str, pos: (f32, f32), dir: (f32, f32), hp: f32, hit_radius: f32) -> BayDef {
+    BayDef {
+        id: id.to_string(),
+        pos: v(pos.0, pos.1),
+        dir: v(dir.0, dir.1).normalized(),
+        hp,
+        hit_radius,
     }
 }
 
@@ -236,16 +272,8 @@ pub fn carrier_hull() -> HullDef {
         ),
     ];
     h.bays = vec![
-        BayDef {
-            id: "bay.port".to_string(),
-            pos: v(4.0, 9.0),
-            dir: v(0.5, 0.87).normalized(),
-        },
-        BayDef {
-            id: "bay.starboard".to_string(),
-            pos: v(4.0, -9.0),
-            dir: v(0.5, -0.87).normalized(),
-        },
+        bay("bay.port", (4.0, 9.0), (0.5, 0.87), 0.0, 8.0),
+        bay("bay.starboard", (4.0, -9.0), (0.5, -0.87), 0.0, 8.0),
     ];
     h.impact = vec![armour_arc(-180.0, 180.0, 0.5)];
     h.derive();
@@ -326,18 +354,143 @@ pub fn station_hull() -> HullDef {
         turret("turret.gauss.2", (8.0, -13.9), -60.0, 220.0, 120.0, GAUSS),
     ];
     h.bays = vec![
-        BayDef {
-            id: "bay.port".to_string(),
-            pos: v(0.0, 21.0),
-            dir: v(0.0, 1.0),
-        },
-        BayDef {
-            id: "bay.starboard".to_string(),
-            pos: v(0.0, -21.0),
-            dir: v(0.0, -1.0),
-        },
+        bay("bay.port", (0.0, 21.0), (0.0, 1.0), 0.0, 8.0),
+        bay("bay.starboard", (0.0, -21.0), (0.0, -1.0), 0.0, 8.0),
     ];
     h.impact = vec![armour_arc(-180.0, 180.0, 0.5)];
+    h.derive();
+    h
+}
+
+/// v10 citadel: static carrier-role ring, twelve turret and four bay hardpoints
+/// (`lab/runs/2026-11-19-citadel-dreadnought/plan.md`).
+pub fn citadel_hull() -> HullDef {
+    let mut h = hull("citadel", "carrier", 3200.0, 20000.0, 1.0e7, 0.0);
+    h.cost = 320;
+    h.is_static = true;
+    h.shield = Some(ShieldDef {
+        hp: 600.0,
+        regen_rate: 30.0,
+        regen_delay: 5.0,
+        radius: 56.0,
+    });
+    h.collision = vec![
+        circle(0.0, 0.0, 20.0),
+        circle(38.0, 0.0, 11.0),
+        circle(19.0, 32.91, 11.0),
+        circle(-19.0, 32.91, 11.0),
+        circle(-38.0, 0.0, 11.0),
+        circle(-19.0, -32.91, 11.0),
+        circle(19.0, -32.91, 11.0),
+    ];
+    let lance = |id, pos, rest| hard_turret(id, pos, rest, 240.0, 20.0, LANCE, 250.0);
+    let flak = |id, pos, rest| hard_turret(id, pos, rest, 200.0, 90.0, FLAK, 120.0);
+    let gauss = |id, pos, rest| hard_turret(id, pos, rest, 200.0, 120.0, GAUSS, 100.0);
+    h.turrets = vec![
+        lance("turret.lance.0", (44.0, 0.0), 0.0),
+        flak("turret.flak.0", (41.59, -5.85), 0.0),
+        flak("turret.flak.1", (25.86, 33.1), 60.0),
+        gauss("turret.gauss.0", (15.73, 38.94), 60.0),
+        flak("turret.flak.2", (-15.73, 38.94), 120.0),
+        gauss("turret.gauss.1", (-25.86, 33.1), 120.0),
+        lance("turret.lance.1", (-44.0, 0.0), 180.0),
+        flak("turret.flak.3", (-41.59, 5.85), 180.0),
+        flak("turret.flak.4", (-25.86, -33.1), -120.0),
+        gauss("turret.gauss.2", (-15.73, -38.94), -120.0),
+        flak("turret.flak.5", (15.73, -38.94), -60.0),
+        gauss("turret.gauss.3", (25.86, -33.1), -60.0),
+    ];
+    h.bays = vec![
+        bay("bay.0", (19.05, 11.0), (0.866, 0.5), 200.0, 7.0),
+        bay("bay.1", (-19.05, 11.0), (-0.866, 0.5), 200.0, 7.0),
+        bay("bay.2", (-19.05, -11.0), (-0.866, -0.5), 200.0, 7.0),
+        bay("bay.3", (19.05, -11.0), (0.866, -0.5), 200.0, 7.0),
+    ];
+    h.impact = vec![armour_arc(-180.0, 180.0, 0.5)];
+    h.derive();
+    h
+}
+
+/// v10 dreadnought: role `line`, armoured bow, five turret hardpoints, no bays.
+pub fn dreadnought_hull() -> HullDef {
+    let mut h = hull("dreadnought", "line", 1800.0, 900.0, 150000.0, 7.0);
+    h.cost = 180;
+    h.shield = Some(ShieldDef {
+        hp: 350.0,
+        regen_rate: 18.0,
+        regen_delay: 5.0,
+        radius: 36.0,
+    });
+    h.armour = vec![
+        armour_arc(-180.0, -135.0, 1.3),
+        armour_arc(-135.0, -60.0, 0.7),
+        armour_arc(-60.0, 60.0, 0.4),
+        armour_arc(60.0, 135.0, 0.7),
+        armour_arc(135.0, 180.0, 1.3),
+    ];
+    h.impact = vec![armour_arc(-180.0, 180.0, 0.5)];
+    h.collision = vec![
+        circle(20.0, 0.0, 7.0),
+        circle(6.0, 0.0, 9.0),
+        circle(-10.0, 0.0, 9.0),
+        circle(-24.0, 0.0, 7.0),
+    ];
+    h.thrusters = vec![
+        thruster("thruster.main.l", (-31.0, 5.0), (1.0, 0.0), 420.0),
+        thruster("thruster.main.c", (-31.0, 0.0), (1.0, 0.0), 420.0),
+        thruster("thruster.main.r", (-31.0, -5.0), (1.0, 0.0), 420.0),
+        thruster("thruster.rcs.fl", (22.0, 7.0), (0.0, -1.0), 600.0),
+        thruster("thruster.rcs.fr", (22.0, -7.0), (0.0, 1.0), 600.0),
+        thruster("thruster.rcs.rl", (-22.0, 8.0), (0.0, -1.0), 600.0),
+        thruster("thruster.rcs.rr", (-22.0, -8.0), (0.0, 1.0), 600.0),
+    ];
+    h.turrets = vec![
+        hard_turret(
+            "turret.rail.fore",
+            (14.0, 0.0),
+            0.0,
+            300.0,
+            25.0,
+            RAIL,
+            220.0,
+        ),
+        hard_turret(
+            "turret.rail.aft",
+            (-14.0, 0.0),
+            180.0,
+            300.0,
+            25.0,
+            RAIL,
+            220.0,
+        ),
+        hard_turret(
+            "turret.flak.port",
+            (0.0, 9.0),
+            90.0,
+            200.0,
+            90.0,
+            FLAK,
+            120.0,
+        ),
+        hard_turret(
+            "turret.flak.starboard",
+            (0.0, -9.0),
+            -90.0,
+            200.0,
+            90.0,
+            FLAK,
+            120.0,
+        ),
+        hard_turret(
+            "turret.gauss.bow",
+            (26.0, 0.0),
+            0.0,
+            180.0,
+            120.0,
+            GAUSS,
+            100.0,
+        ),
+    ];
     h.derive();
     h
 }
@@ -381,6 +534,7 @@ fn weapon(
         turn_rate: 0.0,
         lock_cone: 0.0,
         life_factor: 1.0,
+        capital_only: false,
         life_ticks: 0,
     };
     derive_life(&mut w);
@@ -408,7 +562,11 @@ pub fn test_weapons() -> Vec<WeaponDef> {
     torpedo.lock_cone = 30f32.to_radians();
     torpedo.life_factor = 1.3;
     derive_life(&mut torpedo);
-    vec![gauss, laser, flak, torpedo]
+    // v10, appended.
+    let rail = weapon("rail", WeaponKind::Bullet, 260.0, 380.0, 22.0, 1.6, 0.3);
+    let mut lance = weapon("lance", WeaponKind::Bullet, 300.0, 430.0, 130.0, 2.2, 0.2);
+    lance.capital_only = true;
+    vec![gauss, laser, flak, torpedo, rail, lance]
 }
 
 /// The five v4 hulls, v9's bomber and station, and four weapons, ids as the loader
@@ -423,6 +581,8 @@ pub fn test_catalogue() -> Catalogue {
             strafer_hull(),
             bomber_hull(),
             station_hull(),
+            citadel_hull(),
+            dreadnought_hull(),
         ],
         weapons: test_weapons(),
     }
@@ -509,6 +669,15 @@ pub fn asset_catalogue() -> Catalogue {
         (
             "bomber",
             include_str!("../../../../assets/hulls/bomber/hull.yaml"),
+        ),
+        // v10: names that sort among the v9 hulls; they take ids 7 and 8.
+        (
+            "dreadnought",
+            include_str!("../../../../assets/hulls/dreadnought/hull.yaml"),
+        ),
+        (
+            "citadel",
+            include_str!("../../../../assets/hulls/citadel/hull.yaml"),
         ),
     ];
     let weapons = include_str!("../../../../assets/weapons.yaml");

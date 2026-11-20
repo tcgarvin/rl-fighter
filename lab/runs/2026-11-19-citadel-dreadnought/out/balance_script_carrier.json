@@ -1,0 +1,73 @@
+{
+ "schema": "rlf.lab.citadel/1",
+ "sim_version": 10,
+ "n": 512,
+ "seed": 910000,
+ "roster_name": "citadel",
+ "roster": [
+  [
+   "citadel",
+   "fighter",
+   "strafer",
+   "fighter",
+   "gunship",
+   "fighter",
+   "strafer",
+   "fighter"
+  ],
+  [
+   "carrier",
+   "dreadnought",
+   "fighter",
+   "bomber",
+   "fighter",
+   "bomber",
+   "strafer",
+   "bomber",
+   "fighter",
+   "gunship",
+   "fighter"
+  ]
+ ],
+ "arena_radius": 550.0,
+ "station_as": "carrier",
+ "pilots": "script",
+ "attacker_win_rate": 0.55859375,
+ "attacker_win_ci95": 0.043053939524543484,
+ "end_reasons": {
+  "time_limit": 0.041015625,
+  "station_destroyed": 0.55859375,
+  "assault_repelled": 0.400390625
+ },
+ "length_median_s": 114.38333333333333,
+ "length_p90_s": 136.12666666666667,
+ "station_damage_by_hull_per_match": {
+  "bomber": 840.52734375,
+  "carrier": 373.65625,
+  "dreadnought": 923.2265625,
+  "fighter": 34.19921875,
+  "gunship": 920.279296875,
+  "strafer": 16.353515625
+ },
+ "station_turrets_destroyed_per_match": {
+  "flak": 0.78125,
+  "gauss": 0.48046875,
+  "lance": 0.455078125
+ },
+ "station_turrets_destroyed_total_per_match": 1.716796875,
+ "station_bays_destroyed_per_match": 0.5859375,
+ "first_hardpoint_lost": {
+  "flak": 152,
+  "gauss": 120,
+  "bay": 109,
+  "lance": 39
+ },
+ "matches_with_a_hardpoint_lost": 0.8203125,
+ "citadel_damage_to_dreadnought_per_match": 1720.7462890625,
+ "dreadnought_turrets_destroyed_per_match": 1.3046875,
+ "dreadnought_died": 0.40234375,
+ "carrier_died": 0.541015625,
+ "defender_strike_damage_to_dreadnought_per_match": 123.17050781249999,
+ "defender_strike_damage_share_on_dreadnought": 0.24515326719802447,
+ "defender_strike_craft_that_hit_dreadnought": 0.15736607142857142
+}

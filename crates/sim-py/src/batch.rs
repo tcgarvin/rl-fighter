@@ -24,7 +24,7 @@ use sim::obs::OBS_DIM;
 use sim::rng;
 use sim::scripted;
 use sim::setup::{MatchConfig, SetupError, ShipStart};
-use sim::state::{MAX_HITS, MAX_THRUSTERS, MAX_TURRETS, Match, MatchPhase, WINNER_NONE};
+use sim::state::{ACTION_TURRETS, MAX_HITS, MAX_THRUSTERS, Match, MatchPhase, WINNER_NONE};
 
 /// Columns of one row of the hits buffer: shooter, target, fire_tick, damage*1000,
 /// shield, decision_tick (SIM_SPEC §8, v2).
@@ -563,8 +563,8 @@ fn split_rows<'a>(cfg: &BatchConfig, b: StepBuffers<'a>) -> Vec<MatchRows<'a>> {
     let mut hit_count = b.hit_count.iter_mut();
     let mut collision_damage = b.collision_damage.chunks_mut(s);
     let mut thruster_mask = b.thruster_mask.chunks_mut(s * MAX_THRUSTERS);
-    let mut turret_mask = b.turret_mask.chunks_mut(s * MAX_TURRETS);
-    let mut fixed_turret = b.fixed_turret.chunks_mut(s * MAX_TURRETS);
+    let mut turret_mask = b.turret_mask.chunks_mut(s * ACTION_TURRETS);
+    let mut fixed_turret = b.fixed_turret.chunks_mut(s * ACTION_TURRETS);
     let mut team = b.team.chunks_mut(s);
     let mut hull_id = b.hull_id.chunks_mut(s);
     let mut arena_radius = b.arena_radius.iter_mut();
@@ -696,16 +696,16 @@ fn write_post_step(cat: &Catalogue, slot: &Slot, r: &mut MatchRows<'_>, rebuilt:
         let hull = cat.hull(ship.hull);
         r.thruster_mask[s * MAX_THRUSTERS..(s + 1) * MAX_THRUSTERS]
             .copy_from_slice(&actions::thruster_mask(hull));
-        r.turret_mask[s * MAX_TURRETS..(s + 1) * MAX_TURRETS]
+        r.turret_mask[s * ACTION_TURRETS..(s + 1) * ACTION_TURRETS]
             .copy_from_slice(&actions::turret_mask(hull));
-        r.fixed_turret[s * MAX_TURRETS..(s + 1) * MAX_TURRETS]
+        r.fixed_turret[s * ACTION_TURRETS..(s + 1) * ACTION_TURRETS]
             .copy_from_slice(&actions::fixed_turret(hull));
         r.team[s] = ship.team as i8;
         r.hull_id[s] = ship.hull as i16;
     }
     r.thruster_mask[k * MAX_THRUSTERS..].fill(false);
-    r.turret_mask[k * MAX_TURRETS..].fill(false);
-    r.fixed_turret[k * MAX_TURRETS..].fill(false);
+    r.turret_mask[k * ACTION_TURRETS..].fill(false);
+    r.fixed_turret[k * ACTION_TURRETS..].fill(false);
     r.team[k..].fill(PAD_SLOT);
     r.hull_id[k..].fill(i16::from(PAD_SLOT));
     *r.arena_radius = m.cfg.arena_radius;
@@ -768,8 +768,8 @@ mod tests {
                 hit_count: vec![0; n],
                 collision_damage: vec![0.0; n * s],
                 thruster_mask: vec![false; n * s * MAX_THRUSTERS],
-                turret_mask: vec![false; n * s * MAX_TURRETS],
-                fixed_turret: vec![false; n * s * MAX_TURRETS],
+                turret_mask: vec![false; n * s * ACTION_TURRETS],
+                fixed_turret: vec![false; n * s * ACTION_TURRETS],
                 team: vec![0; n * s],
                 hull_id: vec![0; n * s],
                 arena_radius: vec![0.0; n],

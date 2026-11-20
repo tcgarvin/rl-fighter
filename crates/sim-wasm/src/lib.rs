@@ -248,8 +248,9 @@ pub fn ship_power_offset() -> usize {
 }
 
 /// Floats per live projectile in `projectiles_*`:
-/// `[pool_slot, kind, team, owner, pos.x, pos.y, vel.x, vel.y]`
-/// (kind 0 bullet, 1 beam, 2 flak, 3 torpedo).
+/// `[pool_slot, kind, team, owner, pos.x, pos.y, vel.x, vel.y, weapon]`
+/// (kind 0 bullet, 1 beam, 2 flak, 3 torpedo; v10 `weapon`: the catalogue weapon id,
+/// `weapons.yaml` order: 0 gauss, 1 laser, 2 flak, 3 torpedo, 4 rail, 5 lance).
 #[wasm_bindgen(js_name = PROJECTILE_STRIDE)]
 pub fn projectile_stride() -> usize {
     bridge::PROJECTILE_STRIDE
@@ -258,10 +259,37 @@ pub fn projectile_stride() -> usize {
 /// Floats per event in `events_*`: `[kind, a, b, x, y, nx_or_x2, ny_or_y2, extra]`
 /// (SIM_SPEC §9; kinds 0 fire, 1 beam, 2 hit, 3 shield hit, 4 burst, 5 death,
 /// 6 arrival, 7 collision (v3), 8 launch, 9 order, 10 jump charge, 11 jump out,
-/// 12 match end (v4)).
+/// 12 match end (v4), 13 turret destroyed, 14 bay destroyed (v10: `[kind, ship,
+/// turret or bay index, x, y, 0, 0, shooter]`, the mount's world position)).
 #[wasm_bindgen(js_name = EVENT_STRIDE)]
 pub fn event_stride() -> usize {
     sim::events::EVENT_STRIDE
+}
+
+/// v10: floats per ship in `hardpoints_*`: `[n_turrets, n_bays, turret_angle[12],
+/// turret_state[12], bay_state[4]]` (state: hardpoint hp fraction, 0 destroyed, 1 not a
+/// hardpoint; every turret's angle, the citadel's 12 included).
+#[wasm_bindgen(js_name = HARDPOINT_STRIDE)]
+pub fn hardpoint_stride() -> usize {
+    bridge::HARDPOINT_STRIDE
+}
+
+/// v10: offset of `turret_angle[12]` within a hardpoints record.
+#[wasm_bindgen(js_name = HARDPOINT_TURRET_ANGLE_OFFSET)]
+pub fn hardpoint_turret_angle_offset() -> usize {
+    bridge::HARDPOINT_TURRET_ANGLE_OFFSET
+}
+
+/// v10: offset of `turret_state[12]` within a hardpoints record.
+#[wasm_bindgen(js_name = HARDPOINT_TURRET_STATE_OFFSET)]
+pub fn hardpoint_turret_state_offset() -> usize {
+    bridge::HARDPOINT_TURRET_STATE_OFFSET
+}
+
+/// v10: offset of `bay_state[4]` within a hardpoints record.
+#[wasm_bindgen(js_name = HARDPOINT_BAY_STATE_OFFSET)]
+pub fn hardpoint_bay_state_offset() -> usize {
+    bridge::HARDPOINT_BAY_STATE_OFFSET
 }
 
 /// Length of an action row for `set_action` (SIM_SPEC §7.1).
@@ -353,6 +381,17 @@ impl WasmMatch {
     /// v4: floats in the mission view (`n_ships * SHIP_EXT_STRIDE`).
     pub fn ship_ext_len(&self) -> usize {
         self.core.ship_ext_view().len()
+    }
+
+    /// v10: the per-ship hardpoints view (`HARDPOINT_STRIDE` floats per ship, ship
+    /// order): every turret's angle and each turret's and bay's state.
+    pub fn hardpoints_ptr(&self) -> *const f32 {
+        self.core.hardpoints_view().as_ptr()
+    }
+
+    /// v10: floats in the hardpoints view (`n_ships * HARDPOINT_STRIDE`).
+    pub fn hardpoints_len(&self) -> usize {
+        self.core.hardpoints_view().len()
     }
 
     /// v4: 0 deathmatch, 1 carrier battle, 2 convoy escort; v9: 3 station assault.

@@ -25,8 +25,15 @@ pub const MAX_SHIPS: usize = 20;
 pub const MAX_BAYS: usize = 4;
 /// Thrusters per hull (the carrier has 7).
 pub const MAX_THRUSTERS: usize = 8;
-/// Turrets per hull (the station has 6).
-pub const MAX_TURRETS: usize = 6;
+/// Turrets per hull (v10: 12, the citadel's; was 6).
+pub const MAX_TURRETS: usize = 12;
+/// Turret slots of the action row, the pilot obs and the wasm ships view (the v9
+/// `MAX_TURRETS`, unchanged so every pilot and the web client read the same layouts).
+/// Only a capital hull, flown by the scripts, may carry more (validation rule 14);
+/// `ShipAction` holds every turret's heads, the row its first `ACTION_TURRETS`.
+pub const ACTION_TURRETS: usize = 6;
+const _: () = assert!(ACTION_TURRETS <= MAX_TURRETS);
+const _: () = assert!(MAX_TURRETS <= 16, "dead_turrets is a u16 mask");
 /// Projectile pool per match; spawning overwrites the oldest slot.
 pub const MAX_PROJECTILES: usize = 256;
 /// Events recorded per step; excess is dropped and counted.
@@ -113,6 +120,19 @@ pub struct Ship {
     pub reaction_ticks: u8,
     /// Reaction FIFO (v2): `queue[0]` applies on the next step; slots `>= d` stay IDLE.
     pub queue: [ShipAction; MAX_REACTION_TICKS],
+    /// v10: hit points of each turret hardpoint (the hull's `hp`; 0 for a turret that
+    /// is not a hardpoint and for slots beyond the hull's turrets).
+    pub turret_hp: [f32; MAX_TURRETS],
+    /// v10: hit points of each bay hardpoint, as `turret_hp`.
+    pub bay_hp: [f32; MAX_BAYS],
+    /// v10: bit `j` set: turret `j` was destroyed (never slews or fires again).
+    pub dead_turrets: u16,
+    /// v10: bit `b` set: bay `b` was destroyed (never launches again).
+    pub dead_bays: u8,
+    /// v10: the hull has more than `ACTION_TURRETS` turrets or any hardpoint, so the
+    /// ship carries state past the v9 layout; the hash appends it (a copy of hull data,
+    /// not hashed itself). False for every v9 hull, whose hash is v9's.
+    pub wide: bool,
 }
 
 impl Ship {
@@ -132,6 +152,14 @@ impl Ship {
             *angle = t.rest;
         }
         let split = power::target_for(hull_def, 0);
+        let mut turret_hp = [0.0; MAX_TURRETS];
+        for (hp, t) in turret_hp.iter_mut().zip(&hull_def.turrets) {
+            *hp = t.hp;
+        }
+        let mut bay_hp = [0.0; MAX_BAYS];
+        for (hp, b) in bay_hp.iter_mut().zip(&hull_def.bays) {
+            *hp = b.hp;
+        }
         Ship {
             hull,
             team,
@@ -156,7 +184,24 @@ impl Ship {
             attach: Attach::None,
             reaction_ticks,
             queue: [ShipAction::IDLE; MAX_REACTION_TICKS],
+            turret_hp,
+            bay_hp,
+            dead_turrets: 0,
+            dead_bays: 0,
+            wide: hull_def.turrets.len() > ACTION_TURRETS || hull_def.has_hardpoints(),
         }
+    }
+
+    /// v10: turret `j` has not been destroyed (always true for a non-hardpoint).
+    #[inline]
+    pub fn turret_alive(&self, j: usize) -> bool {
+        self.dead_turrets & (1 << j) == 0
+    }
+
+    /// v10: bay `b` has not been destroyed (always true for a non-hardpoint).
+    #[inline]
+    pub fn bay_alive(&self, b: usize) -> bool {
+        self.dead_bays & (1 << b) == 0
     }
 
     /// `alive && present`: the ship takes part in physics, hits, collisions and obs.
@@ -194,14 +239,28 @@ impl StateHash for Ship {
         h.write_u32(self.arrive_tick);
         h.write_u32(self.control_lock_until);
         self.thrust_level.hash_into(h);
-        self.turret_angle.hash_into(h);
-        self.turret_cooldown.hash_into(h);
+        // v10: the first `ACTION_TURRETS` slots where v9 hashed its whole arrays; the
+        // rest (and the hardpoints) after the v9 fields, for a wide ship only.
+        self.turret_angle[..ACTION_TURRETS].hash_into(h);
+        self.turret_cooldown[..ACTION_TURRETS].hash_into(h);
         self.power.hash_into(h);
         self.power_target.hash_into(h);
         h.write_u8(self.parent);
         h.write_u8(self.attach.index());
         h.write_u8(self.reaction_ticks);
         self.queue.hash_into(h);
+        if self.wide {
+            self.turret_angle[ACTION_TURRETS..].hash_into(h);
+            self.turret_cooldown[ACTION_TURRETS..].hash_into(h);
+            for a in &self.queue {
+                h.write_bytes(&a.slew[ACTION_TURRETS..]);
+                h.write_bytes(&a.fire[ACTION_TURRETS..]);
+            }
+            self.turret_hp.hash_into(h);
+            self.bay_hp.hash_into(h);
+            h.write_u16(self.dead_turrets);
+            h.write_u8(self.dead_bays);
+        }
     }
 }
 

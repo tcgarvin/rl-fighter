@@ -8,8 +8,9 @@ pub mod weapon;
 use core::fmt;
 
 pub use hull::{
-    ArmourArc, BayDef, Circle, HullDef, MAX_ARMOUR_ARCS, ShieldDef, ThrusterDef, TurretDef,
-    armour_mult, impact_mult,
+    ArmourArc, BayDef, Circle, DEFAULT_HARDPOINT_HIT_RADIUS, HullDef, MAX_ARMOUR_ARCS,
+    ROLE_CARRIER, ROLE_LINE, ROLE_TRANSPORT, ShieldDef, ThrusterDef, TurretDef, armour_mult,
+    impact_mult, is_capital_role,
 };
 pub use weapon::{WeaponDef, WeaponKind};
 
@@ -22,15 +23,25 @@ use validate::vec2;
 /// [`hull_order`]: the v4 hulls first, keeping their ids, then the rest by name).
 pub type HullId = u16;
 
-/// The hulls of SIM_VERSION 4 to 8 in their id order (they were numbered by sorted
-/// name: carrier 0, fighter 1, freighter 2, gunship 3, strafer 4). v9 adds hulls whose
-/// names sort among them (`bomber`, `station`); numbering those after these keeps every
-/// existing id, and so every state hash and golden trace, unchanged.
-pub const LEGACY_HULL_ORDER: [&str; 5] = ["carrier", "fighter", "freighter", "gunship", "strafer"];
+/// The hulls of SIM_VERSION 4 to 9 in their id order, frozen: the v4 hulls were
+/// numbered by sorted name (carrier 0, fighter 1, freighter 2, gunship 3, strafer 4),
+/// v9 added `bomber` 5 and `station` 6 after them. A new hull's name may sort among
+/// these (v10: `citadel`, `dreadnought`); numbering it after them keeps every existing
+/// id, and so every state hash and golden trace, unchanged.
+pub const LEGACY_HULL_ORDER: [&str; 7] = [
+    "carrier",
+    "fighter",
+    "freighter",
+    "gunship",
+    "strafer",
+    "bomber",
+    "station",
+];
 
-/// The catalogue's hull order (v9): hulls named in [`LEGACY_HULL_ORDER`] first, in
-/// that order, then every other hull by name. A catalogue of legacy hulls only, or of
-/// none, is numbered by sorted name exactly as before v9.
+/// The catalogue's hull order (v9, v10): hulls named in [`LEGACY_HULL_ORDER`] first, in
+/// that order, then every other hull by name. A catalogue of the v4 hulls only, or of
+/// none, is numbered by sorted name exactly as before v9; one of the v9 hulls only as
+/// in v9.
 pub fn hull_order(a: &str, b: &str) -> core::cmp::Ordering {
     let rank = |n: &str| {
         LEGACY_HULL_ORDER
@@ -309,6 +320,8 @@ fn convert_hull(raw: RawHull, weapon_names: &[String]) -> HullDef {
                 rest: t.rest_deg * DEG_TO_RAD,
                 arc: t.arc_deg * DEG_TO_RAD,
                 slew_rate: t.slew_deg_s * DEG_TO_RAD,
+                hp: t.hp,
+                hit_radius: t.hit_radius,
             })
             .collect(),
         bays: raw
@@ -318,6 +331,8 @@ fn convert_hull(raw: RawHull, weapon_names: &[String]) -> HullDef {
                 id: b.id,
                 pos: vec2(b.pos),
                 dir: vec2(b.dir).normalized(),
+                hp: b.hp,
+                hit_radius: b.hit_radius,
             })
             .collect(),
         armour: convert_armour(&raw.armour),
@@ -366,6 +381,7 @@ fn convert_weapon((name, w): (String, RawWeapon)) -> WeaponDef {
         turn_rate: w.turn_rate_deg_s * DEG_TO_RAD,
         lock_cone: w.lock_cone_deg * DEG_TO_RAD,
         life_factor: w.life_factor,
+        capital_only: w.capital_only,
         life_ticks,
     }
 }

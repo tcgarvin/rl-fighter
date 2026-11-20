@@ -7,7 +7,9 @@
 use crate::actions::ShipAction;
 use crate::data::Catalogue;
 use crate::events::Event;
-use crate::state::{MAX_REACTION_TICKS, MAX_SHIPS, MAX_THRUSTERS, Match, MatchPhase, ShipIdx};
+use crate::state::{
+    ACTION_TURRETS, MAX_REACTION_TICKS, MAX_SHIPS, MAX_THRUSTERS, Match, MatchPhase, ShipIdx,
+};
 
 /// Team values closer than this at the time limit are a draw (§5.8).
 pub const VALUE_TIE_EPS: f32 = 1e-3;
@@ -23,6 +25,10 @@ impl Match {
     /// winner are untouched and rewards are all 0. The VecEnv never does this; the
     /// browser may, to keep an outro clock running.
     pub fn step(&mut self, cat: &Catalogue) {
+        // 0. v10: the turrets an action row cannot carry take the script's heads.
+        if self.phase == MatchPhase::Running {
+            self.script_row_less_turrets(cat);
+        }
         // 1. Clear per-step outputs; advance the clock.
         self.clear_combat_outputs();
         self.rewards = [0.0; MAX_SHIPS];
@@ -78,6 +84,27 @@ impl Match {
         self.compute_order_rewards(cat, &earning);
         // 14. Rewards, including the terminal term (reward.rs).
         self.compute_rewards(&earning);
+    }
+
+    /// Stage 0 (v10, SIM_SPEC §5): a hull with more turrets than the action row's
+    /// `ACTION_TURRETS` (the citadel's twelve) is a capital ship the scripts fly, but an
+    /// action row (the bindings', a policy's) carries only the first six turrets' heads.
+    /// So, before the step, every alive ship of such a hull takes the slew and fire heads
+    /// of its turrets from `ACTION_TURRETS` on from the scripted controller, on the
+    /// state the pending action was chosen in (nothing has moved since). An action set
+    /// whole from `scripted::act` is unchanged by it; no v9 hull has such turrets.
+    fn script_row_less_turrets(&mut self, cat: &Catalogue) {
+        for s in 0..self.ships.len() {
+            let ship = &self.ships[s];
+            let n = cat.hull(ship.hull).turrets.len();
+            if n <= ACTION_TURRETS || !ship.active() {
+                continue;
+            }
+            let script = crate::scripted::act(self, cat, s as ShipIdx);
+            let pending = &mut self.pending[s];
+            pending.slew[ACTION_TURRETS..n].copy_from_slice(&script.slew[ACTION_TURRETS..n]);
+            pending.fire[ACTION_TURRETS..n].copy_from_slice(&script.fire[ACTION_TURRETS..n]);
+        }
     }
 
     /// Stage 12: every alive ship with `hp <= 0` dies (`alive = present = false`,

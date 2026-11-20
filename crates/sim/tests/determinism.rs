@@ -67,6 +67,15 @@
 //! reaches moved, so every line matches bit for bit and only the header's version
 //! differs. The v9 golden traces of those nine are the same lines under a v9 header;
 //! `golden_station_assault_*` are new.
+//!
+//! v10 compatibility (SIM_SPEC §0.8): `v9_compat_*` replay all eleven v9 scenarios (the
+//! nine above and both v9 station assaults; the v9 golden traces are kept verbatim
+//! under `tests/golden/v9/`) with the v10 state hash and aux digest unchanged. v10 adds
+//! hardpoints, `capital_only` weapons, `MAX_TURRETS` 12, the citadel and the
+//! dreadnought, but no v9 hull has a hardpoint or more than six turrets, so no v9 ship
+//! is `wide` and the hash writes exactly v9's bytes; the old hulls keep their ids
+//! (`data::LEGACY_HULL_ORDER`, now frozen through `station`). Every line matches bit for
+//! bit and only the header's version differs. `golden_station_assault_v10_*` are new.
 
 mod common;
 
@@ -189,13 +198,15 @@ enum Flavour {
     V7,
     /// As SIM_VERSION 8 rendered it: exactly as the current version (module docs).
     V8,
+    /// As SIM_VERSION 9 rendered it: exactly as the current version (module docs).
+    V9,
 }
 
 impl Flavour {
     /// Obs floats the flavour's aux digest covers.
     fn obs_width(self) -> usize {
         match self {
-            Flavour::Current | Flavour::V8 => OBS_DIM,
+            Flavour::Current | Flavour::V8 | Flavour::V9 => OBS_DIM,
             Flavour::V3 | Flavour::V4 => OBS_DIM_V4,
             Flavour::V5 => OBS_DIM_V5,
             Flavour::V7 => OBS_DIM_V7,
@@ -210,6 +221,7 @@ impl Flavour {
             Flavour::V5 => 5,
             Flavour::V7 => 7,
             Flavour::V8 => 8,
+            Flavour::V9 => 9,
         }
     }
 }
@@ -387,8 +399,9 @@ fn v5_state_hash(m: &Match, v5: &V5Tracks) -> u64 {
 
 fn state_hash(flavour: Flavour, cat: &Catalogue, m: &Match, v5: &V5Tracks) -> u64 {
     match flavour {
-        // v9 hashes exactly what v8 did: no new state, the old hulls' ids unchanged.
-        Flavour::Current | Flavour::V8 => m.state_hash(),
+        // v9 hashes exactly what v8 did: no new state, the old hulls' ids unchanged;
+        // v10 writes its new state only for `wide` ships, which no v9 hull makes.
+        Flavour::Current | Flavour::V8 | Flavour::V9 => m.state_hash(),
         Flavour::V3 => v3_state_hash(cat, m),
         Flavour::V4 => v4_state_hash(m),
         Flavour::V5 => v5_state_hash(m, v5),
@@ -436,7 +449,10 @@ fn digest_outputs(
             aux.write_f32(f);
         }
     }
-    if matches!(flavour, Flavour::Current | Flavour::V5 | Flavour::V8) {
+    if matches!(
+        flavour,
+        Flavour::Current | Flavour::V5 | Flavour::V8 | Flavour::V9
+    ) {
         for &r in m.order_rewards() {
             aux.write_f32(r);
         }
@@ -1077,8 +1093,25 @@ fn v8_compat_all_nine_scenarios_replay_bit_for_bit() {
 /// sides, read as a carrier battle: the station's turrets and launches, the bombers'
 /// torpedoes, the assault's orders, to its end.
 pub fn station_assault_config(cat: &Catalogue, seed: u64, reads_as: StationReadsAs) -> MatchConfig {
-    let roster = &sim::mission::default_rosters(sim::mission::MissionKind::StationAssault)[0];
+    station_roster_config(cat, seed, reads_as, "strike of 8")
+}
+
+/// A station assault of the default roster `name` (v9 "strike of 8", v10 "citadel"),
+/// in its mission arena (`arena_radius_for_mission`: 450 m and 550 m).
+fn station_roster_config(
+    cat: &Catalogue,
+    seed: u64,
+    reads_as: StationReadsAs,
+    name: &str,
+) -> MatchConfig {
+    let kind = sim::mission::MissionKind::StationAssault;
+    let roster = sim::mission::default_rosters(kind)
+        .iter()
+        .find(|r| r.name == name)
+        .unwrap_or_else(|| panic!("no station roster {name}"));
     let mut cfg = config(cat, seed, roster.fleets[0], roster.fleets[1]);
+    let n = roster.fleets[0].len() + roster.fleets[1].len();
+    cfg.arena_radius = sim::mission::arena_radius_for_mission(kind, n);
     cfg.mission = Mission::StationAssault(StationAssault {
         reads_as,
         ..StationAssault::default()
@@ -1112,6 +1145,130 @@ fn golden_station_assault_convoy_random_commander_seed47() {
         include_str!("golden/station_assault_convoy_random_s47.txt"),
         &actual,
     );
+}
+
+/// v10: the station assault of the citadel against a carrier and a dreadnought (the
+/// "citadel" roster, a 550 m arena), scripted pilots and commanders, read as a carrier
+/// battle: hardpoints struck and destroyed, the lances, the rails, the dreadnought's
+/// staging, to its end.
+pub fn citadel_config(cat: &Catalogue, seed: u64, reads_as: StationReadsAs) -> MatchConfig {
+    station_roster_config(cat, seed, reads_as, "citadel")
+}
+
+#[test]
+fn golden_station_assault_v10_seed53() {
+    let cat = asset_catalogue();
+    let cfg = citadel_config(&cat, 53, StationReadsAs::Carrier);
+    let actual = mission_trace("station_assault_v10_s53", &cfg, Flavour::Current);
+    check_golden(
+        "station_assault_v10_s53.txt",
+        include_str!("golden/station_assault_v10_s53.txt"),
+        &actual,
+    );
+}
+
+/// v10: the citadel assault under the random commander on both sides, read as a
+/// convoy: random orders round the citadel, the dreadnought never in a squad.
+#[test]
+fn golden_station_assault_v10_convoy_random_commander_seed59() {
+    let cat = asset_catalogue();
+    let mut cfg = citadel_config(&cat, 59, StationReadsAs::Convoy);
+    cfg.commanders = [CommanderMode::Random; 2];
+    let actual = mission_trace(
+        "station_assault_v10_convoy_random_s59",
+        &cfg,
+        Flavour::Current,
+    );
+    check_golden(
+        "station_assault_v10_convoy_random_s59.txt",
+        include_str!("golden/station_assault_v10_convoy_random_s59.txt"),
+        &actual,
+    );
+}
+
+/// Every v9 golden scenario (the nine of v8 and both station assaults), rendered as v9
+/// rendered it (the v10 hash and digest, a v9 header), against the v9 record (never
+/// rewritten): v10 adds hulls, weapons and rules that no v9 match reaches, the hull ids
+/// included (SIM_SPEC §0.8).
+#[test]
+fn v9_compat_all_eleven_scenarios_replay_bit_for_bit() {
+    let golden = [
+        (
+            "duel_fighter_s7",
+            include_str!("golden/v9/duel_fighter_s7.txt"),
+        ),
+        ("2v2_mixed_s11", include_str!("golden/v9/2v2_mixed_s11.txt")),
+        ("3v3_mixed_s13", include_str!("golden/v9/3v3_mixed_s13.txt")),
+        (
+            "3v3_random_s17",
+            include_str!("golden/v9/3v3_random_s17.txt"),
+        ),
+        (
+            "carrier_battle_s23",
+            include_str!("golden/v9/carrier_battle_s23.txt"),
+        ),
+        (
+            "convoy_escort_s29",
+            include_str!("golden/v9/convoy_escort_s29.txt"),
+        ),
+        (
+            "carrier_battle_random_s31",
+            include_str!("golden/v9/carrier_battle_random_s31.txt"),
+        ),
+        (
+            "convoy_escort_random_s37",
+            include_str!("golden/v9/convoy_escort_random_s37.txt"),
+        ),
+        (
+            "3v3_random_commander_s41",
+            include_str!("golden/v9/3v3_random_commander_s41.txt"),
+        ),
+        (
+            "station_assault_s43",
+            include_str!("golden/v9/station_assault_s43.txt"),
+        ),
+        (
+            "station_assault_convoy_random_s47",
+            include_str!("golden/v9/station_assault_convoy_random_s47.txt"),
+        ),
+    ];
+    let cat = asset_catalogue();
+    let mut scenarios = golden_scenarios();
+    scenarios.push((
+        "station_assault_s43",
+        station_assault_config(&cat, 43, StationReadsAs::Carrier),
+        Driver::Scripted,
+        MISSION_TICKS,
+    ));
+    let mut convoy = station_assault_config(&cat, 47, StationReadsAs::Convoy);
+    convoy.commanders = [CommanderMode::Random; 2];
+    scenarios.push((
+        "station_assault_convoy_random_s47",
+        convoy,
+        Driver::Scripted,
+        MISSION_TICKS,
+    ));
+    assert_eq!(scenarios.len(), golden.len());
+    for (name, cfg, driver, ticks) in scenarios {
+        let (_, embedded) = golden
+            .iter()
+            .find(|(n, _)| *n == name)
+            .unwrap_or_else(|| panic!("no v9 golden for {name}"));
+        let every = match name {
+            "3v3_random_s17" => Some(RANDOM_SAMPLE_EVERY),
+            _ if ticks == MISSION_TICKS => Some(MISSION_SAMPLE_EVERY),
+            _ => None,
+        };
+        let sample = |t: u32| match every {
+            Some(n) => t % n == 0,
+            None => SCRIPTED_SAMPLES.contains(&t),
+        };
+        let actual = trace(name, &cfg, driver, ticks, sample, Flavour::V9);
+        assert_eq!(
+            *embedded, actual,
+            "{name} diverged from SIM_VERSION 9 (SIM_SPEC §0.8)"
+        );
+    }
 }
 
 /// How often v8's "starts inside the radius: no bonus" rule fires in the golden
@@ -1151,6 +1308,7 @@ fn mission_scenarios_end_with_a_reason() {
         carrier_battle_config(&cat, 23),
         convoy_config(&cat, 29),
         station_assault_config(&cat, 43, StationReadsAs::Carrier),
+        citadel_config(&cat, 53, StationReadsAs::Carrier),
     ] {
         let mut m = Match::new(&cat, &cfg).expect("setup");
         while m.phase() == MatchPhase::Running && m.tick() < MISSION_TICKS {

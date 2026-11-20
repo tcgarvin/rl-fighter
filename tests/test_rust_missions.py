@@ -1,6 +1,7 @@
 """rlf_sim v4 missions from Python: carrier battle and convoy escort with the stub
 commander, the end-reason buffer, External commands, and the commander views
-(SIM_SPEC §5.9, §5.10, §10.1); v9's station assault and its obs mapping."""
+(SIM_SPEC §5.9, §5.10, §10.1); v9's station assault and its obs mapping; v10's citadel,
+dreadnought and hardpoints."""
 
 from __future__ import annotations
 
@@ -172,7 +173,7 @@ def test_external_commander_launches_and_orders() -> None:
     assert obs["reserves"] == {"fighter": 3}
     assert obs["own_carrier"]["hull"] == "carrier"
     with pytest.raises(ValueError, match="unknown hull"):
-        env.submit_command(0, 0, {"kind": "launch", "hull": "dreadnought"})
+        env.submit_command(0, 0, {"kind": "launch", "hull": "battlecruiser"})
     with pytest.raises(ValueError):
         env.submit_command(0, 0, {"kind": "teleport"})
     with pytest.raises(ValueError, match="team"):
@@ -203,7 +204,7 @@ TRAIN_CARRIER = ["carrier", "fighter", "fighter", "strafer", "gunship"]
 
 
 def test_v5_constants_and_pilot_obs_dims() -> None:
-    assert rlf_sim.SIM_VERSION == 9
+    assert rlf_sim.SIM_VERSION == 10
     assert (ORDER_OFF, ORDER_W) == (385, 18)
     assert rlf_sim.OBS_DIM_V5 == ORDER_OFF + ORDER_W
     assert rlf_sim.PILOT_OBS_DIMS == {
@@ -214,6 +215,7 @@ def test_v5_constants_and_pilot_obs_dims() -> None:
         7: 583,
         8: 587,
         9: 587,
+        10: 587,
     }
     assert set(rlf_sim.PILOT_OBS_DIMS) == set(rlf_sim.PILOT_COMPAT_VERSIONS)
     assert rlf_sim.MAX_TRAIN_SHIPS == 12
@@ -401,3 +403,99 @@ def test_station_assault_rejects_a_mobile_station() -> None:
             1,
             mission="station_assault",
         )
+
+
+# -- v10: the citadel, the dreadnought and hardpoints (SIM_SPEC §0.8) ---------------
+
+CITADEL = next(
+    r for r in rlf_sim.mission_rosters("station_assault") if r["name"] == "citadel"
+)["fleets"]
+
+
+def _citadel_env(n: int, seed: int) -> rlf_sim.VecEnv:
+    n_ships = len(CITADEL[0]) + len(CITADEL[1])
+    return rlf_sim.VecEnv(
+        ASSETS,
+        n,
+        CITADEL,
+        seed,
+        arena_radius=rlf_sim.arena_radius_for_mission("station_assault", n_ships),
+        time_limit_s=rlf_sim.mission_time_limit_s("station_assault"),
+        n_threads=2,
+        record_events=True,
+        mission="station_assault",
+    )
+
+
+def test_v10_constants_and_rosters() -> None:
+    assert rlf_sim.SIM_VERSION == 10
+    assert 10 in rlf_sim.PILOT_COMPAT_VERSIONS
+    assert rlf_sim.PILOT_OBS_DIMS[10] == rlf_sim.OBS_DIM == 587
+    assert rlf_sim.MAX_TURRETS == 12 and rlf_sim.ACTION_TURRETS == 6
+    assert rlf_sim.ACTION_LAYOUT["slew"][1] == 6 and rlf_sim.ACTION_WIDTH == 21
+    assert rlf_sim.EVENT_KINDS["turret_destroyed"] == 13
+    assert rlf_sim.EVENT_KINDS["bay_destroyed"] == 14
+    # The v9 ids are frozen; the new hulls follow.
+    assert list(rlf_sim.LEGACY_HULL_ORDER)[5:] == ["bomber", "station"]
+    # The v9 roster stays the default, in a 450 m arena; the citadel's is 550 m.
+    rosters = rlf_sim.mission_rosters("station_assault")
+    assert [r["name"] for r in rosters] == ["strike of 8", "citadel"]
+    assert CITADEL[0][0] == "citadel"
+    assert CITADEL[1][:2] == ["carrier", "dreadnought"]
+    assert rlf_sim.arena_radius_for_mission("station_assault", 16) == 450.0
+    assert rlf_sim.arena_radius_for_mission("station_assault", 19) == 550.0
+
+
+def test_v10_hardpoints_view_and_destruction_events() -> None:
+    env = _citadel_env(4, 53)
+    hp = env.hardpoints()
+    s = env.n_ships
+    assert hp["turret_alive"].shape == (4, s, rlf_sim.MAX_TURRETS)
+    assert hp["bay_alive"].shape == (4, s, rlf_sim.MAX_BAYS)
+    # The citadel (slot 0): twelve turret and four bay hardpoints, all up.
+    assert hp["turret_alive"][0, 0].all()
+    assert (hp["turret_max_hp"][0, 0] > 0).all()
+    assert hp["bay_alive"][0, 0].all() and (hp["bay_max_hp"][0, 0] == 200).all()
+    # A fighter's turret is not a hardpoint.
+    assert hp["turret_max_hp"][0, 1, 0] == 0 and hp["turret_alive"][0, 1, 0]
+    kinds = {
+        rlf_sim.EVENT_KINDS["turret_destroyed"],
+        rlf_sim.EVENT_KINDS["bay_destroyed"],
+    }
+    destroyed = 0
+    done = np.zeros(4, dtype=bool)
+    for _ in range(4600):
+        env.scripted_actions()
+        env.step()
+        ev = env.events()
+        rows = ev[np.isin(ev[:, 1], list(kinds)) & ~done[ev[:, 0].astype(int)]]
+        destroyed += len(rows)
+        done |= env.dones
+        if done.all():
+            break
+    assert destroyed > 0, "hardpoints were destroyed"
+    assert done.all()
+
+
+def test_v10_dreadnought_is_a_capital_ship_for_python() -> None:
+    from spacefight.env.rosters import CAPITAL_ROLES, capital_hull_ids, hull_names_by_id
+
+    assert "line" in CAPITAL_ROLES
+    names = hull_names_by_id(Path(ASSETS))
+    assert names[:7] == list(rlf_sim.LEGACY_HULL_ORDER)
+    assert names[7:] == ["citadel", "dreadnought"]
+    capital = {names[i] for i in capital_hull_ids(Path(ASSETS))}
+    assert {"carrier", "freighter", "station", "citadel", "dreadnought"} <= capital
+
+
+def test_v10_render_state_shows_hardpoints_and_weapons() -> None:
+    env = _citadel_env(1, 7)
+    for _ in range(30 * 40):
+        env.scripted_actions()
+        env.step()
+    state = env.render_state(0)
+    citadel = state["ships"][0]
+    assert len(citadel["turret_alive"]) == 12 and len(citadel["bay_hp"]) == 4
+    assert all("weapon" in p for p in state["projectiles"])
+    view = env.mission_state(0)["ships"]
+    assert "hardpoints" in view[0] and "hardpoints" not in view[1]

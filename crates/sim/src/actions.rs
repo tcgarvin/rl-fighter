@@ -22,12 +22,12 @@ use crate::data::{Catalogue, HullDef};
 use crate::hash::{StateHash, StateHasher};
 use crate::physics::ramp_level;
 use crate::power::{self, N_POWER_TARGETS};
-use crate::state::{MAX_THRUSTERS, MAX_TURRETS, Match, Ship, ShipIdx};
+use crate::state::{ACTION_TURRETS, MAX_THRUSTERS, MAX_TURRETS, Match, Ship, ShipIdx};
 
 pub const THROTTLE_OFFSET: usize = 0;
 pub const SLEW_OFFSET: usize = THROTTLE_OFFSET + MAX_THRUSTERS;
-pub const FIRE_OFFSET: usize = SLEW_OFFSET + MAX_TURRETS;
-pub const POWER_OFFSET: usize = FIRE_OFFSET + MAX_TURRETS;
+pub const FIRE_OFFSET: usize = SLEW_OFFSET + ACTION_TURRETS;
+pub const POWER_OFFSET: usize = FIRE_OFFSET + ACTION_TURRETS;
 pub const ACTION_WIDTH: usize = POWER_OFFSET + 1;
 
 /// Highest valid value of each head.
@@ -45,7 +45,10 @@ pub const THROTTLE_INCREASE: u8 = 2;
 pub const SLEW_HOLD: u8 = 1;
 
 /// One ship's decoded action. The all-zero default is "every level down, slew left,
-/// no fire, even power"; use [`ShipAction::IDLE`] for a no-op.
+/// no fire, even power"; use [`ShipAction::IDLE`] for a no-op. v10: the heads of every
+/// turret slot (`MAX_TURRETS`); the action row carries the first `ACTION_TURRETS`, and
+/// a row decodes with the rest held and not firing (only a scripted capital ship has
+/// turrets past them).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ShipAction {
     pub throttle: [u8; MAX_THRUSTERS],
@@ -85,14 +88,14 @@ impl ShipAction {
     /// Panics if `row.len() != ACTION_WIDTH` (a caller bug, not bad data).
     pub fn from_row(row: &[i8]) -> ShipAction {
         assert_eq!(row.len(), ACTION_WIDTH, "action row length");
-        let mut a = ShipAction::default();
+        let mut a = ShipAction::IDLE;
         for (i, t) in a.throttle.iter_mut().enumerate() {
             *t = clamp_head(row[THROTTLE_OFFSET + i], THROTTLE_MAX);
         }
-        for (i, s) in a.slew.iter_mut().enumerate() {
+        for (i, s) in a.slew[..ACTION_TURRETS].iter_mut().enumerate() {
             *s = clamp_head(row[SLEW_OFFSET + i], SLEW_MAX);
         }
-        for (i, f) in a.fire.iter_mut().enumerate() {
+        for (i, f) in a.fire[..ACTION_TURRETS].iter_mut().enumerate() {
             *f = clamp_head(row[FIRE_OFFSET + i], FIRE_MAX);
         }
         a.power = clamp_head(row[POWER_OFFSET], POWER_MAX);
@@ -100,7 +103,8 @@ impl ShipAction {
     }
 
     /// Encode into a row of `ACTION_WIDTH` values. Values are clamped first, so
-    /// `from_row(to_row(a))` is `a` for any in-range action.
+    /// `from_row(to_row(a))` is `a` for any in-range action whose turret slots past
+    /// `ACTION_TURRETS` are held and not firing (v10: the row drops them).
     ///
     /// Panics if `row.len() != ACTION_WIDTH`.
     pub fn to_row(&self, row: &mut [i8]) {
@@ -108,10 +112,10 @@ impl ShipAction {
         for (i, &t) in self.throttle.iter().enumerate() {
             row[THROTTLE_OFFSET + i] = t.min(THROTTLE_MAX) as i8;
         }
-        for (i, &s) in self.slew.iter().enumerate() {
+        for (i, &s) in self.slew[..ACTION_TURRETS].iter().enumerate() {
             row[SLEW_OFFSET + i] = s.min(SLEW_MAX) as i8;
         }
-        for (i, &f) in self.fire.iter().enumerate() {
+        for (i, &f) in self.fire[..ACTION_TURRETS].iter().enumerate() {
             row[FIRE_OFFSET + i] = f.min(FIRE_MAX) as i8;
         }
         row[POWER_OFFSET] = self.power.min(POWER_MAX) as i8;
@@ -149,12 +153,14 @@ impl ShipAction {
     }
 }
 
-/// Hashed as its `ACTION_WIDTH` row values in row order (SIM_SPEC §12).
+/// Hashed as its `ACTION_WIDTH` row values in row order (SIM_SPEC §12). v10: the
+/// turret slots past `ACTION_TURRETS` are hashed by the ship that queues the action
+/// (`Ship::wide`), so a v9 action hashes as before.
 impl StateHash for ShipAction {
     fn hash_into(&self, h: &mut StateHasher) {
         h.write_bytes(&self.throttle);
-        h.write_bytes(&self.slew);
-        h.write_bytes(&self.fire);
+        h.write_bytes(&self.slew[..ACTION_TURRETS]);
+        h.write_bytes(&self.fire[..ACTION_TURRETS]);
         h.write_u8(self.power);
     }
 }
@@ -164,13 +170,13 @@ pub fn thruster_mask(hull: &HullDef) -> [bool; MAX_THRUSTERS] {
     core::array::from_fn(|i| i < hull.thrusters.len())
 }
 
-/// Turret slots the hull actually has.
-pub fn turret_mask(hull: &HullDef) -> [bool; MAX_TURRETS] {
+/// Action-row turret slots the hull actually has (`ACTION_TURRETS` wide).
+pub fn turret_mask(hull: &HullDef) -> [bool; ACTION_TURRETS] {
     core::array::from_fn(|j| j < hull.turrets.len())
 }
 
-/// Turret slots that are fixed guns (arc 0): their slew head is meaningless.
-pub fn fixed_turret(hull: &HullDef) -> [bool; MAX_TURRETS] {
+/// Action-row turret slots that are fixed guns (arc 0): their slew head is meaningless.
+pub fn fixed_turret(hull: &HullDef) -> [bool; ACTION_TURRETS] {
     core::array::from_fn(|j| hull.turrets.get(j).is_some_and(|t| t.arc == 0.0))
 }
 

@@ -53,6 +53,18 @@ DESIGN_ROLES: dict[str, tuple[str, str]] = {
         "Station; holds its ground with turrets and launches its garrison",
         "Immobile, a ring of flak and gauss turrets, two bays; flown by a script",
     ),
+    # SIM_VERSION 10: the big station and the gun capital ship; every turret and bay
+    # of theirs can be destroyed on its own.
+    "citadel": (
+        "Citadel; a ring of six modules, twelve turrets and four bays, each destroyable",
+        "Immobile; lances for capital ships, flak and gauss for strike craft; "
+        "flown by a script",
+    ),
+    "dreadnought": (
+        "Dreadnought; a gun capital ship with an armoured bow",
+        "Three mains and four RCS, two rails, flak and gauss, each turret destroyable; "
+        "flown by a script",
+    ),
 }
 WEAPON_NAMES = {"gauss": "gauss gun"}
 WEAPON_KINDS = {

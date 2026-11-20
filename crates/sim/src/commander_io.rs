@@ -416,8 +416,10 @@ fn bays(m: &Match, cat: &Catalogue, team: u8) -> (usize, usize) {
     if live_carrier(m, team).is_none() {
         return (0, n);
     }
+    // v10: a destroyed bay is never ready.
+    let ship = &m.ships[usize::from(c)];
     let ready = (0..n)
-        .filter(|&b| m.tick + 1 >= m.mission.bay_ready[t][b])
+        .filter(|&b| ship.bay_alive(b) && m.tick + 1 >= m.mission.bay_ready[t][b])
         .count();
     (ready, n)
 }

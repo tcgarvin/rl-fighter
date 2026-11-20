@@ -1,0 +1,27 @@
+# Rule 14 (v10): hp on a strike craft's turret, a zero hit_radius, a negative bay hp,
+# and seven turrets on a strike craft (> ACTION_TURRETS).
+name: bad
+role: fighter
+hp: 60
+mass: 10.0
+inertia: 55.0
+speed_cap: 60.0
+static: false
+shield: null
+cost: 10
+collision:
+  - {pos: [0.0, 0.0], r: 3.0}
+thrusters:
+  - {id: thruster.main.0, pos: [-4.0, 0.0], dir: [1, 0], max_force: 900}
+  - {id: thruster.rcs.fl, pos: [2.0, 2.0], dir: [0, -1], max_force: 160}
+  - {id: thruster.rcs.fr, pos: [2.0, -2.0], dir: [0, 1], max_force: 160}
+turrets:
+  - {id: turret.t0, pos: [0.0, 0.0], rest_deg: 0, arc_deg: 0, slew_deg_s: 0, weapon: gauss, hp: 50}
+  - {id: turret.t1, pos: [0.0, 0.0], rest_deg: 0, arc_deg: 0, slew_deg_s: 0, weapon: gauss, hit_radius: 0}
+  - {id: turret.t2, pos: [0.0, 0.0], rest_deg: 0, arc_deg: 0, slew_deg_s: 0, weapon: gauss}
+  - {id: turret.t3, pos: [0.0, 0.0], rest_deg: 0, arc_deg: 0, slew_deg_s: 0, weapon: gauss}
+  - {id: turret.t4, pos: [0.0, 0.0], rest_deg: 0, arc_deg: 0, slew_deg_s: 0, weapon: gauss}
+  - {id: turret.t5, pos: [0.0, 0.0], rest_deg: 0, arc_deg: 0, slew_deg_s: 0, weapon: gauss}
+  - {id: turret.t6, pos: [0.0, 0.0], rest_deg: 0, arc_deg: 0, slew_deg_s: 0, weapon: gauss}
+bays:
+  - {id: bay.0, pos: [0, 2], dir: [0, 1], hp: -1}

@@ -5,8 +5,9 @@ day to **SIM_VERSION 2** (§0) after M1 landed, to **SIM_VERSION 3** (§0.1,
 collision damage) on 2026-10-29, to **SIM_VERSION 4** (§0.2: missions, carriers,
 convoys, the commander layer; M3 stage A, WP-S1) on 2026-10-30, and to **SIM_VERSION
 5** (§0.3: orders reach the pilots, the order reward, the random commander; M3 stage
-B, WP-B1) the same evening, and since through **SIM_VERSION 9** (§0.4–§0.7; v9 on
-2026-11-19: the station assault, the bomber and the station). `docs/DESIGN.md` is the
+B, WP-B1) the same evening, and since through **SIM_VERSION 10** (§0.4–§0.8; v9 on
+2026-11-19: the station assault, the bomber and the station; v10 the same evening:
+hardpoints, the citadel and the dreadnought). `docs/DESIGN.md` is the
 source of
 truth for direction; this file pins the decisions implementers need. When the two
 disagree, fix this file and note it in the lab journal.
@@ -252,6 +253,40 @@ the convoy reading under the random one). Python's `mission_weights` gain a four
 entry, 0 by default; a three-weight tuple means station 0 and draws exactly as before
 (`tests/test_rosters.py`).
 
+### 0.8 v10 changes (SIM_VERSION 9 → 10, hardpoints, the citadel and the dreadnought)
+
+A bigger station whose turrets and bays can be shot off one by one, and a second
+capital ship on the attacking side that can trade blows with a carrier. The mount
+contract (positions, ids, hp) is `lab/runs/2026-11-19-citadel-dreadnought/plan.md`;
+balance, hardpoint statistics and the zero-shot pilots are in that entry's
+`results.md`.
+
+| # | change | why | sections |
+|---|---|---|---|
+| 1 | **Hardpoints.** `TurretDef` / `BayDef` gain `hp` (0 = not a hardpoint, the default) and `hit_radius` (default 8 m). When a hull hit lands (after the shield), the hull takes the full armour-scaled hit as before **and** the nearest live hardpoint whose world mount is within its `hit_radius` of the impact point takes the same amount (`damage::struck_hardpoint`; ties: turrets before bays, lower index first). At 0 hp it is destroyed for the match: a dead turret never slews or fires, a dead bay never launches (`Refusal::BayDestroyed`, appended) and is not counted ready by the commander views. Events `TurretDestroyed` (13) and `BayDestroyed` (14), appended | the owner's "shoot the turrets off"; the hull never loses less, so hull balance does not move | §4.1, §5.4, §5.9, §9 |
+| 2 | **Rule 14**: `hp` finite and ≥ 0, `hit_radius` finite and > 0; `hp > 0` and more than `ACTION_TURRETS` turrets only on a capital hull (role `carrier`, `transport`, `line`, or `static`) | strike craft keep whole-ship damage, and a policy's action row reaches only six turrets | §4.4 |
+| 3 | **`MAX_TURRETS` 6 → 12**, with **`ACTION_TURRETS` = 6**: the action row (`ACTION_WIDTH` 21), the obs's turret slots and pending block, and the WASM ship stride keep six. Stage **0** (new, before stage 1): an alive ship of a hull with more than six turrets takes the slew and fire heads of turrets 6.. from the scripted controller, on the state its action was chosen in, so a citadel flown through action rows (the bindings, the web) flies as the script does (`tests/citadel.rs`) | the citadel has twelve turrets; no input or action head grows | §3, §5, §7.1 |
+| 4 | **`capital_only`** weapon flag: its projectiles pass through every non-capital ship, its lock and scripted aim pick capital ships only (`damage::can_hit_with`). Weapons **`rail`** (bullet 260 m/s, 380 m, 22 dmg, 1.6 s) and **`lance`** (bullet 300 m/s, 430 m, 130 dmg, 2.2 s, `capital_only`) appended (weapon ids 4, 5) | the citadel's anti-capital gun; the dreadnought's main gun | §4.2, §6 |
+| 5 | Role **`line`** (`ROLE_LINE`) and hulls **`citadel`** (role `carrier`, static, 3200 hp, shield 600, impact 0.5, twelve turrets: 2 lance, 6 flak, 4 gauss; four bays, all hardpoints) and **`dreadnought`** (role `line`, 1800 hp, shield 350, cap 7 m/s, bow 0.4 / flank 0.7 / stern 1.3 impact, 2 rails, 2 flak, 1 gauss, all hardpoints, no bays). A line ship reads to the nets as the obs class `spare` (no input grows, `OBS_DIM` 587) and to the WASM ship view as role 3 | a gun capital ship, flown by a script, that the obs can tell apart from the carrier without a new input | §4.1, §7.2, §10.2 |
+| 6 | **Hull ids**: `LEGACY_HULL_ORDER` now freezes the v9 order too (carrier 0, fighter 1, freighter 2, gunship 3, strafer 4, bomber 5, station 6); the new hulls follow by name: citadel 7, dreadnought 8 | by name `citadel` and `dreadnought` would have moved the v9 ids | §4.3, §12 |
+| 7 | **Station assault v10**: a second default roster, `"citadel"`: the citadel and seven strike craft against a carrier, a dreadnought and nine (19 ships). The line ship starts 40 m ahead of its carrier and 75 m to the centre line's side, heading as the carrier, outside every squad. The attacker is repelled only when its carrier, its line ship and every strike craft are gone. Arena: a station assault of more than 16 ships (`STATION_SHIPS_V9`) is 550 m (`BIG_STATION_ARENA_RADIUS`), else 450 as before. A line ship is refused in a carrier battle or a convoy, and on the station side | the owner's two capitals against a bigger station; the v9 roster (16 ships) keeps its arena | §5.10 |
+| 8 | Scripts: **`capital::dreadnought`** (waypoint if set, else the nearest enemy capital: nose-on beyond its standoff 0.8 × rail range + 120 m, else held 40° off the bow on the side it turns to sooner, burning while beyond the standoff); **hardpoint fire control** (`Aim::Hardpoints`: a main gun aims at the nearest live enemy hardpoint in range, lances first, else the nearest capital's centre); `capital_only` turrets aim at capital ships only; dead turrets hold. Scripted commander: the attacker's line ship holds 40 m outside the station's reach on its bearing until the strike goes, then is released to its own script; the defence's intercept falls back on the line ship after the carrier. The learned commander never squads or orders a line ship | §11, `docs/COMMANDER.md` |
+| 9 | `PILOT_COMPAT_VERSIONS = [3, …, 10]`, `PILOT_OBS_DIMS` adds `10: 587`. Bindings: `rlf_sim.MAX_TURRETS`, `ACTION_TURRETS`, `MAX_BAYS`, `EVENT_KINDS` 13/14, `VecEnv.hardpoints()`, render state turret/bay state and projectile `weapon`; WASM hardpoints view and projectile weapon id; `mission_state()` ship views carry `hardpoints` for hulls that have them | §10 |
+
+**Compatibility.** No v9 hull has a hardpoint or more than six turrets, and nothing
+before v10 has a `capital_only` weapon or a line ship, so every rule above is gated by
+the data: v9 matches never reach it. The state hash writes the first six turret angles
+and cooldowns where it always did; a ship of a hull with hardpoints or more than six
+turrets (`Ship::wide`) appends its extra turret state, its queue's extra heads, every
+turret and bay hp and the destroyed masks after its queue, so a v9 ship hashes exactly
+as before. `v9_compat_all_eleven_scenarios_replay_bit_for_bit` replays the eleven v9
+traces (kept verbatim in `tests/golden/v9/`) from a catalogue that holds the new hulls
+and weapons too; the regenerated v10 traces of those eleven differ in their header only.
+`golden_station_assault_v10_*` are new (the citadel roster, carrier reading under the
+scripted commander; convoy reading under the random one). Old-mission script-vs-script
+numbers are unchanged to the last digit (`results.md`). Python: training draws the v9
+station roster unless `PilotsDistribution.citadel_share` > 0 (default 0).
+
 ---
 
 ## 1. Conventions
@@ -376,7 +411,8 @@ where SoA matters.
 pub const MAX_SHIPS: usize = 20;     // per match (both teams, docked reserves included; v4, was 8)
 pub const MAX_BAYS: usize = 4;       // v4: bays per hull (rule 13)
 pub const MAX_THRUSTERS: usize = 8;  // carrier has 7
-pub const MAX_TURRETS: usize = 6;    // station has 6
+pub const MAX_TURRETS: usize = 12;   // v10: the citadel has 12 (was 6)
+pub const ACTION_TURRETS: usize = 6; // v10: turret slots of the action row and the obs
 pub const MAX_PROJECTILES: usize = 256; // pool per match, oldest overwritten
 pub const MAX_EVENTS: usize = 512;   // per step; excess dropped (counted)
 pub const MAX_HITS: usize = 64;      // HitRecords per step
@@ -591,6 +627,10 @@ other hull by name, so adding a hull never moves an old one's id (§0.7). Parsin
     `> 0`. A single arc `[-180, 180]` with `mult: 1` is valid and equals absent.
 12. (v3) `impact`, if given and non-empty: the same rules as 11.
 13. (v4) at most `MAX_BAYS = 4` bays (bay ids share rule 4's uniqueness and `dir` checks).
+14. (v10) hardpoints: every turret's and bay's `hp` finite and `>= 0`, `hit_radius`
+    finite and `> 0`; `hp > 0` on a turret or bay, and more than `ACTION_TURRETS` (6)
+    turrets, only on a capital hull (role `carrier`, `transport` or `line`, or
+    `static`). At most `MAX_TURRETS` (12) turrets (rule 4).
 
 `Match::new` additionally rejects `cfg.reaction_ticks > MAX_REACTION_TICKS`
 (`SetupError::ReactionTooLong`).
@@ -602,6 +642,10 @@ Python: `DataError` → `ValueError` with the message. WASM: `JsError`.
 Each stage loops over ships in slot order and over projectiles in pool order.
 `active(s) = s.alive && s.present`. Let `P_s, P_e, P_w` be the power multipliers (§5.2).
 
+0. (v10) **Row-less turrets**: while `Running`, every active ship of a hull with
+   more than `ACTION_TURRETS` turrets takes `pending`'s slew and fire heads of turrets
+   `ACTION_TURRETS..` from `scripted::act` on the current state (an action row carries
+   six; §0.8 item 3). A no-op for every v9 hull.
 1. **Clear** `events`, `hits`, `rewards`; `tick += 1`. If `phase == Over` return (the
    VecEnv never calls step on a finished match; WASM may, for an outro).
 1b. **Commanders** (v4, §5.9): if `tick % COMMAND_TICKS == 0`, sanitise squads and
@@ -1516,6 +1560,9 @@ pub enum Event {
     JumpCharge{ ship: u8, pos: Vec2, until: u32 },
     JumpOut   { ship: u8, pos: Vec2, heading: f32 },
     MatchEnd  { winner: i8, reason: EndReason },
+    // v10:
+    TurretDestroyed { ship: u8, turret: u8, pos: Vec2, shooter: u8 },
+    BayDestroyed    { ship: u8, bay: u8, pos: Vec2, shooter: u8 },
 }
 ```
 
@@ -1526,7 +1573,10 @@ target's position when the order was given; v8: a go-to's deadline is not in the
 whose eight floats are all taken, though a changed deadline alone does emit one), emitted once per changed squad per slow
 tick; `JumpCharge` = `[10, ship, 0, x, y, 0, 0, until]`; `JumpOut` = `[11, ship, 0, x,
 y, 0, 0, heading]`; `MatchEnd` = `[12, winner (−1 draw), reason, 0, 0, 0, 0, 0]`,
-emitted on the step the match ends (every mission, deathmatch too).
+emitted on the step the match ends (every mission, deathmatch too). v10 (kinds 13–14):
+`TurretDestroyed` = `[13, ship, turret, x, y, 0, 0, shooter (−1 none)]`, `BayDestroyed` =
+`[14, ship, bay, x, y, 0, 0, shooter]` (x, y: the mount's world position), emitted in
+stage 8 when a hardpoint's hp reaches 0 (§0.8).
 
 `EventBuf` is a `Vec<Event>` with capacity `MAX_EVENTS`, cleared each step. Flat
 encoding for FFI: `[f32; 8]` per event = `[kind, a, b, x, y, nx_or_x2, ny_or_y2, extra]`
@@ -1648,7 +1698,24 @@ rlf_sim.STATION_READS_AS == ["carrier", "convoy"]
 rlf_sim.LEGACY_HULL_ORDER == ["carrier", "fighter", "freighter", "gunship", "strafer"]
 VecEnv(..., mission={"kind": "station_assault", "as": "convoy"})   # or "station_assault"
 env.mission_state(i)["reads_as"]       # the mission the nets read ("carrier_battle", ...)
+# v10:
+rlf_sim.SIM_VERSION == 10; PILOT_COMPAT_VERSIONS == [3, ..., 10]; PILOT_OBS_DIMS adds 10: 587
+rlf_sim.LEGACY_HULL_ORDER == [..., "strafer", "bomber", "station"]  # citadel 7, dreadnought 8
+rlf_sim.MAX_TURRETS == 12; ACTION_TURRETS == 6; MAX_BAYS == 4
+rlf_sim.EVENT_KINDS["turret_destroyed"] == 13; ["bay_destroyed"] == 14
+rlf_sim.mission_rosters("station_assault")  # ["strike of 8" (v9, default), "citadel" (19 ships)]
+env.hardpoints()   # copies: turret_alive / turret_hp / turret_max_hp [N, S, MAX_TURRETS],
+                   # bay_alive / bay_hp / bay_max_hp [N, S, MAX_BAYS]; max_hp 0 = not a
+                   # hardpoint (alive while the ship is)
+env.render_state(i)  # ships gain turret_alive, turret_hp, bay_alive, bay_hp;
+                     # projectiles gain weapon (weapon id)
+env.mission_state(i)["ships"][k]["hardpoints"]  # only for hulls with hardpoints
 ```
+
+v10 Python side: `rosters.CAPITAL_ROLES` adds `line`; `PilotsDistribution.citadel_share`
+(default 0) draws the citadel roster for that share of station assaults (the sampler
+otherwise plays the sim's first station roster only); `spike_policy.PILOT_OBS_DIMS[10] =
+587`.
 
 v9 Python side: `rosters.MISSIONS` appends `STATION_ASSAULT`, `Roster.station_as` (one of
 `STATION_READS_AS`, default `"carrier"`) reaches the sim through `Roster.mission_spec`,
@@ -1769,6 +1836,20 @@ must equal it) and `match.ts` feeds the policy `obs(s).subarray(0, pilotObsDim)`
 `policy.js` refuses an obs of any other width. `scripts/build_bundle.sh` passes the
 table to `tools/export_policy.py` (`--wasm-pilot-obs-dims`), which checks a
 checkpoint's `obs_dim` against its own version's width.
+
+v10 additions (the ships view stays stride 29 with six turret angles):
+
+```ts
+projectiles: PROJECTILE_STRIDE 9: the stride-8 record then the weapon id (rail, lance
+    // need their own looks)
+hardpoints_ptr(): number; hardpoints_len(): number;  // HARDPOINT_STRIDE = 30 per ship:
+    // [n_turrets, n_bays, turret_angle[12], turret_state[12], bay_state[4]]; state = hp
+    // fraction (0 destroyed, 1 not a hardpoint or full; 0 past n_turrets / n_bays)
+// module: HARDPOINT_STRIDE(), HARDPOINT_TURRET_ANGLE_OFFSET() (2),
+// HARDPOINT_TURRET_STATE_OFFSET() (14), HARDPOINT_BAY_STATE_OFFSET() (26)
+// ship_ext role 3 = line (the dreadnought); team_state bays_ready skips destroyed bays
+// events 13 TurretDestroyed, 14 BayDestroyed (§9)
+```
 
 v5 additions:
 
