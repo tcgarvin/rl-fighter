@@ -12,12 +12,17 @@
 // convoy escort, no launch or no station-assault ending in a station assault; on a v10
 // bundle, a station assault without the citadel and the dreadnought, or one where no
 // turret is shot off), a capital ship flown by a pilot (only scripts fly them), a
-// learned commander never decides, or a mean tick blows the 30 Hz budget. The TS
-// sources need Node's type stripping:
+// learned commander never decides, or a mean tick blows the 30 Hz budget. v11 (dock and
+// repair): in every match no pilot flies a ship that is docked or off the field, a
+// Relaunched follows its own Launch and names a slot that docked, with the pilot it
+// docked with; and a dock check (a carrier battle under scripted commanders with the
+// sim's script flying the strike craft too, since the live pilots were never trained to
+// dock; --dock-check 0 skips it) must see craft recalled, docked, repaired and
+// relaunched. The TS sources need Node's type stripping:
 //
 //   node --experimental-strip-types tools/web/live_smoke.mjs <bundle-dir> [matches=4]
 //        [--seed 1] [--modes draft,carrier_battle,convoy_escort,station_assault,2v2,3v3,4v4]
-//        [--hulls fighter,strafer,gunship] [--commanders <azure>,<ember>|draw]
+//        [--hulls fighter,strafer,gunship] [--commanders <azure>,<ember>|draw] [--dock-check 0]
 //
 // --modes cycles what each match stages: a mission name (carrier_battle,
 // convoy_escort, station_assault; the page's ?mission=) or a deathmatch roster mode
@@ -105,6 +110,56 @@ console.log(
 );
 
 const stripTags = (html) => html.replace(/<[^>]+>/g, "");
+const DOCK_KINDS = ["dockOrdered", "docked", "repaired", "relaunched", "dockAborted"];
+const dockTotals = Object.fromEntries(DOCK_KINDS.map((k) => [k, 0]));
+
+/**
+ * Step `match` to its end, checking the v11 dock rules as the page sees them; returns the
+ * dock events seen and calls `onEvents` with each step's events. `fail` takes a reason.
+ */
+function playChecked(match, limit, fail, onEvents = () => {}) {
+  const docks = Object.fromEntries(DOCK_KINDS.map((k) => [k, 0]));
+  // Slot -> the pilot id it docked with, while it is back in its hangar.
+  const inHangar = new Map();
+  const offField = new Uint8Array(match.nShips);
+  const failures = new Set();
+  const once = (why) => {
+    if (failures.has(why)) return;
+    failures.add(why);
+    fail(why);
+  };
+  while (!match.over && match.tick < limit) {
+    match.ships.forEach((s, k) => (offField[k] = match.active(s) ? 0 : 1));
+    match.step();
+    for (let k = 0; k < match.nShips; k++) {
+      if (!match.flown[k]) continue;
+      if (offField[k]) once(`a pilot flew ${match.labels[k]} (slot ${k}) while it was docked or off the field`);
+      if (match.ships[k].role !== "strike") once(`a pilot flew the capital ship ${match.labels[k]}`);
+    }
+    const launched = new Set();
+    for (const e of match.events) {
+      if (e.kind === "launch") launched.add(e.a);
+      if (!(e.kind in docks)) continue;
+      docks[e.kind] += 1;
+      if (e.kind === "docked") {
+        if (match.ships[e.a].role !== "strike") once(`a capital ship docked (slot ${e.a})`);
+        if (!match.returned(match.ships[e.a])) once(`slot ${e.a} docked but the dock view does not show it back in the hangar`);
+        inHangar.set(e.a, match.pilotId(e.a));
+      } else if (e.kind === "relaunched") {
+        if (!launched.has(e.a)) once(`slot ${e.a} relaunched without its own Launch first`);
+        if (!inHangar.has(e.a)) once(`slot ${e.a} relaunched but never docked`);
+        else if (inHangar.get(e.a) !== match.pilotId(e.a)) once(`slot ${e.a} docked with pilot ${inHangar.get(e.a)} and relaunched with ${match.pilotId(e.a)}`);
+        if (!match.active(match.ships[e.a])) once(`slot ${e.a} relaunched but is not on the field`);
+        inHangar.delete(e.a);
+      }
+    }
+    onEvents(match.events);
+  }
+  for (const k of DOCK_KINDS) dockTotals[k] += docks[k];
+  return docks;
+}
+const dockLine = (d) => `recalls ${d.dockOrdered} docked ${d.docked} repaired ${d.repaired} relaunched ${d.relaunched} aborted ${d.dockAborted}`;
+
 let failed = false;
 let worstMean = 0;
 const tally = { 0: 0, 1: 0, draw: 0 };
@@ -144,12 +199,16 @@ for (let i = 0; i < Number(nArg); i++) {
   // Per side: Order events (squad orders that changed) and bay launches.
   const sideOrders = [0, 0];
   const sideLaunches = [0, 0];
-  while (!match.over && match.tick < limit) {
-    match.step();
+  const label = `match ${i} seed ${seed} ${mission === "deathmatch" ? mode : `${mission} (${roster.name ?? "drafted"})`} [${roster.fleets.map((f) => f.join("+")).join(" vs ")}]`;
+  const fail = (why) => {
+    console.error(`live smoke: FAIL ${label}: ${why}`);
+    failed = true;
+  };
+  const docks = playChecked(match, limit, fail, (events) => {
     simTotal += match.last.sim;
     nnTotal += match.last.nn;
     nnWorst = Math.max(nnWorst, match.last.nn);
-    for (const e of match.events) {
+    for (const e of events) {
       if (e.kind in counts) counts[e.kind] += 1;
       if (e.kind === "order") sideOrders[e.a] += 1;
       if (e.kind === "launch") sideLaunches[match.ships[e.a].team] += 1;
@@ -158,12 +217,11 @@ for (let i = 0; i < Number(nArg); i++) {
     for (const p of match.projectiles) if (p.weapon === "rail" || p.weapon === "lance") heavySlugs.add(p.weapon);
     peakPresent = Math.max(peakPresent, match.ships.filter((s) => match.active(s)).length);
     if (match.ships.some((s) => !Number.isFinite(s.x) || !Number.isFinite(s.y) || !Number.isFinite(s.hp))) nonFinite = true;
+  });
+  if (mission === "deathmatch" || mission === "convoy_escort") {
+    // No carrier, so the dock rules never run.
+    if (docks.dockOrdered + docks.docked > 0) fail(`dock events in a ${mission} (${dockLine(docks)})`);
   }
-  const label = `match ${i} seed ${seed} ${mission === "deathmatch" ? mode : `${mission} (${roster.name ?? "drafted"})`} [${roster.fleets.map((f) => f.join("+")).join(" vs ")}]`;
-  const fail = (why) => {
-    console.error(`live smoke: FAIL ${label}: ${why}`);
-    failed = true;
-  };
   if (nonFinite) fail("non-finite ship state");
   if (counts.unknown) fail(`${counts.unknown} events of an unknown kind`);
   if (!match.over) {
@@ -206,7 +264,8 @@ for (let i = 0; i < Number(nArg); i++) {
   const hardpoints = counts.turretDestroyed + counts.bayDestroyed + heavyShots.rail + heavyShots.lance > 0
     ? ` turret-destroyed ${counts.turretDestroyed} bay-destroyed ${counts.bayDestroyed} rail ${heavyShots.rail} lance ${heavyShots.lance}`
     : "";
-  const ev = `events launch ${counts.launch} arrival ${counts.arrival} order ${counts.order} charge ${counts.jumpCharge} jump-out ${counts.jumpOut} death ${counts.death}${hardpoints}`;
+  const dockEv = mission === "carrier_battle" || mission === "station_assault" ? `; dock ${dockLine(docks)}` : "";
+  const ev = `events launch ${counts.launch} arrival ${counts.arrival} order ${counts.order} charge ${counts.jumpCharge} jump-out ${counts.jumpOut} death ${counts.death}${hardpoints}${dockEv}`;
   const sides = [0, 1].map((t) => {
     const c = match.commanders[t];
     const st = match.commanderStats[t];
@@ -233,6 +292,23 @@ for (let i = 0; i < Number(nArg); i++) {
   console.log(`live smoke:   commanders ${sides.join(" · ")}`);
   match.free();
 }
+// v11: the dock pipeline end to end, where docks are sure to happen.
+if (bundle.layout.dockStride > 0 && flags["dock-check"] !== "0" && available.includes("carrier_battle")) {
+  const seed = seed0 + 7000;
+  const roster = missionRoster("carrier_battle", parseRosterMode(null), rules, bundle.catalogue.info, mulberry32(seed ^ 0x5bd1e995), rosters);
+  const S = byId("scripted");
+  const match = new LiveMatch({ ...bundle, settings: manifest.match, fleets: roster.fleets, seed, mission: "carrier_battle", commanders: [S, S], scriptStrikeCraft: true });
+  const label = `dock check seed ${seed} carrier_battle (${roster.name ?? "drafted"}), scripted commanders, scripted strike craft`;
+  const fail = (why) => {
+    console.error(`live smoke: FAIL ${label}: ${why}`);
+    failed = true;
+  };
+  const docks = playChecked(match, match.timeLimitTicks + 100, fail);
+  for (const k of ["dockOrdered", "docked", "repaired", "relaunched"]) if (docks[k] === 0) fail(`no ${k} event`);
+  console.log(`live smoke: ${label}: ${match.simReason} at ${(match.tick / 30).toFixed(1)} s; ${dockLine(docks)}`);
+  match.free();
+}
+console.log(`live smoke: dock events in all: ${dockLine(dockTotals)}`);
 console.log(`live smoke: team 0 ${tally[0]} · team 1 ${tally[1]} · draws ${tally.draw}`);
 console.log(`live smoke: strike craft per pilot: ${[...flown].sort().map(([id, n]) => `${id} ${n}`).join(", ")}`);
 for (const [id, t] of [...commanded].sort()) {

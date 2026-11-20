@@ -123,8 +123,12 @@ uv run python -m pytest tests/test_commander_io.py tests/test_commander_orders.p
     tests/test_commander_train.py tests/test_commander_policy.py tests/test_commander_eval.py -v
 
 # Parity of the browser policy and commander with torch; the headless live-match smoke
-# test (learned commanders: --commanders <azure>,<ember>|draw; default cycles them on both sides)
-uv run python -m pytest tests/test_web_policy.py tests/test_web_commander.py tests/test_live_commanders.py -v
+# test (learned commanders: --commanders <azure>,<ember>|draw; default cycles them on both sides;
+# v11: plus a dock check, a scripted carrier battle with script-flown craft that must recall,
+# dock, repair and relaunch the same slot and pilot, --dock-check 0 skips it), and the page's
+# dock constants against rlf_sim (tests/test_web_dock.py)
+uv run python -m pytest tests/test_web_policy.py tests/test_web_commander.py tests/test_live_commanders.py \
+    tests/test_web_dock.py -v
 node --experimental-strip-types tools/web/live_smoke.mjs web/public/bundle 4 [--hulls fighter,strafer,gunship]
 # Screenshots (390x844, 1440x900) into web/shots/live/, and a 10-minute heap/GPU soak,
 # against a running preview / web/dist; RLF_GPU=1 uses the host GPU instead of SwiftShader

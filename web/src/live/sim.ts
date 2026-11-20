@@ -29,6 +29,9 @@ export interface WasmMatch {
   /** v10: the hardpoints view (SimModule.HARDPOINT_STRIDE floats per ship, ship order). */
   hardpoints_ptr?(): number;
   hardpoints_len?(): number;
+  /** v11: the dock view (SimModule.DOCK_STRIDE floats per ship, ship order). */
+  dock_ptr?(): number;
+  dock_len?(): number;
   /** MISSION_KINDS index (v9: 3, the station assault). */
   mission_kind(): number;
   /** v9: the mission kind the nets read: a station assault's is 1 or 2 (its spec's `"as"`). */
@@ -100,6 +103,8 @@ export interface SimModule {
   HARDPOINT_TURRET_ANGLE_OFFSET?(): number;
   HARDPOINT_TURRET_STATE_OFFSET?(): number;
   HARDPOINT_BAY_STATE_OFFSET?(): number;
+  /** v11: `[phase, bay, point.x, point.y, since, docked_at, ready_at, hp_frac]` per ship. */
+  DOCK_STRIDE?(): number;
 }
 
 /** Where the v10 hardpoints view keeps each block of a ship's record. */
@@ -128,6 +133,8 @@ export interface SimLayout {
   eventStride: number;
   /** v10: the hardpoints view's layout; null in a wasm before it. */
   hardpoints: HardpointLayout | null;
+  /** v11: floats per ship in the dock view; 0 in a wasm before it. */
+  dockStride: number;
 }
 
 /** Read the module's static constants once. */
@@ -151,7 +158,18 @@ export function simLayout(sim: SimModule): SimLayout {
     projectileStride: sim.PROJECTILE_STRIDE(),
     eventStride: sim.EVENT_STRIDE(),
     hardpoints: hardpointLayout(sim),
+    dockStride: dockStride(sim),
   };
+}
+
+/** The fields this page reads from a dock record (SIM_SPEC §5.11; crates/sim-wasm bridge.rs). */
+const DOCK_FIELDS = 8;
+
+function dockStride(sim: SimModule): number {
+  if (!sim.DOCK_STRIDE) return 0;
+  const stride = sim.DOCK_STRIDE();
+  if (stride < DOCK_FIELDS) throw new Error(`dock view stride ${stride} is shorter than the ${DOCK_FIELDS} fields this page reads`);
+  return stride;
 }
 
 function hardpointLayout(sim: SimModule): HardpointLayout | null {
@@ -254,6 +272,15 @@ export const JUMP_IDLE = 0;
 export const JUMP_CHARGING = 1;
 export const JUMP_DEPARTED = 2;
 
+/** A ship's dock phase (the dock view, rlf_sim.DOCK_PHASES): none; inbound under a dock
+ * order; back in its carrier's hangar inside its turnaround; ready to relaunch. */
+export const DOCK_NONE = 0;
+export const DOCK_INBOUND = 1;
+export const DOCK_REPAIRING = 2;
+export const DOCK_READY = 3;
+/** DockAborted's reasons. */
+export const DOCK_ABORT_REASONS = ["carrier lost", "no bay left"] as const;
+
 /** Squad order kinds (SIM_SPEC §5.9 and the `Order` event; v6: defend and go-to). */
 export const ORDER_KINDS = ["none", "attack", "defend", "goto"] as const;
 export type OrderKind = (typeof ORDER_KINDS)[number];
@@ -286,6 +313,11 @@ export const EVENT_KINDS = [
   "fire", "beam", "hit", "shieldHit", "burst", "death", "arrival", "collision", "launch", "order", "jumpCharge", "jumpOut", "matchEnd",
   // v10: `[kind, ship, turret or bay, x, y, 0, 0, shooter]`.
   "turretDestroyed", "bayDestroyed",
+  // v11 (dock and repair, SIM_SPEC §5.11): dockOrdered `[k, ship, carrier, x, y, 0, 0, bay]`
+  // (the dock point), docked `[k, ship, carrier, x, y, hp_frac, 0, bay]` (where it was),
+  // repaired `[k, ship, carrier, 0, 0, 0, 0, 0]`, relaunched `[k, ship, carrier, 0, 0,
+  // hp_frac, 0, bay]` (after its launch), dockAborted `[k, ship, carrier, 0, 0, 0, 0, reason]`.
+  "dockOrdered", "docked", "repaired", "relaunched", "dockAborted",
 ] as const;
 export type EventKind = (typeof EVENT_KINDS)[number] | "unknown";
 
@@ -338,6 +370,20 @@ export interface ShipState {
   waypointY: number;
   /** Squad index in its team, or -1. */
   squad: number;
+  // v11 (the dock view; DOCK_NONE and zeros before v11 or while the dock rules do not run).
+  /** DOCK_NONE, DOCK_INBOUND, DOCK_REPAIRING or DOCK_READY. */
+  dockPhase: number;
+  /** The dock order's bay, or -1. */
+  dockBay: number;
+  /** The ordered bay's dock point now (rides on the carrier); 0 without a dock order. */
+  dockX: number;
+  dockY: number;
+  /** The tick the dock order was given; 0 without one. */
+  dockSince: number;
+  /** The tick a returned ship docked; 0 if it is not back in the hangar. */
+  dockedAt: number;
+  /** The first tick it may relaunch; 0 for always. */
+  readyAt: number;
 }
 
 /** One squad of the commander layer (the `squads()` view, SQUAD_STRIDE). */
