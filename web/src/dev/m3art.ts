@@ -5,11 +5,15 @@
 // sim. tools/web/art_shots.mjs screenshots it.
 //
 // v10: capitals (every capital hull side by side), citadel, dreadnought, hardpoints
-// (turrets and bays shot off one by one), lance (the citadel's lances and the
-// dreadnought's rails trading fire, gauss and flak around them).
+// (turrets and bays shot off one by one), wreckage and citadelwreck (lost hardpoints up
+// close), lance (the citadel's lances and the dreadnought's rails trading fire, gauss and
+// flak around them).
 //
 // URL: ?scene=lineup|convoy|launch|jump|quick|orders|shield|deplete|explode|burn|burnpair|burnfast|
-//   capitals|citadel|dreadnought|hardpoints|lance
+//   capitals|citadel|dreadnought|hardpoints|wreckage|citadelwreck|lance
+//   &close=<m> a fixed close shot that wide; &at=<x>,<y> centres it on a sim point;
+//   &shadows=1 the key light casts shadows as on the live page; window.artBench(frames)
+//   returns the held frame's cost (ms), draw calls and triangles.
 //   &t=<s> fast-forwards to that time
 // in fixed 1/60 s steps and then holds still (window.artReady turns true), for shots.
 

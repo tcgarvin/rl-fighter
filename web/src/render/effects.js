@@ -890,7 +890,7 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
     }
     for(let j=0;j<5;j++) {
       const b=Math.random()*TAU;
-      particle(x,y,z,s*(.45+.45*Math.random()),1.3+Math.random(),soot,7,Math.cos(b)*s*.4,s*.6,Math.sin(b)*s*.4,.1+.3*Math.random());
+      particle(x,y,z,s*(.45+.45*Math.random()),2.1+Math.random(),soot,7,Math.cos(b)*s*.55,s*.9,Math.sin(b)*s*.55,.1+.3*Math.random());
       particles[(pc+particles.length-1)%particles.length].hot=j<2;
     }
   }
@@ -905,37 +905,37 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
       // Fierce for the first few seconds, then a steady smoulder.
       const fresh=Math.max(0,1-w.age/5);
       if(w.kind==='turret') {
-        w.smoke+=dt*(.65+2*fresh);
+        w.smoke+=dt*(2.8+2*fresh);
         while(w.smoke>=1) {
           w.smoke--;
           // Thin, and drifting off the stump: smoke over a still hull must not hide it.
-          const b=Math.random()*TAU;
-          particle(x+(Math.random()-.5)*s,y+.3,z+(Math.random()-.5)*s,s*(.4+.3*Math.random()),1.4+.6*Math.random(),smokeColor,5,
-            Math.cos(b)*3,2,Math.sin(b)*3).gain=.26;
+          const b=w.seed+(Math.random()-.5)*.35;
+          particle(x+(Math.random()-.5)*s*.35,y+.3,z+(Math.random()-.5)*s*.35,s*(.38+.18*Math.random()),2.6+.7*Math.random(),smokeColor,5,
+            Math.cos(b)*2.7,3.3,Math.sin(b)*2.7).gain=.85;
         }
-        w.spark+=dt*(2+6*fresh);
+        w.spark+=dt*(3.2+6*fresh);
         while(w.spark>=1) {
           w.spark--;
           const b=Math.random()*TAU, v=1+3*Math.random();
-          particle(x+Math.cos(b)*s*.5,y+.2,z+Math.sin(b)*s*.5,Math.max(.25,s*.08),.5+.6*Math.random(),emberHot,6,
-            Math.cos(b)*v,1+Math.random()*2,Math.sin(b)*v);
+          particle(x+Math.cos(b)*s*.35,y+.2,z+Math.sin(b)*s*.35,Math.max(.35,s*.11),.8+.6*Math.random(),emberHot,6,
+            Math.cos(b)*v,1.8+Math.random()*2,Math.sin(b)*v);
         }
         if(fresh>0 && Math.random()<dt*5*fresh) particle(x,y+.3,z,s*(.5+.3*Math.random()),.24,fireColor,8,0,s*.4,0);
         // The torn metal glows where it broke, pulsing as it cools.
-        const glowing=(.22+.48*fresh)*(.7+.3*Math.sin(clock*2.3+w.seed));
-        put(embers,x,y-.2,z,s*.42,s*.1,1,0,emberDim,glowing);
-        put(emberHalos,x,y-.2,z,s*.8,s*.45,1,0,emberDim,.1*glowing);
+        const glowing=(.85+.35*fresh)*(.82+.18*Math.sin(clock*2.3+w.seed));
+        put(embers,x,y-.2,z,s*.6,s*.38,1,0,emberHot,glowing);
+        put(emberHalos,x,y-.12,z,s*1.4,s*1.05,1,0,emberDim,.5*glowing);
       } else {
-        w.smoke+=dt*(.5+1.5*fresh);
+        w.smoke+=dt*(2.2+1.5*fresh);
         while(w.smoke>=1) {
           w.smoke--;
-          const b=Math.random()*TAU;
-          particle(x,y+.3,z,s*(.35+.25*Math.random()),1.3+.6*Math.random(),smokeColor,5,Math.cos(b)*2.5,1.6,Math.sin(b)*2.5).gain=.24;
+          const b=w.seed+(Math.random()-.5)*.4;
+          particle(x,y+.3,z,s*(.28+.15*Math.random()),2.5+.7*Math.random(),smokeColor,5,Math.cos(b)*2.7,3.1,Math.sin(b)*2.7).gain=.75;
         }
         // Shorting power: irregular showers of sparks, and a fire flickering deep inside.
         w.spark-=dt;
         if(w.spark<=0) {
-          w.spark=.25+Math.random()*(1.15-.65*fresh);
+          w.spark=.2+Math.random()*(.65-.3*fresh);
           const n=2+Math.floor(Math.random()*4), hot=Math.random()<.35;
           for(let j=0;j<n;j++) {
             const b=Math.random()*TAU, v=s*(1.5+3*Math.random());
@@ -944,8 +944,10 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
           }
           if(hot) particle(x,y+.1,z,s*.65,.055,electric);
         }
-        const flick=(.5+.5*fresh)*(.55+.45*Math.sin(clock*13+w.seed)*Math.sin(clock*7.3+w.seed*2));
-        put(glow,x,y-.3,z,s*.95,s*.65,1,0,bayFlicker,.42*flick);
+        const flick=(.8+.4*fresh)*(.8+.2*Math.sin(clock*13+w.seed)*Math.sin(clock*7.3+w.seed*2));
+        put(glow,x,y-.3,z,s*1.1,s*.8,1,0,bayFlicker,.85*flick);
+        put(embers,x,y-.3,z,s*.4,s*.26,1,0,emberHot,.9*flick);
+        put(emberHalos,x,y-.25,z,s*1.2,s*.85,1,0,emberDim,.4*flick);
       }
     }
   }

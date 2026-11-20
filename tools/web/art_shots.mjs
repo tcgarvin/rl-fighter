@@ -1,5 +1,6 @@
 // Screenshots of the M3 art preview (web/dev/m3-art.html: carrier, transport, bay
-// launch, jump charge and jump-out, quick jump-out, the order overlay) at the iPhone
+// launch, jump charge and jump-out, quick jump-out, the order overlay; v10's citadel,
+// dreadnought, shot-off hardpoints and lance / rail fire) at the iPhone
 // portrait size (390×844) and a desktop (1440×900). The page is dev-only, so serve it
 // with the Vite dev server: `cd web && npx vite --port 5179 --strictPort`.
 // Fails on page errors.

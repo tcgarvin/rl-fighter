@@ -399,28 +399,43 @@ const TURRET_KITS={
  * mount, y from the base ring's top): scorched, torn plate and a snapped barrel root.
  */
 function stump(sb,r,weapon) {
-  // A flat, asymmetric tear across the race, with three broken sides. Radial teeth
-  // around a central ember merged into a round armoured dome in the phone view.
-  sb.add('scorch',plate([[-r*.96,-r*.65],[-r*.38,-r*.94],[r*.52,-r*.82],
-    [r*1.08,-r*.24],[r*.72,r*.27],[r*.91,r*.64],[r*.12,r*.91],
-    [-r*.73,r*.68],[-r*.59,r*.21],[-r*1.02,0]],-.07,.12,.015));
-  sb.add('scorch',plate([[-r*.91,-r*.61],[-r*.38,-r*.88],[r*.49,-r*.77],
-    [r*.29,-r*.53],[-r*.22,-r*.59],[-r*.57,-r*.31]],.06,.2,.02));
-  sb.add('scorch',plate([[-r*.72,r*.62],[r*.12,r*.85],[r*.81,r*.6],
-    [r*.49,r*.39],[r*.07,r*.58],[-r*.37,r*.36]],.06,.28,.02));
-  sb.add('scorch',plate([[-r*.94,-r*.18],[-r*.65,-r*.34],[-r*.46,r*.09],
-    [-r*.69,r*.42],[-r*.82,r*.24]],.05,.38,.02));
   const heavy=weapon==='lance'||weapon==='rail';
-  // A short rectangular barrel root retains the last bearing without closing the pit.
-  sb.add('machinery',plate([[r*.26,-r*.3],[r*1.03,-r*.3],[r*.78,-r*.09],
-    [r*.95,r*.13],[r*.26,r*.23]],.1,heavy?.28:.16,.025));
-  sb.add('scorch',plate([[r*.28,-r*.22],[r*.83,-r*.22],[r*.62,-r*.06],
-    [r*.75,r*.1],[r*.28,r*.13]],heavy?.4:.28,.04,.01));
-  // Narrow exposed fracture faces, deliberately unequal rather than a bright ring.
-  sb.add('trim',plate([[-r*.7,r*.63],[-r*.1,r*.8],[r*.1,r*.74],
-    [-r*.38,r*.56]],.36,.035,.01));
-  sb.add('trim',plate([[-r*.92,-r*.16],[-r*.79,-r*.2],[-r*.65,r*.16],
-    [-r*.74,r*.24]],.44,.025,.01));
+  // An open annulus, not a cap: the pale race surrounds jagged, raised scorch walls
+  // and a low black floor. Leave the middle clear for the wound's orange embers.
+  const inner=[.69,.78,.6,.73,.66,.79,.64,.72,.59,.76,.65,.74];
+  const pit=inner.map((v,i)=>radial(r*v,i*Math.PI/6));
+  sb.add('scorch',plate(pit,.012,.025,.005));
+  for(let i=0;i<12;i++) {
+    const a=i*Math.PI/6, b=(i+1)*Math.PI/6, j=(i+1)%12;
+    sb.add('trim',plate([radial(r,a),radial(r,b),radial(r*.85,b),radial(r*.85,a)],.025,.14,.025));
+    sb.add('scorch',plate([radial(r*.85,a),radial(r*.85,b),pit[j],pit[i]],
+      .035,.17+(i%3)*.12,.015));
+  }
+  // A substantial remnant projects beyond the race: ~36% of a live heavy barrel.
+  // Its skewed, zigzag fracture and pale end cannot be mistaken for a live muzzle.
+  const len=weapon==='lance'?3.7:weapon==='rail'?3:r*.95;
+  const width=heavy?.95:r*.32, root=r*.43, tip=root+len;
+  const stub=plate([[root,-width*.7],[tip-width*.2,-width*.5],
+    [tip-width*.55,-width*.05],[tip,width*.32],[tip-width*.5,width*.7],
+    [root,width*.55]],0,heavy?.82:.5,.045);
+  stub.rotateZ(.19); sb.add('machinery',stub,0,.46,-r*.16,.18);
+  const tear=plate([[tip-width*.43,-width*.56],[tip-width*.2,-width*.5],
+    [tip-width*.55,-width*.05],[tip,width*.32],[tip-width*.5,width*.7],
+    [tip-width*.72,width*.56],[tip-width*.26,width*.27],[tip-width*.8,-width*.05]],
+    heavy?.83:.51,.065,.015);
+  tear.rotateZ(.19); sb.add('trim',tear,0,.46,-r*.16,.18);
+  // Two folded armour scraps lean out from the broken race; broad torn lips survive
+  // phone zoom, while the unequal shapes leave most of the cavity unobstructed.
+  for(const s of [-1,1]) {
+    const reach=s<0?.74:1;
+    const outline=[[-r*.66,0],[r*.26,0],[r*.12,s*r*.55*reach],
+      [-r*.13,s*r*.39*reach],[-r*.48,s*r*.62*reach]];
+    const scrap=plate(outline,0,r*.12,.025);
+    scrap.rotateX(-s*.88); sb.add('scorch',scrap,-r*.3,.25,s*r*.67);
+    const lip=plate([[-r*.48,s*r*.62*reach],[-r*.13,s*r*.39*reach],[r*.12,s*r*.55*reach],
+      [r*.14,s*r*.42*reach],[-r*.12,s*r*.27*reach],[-r*.5,s*r*.48*reach]],r*.13,.045,.015);
+    lip.rotateX(-s*.88); sb.add('trim',lip,-r*.3,.25,s*r*.67);
+  }
 }
 
 /**
@@ -441,7 +456,9 @@ function bayFrame(name,h,bay) {
 function bayHole(hb,l,w) {
   const citadel=Math.abs(l-CITADEL_BAY.depth)<.01;
   // The burn sits on the well floor; no raised slab or complete black rim.
-  hb.panel('scorch',0,0,l-.25,w-.25,.015,.055,.015);
+  hb.add('scorch',plate([[-l*.48,-w*.44],[-l*.28,-w*.48],[-l*.09,-w*.39],
+    [l*.17,-w*.47],[l*.47,-w*.41],[l*.49,w*.2],[l*.36,w*.46],
+    [l*.09,w*.39],[-l*.23,w*.48],[-l*.48,w*.36]],.015,.055,.015));
   for (const s of [-1,1]) {
     hb.add('scorch',plate([[-l*.46,s*w*.49],[-l*.29,s*w*.46],[-l*.18,s*w*.35],
       [-l*.04,s*w*.48],[l*.16,s*w*.4],[l*.33,s*w*.48],[l*.46,s*w*.45],
@@ -455,8 +472,10 @@ function bayHole(hb,l,w) {
     // Shattered guide rails and a few folded scraps stay below the intact sill.
     hb.panel('scorch',citadel?0:s*l*.196,citadel?s*w*.3125:0,
       citadel?l-.35:.45,citadel?.46:w-.1,.24,.07,.015);
-    hb.add('machinery',plate([[-l*.32,s*w*.42],[-l*.13,s*w*.4],
-      [-l*.22,s*w*.27],[-l*.37,s*w*.31]],.14,.08,.015));
+    hb.add('scorch',plate([[-l*.32,s*w*.42],[-l*.08,s*w*.4],
+      [-l*.22,s*w*.2],[-l*.37,s*w*.31]],.14,.28,.015));
+    hb.add('trim',plate([[-l*.37,s*w*.31],[-l*.22,s*w*.2],[-l*.08,s*w*.4],
+      [-l*.15,s*w*.41],[-l*.24,s*w*.29]],.43,.055,.015));
   }
 }
 
