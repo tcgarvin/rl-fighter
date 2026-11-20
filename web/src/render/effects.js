@@ -846,16 +846,16 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
   const lanceCore = new T.Color(0xf4ecff).multiplyScalar(1.8);
   function lanceShot(x, z, a, teamIndex) {
     const c=lanceColor[teamIndex] || white, dx=Math.cos(a), dz=-Math.sin(a);
-    put(tracers,x-dx*30,1.9,z-dz*30,60,2.2,1,a,c,.22);
-    put(heavyTracers,x-dx*12,2,z-dz*12,26,3.4,1,a,c,.8);
-    put(heavyCores,x-dx*8,2.05,z-dz*8,18,.9,1,a,lanceCore,1);
+    put(tracers,x-dx*35,1.9,z-dz*35,72,2.6,1,a,c,.28);
+    put(heavyTracers,x-dx*18,2,z-dz*18,38,4.2,1,a,c,1);
+    put(heavyCores,x-dx*7,2.05,z-dz*7,16,.65,1,a,lanceCore,.72);
   }
   // The rail: a heavy, fast slug, short and white-hot, with a short warm trail.
   const railColor = shot.map(c => c.clone().lerp(new T.Color(0xffe3b0), .55).multiplyScalar(1.4));
   function railShot(x, z, a, teamIndex) {
-    const c=railColor[teamIndex] || white, dx=Math.cos(a), dz=-Math.sin(a);
-    put(heavyTracers,x-dx*6,1.8,z-dz*6,14,1.9,1,a,c,.7);
-    put(heavyCores,x-dx*.8,1.85,z-dz*.8,4.2,.75,1,a,white,1);
+    const c=goldWhite, dx=Math.cos(a), dz=-Math.sin(a);
+    put(heavyTracers,x-dx*8,1.8,z-dz*8,18,2.7,1,a,c,.9);
+    put(heavyCores,x-dx*1.2,1.85,z-dz*1.2,5.4,1.2,1,a,goldWhite,1);
   }
   // ---- Hardpoints shot off (v10) ----
   // A destroyed turret's stump smokes and glints, a destroyed bay sparks and flickers,
@@ -866,14 +866,14 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
     point.copy(h.local).applyMatrix4(model.object.matrixWorld);
     const x=point.x, y=point.y+.5, z=point.z, s=h.size, bay=kind==='bay';
     particle(x,y+.4,z,s*2.2,.12,white);
-    particle(x,y+.2,z,s*5,.35,puffA);
-    particle(x,y,z,s*3.5,.25,team[teamIndex] || orange);
-    flash(x,y+5,z,warmWhite,Math.min(400*s*s,9000),s*16,.45);
+    particle(x,y+.2,z,s*3.8,.24,puffA);
+    particle(x,y,z,s*2.8,.18,team[teamIndex] || orange);
+    flash(x,y+5,z,warmWhite,Math.min(300*s*s,7000),s*13,.3);
     ripple(x,z,s*5,.4,.14,.25);
     shock(x,z,s*4.5,.4,shockColor,.4,0);
     for(let j=0;j<4;j++) {
       const b=j*1.57+Math.random(), v=s*(1+Math.random());
-      particle(x+Math.cos(b)*s*.4,y,z+Math.sin(b)*s*.4,s*(1+.5*Math.random()),.7+.4*Math.random(),soot,8,
+      particle(x+Math.cos(b)*s*.4,y,z+Math.sin(b)*s*.4,s*(.7+.4*Math.random()),.45+.35*Math.random(),soot,8,
         Math.cos(b)*v,s*.5,Math.sin(b)*v,j*.03);
       particles[(pc+particles.length-1)%particles.length].hot=j<2;
     }
@@ -890,7 +890,7 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
     }
     for(let j=0;j<5;j++) {
       const b=Math.random()*TAU;
-      particle(x,y,z,s*(.6+.6*Math.random()),2+Math.random(),soot,7,Math.cos(b)*s*.4,s*.6,Math.sin(b)*s*.4,.1+.3*Math.random());
+      particle(x,y,z,s*(.45+.45*Math.random()),1.3+Math.random(),soot,7,Math.cos(b)*s*.4,s*.6,Math.sin(b)*s*.4,.1+.3*Math.random());
       particles[(pc+particles.length-1)%particles.length].hot=j<2;
     }
   }
@@ -905,13 +905,13 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
       // Fierce for the first few seconds, then a steady smoulder.
       const fresh=Math.max(0,1-w.age/5);
       if(w.kind==='turret') {
-        w.smoke+=dt*(1.6+2.5*fresh);
+        w.smoke+=dt*(.65+2*fresh);
         while(w.smoke>=1) {
           w.smoke--;
           // Thin, and drifting off the stump: smoke over a still hull must not hide it.
           const b=Math.random()*TAU;
-          particle(x+(Math.random()-.5)*s,y+.3,z+(Math.random()-.5)*s,s*(.6+.4*Math.random()),1.8+.8*Math.random(),smokeColor,5,
-            Math.cos(b)*3,2,Math.sin(b)*3).gain=.4;
+          particle(x+(Math.random()-.5)*s,y+.3,z+(Math.random()-.5)*s,s*(.4+.3*Math.random()),1.4+.6*Math.random(),smokeColor,5,
+            Math.cos(b)*3,2,Math.sin(b)*3).gain=.26;
         }
         w.spark+=dt*(2+6*fresh);
         while(w.spark>=1) {
@@ -920,32 +920,32 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
           particle(x+Math.cos(b)*s*.5,y+.2,z+Math.sin(b)*s*.5,Math.max(.25,s*.08),.5+.6*Math.random(),emberHot,6,
             Math.cos(b)*v,1+Math.random()*2,Math.sin(b)*v);
         }
-        if(fresh>0 && Math.random()<dt*10*fresh) particle(x,y+.3,z,s*(1+.6*Math.random()),.35,fireColor,8,0,s*.4,0);
+        if(fresh>0 && Math.random()<dt*5*fresh) particle(x,y+.3,z,s*(.5+.3*Math.random()),.24,fireColor,8,0,s*.4,0);
         // The torn metal glows where it broke, pulsing as it cools.
-        const glowing=(.55+.45*fresh)*(.7+.3*Math.sin(clock*2.3+w.seed));
-        put(embers,x,y+.3,z,s*.35,s*.35,1,0,emberDim,glowing);
-        put(emberHalos,x,y+.3,z,s*1.4,s*1.4,1,0,emberDim,.25*glowing);
+        const glowing=(.22+.48*fresh)*(.7+.3*Math.sin(clock*2.3+w.seed));
+        put(embers,x,y-.2,z,s*.42,s*.1,1,0,emberDim,glowing);
+        put(emberHalos,x,y-.2,z,s*.8,s*.45,1,0,emberDim,.1*glowing);
       } else {
-        w.smoke+=dt*(.8+2*fresh);
+        w.smoke+=dt*(.5+1.5*fresh);
         while(w.smoke>=1) {
           w.smoke--;
           const b=Math.random()*TAU;
-          particle(x,y+.3,z,s*(.5+.3*Math.random()),1.6+.8*Math.random(),smokeColor,5,Math.cos(b)*2.5,1.6,Math.sin(b)*2.5).gain=.35;
+          particle(x,y+.3,z,s*(.35+.25*Math.random()),1.3+.6*Math.random(),smokeColor,5,Math.cos(b)*2.5,1.6,Math.sin(b)*2.5).gain=.24;
         }
         // Shorting power: irregular showers of sparks, and a fire flickering deep inside.
         w.spark-=dt;
         if(w.spark<=0) {
-          w.spark=.15+Math.random()*(.9-.6*fresh);
-          const n=3+Math.floor(Math.random()*4), hot=Math.random()<.5;
+          w.spark=.25+Math.random()*(1.15-.65*fresh);
+          const n=2+Math.floor(Math.random()*4), hot=Math.random()<.35;
           for(let j=0;j<n;j++) {
             const b=Math.random()*TAU, v=s*(1.5+3*Math.random());
             particle(x+(Math.random()-.5)*s,y+.3,z+(Math.random()-.5)*s,Math.max(.4,s*.07),.25+.35*Math.random(),
               hot?electric:emberColor,3,Math.cos(b)*v,1+2*Math.random(),Math.sin(b)*v);
           }
-          if(hot) particle(x,y+.5,z,s*1.2,.08,electric);
+          if(hot) particle(x,y+.1,z,s*.65,.055,electric);
         }
         const flick=(.5+.5*fresh)*(.55+.45*Math.sin(clock*13+w.seed)*Math.sin(clock*7.3+w.seed*2));
-        put(glow,x,y-.2,z,s*1.6,s*1.6,1,0,bayFlicker,.6*flick);
+        put(glow,x,y-.3,z,s*.95,s*.65,1,0,bayFlicker,.42*flick);
       }
     }
   }
@@ -998,14 +998,14 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
         // A capital gun's report: a big flash in the shot's colour, a white-hot core, a
         // forward blast of sparks and a puff of smoke that hangs at the muzzle.
         const lance=e.weapon==='lance', lc=lance?lanceColor[e.team] || white:railColor[e.team] || white;
-        particle(e.x+dx*2,2,-e.y+dz*2,lance?14:11,lance?.22:.16,lc);
-        particle(e.x+dx,2.1,-e.y+dz,lance?5:4,.08,white);
-        flash(e.x,6,-e.y,lc,lance?2600:1800,lance?70:55,.25);
+        particle(e.x+dx*2,2,-e.y+dz*2,lance?12:8,lance?.24:.1,lc);
+        particle(e.x+dx,2.1,-e.y+dz,lance?3.6:4,lance?.065:.045,lance?lanceCore:goldWhite);
+        flash(e.x,6,-e.y,lc,lance?2200:1600,lance?65:48,lance?.24:.12);
         for(let j=0;j<6;j++) {
-          const b=e.angle+(Math.random()-.5)*.6, v=60+60*Math.random();
-          particle(e.x+dx*2,2,-e.y+dz*2,.9,.12+.1*Math.random(),j%2?white:lc,3,Math.cos(b)*v,0,-Math.sin(b)*v);
+          const b=e.angle+(Math.random()-.5)*(lance?.22:.65), v=60+60*Math.random();
+          particle(e.x+dx*2,2,-e.y+dz*2,lance?.65:1,.1+.08*Math.random(),j%2?(lance?lanceCore:goldWhite):lc,3,Math.cos(b)*v,0,-Math.sin(b)*v);
         }
-        particle(e.x+dx*3,1.6,-e.y+dz*3,lance?3:3.6,1.2,smokeColor,1,dx*6,1.5,dz*6);
+        particle(e.x+dx*3,1.6,-e.y+dz*3,lance?1.8:3.2,lance?.65:1,smokeColor,1,dx*6,1.5,dz*6);
         return;
       }
       particle(e.x,1.5,-e.y,e.weapon==='flak'?5:3.8,.085,c);

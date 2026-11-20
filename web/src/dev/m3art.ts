@@ -84,6 +84,8 @@ interface Treatment {
   materials(team: number): unknown;
   render(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera, dt: number): void;
   onResize(width: number, height: number): void;
+  enableShadows(renderer: THREE.WebGLRenderer): void;
+  fitShadows(camera: THREE.Camera): void;
 }
 
 const STEP = 1 / 60;
@@ -98,6 +100,10 @@ const params = new URLSearchParams(location.search);
 const sceneName = params.get("scene") ?? "lineup";
 const seekTo = params.has("t") ? Math.max(0, Number(params.get("t"))) : null;
 const closeSpan = Math.max(0, Number(params.get("close") ?? 0) || 0);
+// ?shadows=1: the key light casts shadows, as on the live page (for frame-cost checks).
+const shadows = params.get("shadows") === "1";
+// ?at=<x>,<y>: centre the shot on that sim point (with ?close=, a detail of a big hull).
+const at = params.get("at")?.split(",").map(Number) ?? null;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -107,6 +113,7 @@ const scene = new THREE.Scene();
 const cam = new FitCamera(window.innerWidth / window.innerHeight);
 const ctx = { THREE, scene, renderer, camera: cam.camera };
 treatment.init(ctx);
+if (shadows) treatment.enableShadows(renderer);
 const environment = createEnvironment(ctx) as unknown as { newMatch(seed: number): void; update(dt: number, v: { centerX: number; centerY: number; extent: number; projection?: THREE.Matrix4; layoutZoom?: number }): void };
 const fx = createEffects({ ...ctx, palette: treatment.palette }) as unknown as Effects;
 environment.newMatch(7);
@@ -653,9 +660,10 @@ function advance(dt: number): void {
     if (s.hull.length > 50) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) growBounds(bounds, s.x + (dx * s.hull.length) / 2, s.y + (dy * s.hull.beam) / 2);
   }
   for (const [x, y] of current.frame ?? []) growBounds(bounds, x, y);
-  if (current.focus) {
+  const focus = at && at.length === 2 ? [at as [number, number]] : current.focus;
+  if (focus) {
     Object.assign(bounds, emptyBounds());
-    for (const [x, y] of current.focus) growBounds(bounds, x, y);
+    for (const [x, y] of focus) growBounds(bounds, x, y);
   }
   // Departed ships keep their last spot in frame, so the streak's origin stays put.
   for (const s of current.ships) if (time - s.departAt >= JUMP_OUT_DURATION) growBounds(bounds, s.x, s.y);
@@ -665,12 +673,38 @@ function advance(dt: number): void {
   if (closeSpan > 0) closeUp(bounds);
   environment.update(dt, { centerX: cam.x, centerY: cam.y, extent: cam.extent, projection: cam.baseProjection, layoutZoom: TYPICAL_ZOOM });
   fx.update(dt);
+  if (shadows) treatment.fitShadows(cam.camera);
 }
 
 layout();
 window.addEventListener("resize", layout);
-const w = window as unknown as { artReady: boolean };
+const w = window as unknown as { artReady: boolean; artBench(frames?: number): { ms: number; calls: number; triangles: number } };
 w.artReady = false;
+/**
+ * The cost of drawing the held frame (ms, the best of six blocks, each frame followed by
+ * a pixel read-back so vsync cannot hide it) and its draw calls and triangles.
+ */
+w.artBench = (frames = 40) => {
+  const gl = renderer.getContext();
+  const pixel = new Uint8Array(4);
+  const block = (n: number): number => {
+    const start = performance.now();
+    for (let i = 0; i < n; i++) {
+      treatment.render(renderer, scene, cam.camera, 0);
+      gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+    }
+    return (performance.now() - start) / n;
+  };
+  block(40);
+  let best = Infinity;
+  for (let i = 0; i < 6; i++) best = Math.min(best, block(frames));
+  renderer.info.autoReset = false;
+  renderer.info.reset();
+  treatment.render(renderer, scene, cam.camera, 0);
+  const { calls, triangles } = renderer.info.render;
+  renderer.info.autoReset = true;
+  return { ms: best, calls, triangles };
+};
 if (seekTo !== null) {
   // Fixed steps up to the requested time, then one still frame (a second one lets the
   // treatment's history settle). The camera eases exactly as it would live.

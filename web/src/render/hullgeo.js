@@ -262,13 +262,17 @@ function citadel(b,h) {
     add('machinery',plate(clipped(18,0,CITADEL_BAY.depth,CITADEL_BAY.width,.3),-1,.25,.1));
     add('machinery',plate(clipped(14.1,0,.8,7.2,.15),-.8,2.8,.1));
     for (const s of [-1,1]) {
-      add('machinery',plate([[13.2,s*3.6],[13.2,s*3.9],[19.32,s*5.18],[22,s*4.65],[22,s*3.65]],-1.1,3,.12));
-      add('paint',plate([[14.5,s*3.95],[19,s*4.8],[21.6,s*4.4],[21.6,s*3.9]],2.1,.4,.1));
-      add('trim',plate(clipped(18.2,s*3.85,7.5,.45,.1),2.55,.18,.055));
-      add('glow',plate(clipped(18.3,s*3.61,6.8,.16,.04),2.53,.07,.02));
+      // Low cheeks frame a sunken mouth. Tall black walls looked like fins bolted
+      // outside the rim, especially after the edge lights were covered by wreckage.
+      add('machinery',plate([[13.2,s*3.6],[13.2,s*3.9],[19.32,s*5.18],[22,s*4.65],[22,s*3.65]],-1.1,1.8,.12));
+      add('paint',plate([[14.5,s*3.95],[19,s*4.8],[21.6,s*4.4],[21.6,s*3.9]],.88,.3,.1));
+      add('trim',plate(clipped(18.2,s*3.85,7.5,.45,.1),1.36,.16,.055));
+      add('glow',plate(clipped(18.3,s*3.61,6.8,.2,.04),1.36,.06,.02));
       add('trim',plate(clipped(18,s*2.25,6.3,.22,.06),-.62,.08,.025));
       add('glow',plate(clipped(21.25,s*2.25,.9,.35,.06),-.49,.04,.02));
     }
+    // A pale, low threshold makes the dark floor read as a recess at phone scale.
+    add('trim',plate(clipped(21.75,0,.36,7.1,.08),-.53,.16,.04));
   }
   // Six narrow bridges only on module bearings; the inter-module annulus stays empty.
   const damage=[[0,4.95,0],[9,3.8,4],[-9,3.8,-4],[0,2.9,-16]];
@@ -360,18 +364,18 @@ const TURRET_KITS={
     tb.panel('trim',-.4,0,r*1.7,r*1.45,.81,.65,.18);
     tb.panel('paint',-.85,0,r*1.12,r*1.25,1.63,.3,.12);
     const y=1.18, tip=11.8;
-    tb.add('machinery',cylinder(.48,.62,10.2),6.5,y,0);
+    tb.add('machinery',cylinder(.68,.8,10.2),6.5,y,0);
     for (const x of [2.2,4.15,6.1,8.05,10]) {
-      tb.add('trim',cylinder(.81,.81,.42),x,y,0);
-      tb.add('machinery',cylinder(.88,.88,.14),x-.16,y,0);
+      tb.add('trim',cylinder(1.04,1.04,.58),x,y,0);
+      tb.add('machinery',cylinder(1.12,1.12,.18),x-.23,y,0);
     }
     for (const s of [-1,1]) {
       tb.panel('machinery',3.2,s*.88,4.1,.38,.9,.62,.07);
       tb.panel('glow',1.9,s*r*.61,1.2,.15,1.62,.06,.02);
     }
-    tb.add('trim',cylinder(.72,.72,.65),11.35,y,0);
-    tb.add('machinery',cylinder(.57,.57,.11),11.72,y,0);
-    tb.add('glow',cylinder(.4,.4,.07),tip,y,0);
+    tb.add('trim',cylinder(.94,.94,.65),11.35,y,0);
+    tb.add('machinery',cylinder(.75,.75,.11),11.72,y,0);
+    tb.add('glow',cylinder(.48,.48,.07),tip,y,0);
     return {tip:tip+.04,muzzleHeight:y};
   },
   rail(tb,r) {
@@ -395,24 +399,29 @@ const TURRET_KITS={
  * mount, y from the base ring's top): scorched, torn plate and a snapped barrel root.
  */
 function stump(sb,r,weapon) {
-  // Separate teeth leave the centre hollow; a dark solid disc reads as a live cap.
-  sb.add('scorch',new THREE.CylinderGeometry(r*.55,r*.65,.13,9),0,.04,0);
-  for (let i=0;i<9;i++) {
-    const a=i*TAU9, outer=r*(i%3===0?1.04:.87), half=TAU9*.42;
-    sb.add('scorch',plate([radial(r*.52,a-half),radial(outer,a-half),radial(outer*.78,a),
-      radial(outer,a+half),radial(r*.46,a+half)],.02,.18+(i%3)*.06,.035));
-  }
+  // A flat, asymmetric tear across the race, with three broken sides. Radial teeth
+  // around a central ember merged into a round armoured dome in the phone view.
+  sb.add('scorch',plate([[-r*.96,-r*.65],[-r*.38,-r*.94],[r*.52,-r*.82],
+    [r*1.08,-r*.24],[r*.72,r*.27],[r*.91,r*.64],[r*.12,r*.91],
+    [-r*.73,r*.68],[-r*.59,r*.21],[-r*1.02,0]],-.07,.12,.015));
+  sb.add('scorch',plate([[-r*.91,-r*.61],[-r*.38,-r*.88],[r*.49,-r*.77],
+    [r*.29,-r*.53],[-r*.22,-r*.59],[-r*.57,-r*.31]],.06,.2,.02));
+  sb.add('scorch',plate([[-r*.72,r*.62],[r*.12,r*.85],[r*.81,r*.6],
+    [r*.49,r*.39],[r*.07,r*.58],[-r*.37,r*.36]],.06,.28,.02));
+  sb.add('scorch',plate([[-r*.94,-r*.18],[-r*.65,-r*.34],[-r*.46,r*.09],
+    [-r*.69,r*.42],[-r*.82,r*.24]],.05,.38,.02));
   const heavy=weapon==='lance'||weapon==='rail';
-  sb.add('scorch',plate([[-r*.15,-r*.22],[r*.85,-r*.22],[r*.61,0],[r*.92,r*.13],[-r*.15,r*.25]],.16,heavy?.36:.22,.035));
-  sb.add('machinery',plate([[r*.6,-r*.2],[r*.84,-r*.21],[r*.63,-r*.06],[r*.8,r*.12],[r*.57,r*.17]],heavy?.54:.4,.045,.015));
-  for (const s of [-1,1]) {
-    const g=plate([[-r*.65,0],[-r*.2,-s*r*.14],[r*.12,s*r*.16],[-r*.42,s*r*.29]],0,.08,.02);
-    g.rotateX(s*.42);g.rotateZ(-s*.18);
-    sb.add('scorch',g,0,.25,s*r*.62);
-    sb.add('trim',plate([[-r*.63,s*r*.63],[-r*.18,s*r*.56],[-r*.31,s*r*.65]],.39,.035,.01));
-  }
+  // A short rectangular barrel root retains the last bearing without closing the pit.
+  sb.add('machinery',plate([[r*.26,-r*.3],[r*1.03,-r*.3],[r*.78,-r*.09],
+    [r*.95,r*.13],[r*.26,r*.23]],.1,heavy?.28:.16,.025));
+  sb.add('scorch',plate([[r*.28,-r*.22],[r*.83,-r*.22],[r*.62,-r*.06],
+    [r*.75,r*.1],[r*.28,r*.13]],heavy?.4:.28,.04,.01));
+  // Narrow exposed fracture faces, deliberately unequal rather than a bright ring.
+  sb.add('trim',plate([[-r*.7,r*.63],[-r*.1,r*.8],[r*.1,r*.74],
+    [-r*.38,r*.56]],.36,.035,.01));
+  sb.add('trim',plate([[-r*.92,-r*.16],[-r*.79,-r*.2],[-r*.65,r*.16],
+    [-r*.74,r*.24]],.44,.025,.01));
 }
-const TAU9=Math.PI*2/9;
 
 /**
  * Where a bay's mouth is drawn on look `name`: hull-local centre (x, z), the angle of
@@ -430,20 +439,24 @@ function bayFrame(name,h,bay) {
 }
 /** A destroyed bay: a dark, burnt-out mouth of length l (along the launch) and width w. */
 function bayHole(hb,l,w) {
-  hb.panel('scorch',0,0,l,w,.02,.25,.04);
+  const citadel=Math.abs(l-CITADEL_BAY.depth)<.01;
+  // The burn sits on the well floor; no raised slab or complete black rim.
+  hb.panel('scorch',0,0,l-.25,w-.25,.015,.055,.015);
   for (const s of [-1,1]) {
-    hb.add('scorch',plate([[-l*.5,s*w*.54],[-l*.29,s*w*.52],[-l*.18,s*w*.3],
-      [-l*.04,s*w*.49],[l*.16,s*w*.36],[l*.33,s*w*.51],[l*.5,s*w*.46],
-      [l*.5,s*w*.61],[-l*.5,s*w*.61]],.17,.23,.035));
+    hb.add('scorch',plate([[-l*.46,s*w*.49],[-l*.29,s*w*.46],[-l*.18,s*w*.35],
+      [-l*.04,s*w*.48],[l*.16,s*w*.4],[l*.33,s*w*.48],[l*.46,s*w*.45],
+      [l*.46,s*w*.52],[-l*.46,s*w*.52]],.09,.07,.015));
     // Wreck caps cover the permanent edge lights: these bays have no live node to hide.
-    const citadel=Math.abs(l-CITADEL_BAY.depth)<.01, y=citadel?3.35:2.43;
-    if (citadel) hb.panel('scorch',0,s*(w/2+.12),l-.65,.54,y,.12,.04);
-    else hb.panel('scorch',s*(l/2-.35),0,.55,w-.2,y,.12,.04);
-    hb.panel('scorch',0,s*(w/2-.08),l-.4,.46,citadel?3.15:2.4,.12,.04);
-    const g=plate([[-l*.5,-w*.3],[-l*.35,-w*.28],[-l*.4,w*.04],[-l*.3,w*.18],[-l*.5,w*.28]],0,.12,.025);
-    g.rotateZ(s*.2);
-    hb.add('scorch',g,s*l*.03,.55,s*w*.09,s<0?Math.PI:0);
-    hb.add('machinery',plate([[s*l*.42,-w*.26],[s*l*.35,-w*.23],[s*l*.39,w*.02]],.81,.045,.015));
+    if (citadel) hb.panel('scorch',.3,s*(w/2+.01),l-.9,.24,2.08,.035,.015);
+    else {
+      hb.panel('scorch',s*(l/2-.35),0,.25,w-.2,2.35,.035,.015);
+      hb.panel('scorch',0,s*(w/2-.08),l-.4,.3,2.34,.035,.015);
+    }
+    // Shattered guide rails and a few folded scraps stay below the intact sill.
+    hb.panel('scorch',citadel?0:s*l*.196,citadel?s*w*.3125:0,
+      citadel?l-.35:.45,citadel?.46:w-.1,.24,.07,.015);
+    hb.add('machinery',plate([[-l*.32,s*w*.42],[-l*.13,s*w*.4],
+      [-l*.22,s*w*.27],[-l*.37,s*w*.31]],.14,.08,.015));
   }
 }
 
