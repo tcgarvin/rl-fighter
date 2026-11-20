@@ -50,8 +50,8 @@ const DOCK = "seed=108&mission=carrier&commander=scripted";
 const DOCK_SCENES = [
   { name: "dock-recall", query: `${DOCK}&warmup=10.5&commands=0&inspect=13&outputs=0`, phase: "battle", tick: 362 },
   { name: "dock-recall-commands", query: `${DOCK}&warmup=11&commands=1`, phase: "battle", tick: 375 },
-  { name: "dock-flash", query: `${DOCK}&warmup=13&commands=0&inspect=13&outputs=0`, phase: "battle", tick: 428 },
-  { name: "dock-flash-wide", query: `${DOCK}&warmup=13&commands=0`, phase: "battle", tick: 428 },
+  { name: "dock-flash", query: `${DOCK}&warmup=13&commands=0&inspect=13&outputs=0`, phase: "battle", tick: 431 },
+  { name: "dock-flash-wide", query: `${DOCK}&warmup=13&commands=0`, phase: "battle", tick: 431 },
   { name: "dock-repairing", query: `${DOCK}&warmup=15&commands=0&inspect=13&outputs=0`, phase: "battle", tick: 500 },
   { name: "dock-relaunch", query: `${DOCK}&warmup=23&commands=0&inspect=13&outputs=0`, phase: "battle", tick: 724 },
 ];
