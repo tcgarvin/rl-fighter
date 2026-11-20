@@ -356,7 +356,7 @@ impl VecEnv {
     /// the one-shot charge for missing it (both finite and >= 0, SIM_SPEC §8); they
     /// hold for every match of the env too.
     #[new]
-    #[pyo3(signature = (assets_dir, n_envs, fleets, seed, arena_radius=450.0, time_limit_s=90.0, n_threads=0, record_events=false, reaction_ticks=2, max_ships=None, mission=None, commanders=None, hide_orders=None, order_shaping_gamma=sim::reward::ORDER_SHAPING_GAMMA, goto_timed_bonus=sim::reward::ORDER_TIMED_ARRIVAL_BONUS, goto_miss_penalty=sim::reward::ORDER_MISS_PENALTY))]
+    #[pyo3(signature = (assets_dir, n_envs, fleets, seed, arena_radius=450.0, time_limit_s=90.0, n_threads=0, record_events=false, reaction_ticks=2, max_ships=None, mission=None, commanders=None, hide_orders=None, order_shaping_gamma=sim::reward::ORDER_SHAPING_GAMMA, goto_timed_bonus=sim::reward::ORDER_TIMED_ARRIVAL_BONUS, goto_miss_penalty=sim::reward::ORDER_MISS_PENALTY, docking=true, recall_doctrine=true))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         py: Python<'_>,
@@ -376,6 +376,8 @@ impl VecEnv {
         order_shaping_gamma: f32,
         goto_timed_bonus: f32,
         goto_miss_penalty: f32,
+        docking: bool,
+        recall_doctrine: bool,
     ) -> PyResult<Self> {
         if n_envs < 1 {
             return Err(PyValueError::new_err(format!(
@@ -422,6 +424,8 @@ impl VecEnv {
                 order_shaping_gamma,
                 goto_timed_bonus,
                 goto_miss_penalty,
+                docking,
+                recall_doctrine,
                 roster: Roster {
                     fleets,
                     arena_radius,
@@ -555,6 +559,73 @@ impl VecEnv {
     #[getter]
     fn goto_miss_penalty(&self) -> f32 {
         self.batch.match_at(0).cfg.goto_miss_penalty
+    }
+
+    /// v11: whether this env's matches run the dock rules (the constructor's `docking`;
+    /// they only act in a match with a carrier).
+    #[getter]
+    fn docking(&self) -> bool {
+        self.batch.match_at(0).cfg.docking
+    }
+
+    /// v11: whether this env's matches run the recall doctrine (the constructor's
+    /// `recall_doctrine`; it needs `docking`).
+    #[getter]
+    fn recall_doctrine(&self) -> bool {
+        self.batch.match_at(0).cfg.recall_doctrine
+    }
+
+    /// v11: every slot's dock state now (`sim::dock`), a dict of new `[N, S]` arrays:
+    /// `phase` (i8: 0 none, 1 inbound under a dock order, 2 repairing in the hangar
+    /// inside its turnaround, 3 ready to relaunch; `DOCK_PHASES`), `bay` (i8: the dock
+    /// order's bay, -1 without one), `since` (u32: the tick the dock order was given, 0
+    /// without one), `docked_at` (u32: the tick a returned ship docked, 0 if it is not
+    /// back in the hangar), `ready_at` (u32: the first tick it may relaunch, 0 for
+    /// always), `live` (`[N] bool`: the dock rules run in the match), and for a ship
+    /// under a dock order `point` (`[N, S, 2] f32`: its bay's dock point now), `dist`
+    /// and `rel_speed` (`[N, S] f32`: its distance to the point and its speed relative
+    /// to it, what the docking rule measures; -1 without a dock order). Padding slots
+    /// read 0 / -1.
+    fn dock_state<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        use numpy::ndarray::{Array1, Array2};
+        let (n, s) = (self.batch.n_envs(), self.batch.n_ships());
+        let mut phase = Array2::<i8>::zeros(Dim([n, s]));
+        let mut bay = Array2::<i8>::from_elem(Dim([n, s]), -1);
+        let mut since = Array2::<u32>::zeros(Dim([n, s]));
+        let mut docked_at = Array2::<u32>::zeros(Dim([n, s]));
+        let mut ready_at = Array2::<u32>::zeros(Dim([n, s]));
+        let mut live = Array1::<bool>::from_elem(Dim([n]), false);
+        let mut point = numpy::ndarray::Array3::<f32>::zeros(Dim([n, s, 2]));
+        let mut dist = Array2::<f32>::from_elem(Dim([n, s]), -1.0);
+        let mut rel_speed = Array2::<f32>::from_elem(Dim([n, s]), -1.0);
+        for i in 0..n {
+            let m = self.batch.match_at(i);
+            live[i] = m.docking_live();
+            for k in 0..m.ships.len() {
+                phase[[i, k]] = m.dock_phase(k) as i8;
+                if let Some((p, d, v)) = m.dock_approach(k) {
+                    bay[[i, k]] = m.dock.bay[k] as i8;
+                    point[[i, k, 0]] = p.x;
+                    point[[i, k, 1]] = p.y;
+                    dist[[i, k]] = d;
+                    rel_speed[[i, k]] = v;
+                }
+                since[[i, k]] = m.dock.since[k];
+                docked_at[[i, k]] = m.dock.docked_at[k];
+                ready_at[[i, k]] = m.dock.ready_at[k];
+            }
+        }
+        let out = PyDict::new(py);
+        out.set_item("phase", phase.into_pyarray(py))?;
+        out.set_item("bay", bay.into_pyarray(py))?;
+        out.set_item("since", since.into_pyarray(py))?;
+        out.set_item("docked_at", docked_at.into_pyarray(py))?;
+        out.set_item("ready_at", ready_at.into_pyarray(py))?;
+        out.set_item("live", live.into_pyarray(py))?;
+        out.set_item("point", point.into_pyarray(py))?;
+        out.set_item("dist", dist.into_pyarray(py))?;
+        out.set_item("rel_speed", rel_speed.into_pyarray(py))?;
+        Ok(out)
     }
 
     /// Rebuild every match at episode 0 and write the fresh observations. Rewards,
@@ -870,7 +941,8 @@ impl VecEnv {
 
     /// v6: every slot's order instance now (`order` module), a dict of new arrays:
     /// `standing_kind` and `effective_kind` (`[N,S] int8`: 0 none, 1 attack, 2
-    /// defend, 3 goto; standing is the squad's order or a capital ship's waypoint,
+    /// defend, 3 goto, v11: 4 dock; standing is the squad's order, a capital ship's waypoint
+    /// or (v11) the ship's own dock order,
     /// effective drops invalid and completed orders), `target` (`[N,S] int16`, the
     /// instance's target or ward slot, -1), `point` (`[N,S,2] f32`, the instance's
     /// go-to point), `radius` (`[N,S] f32`, the standing go-to radius, 0 otherwise),
@@ -1007,6 +1079,8 @@ impl VecEnv {
             d.set_item("hull_id", s.hull)?;
             d.set_item("role", hull.role.as_str())?;
             d.set_item("docked", s.attach == sim::state::Attach::Docked)?;
+            // v11: "none", "inbound", "repairing", "ready" (`dock_state()`).
+            d.set_item("dock_phase", m.dock_phase(usize::from(s.slot)).name())?;
             d.set_item(
                 "escaped",
                 m.jump_state(s.slot) == sim::mission::JumpState::Departed,

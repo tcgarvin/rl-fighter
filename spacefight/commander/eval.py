@@ -54,6 +54,8 @@ ASSETS = REPO_ROOT / "assets"
 WINNER_DRAW = -1
 WINNER_NONE = -2
 TICK_HZ = 30
+# `order_tracks()` kind of a ship's own dock order (SIM_VERSION 11).
+DOCK_KIND = 4
 # An order that lasted less than this was cut short (the commander's hold is 5 s).
 SHORT_ORDER_S = 5.0
 # The scripted commander with its orders hidden from its own pilots.
@@ -174,7 +176,10 @@ class OrderClock:
 
     def observe(self, env: RustVecEnv, running: NDArray[np.bool_]) -> None:
         tracks = env.order_tracks()
-        kind = np.asarray(tracks["standing_kind"])
+        # SIM_VERSION 11: a dock order (kind 4) is the sim's recall doctrine's, not the
+        # commander's, so it does not count as an order given.
+        kind = np.asarray(tracks["standing_kind"]).copy()
+        kind[kind == DOCK_KIND] = 0
         start = np.asarray(tracks["instance_start"])
         live = running[:, None] & self.strike & np.asarray(env.raw.alive)
         flying = live & np.asarray(env.act_mask)

@@ -55,7 +55,7 @@ def run(env: "rlf_sim.VecEnv", steps: int) -> None:
 
 
 def test_v6_constants_and_layout() -> None:
-    assert rlf_sim.SIM_VERSION == 10
+    assert rlf_sim.SIM_VERSION == 11
     assert rlf_sim.OBS_DIM == 587 and rlf_sim.OBS_DIM_V7 == 583
     assert rlf_sim.OBS_DIM_V5 == 403 and rlf_sim.OBS_DIM_V4 == 385
     assert rlf_sim.PILOT_OBS_DIMS == {
@@ -67,8 +67,9 @@ def test_v6_constants_and_layout() -> None:
         8: 587,
         9: 587,
         10: 587,
+        11: 587,
     }
-    assert list(rlf_sim.PILOT_COMPAT_VERSIONS) == [3, 4, 5, 6, 7, 8, 9, 10]
+    assert list(rlf_sim.PILOT_COMPAT_VERSIONS) == [3, 4, 5, 6, 7, 8, 9, 10, 11]
     assert rlf_sim.SHIP_EXTRA_W == 10 and rlf_sim.N_ORDER_SHIPS == 5
     assert list(rlf_sim.ORDER_KINDS) == ["attack", "defend", "goto"]
     assert (EXTRAS_OFF, EXTRAS_W) == (403, 7 * 10)
@@ -176,7 +177,11 @@ def test_ward_threat_and_hull_lost_follow_damage() -> None:
 
 def test_hidden_orders_zero_the_order_features_only_for_that_team() -> None:
     def build(hide: list[bool] | None) -> "rlf_sim.VecEnv":
-        kw = {} if hide is None else {"hide_orders": hide}
+        # v11: a hidden-order team has no recall doctrine (it is the no-orders side),
+        # so with the doctrine on hiding would change the match; off, it changes none.
+        kw: dict[str, object] = {"recall_doctrine": False}
+        if hide is not None:
+            kw["hide_orders"] = hide
         return carrier_env(n=3, seed=13, **kw)
 
     shown, hidden = build(None), build([True, False])

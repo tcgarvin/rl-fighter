@@ -274,6 +274,14 @@ class RustVecEnv:
         goto_miss_penalty: Order pay charged once, as its negative, when a go-to's
             deadline passes before the ship has arrived, finite and >= 0, for every
             match of the env.
+        docking: The dock rules (SIM_VERSION 11, SIM_SPEC §5.11), for every match of
+            the env: a strike craft under a dock order docks at a live bay of its
+            carrier, repairs and relaunches. False plays every match as SIM_VERSION 10.
+        recall_doctrine: The sim's recall doctrine (SIM_VERSION 11), for every match
+            of the env: each team whose pilots see orders recalls its strike craft
+            below ``rlf_sim.DOCK["recall_hull_frac"]`` of their hull to dock, whatever
+            its commander. A stopgap until a learned commander decides recalls; a
+            trainer may turn it off.
 
     Raises:
         ValueError: Invalid arguments or assets (from ``rlf_sim``), or a sampled
@@ -299,6 +307,8 @@ class RustVecEnv:
         order_shaping_gamma: float = DEFAULT_ORDER_SHAPING_GAMMA,
         goto_timed_bonus: float = DEFAULT_GOTO_TIMED_BONUS,
         goto_miss_penalty: float = DEFAULT_GOTO_MISS_PENALTY,
+        docking: bool = True,
+        recall_doctrine: bool = True,
     ) -> None:
         if max_ships is None and roster_sampler is not None:
             max_ships = roster_sampler.max_ships
@@ -321,6 +331,8 @@ class RustVecEnv:
             order_shaping_gamma=order_shaping_gamma,
             goto_timed_bonus=goto_timed_bonus,
             goto_miss_penalty=goto_miss_penalty,
+            docking=docking,
+            recall_doctrine=recall_doctrine,
         )
         self.fleets: tuple[tuple[str, ...], ...] = tuple(tuple(t) for t in fleets)
         self.reaction_ticks = reaction_ticks
@@ -382,6 +394,24 @@ class RustVecEnv:
         """Order pay charged once for missing a go-to's deadline, in this env's
         matches, as the sim holds it (f32)."""
         return float(self._env.goto_miss_penalty)
+
+    @property
+    def docking(self) -> bool:
+        """Whether this env's matches run the dock rules (SIM_VERSION 11)."""
+        return bool(self._env.docking)
+
+    @property
+    def recall_doctrine(self) -> bool:
+        """Whether this env's matches run the sim's recall doctrine (SIM_VERSION 11)."""
+        return bool(self._env.recall_doctrine)
+
+    def dock_state(self) -> dict[str, np.ndarray]:
+        """Every slot's dock state now (SIM_VERSION 11; ``rlf_sim.VecEnv.dock_state``):
+        ``phase`` ``[N, S] int8`` (index into ``rlf_sim.DOCK_PHASES``: none, inbound,
+        repairing, ready), ``bay`` (the dock order's bay, -1 without one), ``since``,
+        ``docked_at``, ``ready_at`` (ticks, 0 when not set) and ``live`` ``[N] bool``
+        (the dock rules run in the match). New arrays."""
+        return {k: np.asarray(v) for k, v in self._env.dock_state().items()}
 
     @property
     def obs_layout(self) -> dict[str, tuple[int, int]]:
@@ -530,7 +560,8 @@ class RustVecEnv:
     def order_tracks(self) -> dict[str, NDArray]:
         """Every slot's order instance now (SIM_VERSION 6; new arrays):
         ``standing_kind``/``effective_kind`` [N, S] int8 (0 none, 1 attack, 2
-        defend, 3 goto), ``target`` [N, S] int16 (-1), ``point`` [N, S, 2] f32,
+        defend, 3 goto; SIM_VERSION 11: 4 dock, the ship's own dock order),
+        ``target`` [N, S] int16 (-1), ``point`` [N, S, 2] f32,
         ``radius`` [N, S] f32, ``arrived`` [N, S] bool, ``instance_start`` [N, S]
         uint32, and (SIM_VERSION 8) ``deadline`` [N, S] uint32 (the instance's go-to
         deadline tick, ``NO_DEADLINE`` for none) and ``missed`` [N, S] bool (the

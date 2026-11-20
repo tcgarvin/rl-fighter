@@ -140,6 +140,9 @@ class TrainConfig:
     # The checkout that holds the pilots' checkpoints (``live_pilots`` paths resolve
     # against it; a worktree has no weights). "": this checkout.
     pilot_root: str = ""
+    # SIM_VERSION 11: the sim's recall doctrine (damaged strike craft sent home to dock,
+    # whatever the commander), on as on the live page; False trains without it.
+    recall_doctrine: bool = True
     max_updates: int = 1_000_000
 
     def __post_init__(self) -> None:
@@ -284,7 +287,8 @@ class Trainer:
         self.ordered_cols = slice(int(order) + 1, int(order) + 4)
         self.actor = initial_actor(cfg)
         pilots = live_pilot_checkpoints(
-            Path(cfg.live_pilots), Path(cfg.pilot_root) if cfg.pilot_root else PILOTS_ROOT
+            Path(cfg.live_pilots),
+            Path(cfg.pilot_root) if cfg.pilot_root else PILOTS_ROOT,
         )
         self.critic = CommanderCritic(n_pilots=len(pilots))
         self.opt = torch.optim.Adam(
@@ -311,6 +315,7 @@ class Trainer:
             reaction_ticks=2,
             max_ships=20,
             commanders=(SCRIPTED, SCRIPTED),
+            recall_doctrine=cfg.recall_doctrine,
         )
         self.stable = PilotStable(
             pilots,

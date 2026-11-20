@@ -76,6 +76,10 @@ pub struct BatchConfig {
     /// batch's for the same reason.
     pub goto_timed_bonus: f32,
     pub goto_miss_penalty: f32,
+    /// v11: `MatchConfig.docking` and `recall_doctrine` of every match, the batch's for
+    /// the same reason (a trainer turns the doctrine off for the whole env).
+    pub docking: bool,
+    pub recall_doctrine: bool,
     /// The roster every env starts with.
     pub roster: Roster,
     /// Buffer slots per match (S); at least the roster's ship count.
@@ -254,6 +258,8 @@ fn match_config(cfg: &BatchConfig, roster: &Roster, index: usize, episode: u32) 
         goto_miss_penalty: cfg.goto_miss_penalty,
         start_layout: roster.start_layout.clone(),
         drill: roster.drill,
+        docking: cfg.docking,
+        recall_doctrine: cfg.recall_doctrine,
     }
 }
 
@@ -831,6 +837,8 @@ mod tests {
                 order_shaping_gamma: sim::reward::ORDER_SHAPING_GAMMA,
                 goto_timed_bonus: sim::reward::ORDER_TIMED_ARRIVAL_BONUS,
                 goto_miss_penalty: sim::reward::ORDER_MISS_PENALTY,
+                docking: true,
+                recall_doctrine: true,
                 roster,
                 n_ships,
                 n_threads,
@@ -906,6 +914,8 @@ mod tests {
                 order_shaping_gamma: sim::reward::ORDER_SHAPING_GAMMA,
                 goto_timed_bonus: sim::reward::ORDER_TIMED_ARRIVAL_BONUS,
                 goto_miss_penalty: sim::reward::ORDER_MISS_PENALTY,
+                docking: true,
+                recall_doctrine: true,
                 roster,
                 n_ships: 2,
                 n_threads: 1,
@@ -1009,6 +1019,8 @@ mod tests {
             order_shaping_gamma: gamma,
             goto_timed_bonus: sim::reward::ORDER_TIMED_ARRIVAL_BONUS,
             goto_miss_penalty: sim::reward::ORDER_MISS_PENALTY,
+            docking: true,
+            recall_doctrine: true,
             roster: roster.clone(),
             n_ships: 2,
             n_threads: 1,
