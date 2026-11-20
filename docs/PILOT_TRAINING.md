@@ -78,8 +78,10 @@ relative to the ship (to match it), and the bay's outward direction (to come in 
 outside). A 587-input pilot takes them with `--set obs_dim=592 --set
 new_input_lr_mult=3`, as the 583 to 587 widening did. A learned commander never recalls,
 and nothing in the sim does on its own: docking is to be taught, not stood in for (owner's
-call). No pilot has trained on it yet; the zero-shot numbers are in
-`lab/runs/2026-11-20-dock-repair/results.md`.
+call). The zero-shot numbers are in `lab/runs/2026-11-20-dock-repair/results.md`; the dock
+drills and the first training run are in section 2 ("Dock drills") and
+`lab/runs/2026-11-20-dock-pilot`. Since the dock drills the docking pay is a trainer
+setting, `dock_bonus` (default the sim's 0.2), passed to the sim for every match.
 
 The price of a shot: since night 4 (2026-11-09) every training line pays `extra_fire_cost`
 0.002 per shot on top of the sim's 0.002, twice the sim's price, charged by the trainer so
@@ -273,6 +275,74 @@ are kite drills. The meaning of the drill is unchanged.
   `target_damage` and `damage_from_target` (per drill) and `chose_neither` (share of drills
   in which the pilots hit neither group: a pilot that hangs back). A pilot killed on the
   very step a drill ends on the clock is not counted in `pilots_lost`.
+
+### Dock drills (2026-11-20, SIM_VERSION 11)
+
+The zero-shot pilots almost never dock (`lab/runs/2026-11-20-dock-repair/results.md`): nine
+recalls in ten end with the pilot still fighting, and the few that reach the bay fly
+through it. The dock drill (`DrillGenerator.dock(seed)`, kind `dock`, apart from the three
+order drills, so `drill_weights` keeps three entries) is the order's meaning, as the other
+drills are for theirs: told to dock, a pilot goes home and docks.
+
+- **Setup:** one damaged strike craft (fighter, strafer, gunship or bomber; 20 to 50 % of
+  its hull, below the scripted commander's recall line) holds a dock order to its own base,
+  150 to 350 m from the base's centre at any bearing, heading and speed (up to 0.8 of its
+  cap). The base is a **carrier under way** (half the drills: 0.3 to 1.0 of its speed cap
+  roughly across the arena, a waypoint 200 to 300 m ahead, so its bays move), a **station**
+  or a **citadel** (a quarter each, static, any heading, so the bays face anywhere). Team 1
+  has its carrier across the arena, at rest, and the pilot starts at least 300 m from it,
+  outside its flak. The layout gets the drills' random rotation and mirror.
+- **Calm and threat, half each** (`drill_dock_threat_share`): a threat drill adds one or
+  two script craft ordered onto the pilot, 90 to 200 m behind it (away from home), so
+  breaking off and going home is learned in a fight; a calm drill is the approach alone.
+  A seed's calm and threat drills share the base, the pilot's start and hull.
+- **The match** is a carrier battle or a station assault (read as a carrier battle) laid
+  out by hand: the sim takes a start layout and start hulls for those missions now
+  (SIM_SPEC §0.9 items 10 to 12), so the pilot obs read as they do in that mission. Drill
+  rules, `external` commanders: the order lands on the first slow tick. It ends when the
+  pilot docks or is shot down (it has left the field), or on the clock: three times its
+  straight line at its speed cap plus 15 s, after the order. Always a draw.
+- **Pay:** the sim's. The dock order is shaped as a go-to to the bay's dock point (a
+  potential, so a pass through the bay that does not dock earns nothing it does not give
+  back on the way out), and `dock_bonus` on docking (trainer key, default the sim's 0.2;
+  the dock pilot run pays 1.0). Damage dealt and taken pay as always; death is not charged
+  beyond the hull it costs. Nothing pays for being near the bay.
+- **No crutches** (owner's rules): the pilot flies the approach on its actuators, reads
+  the dock order from the obs (its 5-float `dock` block, the go-to reading in the first
+  587), and nothing slows it or steers it. The docking rule is the sim's (10 m, 15 m/s).
+- **Training:** `drill_dock_share` in `pilots_v1` (`roster_overrides`, default 0, and at
+  0 no extra number is drawn): the share of drills that are dock drills; the rest are
+  drawn by `drill_weights` as before. In matches the scripted (and random) commander's
+  recalls are the real thing; `commander_stable: [live, scripted]` adds weight to the
+  scripted commander, which the live stable already holds (a commander two specs name
+  gets both weights).
+- **Logs:** `drill_success["dock"]` (share docked), `drill_dock` by `calm` and `threat`
+  (episodes, docked, shot down, out of time, docked of those not shot down, fly-throughs a
+  drill, seconds to dock, hull at the dock); `mission_docks` by class (the learner side's
+  recalls and docks a match and the completion, in matches whose orders it sees) and
+  `mission_docks_hidden`.
+- **Eval:** `spacefight.eval.drills --kinds dock_calm,dock_threat` (not in the default
+  kinds): per kind, by base and by hull, docked, shot down, out of time, docked of the
+  survivors, time to dock, fly-throughs (left the bay's capture circle undocked), came
+  within 30 m and of those docked, closest approach, hull at the dock, damage dealt; a
+  pilot that is not the script also flies them with the order hidden (the lift). Their
+  bars (`dock_*` in `drill_bars.yaml`, unset: report only) are a gate of their own
+  (`dock_gate`), so the order gate's verdicts do not move.
+
+**Baselines, 2026-11-20** (128 drills a kind, `lab/runs/2026-11-20-dock-pilot/baseline/`):
+
+| Pilot | Calm: docked | Calm: shot down | Calm: closest, median | Threat: docked | Threat: shot down |
+|---|---|---|---|---|---|
+| script | 0.95 | 0.02 | 9 m | 0.58 | 0.41 |
+| followers (`followers_school_600`, `_pay3_810`, `_v8_352`) | 0.01 to 0.03 | 0.08 to 0.12 | 88 to 126 m | 0.01 to 0.05 | 0.49 to 0.55 |
+| fighters and the older pilots (seven) | 0.00 to 0.02 | 0.59 to 0.78 | 106 to 160 m | 0.00 to 0.02 | 0.66 to 0.74 |
+
+Every live pilot's lift from seeing the order is within 0.02 of zero: none of them flies
+the dock order. The fighters are shot down in calm drills two times in three: with no
+enemy craft about they go for the enemy carrier, damaged, and its flak kills them. The
+followers wander and run out of time. The script, which docks nearly every survivor
+(0.99 in the threat drills), sets what is possible: a threat drill is about as hard for it
+as a real recall (0.54 to 0.64 completion in the dock-repair matches).
 
 ### Drill eval
 

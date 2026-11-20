@@ -34,7 +34,7 @@
 //!   charged). Time before the deadline costs nothing.
 //! - v11, *dock*: shaped as a go-to to the bay's dock point (radius
 //!   `dock::DOCK_CAPTURE_RADIUS`; never complete on arrival), and the step the ship docks
-//!   pays `ORDER_ARRIVAL_BONUS`.
+//!   pays `MatchConfig.dock_bonus` (default [`DOCK_BONUS`], a go-to's arrival bonus).
 //!
 //! Hit credit and both defend terms use the standing order (the squad's order during
 //! the step: the effective order is already none on the tick an attack target or a
@@ -80,6 +80,9 @@ pub const ORDER_SHAPING_GAMMA: f32 = 0.99;
 /// Paid once per go-to instance without a deadline, the first time inside its radius
 /// (v6: 0.2, was 0.1 with a presence term on top).
 pub const ORDER_ARRIVAL_BONUS: f32 = 0.2;
+/// v11, default of `MatchConfig.dock_bonus`: paid on the step a ship under a dock order
+/// docks (a go-to's arrival bonus; the trainer may set its own).
+pub const DOCK_BONUS: f32 = ORDER_ARRIVAL_BONUS;
 /// v8, default of `MatchConfig.goto_timed_bonus`: paid once per go-to instance with a
 /// deadline, for being inside its radius by the deadline tick.
 pub const ORDER_TIMED_ARRIVAL_BONUS: f32 = 1.0;
@@ -248,6 +251,7 @@ impl Match {
         let gamma = self.cfg.order_shaping_gamma;
         let timed_bonus = self.cfg.goto_timed_bonus;
         let miss_penalty = self.cfg.goto_miss_penalty;
+        let dock_bonus = self.cfg.dock_bonus;
         for (s, reward) in r.iter_mut().enumerate().take(n) {
             if earning[s]
                 && let Order::Defend { ward } = standing_order(self, s)
@@ -258,10 +262,10 @@ impl Match {
                     *reward += DEFEND_WARD_DEATH;
                 }
             }
-            // v11: docking pays the arrival bonus (stage 12c cleared the dock order, so
-            // the instance below is already the next one).
+            // v11: docking pays the dock bonus (stage 12c cleared the dock order, so the
+            // instance below is already the next one).
             if earning[s] && self.docked_now & (1 << s) != 0 {
-                *reward += ORDER_ARRIVAL_BONUS;
+                *reward += dock_bonus;
             }
             let order = standing_order(self, s);
             let place = self.goto_distance(s, order);

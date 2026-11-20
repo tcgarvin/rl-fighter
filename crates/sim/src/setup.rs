@@ -10,7 +10,9 @@ use crate::events::EventBuf;
 use crate::math::Vec2;
 use crate::mission::{self, Mission, MissionState};
 use crate::order::{self, OrderTrack};
-use crate::reward::{ORDER_MISS_PENALTY, ORDER_SHAPING_GAMMA, ORDER_TIMED_ARRIVAL_BONUS};
+use crate::reward::{
+    DOCK_BONUS, ORDER_MISS_PENALTY, ORDER_SHAPING_GAMMA, ORDER_TIMED_ARRIVAL_BONUS,
+};
 use crate::rng::Pcg32;
 use crate::scripted::random_commander::RandomCommander;
 use crate::state::{
@@ -91,11 +93,21 @@ pub struct MatchConfig {
     /// v8: order reward charged once (as `-goto_miss_penalty`) when a go-to's deadline
     /// passes before the ship has arrived (SIM_SPEC §8), finite and >= 0. Not hashed.
     pub goto_miss_penalty: f32,
+    /// v11: order reward for docking (SIM_SPEC §8), finite and >= 0; the default is a
+    /// go-to's arrival bonus. Like `goto_timed_bonus` it only changes `order_rewards`,
+    /// so it is not hashed.
+    pub dock_bonus: f32,
     /// Where every ship starts, one entry per slot (team 0 then team 1): present at
     /// tick 0, no jump-in, no control lock, no rng draw. `None`: the mission places the
-    /// ships. Only a deathmatch takes one (SIM_SPEC §5.10); a carrier battle and a
-    /// convoy place their ships by their own rules.
+    /// ships. A deathmatch takes one, and (v11, the dock drills) a carrier battle or a
+    /// station assault: every ship present, nobody in a hangar, each team's carrier
+    /// (station) its carrier as usual (SIM_SPEC §5.10). A convoy places its ships by its
+    /// own rules.
     pub start_layout: Option<Vec<ShipStart>>,
+    /// v11: each slot's hull at the start as a fraction of its hull's maximum, in
+    /// (0, 1] (a damaged strike craft for a dock drill). Needs a `start_layout`, one
+    /// entry per slot. `None`: every ship starts at full hull.
+    pub start_hull: Option<Vec<f32>>,
     /// Drill rules (`docs/PILOT_TRAINING.md` §2, SIM_SPEC §5.10): the match has no
     /// result. It ends on the clock, when team 0 has no strike craft left, or when team
     /// 1 is gone and no ship of team 0 still has a go-to to finish, always as a draw, so
@@ -123,7 +135,9 @@ impl Default for MatchConfig {
             order_shaping_gamma: ORDER_SHAPING_GAMMA,
             goto_timed_bonus: ORDER_TIMED_ARRIVAL_BONUS,
             goto_miss_penalty: ORDER_MISS_PENALTY,
+            dock_bonus: DOCK_BONUS,
             start_layout: None,
+            start_hull: None,
             drill: false,
             docking: true,
         }
@@ -146,7 +160,8 @@ pub enum SetupError {
     ReactionTooLong { ticks: u8 },
     /// `order_shaping_gamma` is not a finite number in (0, 1].
     InvalidOrderShapingGamma { gamma: f32 },
-    /// `goto_timed_bonus` or `goto_miss_penalty` (`name`) is not a finite number >= 0.
+    /// `goto_timed_bonus`, `goto_miss_penalty` or (v11) `dock_bonus` (`name`) is not a
+    /// finite number >= 0.
     InvalidGotoPay { name: &'static str, value: f32 },
     /// v4: the fleets or parameters do not fit the mission.
     Mission(String),
@@ -217,6 +232,7 @@ fn validate(cat: &Catalogue, cfg: &MatchConfig) -> Result<(), SetupError> {
     for (name, value) in [
         ("goto_timed_bonus", cfg.goto_timed_bonus),
         ("goto_miss_penalty", cfg.goto_miss_penalty),
+        ("dock_bonus", cfg.dock_bonus),
     ] {
         if !(value.is_finite() && value >= 0.0) {
             return Err(SetupError::InvalidGotoPay { name, value });
@@ -239,22 +255,27 @@ fn validate(cat: &Catalogue, cfg: &MatchConfig) -> Result<(), SetupError> {
     mission::validate(cat, cfg)
 }
 
-/// `start_layout` and `drill`: one finite start per slot, inside the arena, no faster
-/// than the hull's speed cap, no two ships overlapping (a crash on the first tick would
-/// quietly change what the match tests).
+/// `start_layout`, `start_hull` and `drill`: one finite start per slot, inside the
+/// arena, no faster than the hull's speed cap, no two ships overlapping (a crash on the
+/// first tick would quietly change what the match tests); a deathmatch, a carrier
+/// battle or a station assault; one start hull fraction in (0, 1] per slot.
 fn validate_start_layout(cat: &Catalogue, cfg: &MatchConfig) -> Result<(), SetupError> {
     let bad = |msg: String| Err(SetupError::StartLayout(msg));
     let Some(layout) = &cfg.start_layout else {
         if cfg.drill {
             return bad("drill rules need a start_layout".to_string());
         }
+        if cfg.start_hull.is_some() {
+            return bad("start_hull needs a start_layout".to_string());
+        }
         return Ok(());
     };
-    if !matches!(cfg.mission, Mission::Deathmatch) {
-        return bad(format!(
-            "only a deathmatch takes one; {} places its own ships",
-            cfg.mission.kind().name()
-        ));
+    if matches!(cfg.mission, Mission::ConvoyEscort(_)) {
+        return bad(
+            "a deathmatch, a carrier battle or a station assault takes one; a convoy \
+             escort places its own ships"
+                .to_string(),
+        );
     }
     let hulls: Vec<HullId> = cfg.fleets.iter().flatten().copied().collect();
     if layout.len() != hulls.len() {
@@ -296,6 +317,22 @@ fn validate_start_layout(cat: &Catalogue, cfg: &MatchConfig) -> Result<(), Setup
             if (start.pos - start_b.pos).length() <= reach {
                 return bad(format!("slots {other} and {slot} overlap"));
             }
+        }
+    }
+    if let Some(hull) = &cfg.start_hull {
+        if hull.len() != hulls.len() {
+            return bad(format!(
+                "start_hull has {} entries for {} ships",
+                hull.len(),
+                hulls.len()
+            ));
+        }
+        // The negated range also rejects NaN.
+        if let Some(slot) = hull.iter().position(|&f| !(f > 0.0 && f <= 1.0)) {
+            return bad(format!(
+                "slot {slot} start hull {} is not in (0, 1]",
+                hull[slot]
+            ));
         }
     }
     Ok(())

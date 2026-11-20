@@ -205,6 +205,17 @@ uv run python -m spacefight.eval.drills --a <checkpoint.pt|script> --name <pilot
 uv run python -m pytest tests/test_drills.py -v
 cargo test -p sim --test drills
 
+# Dock drills (SIM_VERSION 11; docs/PILOT_TRAINING.md section 2 "Dock drills"): a damaged
+# strike craft ordered home to its carrier (under way), station or citadel, calm or with
+# script craft on it; a carrier battle / station assault laid out by hand (start_layout +
+# start_hull). Not in the drill eval's default kinds; their bars are a gate of their own.
+# roster_overrides keys drill_dock_share (0), drill_dock_threat_share (0.5); trainer key
+# dock_bonus (the sim's 0.2); logs drill_dock, mission_docks. The first training run:
+# lab/runs/2026-11-20-dock-pilot (run.sh: two arms on Beast; SMOKE=1 tiny into smoke/).
+uv run python -m spacefight.eval.drills --a <checkpoint.pt|script> --kinds dock_calm,dock_threat \
+    --n-per-kind 128 --threads 2 --out dock.json
+uv run python -m pytest tests/test_dock_drills.py tests/test_dock_train.py -v
+
 # Go-to deadlines (SIM_VERSION 8, OBS_DIM 587): three go-to drills in four carry a deadline
 # in the order (slack 2 to 8 times the slowest ship's straight line, plus 3 s), the drill
 # eval splits go-to by deadline, slack band and what the ships that were late did (go-to

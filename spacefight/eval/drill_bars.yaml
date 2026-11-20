@@ -13,3 +13,14 @@ attack_flip: 0.70          # 0.87, 0.18: share of attack swap pairs that flipped
 defend_more_on_named: 0.85 # 0.98, 0.64: share of defend drills: named ward's attackers took more
 defend_side: 0.85          # 1.00, 0.56: share of defend drills where the squad chose the named side
 defend_flip: 0.75          # 1.00, 0.18: share of defend swap pairs that flipped with the order
+
+# Dock drills (SIM_VERSION 11, 2026-11-20; --kinds dock_calm,dock_threat): a gate of their
+# own (dock_gate), so the order gate's verdicts above do not move with them. Unset: report
+# only until a pilot trained to dock has been measured (lab/runs/2026-11-20-dock-pilot).
+# Baselines (128 drills a kind, lab/runs/2026-11-20-dock-pilot/baseline/): the script docks
+# 0.95 calm and 0.58 with enemies on it (0.99 of those not shot down); the ten live pilots
+# 0.00 to 0.03 and 0.00 to 0.05, with a lift of 0 (none flies the order).
+dock_calm_docked:                  # share of calm dock drills docked
+dock_calm_lift:                    # that share minus the share with the order hidden
+dock_threat_docked:                # share of threat dock drills docked
+dock_threat_docked_of_survivors:   # ... of those not shot down first

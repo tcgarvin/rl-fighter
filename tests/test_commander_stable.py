@@ -164,9 +164,20 @@ def test_spec_weights_normalise_and_a_live_weight_splits_over_its_members(
     assert resolve_stable(["live"]).weights == pytest.approx((0.25,) * 4)
 
 
-def test_a_commander_listed_twice_is_an_error(in_repo: None) -> None:
-    with pytest.raises(ValueError, match="distinct"):
-        resolve_stable(["live", SCRIPTED])
+def test_a_commander_named_by_two_specs_adds_their_weights(in_repo: None) -> None:
+    # The live stable holds the script: ``[live, scripted]`` leans on it (2026-11-20,
+    # the dock pilot run, so that more sides recall).
+    stable = resolve_stable(["live", SCRIPTED], [1, 1])
+    assert stable.ids == LIVE_IDS
+    assert stable.weights == pytest.approx((0.625, 0.125, 0.125, 0.125))
+    # A repeated spec is still the config's error (PPOConfig refuses it).
+    with pytest.raises(ValueError, match="repeats"):
+        PPOConfig(
+            init="scratch",
+            tag="scratch",
+            rosters="pilots_v1",
+            commander_stable=[SCRIPTED, SCRIPTED],
+        )
 
 
 def test_a_checkpoint_spec_loads_its_network(tmp_path: Path) -> None:

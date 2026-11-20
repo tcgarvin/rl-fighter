@@ -32,6 +32,19 @@ with the other side named. It *flips* if both times the squad chose the side it 
 ``same_side`` is the share of pairs that chose one side both times, whatever was named:
 that is the smart pilot who would have done the same with no order.
 
+**Dock drills** (SIM_VERSION 11, ``--kinds dock_calm,dock_threat``; not in the default
+set): a damaged strike craft ordered home to its carrier, station or citadel, alone
+(``dock_calm``) or with script craft ordered onto it (``dock_threat``;
+``spacefight.env.drills``). Per kind, by base and by hull: docked, shot down, out of time
+(the three add up), docked of those not shot down, seconds from the order to the dock,
+fly-throughs (the pilot left its bay's capture circle undocked: inside it and always
+faster than the bay takes), whether it came within ``DOCK_NEAR_M`` of the dock point
+(and of those, how many docked) and its closest approach, the hull at the dock and the
+damage dealt on the way. A
+pilot that is not the script also flies each drill with the order hidden; the lift is
+the docked share shown minus hidden. Their bars are a gate of their own (``dock_gate``,
+``DOCK_BAR_PATHS``), so the order gate's verdicts are what they were.
+
 The gate reads its bars from one small YAML (``DEFAULT_BARS``). An unset bar is not a pass:
 with any bar unset and none failed the verdict is ``report_only``, stated plainly. A pilot
 named in ``exempt`` is ``exempt`` whatever the numbers say. Bars get their values in step
@@ -46,6 +59,8 @@ and the go-to bars were set on the old drills. The JSON schema is still
 
     python -m spacefight.eval.drills --a ckpt.pt --name f995_701 --out drills.json
     python -m spacefight.eval.drills --a script --n-per-kind 64 --out script.json
+    python -m spacefight.eval.drills --a ckpt.pt --kinds dock_calm,dock_threat \
+        --n-per-kind 128 --out dock.json
 """
 
 from __future__ import annotations
@@ -65,16 +80,21 @@ import yaml  # type: ignore[import-untyped]
 from numpy.typing import NDArray
 
 from spacefight.env.drills import (
+    DOCK_BASES,
+    DOCK_HULLS,
     GOTO_SLACK,
     ORDER_TICK,
+    TICK_HZ,
     DrillGenerator,
     DrillLedger,
+    DrillOutcome,
     DrillSpec,
 )
 from spacefight.env.rosters import (
     DEFAULT_ASSETS,
     DRILL_ATTACK,
     DRILL_DEFEND,
+    DRILL_DOCK,
     DRILL_GOTO,
     EXTERNAL,
     capital_hull_ids,
@@ -82,6 +102,7 @@ from spacefight.env.rosters import (
 from spacefight.env.rust_env import (
     TRACK_ATTACK,
     TRACK_DEFEND,
+    TRACK_DOCK,
     TRACK_GOTO,
     RustVecEnv,
 )
@@ -93,6 +114,9 @@ from spacefight.eval.controllers import (
 )
 
 SCHEMA = "rlf.eval.drills/1"
+# ``env.end_reason`` of a match that ended because a team left the field (a drill's
+# last pilot died or, in a dock drill, docked).
+END_ELIMINATED = list(rlf_sim.END_REASONS).index("eliminated")
 DEFAULT_SEED = 500_000
 DEFAULT_BARS = Path(__file__).with_name("drill_bars.yaml")
 # Metres along the line between the sides that commit a pilot to a side, at a 450 m arena.
@@ -129,7 +153,18 @@ _ORDER_CODES = {
     DRILL_ATTACK: TRACK_ATTACK,
     DRILL_DEFEND: TRACK_DEFEND,
     DRILL_GOTO: TRACK_GOTO,
+    DRILL_DOCK: TRACK_DOCK,
 }
+# A dock drill's pilot that came this close to its bay's dock point came near it (the
+# dock-repair entry's measure, lab/runs/2026-11-20-dock-repair).
+DOCK_NEAR_M = 30.0
+# The eval's dock kinds (SIM_VERSION 11): a dock drill alone, and with attackers.
+DOCK_CALM, DOCK_THREAT = "dock_calm", "dock_threat"
+DOCK_EVAL_KINDS: tuple[str, ...] = (DOCK_CALM, DOCK_THREAT)
+ORDER_EVAL_KINDS: tuple[str, ...] = (DRILL_GOTO, DRILL_ATTACK, DRILL_DEFEND)
+EVAL_KINDS: tuple[str, ...] = (*ORDER_EVAL_KINDS, *DOCK_EVAL_KINDS)
+# Kinds' seed offsets (``KIND_SEED_STRIDE`` apart; the order kinds keep theirs).
+_KIND_SEED_INDEX = {kind: k for k, kind in enumerate(EVAL_KINDS)}
 
 PASS, FAIL, REPORT_ONLY, EXEMPT = "pass", "fail", "report_only", "exempt"
 # Every bar the gate knows: a lower bound on the number at this path of the summary.
@@ -142,6 +177,14 @@ BAR_PATHS: dict[str, tuple[str, ...]] = {
     "defend_more_on_named": ("defend", "more_on_named", "rate"),
     "defend_side": ("defend", "chose_named", "rate"),
     "defend_flip": ("defend", "flip", "rate"),
+}
+# SIM_VERSION 11: the dock drills' bars, a gate of their own (``dock_gate``) so that the
+# order gate's verdicts do not move with them. Unset at first: report only.
+DOCK_BAR_PATHS: dict[str, tuple[str, ...]] = {
+    "dock_calm_docked": (DOCK_CALM, "docked", "rate"),
+    "dock_calm_lift": (DOCK_CALM, "lift"),
+    "dock_threat_docked": (DOCK_THREAT, "docked", "rate"),
+    "dock_threat_docked_of_survivors": (DOCK_THREAT, "docked_of_survivors", "rate"),
 }
 
 
@@ -257,6 +300,7 @@ class DrillRecord:
     total_damage: float = 0.0
     choice: str = NO_CHOICE
     ships: list[ShipRun] = field(default_factory=list)
+    outcome: DrillOutcome | None = None
 
     @property
     def per_pilot(self) -> float:
@@ -428,7 +472,7 @@ def run_pass(
         ledger.begin(i, env.rosters[i].drill)
         if spec.has_sides:
             watches[i] = _SideWatch(spec)
-        else:
+        elif spec.kind == DRILL_GOTO:
             gotos[i] = _GotoWatch(spec)
             records[i].ships = [ShipRun(d) for d in spec.deadlines]
     running = np.ones(n, dtype=np.bool_)
@@ -443,6 +487,9 @@ def run_pass(
             _note_goto_ticks(env, ledger, running, arrived_tick, gone_tick, tick)
         if tick >= ORDER_TICK and tick % POLL_TICKS == 0:
             _poll_positions(env, watches, gotos, running, tick)
+        if ledger.any_dock_running():
+            dock = env.dock_state()
+            ledger.see_dock(dock["dist"], dock["rel_speed"], env.obs)
         decide = running[:, None] & env.act_mask
         actions = idle_actions(n * s).reshape(n, s, -1)
         rows = decide & scripted
@@ -453,9 +500,19 @@ def run_pass(
             actions[rows] = controller.act(env, rows)
         _, _, dones, info = env.step(actions)
         ledger.add_hits(info.hits, info.hit_count)
+        ledger.see_docks(info.docked, info.prev_tick)
+        ledger.see_deaths(
+            info.prev_alive,
+            np.asarray(info.alive, dtype=np.bool_),
+            np.asarray(dones, dtype=np.bool_),
+            np.asarray(env.end_reason) == END_ELIMINATED,
+            info.hits,
+            info.hit_count,
+            info.collision_damage,
+        )
         ending = running & dones
         for env_id in np.flatnonzero(ending):
-            ledger.finish(int(env_id))
+            records[int(env_id)].outcome = ledger.finish(int(env_id))
             # Whoever had not arrived or died by now: the last pilot's death ended it.
             open_now = (gone_tick[env_id] < 0) & (arrived_tick[env_id] < 0)
             gone_tick[env_id, open_now] = tick + 1
@@ -648,8 +705,87 @@ def summarise_defend(
     }
 
 
+def _dock_rates(records: Sequence[DrillRecord]) -> dict[str, Any]:
+    """Docked, shot down and out of time (they add up), and docked of the survivors."""
+    outcomes = [r.outcome for r in records if r.outcome is not None]
+    if len(outcomes) != len(records):
+        raise ValueError("a dock drill record without its outcome")
+    docked = sum(o.docked for o in outcomes)
+    lost = sum(o.pilots_lost > 0 and not o.docked for o in outcomes)
+    n = len(outcomes)
+    return {
+        "n": n,
+        "docked": asdict(Rate.of(docked, n)),
+        "shot_down": asdict(Rate.of(lost, n)),
+        "timed_out": asdict(Rate.of(n - docked - lost, n)),
+        "docked_of_survivors": asdict(Rate.of(docked, n - lost)),
+    }
+
+
+def _quantiles(values: Sequence[float]) -> dict[str, float] | None:
+    """Median, 10th and 90th percentile; ``None`` for no values."""
+    if not values:
+        return None
+    arr = np.asarray(values, dtype=np.float64)
+    return {
+        "p10": float(np.quantile(arr, 0.1)),
+        "median": float(np.median(arr)),
+        "p90": float(np.quantile(arr, 0.9)),
+    }
+
+
+def summarise_dock(
+    shown: Sequence[DrillRecord], hidden: Sequence[DrillRecord]
+) -> dict[str, Any]:
+    """One dock kind (module docstring): the rates, by base and by hull, time to dock,
+    fly-throughs, hull at the dock, damage dealt, and the hidden pass's lift."""
+    outcomes = [r.outcome for r in shown if r.outcome is not None]
+    out: dict[str, Any] = {"n_drills": len(shown), **_dock_rates(shown)}
+    docked = [o for o in outcomes if o.docked]
+    out["seconds_to_dock"] = _quantiles([o.docked_ticks / TICK_HZ for o in docked])
+    out["fly_throughs_per_drill"] = asdict(
+        Mean.of([float(o.fly_throughs) for o in outcomes])
+    )
+    out["drills_with_a_fly_through"] = asdict(
+        Rate.of(sum(o.fly_throughs > 0 for o in outcomes), len(outcomes))
+    )
+    out["hull_at_dock"] = asdict(Mean.of([o.dock_hull for o in docked]))
+    out["damage_dealt_per_drill"] = asdict(Mean.of([o.damage_dealt for o in outcomes]))
+    out["came_near"] = asdict(
+        Rate.of(sum(o.closest_m <= DOCK_NEAR_M for o in outcomes), len(outcomes))
+    )
+    out["docked_of_near"] = asdict(
+        Rate.of(
+            sum(o.docked for o in outcomes),
+            sum(o.closest_m <= DOCK_NEAR_M for o in outcomes),
+        )
+    )
+    closest = [o.closest_m for o in outcomes if math.isfinite(o.closest_m)]
+    out["closest_m"] = _quantiles(closest)
+    out["by_base"] = {
+        base: _dock_rates([r for r in shown if r.spec.base == base])
+        for base in DOCK_BASES
+    }
+    out["by_hull"] = {
+        hull: _dock_rates([r for r in shown if r.spec.teams[0][1] == hull])
+        for hull in DOCK_HULLS
+    }
+    out["hidden"] = _dock_rates(hidden) if hidden else None
+    out["lift"] = (
+        out["docked"]["rate"] - out["hidden"]["docked"]["rate"] if hidden else None
+    )
+    return out
+
+
 def summarise_overall(summary: Mapping[str, Any]) -> dict[str, Any]:
-    """The core check of each kind, pooled: go-to arrivals (shown) and swap-test flips."""
+    """The core check of each kind, pooled: go-to arrivals (shown) and swap-test flips;
+    ``core`` is ``None`` unless all three order kinds were played."""
+    if any(kind not in summary for kind in ORDER_EVAL_KINDS):
+        return {
+            "core": None,
+            "core_is": "go-to arrivals (shown) and attack and defend swap-test flips "
+            "(not every order kind was played)",
+        }
     goto = summary["goto"]["shown"]
     flips = [summary[k]["flip"] for k in (DRILL_ATTACK, DRILL_DEFEND)]
     successes = goto["arrived"] + sum(f["successes"] for f in flips)
@@ -679,13 +815,15 @@ def load_bars(path: Path = DEFAULT_BARS) -> dict[str, float | None]:
 
 
 def parse_bars(raw: Mapping[str, object]) -> dict[str, float | None]:
-    """``raw`` checked and completed; see ``load_bars``."""
-    unknown = set(raw) - set(BAR_PATHS)
+    """``raw`` checked and completed (the order bars and the dock bars); see
+    ``load_bars``."""
+    known = {**BAR_PATHS, **DOCK_BAR_PATHS}
+    unknown = set(raw) - set(known)
     if unknown:
         raise ValueError(
-            f"unknown drill bars {sorted(unknown)}; known: {sorted(BAR_PATHS)}"
+            f"unknown drill bars {sorted(unknown)}; known: {sorted(known)}"
         )
-    bars: dict[str, float | None] = dict.fromkeys(BAR_PATHS)
+    bars: dict[str, float | None] = dict.fromkeys(known)
     for name, value in raw.items():
         if value is None:
             continue
@@ -718,9 +856,11 @@ class GateResult:
 
 
 def _measure(summary: Mapping[str, Any], path: tuple[str, ...]) -> float | None:
+    """The number at ``path``; ``None`` where it is missing (a kind not played) or
+    ``None``."""
     node: Any = summary
     for key in path:
-        if node is None:
+        if node is None or key not in node:
             return None
         node = node[key]
     return None if node is None else float(node)
@@ -731,6 +871,7 @@ def apply_gate(
     bars: Mapping[str, float | None],
     name: str,
     exempt: Sequence[str] = (),
+    bar_paths: Mapping[str, tuple[str, ...]] = BAR_PATHS,
 ) -> GateResult:
     """Judge one pilot's ``summary`` against ``bars``.
 
@@ -744,10 +885,11 @@ def apply_gate(
         bars: ``parse_bars`` output.
         name: The pilot's name, as ``exempt`` lists it.
         exempt: Names the gate does not judge.
+        bar_paths: The bars judged: the order gate's (default) or ``DOCK_BAR_PATHS``.
     """
-    measured = {bar: _measure(summary, path) for bar, path in BAR_PATHS.items()}
+    measured = {bar: _measure(summary, path) for bar, path in bar_paths.items()}
     unset, failed, met = [], [], []
-    for bar in BAR_PATHS:
+    for bar in bar_paths:
         value, floor = measured[bar], bars.get(bar)
         if floor is None or value is None:
             unset.append(bar)
@@ -764,7 +906,7 @@ def apply_gate(
     elif unset:
         verdict = REPORT_ONLY
         statement = (
-            f"Report only, not a pass: {len(unset)} of {len(BAR_PATHS)} bars are unset "
+            f"Report only, not a pass: {len(unset)} of {len(bar_paths)} bars are unset "
             f"or have nothing to measure ({', '.join(unset)})."
         )
     else:
@@ -785,13 +927,22 @@ class DrillEvalConfig:
     Attributes:
         n_per_kind: Go-to drills, and attack and defend swap pairs (two matches each).
         seed: Base of the drills' and the matches' seeds.
-        hidden_goto: Run the go-to's hidden pass (never for the script, module docstring).
+        hidden_goto: Run the go-to's (and the dock drills') hidden pass (never for the
+            script, module docstring).
+        kinds: The kinds played, of ``EVAL_KINDS``: the order drills by default, the
+            dock drills (SIM_VERSION 11) when named.
     """
 
     n_per_kind: int = 256
     seed: int = DEFAULT_SEED
     hidden_goto: bool = True
     sim_version: int = int(rlf_sim.SIM_VERSION)
+    kinds: tuple[str, ...] = ORDER_EVAL_KINDS
+
+    def __post_init__(self) -> None:
+        unknown = [k for k in self.kinds if k not in EVAL_KINDS]
+        if unknown or not self.kinds:
+            raise ValueError(f"kinds must be some of {EVAL_KINDS}, got {self.kinds}")
 
 
 @dataclass(frozen=True)
@@ -805,6 +956,7 @@ class DrillResult:
     overall: dict[str, Any]
     gate: GateResult
     schema: str = SCHEMA
+    dock_gate: GateResult | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Plain JSON-ready dict."""
@@ -865,13 +1017,82 @@ def _goto_deadline_lines(goto: Mapping[str, Any]) -> list[str]:
     return lines
 
 
+def _dock_lines(label: str, dock: Mapping[str, Any]) -> list[str]:
+    """One dock kind's section of the report."""
+
+    def rate(raw: Mapping[str, Any]) -> str:
+        return Rate(**raw).text()
+
+    def short(raw: Mapping[str, Any]) -> str:
+        return f"{raw['docked']['rate']:.2f} ({raw['docked']['successes']}/{raw['n']})"
+
+    near = dock["closest_m"]
+    closest = (
+        "never under the order"
+        if near is None
+        else f"median {near['median']:.0f} m (10th to 90th percentile "
+        f"{near['p10']:.0f} to {near['p90']:.0f} m)"
+    )
+    seconds = dock["seconds_to_dock"]
+    timing = (
+        "none docked"
+        if seconds is None
+        else f"median {seconds['median']:.1f} s (10th to 90th percentile "
+        f"{seconds['p10']:.1f} to {seconds['p90']:.1f} s)"
+    )
+    lines = [
+        "",
+        f"## {label} ({dock['n_drills']} drills)",
+        "",
+        f"- Docked: {rate(dock['docked'])}",
+        f"- Shot down first: {rate(dock['shot_down'])}",
+        f"- Out of time: {rate(dock['timed_out'])}",
+        f"- Docked, of those not shot down: {rate(dock['docked_of_survivors'])}",
+        f"- Came within {DOCK_NEAR_M:g} m of the dock point: {rate(dock['came_near'])}; "
+        f"of those, docked: {rate(dock['docked_of_near'])}",
+        f"- Closest approach: {closest}",
+        f"- Time from the order to the dock: {timing}",
+        "- Fly-throughs (left the bay's capture circle undocked) per drill: "
+        f"{Mean(**dock['fly_throughs_per_drill']).text()}; drills with one: "
+        f"{rate(dock['drills_with_a_fly_through'])}",
+        "- Hull at the dock (fraction of its maximum): "
+        f"{dock['hull_at_dock']['mean']:.2f} +/- {dock['hull_at_dock']['se']:.2f} "
+        f"(n={dock['hull_at_dock']['n']})",
+        f"- Damage dealt per drill: {Mean(**dock['damage_dealt_per_drill']).text()}",
+    ]
+    if dock["hidden"] is not None:
+        lines += [
+            f"- Same drills, order hidden, docked: {rate(dock['hidden']['docked'])}",
+            f"- Lift from seeing the order: {dock['lift']:+.2f}",
+        ]
+    else:
+        lines.append("- Hidden pass not run (the script flies orders it cannot see).")
+    lines += ["", "| By | Docked | Shot down |", "|---|---|---|"]
+    for group in ("by_base", "by_hull"):
+        for key, part in dock[group].items():
+            if part["n"]:
+                lines.append(
+                    f"| {key} | {short(part)} | {part['shot_down']['rate']:.2f} |"
+                )
+    return lines
+
+
+def _bar_lines(gate: GateResult) -> list[str]:
+    """A gate's bars as a table."""
+    lines = ["| Bar | Measured | Bar value |", "|---|---|---|"]
+    for bar, value in gate.measured.items():
+        shown = "n/a" if value is None else f"{value:.3f}"
+        status = (
+            "unset"
+            if bar in gate.unset
+            else ("failed" if bar in gate.failed else "met")
+        )
+        lines.append(f"| {bar} | {shown} | {status} |")
+    return lines
+
+
 def report_markdown(result: DrillResult) -> str:
     """The result as plain Markdown."""
-    goto, attack, defend = (
-        result.kinds[DRILL_GOTO],
-        result.kinds[DRILL_ATTACK],
-        result.kinds[DRILL_DEFEND],
-    )
 
     def rate(raw: Mapping[str, Any]) -> str:
         return Rate(**raw).text()
@@ -885,14 +1106,42 @@ def report_markdown(result: DrillResult) -> str:
             f"{raw['censored']} killed first, not counted)"
         )
 
+    core = result.overall["core"]
     lines = [
         f"# Order drills: {result.name}",
         "",
         f"**Gate: {result.gate.verdict}.** {result.gate.statement}",
+    ]
+    if result.dock_gate is not None:
+        lines += [
+            "",
+            f"**Dock gate: {result.dock_gate.verdict}.** {result.dock_gate.statement}",
+        ]
+    lines += [
         "",
         f"Pilot `{result.pilot}`, seed {result.config.seed}, sim version "
-        f"{result.config.sim_version}. Overall: {rate(result.overall['core'])} "
+        f"{result.config.sim_version}, kinds {', '.join(result.config.kinds)}. "
+        f"Overall: {rate(core) if core is not None else 'n/a'} "
         f"({result.overall['core_is']}).",
+    ]
+    if DRILL_GOTO in result.kinds:
+        lines += _goto_lines(result.kinds[DRILL_GOTO], arrival)
+    lines += _sides_lines(result.kinds, rate, mean)
+    for kind, label in (
+        (DOCK_CALM, "Dock, alone"),
+        (DOCK_THREAT, "Dock, enemies on the pilot"),
+    ):
+        if kind in result.kinds:
+            lines += _dock_lines(label, result.kinds[kind])
+    lines += ["", "## Bars", "", *_bar_lines(result.gate)]
+    if result.dock_gate is not None:
+        lines += ["", "## Dock bars", "", *_bar_lines(result.dock_gate)]
+    return "\n".join(lines) + "\n"
+
+
+def _goto_lines(goto: Mapping[str, Any], arrival: Any) -> list[str]:
+    """The go-to section of the report."""
+    lines = [
         "",
         f"## Go-to ({goto['n_drills']} drills, ship by ship)",
         "",
@@ -911,7 +1160,16 @@ def report_markdown(result: DrillResult) -> str:
         f"- Enemies around the route: {arrival(goto['shown_enemies_around'])}",
         *_goto_deadline_lines(goto),
     ]
-    for label, part in (("Attack", attack), ("Defend", defend)):
+    return lines
+
+
+def _sides_lines(kinds: Mapping[str, Any], rate: Any, mean: Any) -> list[str]:
+    """The attack and defend sections of the report (those played)."""
+    lines: list[str] = []
+    for label, kind in (("Attack", DRILL_ATTACK), ("Defend", DRILL_DEFEND)):
+        if kind not in kinds:
+            continue
+        part = kinds[kind]
         lines += ["", f"## {label} ({part['n_pairs']} swap pairs)", ""]
         if label == "Attack":
             lines += [
@@ -941,17 +1199,7 @@ def report_markdown(result: DrillResult) -> str:
             f"- Swap test, flipped with the order: {rate(part['flip'])}",
             f"- Swap test, one side whatever was named: {rate(part['same_side'])}",
         ]
-    lines += ["", "## Bars", "", "| Bar | Measured | Bar value |", "|---|---|---|"]
-    bars = result.gate
-    for bar, value in bars.measured.items():
-        shown = "n/a" if value is None else f"{value:.3f}"
-        status = (
-            "unset"
-            if bar in bars.unset
-            else ("failed" if bar in bars.failed else "met")
-        )
-        lines.append(f"| {bar} | {shown} | {status} |")
-    return "\n".join(lines) + "\n"
+    return lines
 
 
 def evaluate(
@@ -978,23 +1226,39 @@ def evaluate(
     bars = load_bars() if bars is None else parse_bars(bars)
     gen = DrillGenerator(assets_dir)
     kinds: dict[str, Any] = {}
+    with_hidden = cfg.hidden_goto and not isinstance(controller, Scripted)
 
-    goto = gen.generate_many(DRILL_GOTO, cfg.n_per_kind, cfg.seed)
-    shown = run_pass(controller, goto, cfg.seed, n_threads, False, assets_dir)
-    hidden: list[DrillRecord] = []
-    if cfg.hidden_goto and not isinstance(controller, Scripted):
-        hidden = run_pass(controller, goto, cfg.seed, n_threads, True, assets_dir)
-    kinds[DRILL_GOTO] = summarise_goto(shown, hidden)
+    if DRILL_GOTO in cfg.kinds:
+        goto = gen.generate_many(DRILL_GOTO, cfg.n_per_kind, cfg.seed)
+        shown = run_pass(controller, goto, cfg.seed, n_threads, False, assets_dir)
+        hidden: list[DrillRecord] = []
+        if with_hidden:
+            hidden = run_pass(controller, goto, cfg.seed, n_threads, True, assets_dir)
+        kinds[DRILL_GOTO] = summarise_goto(shown, hidden)
 
     summarisers = {DRILL_ATTACK: summarise_attack, DRILL_DEFEND: summarise_defend}
-    for k, (kind, summarise) in enumerate(summarisers.items(), start=1):
-        base = cfg.seed + k * KIND_SEED_STRIDE
+    for kind, summarise in summarisers.items():
+        if kind not in cfg.kinds:
+            continue
+        base = cfg.seed + _KIND_SEED_INDEX[kind] * KIND_SEED_STRIDE
         specs = gen.generate_many(kind, cfg.n_per_kind, base)
         partners = [spec.swapped() for spec in specs]
         first = run_pass(controller, specs, base, n_threads, False, assets_dir)
         second = run_pass(controller, partners, base, n_threads, False, assets_dir)
         kinds[kind] = summarise(first, second)
 
+    for kind in DOCK_EVAL_KINDS:
+        if kind not in cfg.kinds:
+            continue
+        base = cfg.seed + _KIND_SEED_INDEX[kind] * KIND_SEED_STRIDE
+        specs = gen.dock_many(cfg.n_per_kind, base, threat=kind == DOCK_THREAT)
+        shown = run_pass(controller, specs, base, n_threads, False, assets_dir)
+        hidden = []
+        if with_hidden:
+            hidden = run_pass(controller, specs, base, n_threads, True, assets_dir)
+        kinds[kind] = summarise_dock(shown, hidden)
+
+    dock_played = any(kind in cfg.kinds for kind in DOCK_EVAL_KINDS)
     return DrillResult(
         pilot=controller.label,
         name=name,
@@ -1002,6 +1266,11 @@ def evaluate(
         kinds=kinds,
         overall=summarise_overall(kinds),
         gate=apply_gate(kinds, bars, name, exempt),
+        dock_gate=(
+            apply_gate(kinds, bars, name, exempt, DOCK_BAR_PATHS)
+            if dock_played
+            else None
+        ),
     )
 
 
@@ -1020,6 +1289,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--exempt", default="", help="Comma-separated pilots the gate does not judge"
     )
     parser.add_argument("--no-hidden", action="store_true")
+    parser.add_argument(
+        "--kinds",
+        default=",".join(ORDER_EVAL_KINDS),
+        help=f"Comma-separated kinds of {','.join(EVAL_KINDS)} (default: the order "
+        "drills)",
+    )
     parser.add_argument("--out", type=Path, help="JSON path; the report goes beside it")
     args = parser.parse_args(argv)
     controller = make_controller(args.a, sample=True, seed=args.seed)
@@ -1027,7 +1302,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     result = evaluate(
         controller,
         name,
-        DrillEvalConfig(args.n_per_kind, args.seed, not args.no_hidden),
+        DrillEvalConfig(
+            args.n_per_kind,
+            args.seed,
+            not args.no_hidden,
+            kinds=tuple(k for k in args.kinds.split(",") if k),
+        ),
         load_bars(args.bars),
         [e for e in args.exempt.split(",") if e],
         args.threads,

@@ -194,6 +194,7 @@ pub struct VecEnv {
     hits: Py<PyArray3<i32>>,
     hit_count: Py<PyArray1<i32>>,
     collision_damage: Py<PyArray2<f32>>,
+    docked: Py<PyArray2<bool>>,
     arena_radius: Py<PyArray1<f32>>,
     /// v5: what `set_next_roster` falls back to: the constructor's commanders and
     /// time limit.
@@ -223,6 +224,7 @@ macro_rules! with_step_buffers {
         let hits = $self.hits.bind($py);
         let hit_count = $self.hit_count.bind($py);
         let collision_damage = $self.collision_damage.bind($py);
+        let docked = $self.docked.bind($py);
         let thruster_mask = $self.thruster_mask.bind($py);
         let turret_mask = $self.turret_mask.bind($py);
         let fixed_turret = $self.fixed_turret.bind($py);
@@ -248,6 +250,7 @@ macro_rules! with_step_buffers {
         let mut hits = borrow_mut(hits, "hits")?;
         let mut hit_count = borrow_mut(hit_count, "hit_count")?;
         let mut collision_damage = borrow_mut(collision_damage, "collision_damage")?;
+        let mut docked = borrow_mut(docked, "docked")?;
         let mut thruster_mask = borrow_mut(thruster_mask, "thruster_mask")?;
         let mut turret_mask = borrow_mut(turret_mask, "turret_mask")?;
         let mut fixed_turret = borrow_mut(fixed_turret, "fixed_turret")?;
@@ -274,6 +277,7 @@ macro_rules! with_step_buffers {
             hits: as_slice(&mut hits, "hits")?,
             hit_count: as_slice(&mut hit_count, "hit_count")?,
             collision_damage: as_slice(&mut collision_damage, "collision_damage")?,
+            docked: as_slice(&mut docked, "docked")?,
             thruster_mask: as_slice(&mut thruster_mask, "thruster_mask")?,
             turret_mask: as_slice(&mut turret_mask, "turret_mask")?,
             fixed_turret: as_slice(&mut fixed_turret, "fixed_turret")?,
@@ -354,9 +358,11 @@ impl VecEnv {
     /// match of the env, whatever roster is queued. v8: `goto_timed_bonus` is the order
     /// reward for arriving at a go-to with a deadline in time and `goto_miss_penalty`
     /// the one-shot charge for missing it (both finite and >= 0, SIM_SPEC §8); they
-    /// hold for every match of the env too.
+    /// hold for every match of the env too. v11: `docking` runs the dock rules
+    /// (`MatchConfig.docking`) and `dock_bonus` is the order reward for docking (finite
+    /// and >= 0, default `DOCK["bonus"]`), for every match of the env.
     #[new]
-    #[pyo3(signature = (assets_dir, n_envs, fleets, seed, arena_radius=450.0, time_limit_s=90.0, n_threads=0, record_events=false, reaction_ticks=2, max_ships=None, mission=None, commanders=None, hide_orders=None, order_shaping_gamma=sim::reward::ORDER_SHAPING_GAMMA, goto_timed_bonus=sim::reward::ORDER_TIMED_ARRIVAL_BONUS, goto_miss_penalty=sim::reward::ORDER_MISS_PENALTY, docking=true))]
+    #[pyo3(signature = (assets_dir, n_envs, fleets, seed, arena_radius=450.0, time_limit_s=90.0, n_threads=0, record_events=false, reaction_ticks=2, max_ships=None, mission=None, commanders=None, hide_orders=None, order_shaping_gamma=sim::reward::ORDER_SHAPING_GAMMA, goto_timed_bonus=sim::reward::ORDER_TIMED_ARRIVAL_BONUS, goto_miss_penalty=sim::reward::ORDER_MISS_PENALTY, docking=true, dock_bonus=sim::reward::DOCK_BONUS))]
     #[allow(clippy::too_many_arguments)]
     fn new(
         py: Python<'_>,
@@ -377,6 +383,7 @@ impl VecEnv {
         goto_timed_bonus: f32,
         goto_miss_penalty: f32,
         docking: bool,
+        dock_bonus: f32,
     ) -> PyResult<Self> {
         if n_envs < 1 {
             return Err(PyValueError::new_err(format!(
@@ -424,6 +431,7 @@ impl VecEnv {
                 goto_timed_bonus,
                 goto_miss_penalty,
                 docking,
+                dock_bonus,
                 roster: Roster {
                     fleets,
                     arena_radius,
@@ -432,6 +440,7 @@ impl VecEnv {
                     time_limit_ticks,
                     hide_orders,
                     start_layout: None,
+                    start_hull: None,
                     drill: false,
                 },
                 n_ships,
@@ -465,6 +474,7 @@ impl VecEnv {
             hits: PyArray3::zeros(py, [n, MAX_HITS, HIT_FIELDS], false).unbind(),
             hit_count: PyArray1::zeros(py, [n], false).unbind(),
             collision_damage: PyArray2::zeros(py, [n, s], false).unbind(),
+            docked: PyArray2::zeros(py, [n, s], false).unbind(),
             arena_radius: PyArray1::zeros(py, [n], false).unbind(),
             default_commanders: commanders,
             default_time_limit_ticks: time_limit_ticks,
@@ -488,8 +498,11 @@ impl VecEnv {
     /// vy, heading]` row per slot, team 0 then team 1 (a deathmatch only; default the
     /// mission's own placing; ValueError for a wrong length, a non-finite value, a ship
     /// outside the arena or over its speed cap, or two ships overlapping). `drill` is
-    /// drill rules (SIM_SPEC §5.10; needs a layout). Every field sticks with the roster.
-    #[pyo3(signature = (i, fleets, arena_radius, mission=None, commanders=None, time_limit_s=None, hide_orders=None, start_layout=None, drill=false))]
+    /// drill rules (SIM_SPEC §5.10; needs a layout). v11: a carrier battle or a station
+    /// assault takes a layout too (every ship on the field, nobody in a hangar), and
+    /// `start_hull` gives each slot's hull at the start as a fraction of its maximum, in
+    /// (0, 1] (needs a layout; default full). Every field sticks with the roster.
+    #[pyo3(signature = (i, fleets, arena_radius, mission=None, commanders=None, time_limit_s=None, hide_orders=None, start_layout=None, drill=false, start_hull=None))]
     #[allow(clippy::too_many_arguments)]
     fn set_next_roster(
         &mut self,
@@ -503,6 +516,7 @@ impl VecEnv {
         hide_orders: Option<Vec<bool>>,
         start_layout: Option<Vec<[f32; 5]>>,
         drill: bool,
+        start_hull: Option<Vec<f32>>,
     ) -> PyResult<()> {
         let n = self.batch.n_envs() as i64;
         if !(0..n).contains(&i) {
@@ -532,6 +546,7 @@ impl VecEnv {
                     time_limit_ticks,
                     hide_orders,
                     start_layout: start_layout_from_py(start_layout),
+                    start_hull,
                     drill,
                 },
             )
@@ -557,6 +572,13 @@ impl VecEnv {
     #[getter]
     fn goto_miss_penalty(&self) -> f32 {
         self.batch.match_at(0).cfg.goto_miss_penalty
+    }
+
+    /// v11: the order reward for docking in this env's matches (the constructor's
+    /// `dock_bonus`, as f32).
+    #[getter]
+    fn dock_bonus(&self) -> f32 {
+        self.batch.match_at(0).cfg.dock_bonus
     }
 
     /// v11: whether this env's matches run the dock rules (the constructor's `docking`;
@@ -1291,5 +1313,12 @@ impl VecEnv {
     #[getter]
     fn collision_damage(&self, py: Python<'_>) -> Py<PyArray2<f32>> {
         self.collision_damage.clone_ref(py)
+    }
+    /// v11: whether each ship docked in the last step (`[N,S] bool`; for a done env,
+    /// the finished match's, like `rewards`). A dock drill ends on the step its pilot
+    /// docks, so this is how a reader tells a dock from a death there.
+    #[getter]
+    fn docked(&self, py: Python<'_>) -> Py<PyArray2<bool>> {
+        self.docked.clone_ref(py)
     }
 }

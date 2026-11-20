@@ -320,6 +320,16 @@ v10's except that a dock order shows as a go-to.
 `golden_carrier_battle_dock_s61` is new: the live "wing of 8" roster, scripted
 commanders, with docks and relaunches. Python: `RustVecEnv(docking=)` (default true).
 
+**Dock drills (2026-11-20, stage 3; still `SIM_VERSION` 11).** Three additions for the
+dock drills (`docs/PILOT_TRAINING.md` §2, `lab/runs/2026-11-20-dock-pilot`), none of which
+changes a match that does not use them, so no version bump and the goldens hold:
+
+| # | change | sections |
+|---|---|---|
+| 10 | `MatchConfig.start_layout` is also taken by a **carrier battle and a station assault** (a convoy still refuses one): every ship on the field at tick 0, nobody in a hangar, each team's carrier-role ship its carrier (the station team 0's), no waypoint set, no rng draw. **`MatchConfig.start_hull`** (`Option<Vec<f32>>`, default `None`): each slot's hull at the start as a fraction of its maximum, in (0, 1], needs a layout | §5.10 |
+| 11 | Drill rules: team 0's strike craft count as **on the field** only while not docked, so a dock drill ends on the step its pilot docks (`Eliminated`, a draw). No deathmatch drill has a hangar, so nothing else moves | §5.10 |
+| 12 | **`MatchConfig.dock_bonus`** (default `DOCK_BONUS` = `ORDER_ARRIVAL_BONUS`, 0.2; finite and >= 0, refused as `InvalidGotoPay { name: "dock_bonus" }`): the order pay on the step a ship docks. Like `goto_timed_bonus` it is not hashed. Bindings: `VecEnv(dock_bonus=)` and its getter, `rlf_sim.DOCK["bonus"]`, `set_next_roster(start_hull=)`, and the step buffer **`env.docked`** (`[N,S] bool`, the ship docked on the step; the finished match's for a done env) | §8, §10.1 |
+
 ---
 
 ## 1. Conventions
@@ -411,8 +421,11 @@ pub struct MatchConfig {
     pub order_shaping_gamma: f32,                    // default 0.99; in (0, 1] (§8)
     pub goto_timed_bonus: f32,                       // v8; default 1.0; finite, >= 0 (§8)
     pub goto_miss_penalty: f32,                      // v8; default 1.0; finite, >= 0 (§8)
+    pub dock_bonus: f32,                             // v11; default 0.2; finite, >= 0 (§8)
     pub start_layout: Option<Vec<ShipStart>>,        // default None; where each slot starts (§5.10)
+    pub start_hull: Option<Vec<f32>>,                // v11; default None; start hull fractions (§5.10)
     pub drill: bool,                                 // default false; drill rules (§5.10)
+    pub docking: bool,                               // v11; default true; the dock rules (§5.11)
 }
 pub struct Match { /* §3 */ }
 impl Match {
@@ -1200,12 +1213,17 @@ Default time limits (`MissionKind::default_time_limit_ticks`; callers pass them 
 
 **Deathmatch**: v3 (§5.6, §5.8).
 
-**Start layout** (`MatchConfig.start_layout`, default `None`; a deathmatch only, for order
-drills). One `ShipStart { pos, vel, heading }` per slot, team 0 then team 1. Every ship is
-present at tick 0 with no jump-in and no control lock, and setup draws nothing from the
-rng. `Match::new` refuses (`SetupError::StartLayout`) a wrong length, a non-finite value, a
-ship outside the arena radius or over its hull's speed cap, and two ships whose bound
-circles overlap. With `None` nothing changes: no `sim_version` bump.
+**Start layout** (`MatchConfig.start_layout`, default `None`; a deathmatch for the order
+drills, and since the v11 dock drills a carrier battle or a station assault). One
+`ShipStart { pos, vel, heading }` per slot, team 0 then team 1. Every ship is present at
+tick 0 with no jump-in and no control lock, and setup draws nothing from the rng. In a
+carrier battle or a station assault nobody starts in a hangar: each team's carrier-role
+ship (exactly one, as the mission requires; the station team 0's) is its carrier, with no
+waypoint until a commander sets one. `Match::new` refuses (`SetupError::StartLayout`) a
+convoy escort, a wrong length, a non-finite value, a ship outside the arena radius or over
+its hull's speed cap, and two ships whose bound circles overlap. v11 `start_hull`
+(default `None`): each slot's starting hull as a fraction of its maximum, in (0, 1]; it
+needs a layout and one entry per slot. With `None` nothing changes: no `sim_version` bump.
 
 **Drill rules** (`MatchConfig.drill`, default `false`; needs a start layout;
 `docs/PILOT_TRAINING.md` §2). The mission stays `Deathmatch`, so the obs's mission one-hot
@@ -1213,7 +1231,8 @@ and the order rules are a deathmatch's (`external` orders are followed; only the
 commander's are advisory, §11). Differences: every ship starts under a control lock to tick
 `COMMAND_TICKS + 1 + reaction_ticks`, so it coasts and the first action any ship chooses
 comes from an obs that shows the orders of the first slow tick. Stage 13 replaces the
-deathmatch's: team 0 has no strike craft in the match → over (`Eliminated`); the time limit
+deathmatch's: team 0 has no strike craft in the match → over (`Eliminated`; v11: a craft
+that docked has left the field, so a dock drill ends on the step its pilot docks); the time limit
 → over (`TimeLimit`); team 1 is gone and no strike craft of team 0 has an effective go-to →
 over (`Eliminated`). Killing the last enemy does not cut a go-to short; a go-to whose
 deadline was missed (v8) is no longer effective, so it does not keep the drill going. The winner is always
@@ -1344,7 +1363,7 @@ recalls; the sim never recalls on its own.
 
 **Pay** (§8): the dock order is shaped as a go-to to the dock point (Φ with radius
 `DOCK_CAPTURE_RADIUS`; it never sets `arrived`), and the step a ship docks pays it
-`ORDER_ARRIVAL_BONUS`.
+`MatchConfig.dock_bonus` (default `DOCK_BONUS`, the 0.2 of `ORDER_ARRIVAL_BONUS`).
 
 ## 6. Weapons
 
@@ -1613,6 +1632,7 @@ order:
 | go-to with a deadline: arrival (v8) | `+MatchConfig.goto_timed_bonus` (default `ORDER_TIMED_ARRIVAL_BONUS = 1.0`) once per instance, instead of the 0.2, the first step inside the radius whose tick is ≤ the deadline |
 | go-to with a deadline: miss (v8) | `−MatchConfig.goto_miss_penalty` (default `ORDER_MISS_PENALTY = 1.0`) once per instance, on the first step whose tick is > the deadline, if the ship has not arrived. Nothing after it: no shaping, no late bonus |
 | go-to: starts inside (v8) | an instance that starts with the ship already inside the radius is complete at once and pays neither bonus (v7 paid the 0.2 on that step) |
+| dock (v11) | shaped as a go-to to the dock point (radius 10 m, never complete on arrival); `+MatchConfig.dock_bonus` (default `DOCK_BONUS = 0.2`) on the step the ship docks. A pass through the bay that does not dock earns back on the way out what the shaping paid on the way in |
 
 **Deadlines (v8).** The pay is strict about the deadline and free before it: no term
 charges for time, so a pilot with time to spare loses nothing by fighting on the way,
@@ -1859,11 +1879,17 @@ rlf_sim.SIM_VERSION == 11; PILOT_COMPAT_VERSIONS == [3, ..., 11]; PILOT_OBS_DIMS
 rlf_sim.OBS_DIM == 592, OBS_DIM_V10 == 587; OBS_LAYOUT/OBS_SLOTS + "dock" (587, 5; 1)
 rlf_sim.EVENT_KINDS: dock_ordered 15, docked 16, repaired 17, relaunched 18, dock_aborted 19
 rlf_sim.DOCK          # {"capture_radius", "max_rel_speed", "point_offset", "repair_frac_per_s",
-                      #  "turnaround_ticks", and the scripted commander's
+                      #  "turnaround_ticks", "bonus" (the default dock_bonus), and the scripted commander's
                       #  "recall_hull_frac", "recall_finish_frac", "recall_clear_margin",
                       #  "relaunch_hull_frac"}
 rlf_sim.DOCK_PHASES == ["none", "inbound", "repairing", "ready"]
 VecEnv(..., docking=True)   # batch-wide, like order_shaping_gamma; env.docking
+VecEnv(..., dock_bonus=0.2)   # the order pay on docking (§8), every match; env.dock_bonus
+env.docked         # [N,S] bool view: the ship docked on the step (a done env: its finished
+                   # match's, like rewards)
+env.set_next_roster(..., start_layout=..., start_hull=None)
+                   # a carrier battle or station assault takes a layout too (§5.10);
+                   # start_hull: per slot hull fraction in (0, 1], needs a layout
 env.dock_state()   # new arrays: phase [N,S] i8 (DOCK_PHASES index), bay [N,S] i8 (-1),
                    # since / docked_at / ready_at [N,S] u32 (0 unset), live [N] bool,
                    # point [N,S,2] f32 (the dock order's dock point now), dist / rel_speed

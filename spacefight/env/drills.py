@@ -54,6 +54,24 @@ clock (``KITE_CLOCK_TICKS``, 60 s). The enemy team's orders are hidden from its 
 it instead of the script (``DrillTag.kite``). The order, the pass condition (damage on
 the named target) and the pay are the attack drill's. The drill eval never plays one.
 
+**Dock drills** (``DrillGenerator.dock(seed)``, SIM_VERSION 11, kind ``DRILL_DOCK``; apart
+from ``DRILL_KINDS``, whose weights a config lists). A damaged strike craft (fighter,
+strafer, gunship or bomber, ``DOCK_HULL_FRAC`` of its hull) holds a dock order to its
+own base, ``DOCK_DISTANCE`` from the base's centre at any bearing, heading and speed.
+The base is a carrier under way (a waypoint ahead, so its bays move), or a static
+station or citadel (``DOCK_BASE_WEIGHTS``). The match is a carrier battle or a station
+assault laid out by hand (``Roster.start_layout``, ``start_hull``), so the pilot obs read
+as they do in that mission, under drill rules with ``external`` commanders: team 1 has
+its carrier across the arena, out of the pilot's way, and in a *threat* drill
+(``dock_threat_share``) one to three script craft ordered onto the pilot, starting
+behind it, so it has to break off and go home in a fight; a *calm* drill is the
+approach alone. The drill ends when the pilot docks or is shot down (it has left the
+field), or on the clock (``DOCK_CLOCK_MULT`` times its straight line at its speed cap,
+plus ``DOCK_CLOCK_SLACK_S``), always as a draw. The pay is the sim's: the dock order's
+shaping toward the bay, ``dock_bonus`` on docking, and the fight's usual damage terms.
+Nothing pays for being near the bay: the shaping is a potential, so a pass through the
+bay that does not dock earns back nothing it did not give up on the way out.
+
 **Variety** is the point, since drills replace random orders as the protection against
 overfitting to one commander: hull mix, squad size 1 to 4, side and go-to distances, go-to
 radius, starting speed and heading. The whole layout gets a random rotation and, half the
@@ -74,14 +92,21 @@ import rlf_sim
 from numpy.typing import NDArray
 
 from spacefight.env.rosters import (
+    CARRIER_BATTLE,
+    DEATHMATCH,
     DEFAULT_ASSETS,
+    DOCK_COMMAND,
     DRILL_ATTACK,
     DRILL_DEFEND,
+    DRILL_DOCK,
     DRILL_GOTO,
     DRILL_KINDS,
     EXTERNAL,
     FLEET_HULLS,
     NO_DEADLINE,
+    STATION_ASSAULT,
+    STRIKE_HULLS,
+    WAYPOINT_COMMAND,
     DrillTag,
     OpeningOrder,
     Roster,
@@ -165,6 +190,53 @@ MAX_PLACEMENT_TRIES = 64
 ROUTE_PLACEMENT_TRIES = 4096
 # Bearings tried for a parked ship's place on the rim.
 PARKED_BEARINGS = 72
+
+# Dock drills (SIM_VERSION 11; module docstring). Metres at a 450 m arena.
+DOCK_BASES: tuple[str, ...] = ("carrier", "station", "citadel")
+DOCK_BASE_WEIGHTS: tuple[float, ...] = (0.5, 0.25, 0.25)
+# The carrier hull of each side, and team 1's carrier in every dock drill.
+CARRIER_HULL = "carrier"
+DOCK_HULLS: tuple[str, ...] = STRIKE_HULLS
+# The pilot's hull at the start, a fraction of its maximum: below the scripted
+# commander's recall line (``rlf_sim.DOCK["recall_hull_frac"]``, 0.5), where it recalls.
+DOCK_HULL_FRAC = (0.2, 0.5)
+# The pilot starts this far from its base's centre.
+DOCK_DISTANCE = (150.0, 350.0)
+# ... at up to this fraction of its speed cap, along any heading.
+DOCK_START_SPEED_FRAC = 0.8
+# The base sits this far out on team 0's side (-x), a little off the axis.
+DOCK_BASE_X = (160.0, 250.0)
+DOCK_BASE_Y = (-60.0, 60.0)
+# A carrier is under way at this fraction of its speed cap, heading roughly across the
+# arena (along +-y, within this many radians), its waypoint this far ahead.
+DOCK_CARRIER_SPEED_FRAC = (0.3, 1.0)
+DOCK_CARRIER_HEADING_JITTER = 0.7
+DOCK_CARRIER_WAYPOINT = (200.0, 300.0)
+# Team 1's carrier, on the far side at rest; the pilot starts at least this far from it
+# (flak reaches 230 m).
+DOCK_ENEMY_CARRIER_X = 324.0
+DOCK_ENEMY_CLEARANCE = 300.0
+# Threat drills: this many script craft ordered onto the pilot, starting this far from
+# it, behind it (within this many radians of the bearing from the base to the pilot),
+# and at least DOCK_ATTACKER_HOME_CLEARANCE from the base, outside its guns at the start.
+DOCK_ATTACKERS = (1, 2)
+DOCK_ATTACKER_RANGE = (90.0, 200.0)
+DOCK_ATTACKER_SPREAD = 1.2
+DOCK_ATTACKER_HOME_CLEARANCE = 240.0
+# ... or, for a pilot nearer its base than that, no nearer the base than the pilot plus
+# this.
+DOCK_ATTACKER_MARGIN = 20.0
+# The least distance from the base an attacker may start at, when nothing else fits.
+DOCK_ATTACKER_BASE_CLEARANCE = 100.0
+DOCK_SHIP_SPACING = 35.0
+# Share of dock drills with attackers (the training default; the eval names each).
+DOCK_THREAT_SHARE = 0.5
+# The clock: this many times the pilot's straight line at its speed cap, plus this many
+# seconds, after the order lands.
+DOCK_CLOCK_MULT = 3.0
+DOCK_CLOCK_SLACK_S = 15.0
+# Stream tag of the dock drill's generator (apart from the order drills').
+_DOCK_STREAM = 0xD0C4
 
 
 def goto_deadline_tick(distance_m: float, speed_cap: float) -> int:
@@ -250,6 +322,14 @@ class DrillSpec:
         distances: Go-to: per pilot, the straight-line distance to the arrival circle.
         far: Go-to: a map-crossing distance.
         enemies_around: Go-to: the enemies start beside the route, not far from it.
+        mission: The match's mission: a deathmatch, or for a dock drill a carrier
+            battle or a station assault.
+        start_hull: Each slot's hull at the start, a fraction of its maximum; empty:
+            full (dock drills set it).
+        threat: Dock: enemies are ordered onto the pilot.
+        base: Dock: ``"carrier"``, ``"station"`` or ``"citadel"``.
+        home_slot: Dock: the base's slot (team 0's carrier or station).
+        start_hull_frac: Dock: the pilot's hull at the start (``start_hull``'s entry).
     """
 
     kind: str
@@ -274,11 +354,17 @@ class DrillSpec:
     distances: tuple[float, ...] = ()
     far: bool = False
     enemies_around: bool = False
+    mission: str = DEATHMATCH
+    start_hull: tuple[float, ...] = ()
+    threat: bool = False
+    base: str = ""
+    home_slot: int = -1
+    start_hull_frac: float = 1.0
 
     @property
     def has_sides(self) -> bool:
-        """Attack and defend name a side; a go-to does not."""
-        return self.kind != DRILL_GOTO
+        """Attack and defend name a side; a go-to and a dock drill do not."""
+        return self.kind in (DRILL_ATTACK, DRILL_DEFEND)
 
     @property
     def timed(self) -> bool:
@@ -302,6 +388,8 @@ class DrillSpec:
 
     def order(self) -> OpeningOrder:
         """The order the pilots get."""
+        if self.kind == DRILL_DOCK:
+            return OpeningOrder(0, 0, self.pilots, DOCK_COMMAND)
         if self.kind == DRILL_GOTO:
             return OpeningOrder(
                 0,
@@ -332,12 +420,16 @@ class DrillSpec:
             deadlines=self.deadlines,
             timed=self.timed,
             kite=self.kite,
+            threat=self.threat,
+            base=self.base,
         )
         return Roster(
             teams=self.teams,
+            mission=self.mission,
             commanders=(EXTERNAL, EXTERNAL),
             hide_orders=(hidden, self.kite),
             start_layout=self.layout,
+            start_hull=self.start_hull,
             opening_orders=(self.order(), *self.enemy_orders),
             time_limit_s=self.clock_ticks / TICK_HZ,
             drill=tag,
@@ -393,11 +485,13 @@ class DrillGenerator:
             size it drew (a lone ship is the case pilots fail most). At 0 no extra
             number is drawn, so a seed's drill is what it always was. A training
             setting: the drill eval keeps 0.
+        dock_threat_share: Chance that a dock drill (``dock``) has enemies ordered
+            onto the pilot, when its caller does not say.
 
     Raises:
         FileNotFoundError: No hull YAML under ``assets_dir``.
         KeyError: A drill hull missing from the assets.
-        ValueError: ``goto_solo_share`` outside [0, 1].
+        ValueError: ``goto_solo_share`` or ``dock_threat_share`` outside [0, 1].
     """
 
     def __init__(
@@ -405,14 +499,20 @@ class DrillGenerator:
         assets_dir: Path = DEFAULT_ASSETS,
         arena_radius: float = arena_radius_for(12),
         goto_solo_share: float = 0.0,
+        dock_threat_share: float = DOCK_THREAT_SHARE,
     ) -> None:
         if not 0.0 <= goto_solo_share <= 1.0:
             raise ValueError(
                 f"goto_solo_share must be in [0, 1], got {goto_solo_share}"
             )
+        if not 0.0 <= dock_threat_share <= 1.0:
+            raise ValueError(
+                f"dock_threat_share must be in [0, 1], got {dock_threat_share}"
+            )
         self.goto_solo_share = goto_solo_share
+        self.dock_threat_share = dock_threat_share
         caps = load_hull_speed_caps(assets_dir)
-        self.speed_caps = {h: caps[h] for h in (*FLEET_HULLS, WARD_HULL)}
+        self.speed_caps = {h: caps[h] for h in (*STRIKE_HULLS, WARD_HULL, CARRIER_HULL)}
         self.arena_radius = arena_radius
         self.scale = arena_radius / REFERENCE_RADIUS
 
@@ -445,6 +545,196 @@ class DrillGenerator:
     def generate_many(self, kind: str, n: int, base_seed: int) -> tuple[DrillSpec, ...]:
         """``n`` drills of ``kind`` from consecutive seeds."""
         return tuple(self.generate(kind, base_seed + i) for i in range(n))
+
+    def dock_roster(self, seed: int) -> Roster:
+        """The match of ``dock(seed)`` (threat drawn by ``dock_threat_share``)."""
+        return self.dock(seed).roster()
+
+    def dock(
+        self, seed: int, threat: bool | None = None, base: str | None = None
+    ) -> DrillSpec:
+        """The dock drill of ``seed`` (module docstring): the same arguments give the
+        same spec.
+
+        Every number is drawn from the seed in a fixed order whatever ``threat`` and
+        ``base`` say, so a calm and a threat drill of one seed share the base, the
+        pilot's start and its hull, and differ only by the attackers.
+
+        Args:
+            seed: The drill's seed.
+            threat: Whether enemies are ordered onto the pilot; ``None``: drawn with
+                ``dock_threat_share``.
+            base: One of ``DOCK_BASES``; ``None``: drawn by ``DOCK_BASE_WEIGHTS``.
+
+        Raises:
+            ValueError: An unknown base.
+            RuntimeError: The pilot or its attackers do not fit the arena (not seen
+                in practice: every draw has thousands of tries).
+        """
+        if base is not None and base not in DOCK_BASES:
+            raise ValueError(f"unknown dock base {base!r}; known: {DOCK_BASES}")
+        rng = np.random.default_rng([seed, _DOCK_STREAM])
+        frame = _Frame(rng)
+        weights = np.asarray(DOCK_BASE_WEIGHTS, dtype=np.float64)
+        drawn_base = DOCK_BASES[int(rng.choice(len(DOCK_BASES), p=weights))]
+        drawn_threat = bool(rng.random() < self.dock_threat_share)
+        base = drawn_base if base is None else base
+        threat = drawn_threat if threat is None else threat
+        sc = self.scale
+        home = (
+            -float(rng.uniform(*DOCK_BASE_X)) * sc,
+            float(rng.uniform(*DOCK_BASE_Y)) * sc,
+        )
+        side = 1.0 if rng.random() < 0.5 else -1.0
+        jitter = float(
+            rng.uniform(-DOCK_CARRIER_HEADING_JITTER, DOCK_CARRIER_HEADING_JITTER)
+        )
+        carrier_heading = side * math.pi / 2 + jitter
+        carrier_speed = float(rng.uniform(*DOCK_CARRIER_SPEED_FRAC))
+        ahead = float(rng.uniform(*DOCK_CARRIER_WAYPOINT)) * sc
+        station_heading = float(rng.uniform(-math.pi, math.pi))
+        enemy = (DOCK_ENEMY_CARRIER_X * sc, float(rng.uniform(*DOCK_BASE_Y)) * sc)
+        hull = DOCK_HULLS[int(rng.integers(len(DOCK_HULLS)))]
+        hull_frac = float(rng.uniform(*DOCK_HULL_FRAC))
+        pilot, distance = self._dock_pilot_place(rng, home, enemy)
+        pilot_heading = float(rng.uniform(-math.pi, math.pi))
+        pilot_speed = (
+            float(rng.uniform(0.0, DOCK_START_SPEED_FRAC)) * self.speed_caps[hull]
+        )
+        n_attackers = int(rng.integers(DOCK_ATTACKERS[0], DOCK_ATTACKERS[1] + 1))
+        attacker_hulls = _strike_hulls(rng, n_attackers)
+        attackers = self._dock_attackers(rng, home, pilot, n_attackers)
+        attacker_starts = []
+        for (x, y), h in zip(attackers, attacker_hulls):
+            speed = float(rng.uniform(0.0, ENEMY_START_SPEED_FRAC)) * self.speed_caps[h]
+            attacker_starts.append(
+                frame.start(x, y, speed, _bearing(x, y, pilot[0], pilot[1]))
+            )
+        if base == "carrier":
+            cap = self.speed_caps[CARRIER_HULL]
+            home_start = frame.start(
+                home[0], home[1], carrier_speed * cap, carrier_heading
+            )
+        else:
+            home_start = frame.start(home[0], home[1], 0.0, station_heading)
+        team1: tuple[str, ...] = (CARRIER_HULL,)
+        layout = [
+            home_start,
+            frame.start(pilot[0], pilot[1], pilot_speed, pilot_heading),
+            frame.start(enemy[0], enemy[1], 0.0, math.pi),
+        ]
+        orders: list[OpeningOrder] = []
+        if base == "carrier":
+            heading = (math.cos(carrier_heading), math.sin(carrier_heading))
+            goal = frame.point(
+                home[0] + ahead * heading[0], home[1] + ahead * heading[1]
+            )
+            orders.append(OpeningOrder(0, 0, (0,), WAYPOINT_COMMAND, point=goal))
+        if threat:
+            team1 = (CARRIER_HULL, *attacker_hulls)
+            layout.extend(attacker_starts)
+            orders.append(
+                OpeningOrder(
+                    1, 0, tuple(range(3, 3 + n_attackers)), DRILL_ATTACK, target=1
+                )
+            )
+        cap = self.speed_caps[hull]
+        seconds = DOCK_CLOCK_MULT * distance / cap + DOCK_CLOCK_SLACK_S
+        start_hull = [1.0] * len(layout)
+        start_hull[1] = hull_frac
+        return DrillSpec(
+            kind=DRILL_DOCK,
+            seed=seed,
+            teams=((base if base != "carrier" else CARRIER_HULL, hull), team1),
+            layout=tuple(layout),
+            pilots=(1,),
+            clock_ticks=ORDER_TICK + int(math.ceil(seconds * TICK_HZ)),
+            arena_radius=self.arena_radius,
+            enemy_orders=tuple(orders),
+            distances=(distance,),
+            mission=CARRIER_BATTLE if base == "carrier" else STATION_ASSAULT,
+            start_hull=tuple(start_hull),
+            threat=threat,
+            base=base,
+            home_slot=0,
+            start_hull_frac=hull_frac,
+        )
+
+    def dock_many(
+        self, n: int, base_seed: int, threat: bool | None = None
+    ) -> tuple[DrillSpec, ...]:
+        """``n`` dock drills from consecutive seeds (bases drawn)."""
+        return tuple(self.dock(base_seed + i, threat=threat) for i in range(n))
+
+    def _dock_pilot_place(
+        self,
+        rng: np.random.Generator,
+        home: tuple[float, float],
+        enemy: tuple[float, float],
+    ) -> tuple[tuple[float, float], float]:
+        """The pilot's start: ``DOCK_DISTANCE`` from the base at a drawn bearing,
+        inside the start limit and clear of the enemy carrier's guns; with the
+        distance."""
+        limit = START_LIMIT * self.scale
+        clearance = DOCK_ENEMY_CLEARANCE * self.scale
+        for _ in range(ROUTE_PLACEMENT_TRIES):
+            distance = float(rng.uniform(*DOCK_DISTANCE)) * self.scale
+            bearing = float(rng.uniform(-math.pi, math.pi))
+            x = home[0] + distance * math.cos(bearing)
+            y = home[1] + distance * math.sin(bearing)
+            if math.hypot(x, y) <= limit and (
+                math.hypot(x - enemy[0], y - enemy[1]) >= clearance
+            ):
+                return (x, y), distance
+        raise RuntimeError(f"no room for a docking pilot around a base at {home}")
+
+    def _dock_attackers(
+        self,
+        rng: np.random.Generator,
+        home: tuple[float, float],
+        pilot: tuple[float, float],
+        n: int,
+    ) -> list[tuple[float, float]]:
+        """``n`` places behind the pilot (away from its base), inside the start limit,
+        outside the base's guns (or, for a pilot already near them, no nearer the base
+        than the pilot), apart from each other. Drawn for every drill, calm or not, so
+        the rest of a seed does not depend on it."""
+        limit = START_LIMIT * self.scale
+        pilot_out = math.hypot(pilot[0] - home[0], pilot[1] - home[1])
+        home_clear = min(
+            DOCK_ATTACKER_HOME_CLEARANCE * self.scale,
+            pilot_out + DOCK_ATTACKER_MARGIN * self.scale,
+        )
+        base_clear = DOCK_ATTACKER_BASE_CLEARANCE * self.scale
+        spacing = DOCK_SHIP_SPACING * self.scale
+        away = _bearing(home[0], home[1], pilot[0], pilot[1])
+        places: list[tuple[float, float]] = []
+        widen_over = ROUTE_PLACEMENT_TRIES // 4
+        for _ in range(n):
+            for k in range(ROUTE_PLACEMENT_TRIES):
+                r = float(rng.uniform(*DOCK_ATTACKER_RANGE)) * self.scale
+                # A pilot near the arena's edge has no room behind it: the cone
+                # widens with the tries, to the whole circle round the pilot.
+                spread = DOCK_ATTACKER_SPREAD + (math.pi - DOCK_ATTACKER_SPREAD) * min(
+                    1.0, k / widen_over
+                )
+                theta = away + float(rng.uniform(-spread, spread))
+                x, y = pilot[0] + r * math.cos(theta), pilot[1] + r * math.sin(theta)
+                fits = math.hypot(x, y) <= limit
+                # A pilot pinned between its base and the edge leaves no room outside
+                # the base's guns: after half the tries any place clear of the base
+                # will do.
+                clear = home_clear if k < ROUTE_PLACEMENT_TRIES // 2 else base_clear
+                fits = fits and math.hypot(x - home[0], y - home[1]) >= clear
+                fits = fits and all(
+                    math.hypot(x - px, y - py) >= spacing for px, py in places
+                )
+                if fits:
+                    places.append((x, y))
+                    break
+            else:
+                raise RuntimeError(f"no room for a dock drill's attackers near {pilot}")
+        return places
 
     def _pilots(
         self, rng: np.random.Generator, frame: _Frame, center_y: float
@@ -834,6 +1124,11 @@ class DrillGenerator:
 
 # Columns of the env's hits buffer (SIM_SPEC §10.1).
 _HIT_SHOOTER, _HIT_TARGET, _HIT_DAMAGE = 0, 1, 3
+# The pilot obs's own hull fraction (``obs::self_f::HP``).
+SELF_HULL_COL = int(rlf_sim.OBS_LAYOUT["self"][0]) + 6
+# The docking rule's numbers (``sim::dock``).
+DOCK_CAPTURE_M = float(rlf_sim.DOCK["capture_radius"])
+DOCK_MAX_REL_SPEED = float(rlf_sim.DOCK["max_rel_speed"])
 # Per-slot marks of ``DrillLedger.side_of``.
 _NOT_A_GROUP, _NAMED_GROUP, _OTHER_GROUP = -1, 0, 1
 # ``DrillLedger.deadline`` of a slot whose arrival counts whenever it comes.
@@ -856,6 +1151,16 @@ class DrillOutcome:
         target_damage: Attack: the pilots' damage on the named target.
         damage_from_target: Attack: the named target's damage on the pilots.
         chose_neither: Attack and defend: the pilots landed nothing on either group.
+        threat: Dock: a threat drill (enemies ordered onto the pilot).
+        base: Dock: ``"carrier"``, ``"station"`` or ``"citadel"``.
+        docked_ticks: Dock: ticks from the order landing to the dock; -1 not docked.
+        fly_throughs: Dock: times the pilot left its bay's capture circle without
+            docking (it was in it, always too fast).
+        dock_hull: Dock: the pilot's hull fraction on its last step before docking;
+            -1 not docked.
+        damage_dealt: Dock: the pilot's damage on enemies.
+        closest_m: Dock: the closest the pilot came to its bay's dock point, metres;
+            infinite if it was never seen under the order.
     """
 
     kind: str
@@ -868,6 +1173,18 @@ class DrillOutcome:
     target_damage: float = 0.0
     damage_from_target: float = 0.0
     chose_neither: bool = False
+    threat: bool = False
+    base: str = ""
+    docked_ticks: int = -1
+    fly_throughs: int = 0
+    dock_hull: float = -1.0
+    damage_dealt: float = 0.0
+    closest_m: float = math.inf
+
+    @property
+    def docked(self) -> bool:
+        """Dock: the pilot docked."""
+        return self.docked_ticks >= 0
 
 
 class DrillLedger:
@@ -906,6 +1223,16 @@ class DrillLedger:
         # itself carries a deadline (the sim then marks only arrivals in time).
         self.deadline = np.full((n_envs, n_ships), _ANY_TICK, dtype=np.int64)
         self.timed = np.zeros(n_envs, dtype=np.bool_)
+        # Dock drills (``see_dock``, ``see_docks``): running; per pilot the tick it
+        # docked (-1 not yet), whether it was inside its bay's capture circle at the
+        # last look, how often it left it undocked, and its hull fraction then.
+        self.dock = np.zeros(n_envs, dtype=np.bool_)
+        self.docked_tick = np.full((n_envs, n_ships), -1, dtype=np.int64)
+        self.inside_bay = np.zeros((n_envs, n_ships), dtype=np.bool_)
+        self.fly_throughs = np.zeros((n_envs, n_ships), dtype=np.int64)
+        self.hull_seen = np.zeros((n_envs, n_ships), dtype=np.float64)
+        self.dock_hull = np.full((n_envs, n_ships), -1.0, dtype=np.float64)
+        self.closest = np.full((n_envs, n_ships), np.inf, dtype=np.float64)
 
     def begin(self, env: int, tag: DrillTag | None) -> None:
         """Env ``env``'s new match has this drill; ``None``: it is not a drill."""
@@ -924,6 +1251,13 @@ class DrillLedger:
         self.missed[env] = False
         self.deadline[env] = _ANY_TICK
         self.timed[env] = False
+        self.dock[env] = tag is not None and tag.kind == DRILL_DOCK
+        self.docked_tick[env] = -1
+        self.inside_bay[env] = False
+        self.fly_throughs[env] = 0
+        self.hull_seen[env] = 0.0
+        self.dock_hull[env] = -1.0
+        self.closest[env] = np.inf
         if tag is None:
             return
         self.pilot[env, list(tag.pilots)] = True
@@ -1017,7 +1351,8 @@ class DrillLedger:
             hit_count: ``StepInfo.hit_count``.
             collision_damage: ``StepInfo.collision_damage``, ``[N, S]``.
         """
-        rows = self.running[:, None] & self.pilot & prev_alive
+        # A pilot that docked on the step left the field alive (``see_docks``).
+        rows = self.running[:, None] & self.pilot & prev_alive & (self.docked_tick < 0)
         self.lost |= rows & ~dones[:, None] & ~alive
         for env in np.flatnonzero(dones & eliminated & self.running):
             left = rows[env]
@@ -1033,6 +1368,56 @@ class DrillLedger:
     def any_goto_running(self) -> bool:
         """Whether a go-to drill is being played."""
         return bool(self.goto.any())
+
+    def any_dock_running(self) -> bool:
+        """Whether a dock drill is being played."""
+        return bool(self.dock.any())
+
+    def see_dock(
+        self,
+        dist: NDArray[np.floating],
+        rel_speed: NDArray[np.floating],
+        obs: NDArray[np.float32],
+    ) -> None:
+        """Note, before a step, where each dock drill's pilot is against its bay: a
+        pilot that was inside the capture circle at the last look and is outside now,
+        undocked, flew through it; and its hull now (``SELF_HULL_COL``), which is its
+        hull at the dock if the step docks it.
+
+        Args:
+            dist: ``dock_state()["dist"]`` ``[N, S]``: distance to the dock point, -1
+                without a dock order.
+            rel_speed: ``dock_state()["rel_speed"]`` ``[N, S]`` (unused for the
+                count: inside the circle and slow enough is a dock, so a pilot that
+                leaves it was too fast all the while; kept for callers that read it).
+            obs: The obs ``[N, S, OBS_DIM]`` the next actions are chosen from.
+        """
+        del rel_speed
+        rows = self.dock[:, None] & self.pilot & (np.asarray(dist) >= 0.0)
+        inside = rows & (np.asarray(dist) <= DOCK_CAPTURE_M)
+        left = rows & self.inside_bay & ~inside & (self.docked_tick < 0)
+        self.fly_throughs += left
+        self.inside_bay = np.where(rows, inside, self.inside_bay)
+        hull = np.asarray(obs[..., SELF_HULL_COL], dtype=np.float64)
+        self.hull_seen = np.where(rows, hull, self.hull_seen)
+        self.closest = np.where(
+            rows, np.minimum(self.closest, np.asarray(dist)), self.closest
+        )
+
+    def see_docks(self, docked: NDArray[np.bool_], tick: NDArray[np.integer]) -> None:
+        """Note the dock drill pilots that docked on the step just taken (``StepInfo
+        .docked``; call before ``see_deaths`` and ``finish``: a dock ends its drill).
+
+        Args:
+            docked: ``[N, S]`` the ship docked on the step.
+            tick: ``[N]`` each env's match tick before the step (``prev_tick``).
+        """
+        rows = self.dock[:, None] & self.pilot & np.asarray(docked, dtype=np.bool_)
+        if not rows.any():
+            return
+        when = np.asarray(tick, dtype=np.int64)[:, None] + 1 - ORDER_TICK
+        self.docked_tick = np.where(rows, when, self.docked_tick)
+        self.dock_hull = np.where(rows, self.hull_seen, self.dock_hull)
 
     def finish(self, env: int) -> DrillOutcome:
         """The drill in ``env`` is over: its outcome for the logs.
@@ -1054,9 +1439,27 @@ class DrillLedger:
             raise ValueError(f"env {env} is not running a drill")
         self.running[env] = False
         self.goto[env] = False
+        self.dock[env] = False
         self.tags[env] = None
         pilots = len(tag.pilots)
         lost = int(self.lost[env].sum())
+        if tag.kind == DRILL_DOCK:
+            slot = tag.pilots[0]
+            docked_ticks = int(self.docked_tick[env, slot])
+            return DrillOutcome(
+                tag.kind,
+                int(docked_ticks >= 0),
+                1,
+                pilots=pilots,
+                pilots_lost=lost,
+                threat=tag.threat,
+                base=tag.base,
+                docked_ticks=docked_ticks,
+                fly_throughs=int(self.fly_throughs[env, slot]),
+                closest_m=float(self.closest[env, slot]),
+                dock_hull=float(self.dock_hull[env, slot]),
+                damage_dealt=float(self.total_damage[env]),
+            )
         if tag.kind == DRILL_GOTO:
             return DrillOutcome(
                 tag.kind,

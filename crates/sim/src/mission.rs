@@ -785,16 +785,38 @@ impl Match {
     /// (called by `Match::new` with every ship built, not present, at the origin).
     pub(crate) fn setup_mission(&mut self, cat: &Catalogue) {
         if let Some(layout) = self.cfg.start_layout.clone() {
-            // Validated: a deathmatch, one start per slot. No jump-in, so no rng draw.
-            for (ship, start) in self.ships.iter_mut().zip(&layout) {
+            // Validated: a deathmatch, a carrier battle or a station assault, one start
+            // per slot. No jump-in, so no rng draw.
+            let hull = self.cfg.start_hull.clone();
+            for (s, (ship, start)) in self.ships.iter_mut().zip(&layout).enumerate() {
                 ship.pos = start.pos;
                 ship.vel = start.vel;
                 ship.heading = start.heading;
                 ship.present = true;
+                if let Some(frac) = &hull {
+                    ship.hp = frac[s] * cat.hull(ship.hull).hp;
+                }
                 if self.cfg.drill {
                     // Nobody acts before the orders land, so the first action any ship
                     // chooses comes from an obs that shows them (`act_mask`).
                     ship.control_lock_until = COMMAND_TICKS + 1 + u32::from(ship.reaction_ticks);
+                }
+            }
+            // v11 (the dock drills): a carrier battle or a station assault laid out by
+            // hand has every ship on the field and nobody in a hangar; each team's
+            // carrier-role ship (validated: exactly one) is its carrier, the station
+            // team 0's. No waypoint is set: a commander gives one.
+            if matches!(
+                self.cfg.mission,
+                Mission::CarrierBattle(_) | Mission::StationAssault(_)
+            ) {
+                for team in 0..2u8 {
+                    let carrier = (0..self.ships.len())
+                        .find(|&i| {
+                            self.ships[i].team == team && is_carrier(cat.hull(self.ships[i].hull))
+                        })
+                        .expect("validated: one carrier per team");
+                    self.mission.carrier[usize::from(team)] = carrier as ShipIdx;
                 }
             }
             return;
@@ -1155,13 +1177,18 @@ impl Match {
     }
 
     /// Stage 13 under drill rules (`MatchConfig.drill`): always a draw, since a drill has
-    /// no result to pay. It ends on the clock, when team 0 has no strike craft left, or
-    /// when team 1 is gone and nobody on team 0 still has a go-to to finish, so killing
-    /// the enemies on the way does not cut a go-to short.
+    /// no result to pay. It ends on the clock, when team 0 has no strike craft left on
+    /// the field (v11: a craft that docked has left it), or when team 1 is gone and
+    /// nobody on team 0 still has a go-to (or a dock order) to finish, so killing the
+    /// enemies on the way does not cut a go-to short. A dock drill thus ends on the step
+    /// its pilot docks, as `Eliminated`; no deathmatch drill has a hangar.
     fn drill_outcome(&self, cat: &Catalogue) -> Option<(i8, EndReason)> {
         let strike = |s: usize| {
             let ship = &self.ships[s];
-            ship.team == 0 && self.in_match(s) && !is_capital_ship(cat.hull(ship.hull))
+            ship.team == 0
+                && self.in_match(s)
+                && ship.attach != Attach::Docked
+                && !is_capital_ship(cat.hull(ship.hull))
         };
         let pilots: Vec<usize> = (0..self.ships.len()).filter(|&s| strike(s)).collect();
         if pilots.is_empty() {

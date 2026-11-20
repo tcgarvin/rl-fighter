@@ -127,3 +127,56 @@ def test_a_587_wide_pilot_reads_a_dock_order_as_a_go_to_on_its_prefix() -> None:
             assert np.abs(rows[:, DOCK_OFF + 3 : DOCK_OFF + 5]).max() <= 1.0 + 1e-5
             return
     raise AssertionError("no ship docked in 3000 steps")
+
+
+def test_a_widened_pilot_trains_on_dock_drills_and_logs_them(
+    tmp_path: Path, v10_pilot: Path
+) -> None:
+    """The dock run's shape (lab/runs/2026-11-20-dock-pilot): a 587 pilot widened to
+    592, dock drills in the mix, the dock bonus set, carrier battles under the scripted
+    commander; the logs carry the dock drills and the matches' recalls."""
+    cfg = PPOConfig.preset(
+        str(v10_pilot),
+        seed=9,
+        assets_dir=str(ASSETS),
+        n_envs=8,
+        n_steps=900,
+        t_tail=8,
+        n_updates=2,
+        minibatch=1024,
+        epochs=1,
+        sim_threads=THREADS,
+        torch_threads=THREADS,
+        rosters="pilots_v1",
+        roster_overrides={
+            "drill_share": 0.7,
+            "drill_dock_share": 1.0,
+            "commander_p": 1.0,
+            "mission_weights": [0.0, 1.0, 0.0, 0.0],
+        },
+        critic="fleet",
+        learner_side="random",
+        critic_warmup_updates=0,
+        beta_start=0.0,
+        checkpoint_every=100,
+        obs_dim=V11_OBS_DIM,
+        new_input_lr_mult=3.0,
+        order_reward_weight=1.0,
+        dock_bonus=1.0,
+        commander_stable=["scripted"],
+    )
+    trainer = SpikeTrainer(cfg, tmp_path / "run")
+    assert trainer.env.dock_bonus == pytest.approx(1.0)
+    row = trainer.run_update()
+    episodes = row["drill_episodes"]
+    assert isinstance(episodes, dict) and episodes.get("dock", 0) > 0
+    assert set(episodes) == {"dock"}, "every drill is a dock drill"
+    dock = row["drill_dock"]
+    assert isinstance(dock, dict) and dock
+    for part in dock.values():
+        assert part["docked"] + part["shot_down"] + part["timed_out"] == pytest.approx(
+            1
+        )
+    assert "mission_docks" in row and "mission_docks_hidden" in row
+    assert 0.0 < float(row["drill_rows_share"]) < 1.0  # type: ignore[arg-type]
+    assert trainer.match_recalls.shape == (8,)

@@ -61,7 +61,10 @@ also draws drills from ``spacefight.env.drills``. A drill is a ``Roster`` like a
 with a start layout, the orders it opens with, its own clock and drill rules; ``drill``
 tells the trainer and the logs what it is. With ``drill_attack_pool_share`` (training only,
 default 0) that share of the attack drills are kite drills, whose enemies the trainer has
-learned pilots fly (``DrillTag.kite``).
+learned pilots fly (``DrillTag.kite``). With ``drill_dock_share`` (SIM_VERSION 11, default
+0) that share of the drills are dock drills: a damaged strike craft ordered home to its
+carrier or station (``DRILL_DOCK``; a carrier battle or a station assault laid out by
+hand, with ``Roster.start_hull``).
 """
 
 from __future__ import annotations
@@ -105,6 +108,9 @@ MISSIONS: tuple[str, ...] = (DEATHMATCH, CARRIER_BATTLE, CONVOY_ESCORT, STATION_
 # both sides, or a convoy escort with team 0 (the station) the defender.
 STATION_READS_AS: tuple[str, ...] = tuple(rlf_sim.STATION_READS_AS)
 STATION_AS_CARRIER, STATION_AS_CONVOY = "carrier", "convoy"
+# Missions that take a ``Roster.start_layout`` (SIM_VERSION 11: a carrier battle and a
+# station assault too, for the dock drills).
+LAYOUT_MISSIONS: tuple[str, ...] = (DEATHMATCH, CARRIER_BATTLE, STATION_ASSAULT)
 
 
 def mission_weights_of(weights: Sequence[float]) -> tuple[float, ...]:
@@ -129,6 +135,9 @@ NO_DEADLINE: int = int(rlf_sim.NO_DEADLINE)
 # The largest tick the sim's clock (and so a deadline) can hold.
 _MAX_TICK = 2**32 - 1
 DRILL_KINDS: tuple[str, ...] = (DRILL_GOTO, DRILL_ATTACK, DRILL_DEFEND)
+# SIM_VERSION 11: the dock drill, apart from ``DRILL_KINDS`` (whose weights a config
+# lists): ``drill_dock_share`` of the drills (``spacefight.env.drills``).
+DRILL_DOCK = "dock"
 SCRIPTED = "scripted"
 RANDOM = "random"
 EXTERNAL = "external"
@@ -178,20 +187,28 @@ class ShipStart:
         return [self.x, self.y, self.vx, self.vy, self.heading]
 
 
+# ``OpeningOrder.kind`` of a ship's dock order and a capital ship's waypoint (SIM_VERSION
+# 11, the dock drills).
+DOCK_COMMAND, WAYPOINT_COMMAND = "dock", "waypoint"
+
+
 @dataclass(frozen=True)
 class OpeningOrder:
-    """A squad order an ``external`` team opens a match with (SIM_SPEC §10.3).
+    """A command an ``external`` team opens a match with (SIM_SPEC §10.3): a squad
+    order, or (SIM_VERSION 11, the dock drills) a ship's dock order or a capital ship's
+    waypoint.
 
     ``RustVecEnv`` queues it when the match is built and the sim applies it on the
     match's first slow tick.
 
     Attributes:
         team: The team.
-        squad: Squad index.
-        members: The squad's slots.
-        kind: ``"attack"``, ``"defend"`` or ``"goto"``.
-        target: The attack target's or the defend ward's slot; -1 for a go-to.
-        point: The go-to point, metres.
+        squad: Squad index (unused by ``dock`` and ``waypoint``).
+        members: The squad's slots; for ``dock`` and ``waypoint`` the one ship.
+        kind: ``"attack"``, ``"defend"``, ``"goto"``, ``"dock"`` (to the nearest live
+            bay of the team's carrier) or ``"waypoint"`` (at ``point``).
+        target: The attack target's or the defend ward's slot; -1 otherwise.
+        point: The go-to point or the waypoint, metres.
         radius: The go-to radius, metres.
         deadline_tick: A go-to's deadline (SIM_VERSION 8): the match tick to be inside
             the radius by, ``NO_DEADLINE`` for none. An absolute tick, not a duration:
@@ -199,7 +216,8 @@ class OpeningOrder:
 
     Raises:
         ValueError: ``deadline_tick`` is not an int in ``0..2**32``, or is set on an
-            order that is not a go-to.
+            order that is not a go-to; a ``dock`` or ``waypoint`` for other than one
+            ship.
     """
 
     team: int
@@ -222,6 +240,10 @@ class OpeningOrder:
                 f"only a go-to takes a deadline; a {self.kind!r} order got "
                 f"deadline_tick {tick}"
             )
+        if self.kind in (DOCK_COMMAND, WAYPOINT_COMMAND) and len(self.members) != 1:
+            raise ValueError(
+                f"a {self.kind!r} command is for one ship, got {self.members}"
+            )
 
     def command(self) -> dict[str, object]:
         """The sim's command dict.
@@ -229,6 +251,14 @@ class OpeningOrder:
         Raises:
             ValueError: An unknown order kind.
         """
+        if self.kind == DOCK_COMMAND:
+            return {"kind": "dock", "ship": self.members[0], "bay": None}
+        if self.kind == WAYPOINT_COMMAND:
+            return {
+                "kind": "waypoint",
+                "ship": self.members[0],
+                "pos": list(self.point),
+            }
         order: dict[str, object]
         if self.kind == "attack":
             order = {"kind": "attack", "target": self.target}
@@ -266,6 +296,8 @@ class DrillTag:
         timed: Go-to: the order itself carries a deadline (SIM_VERSION 8).
         kite: Attack: a kite drill (``spacefight.env.drills``): the trainer has pilots
             from its opponent pool fly the enemy team, whose orders are hidden.
+        threat: Dock: enemies are ordered onto the pilot (else it flies home alone).
+        base: Dock: what it docks with, ``"carrier"``, ``"station"`` or ``"citadel"``.
 
     Raises:
         ValueError: ``deadlines`` is neither empty nor one per pilot.
@@ -279,6 +311,8 @@ class DrillTag:
     deadlines: tuple[int, ...] = ()
     timed: bool = False
     kite: bool = False
+    threat: bool = False
+    base: str = ""
 
     def __post_init__(self) -> None:
         if self.deadlines and len(self.deadlines) != len(self.pilots):
@@ -299,7 +333,10 @@ class Roster:
             6, ``MatchConfig.hide_orders``). ``RustVecEnv`` applies it when the roster
             is queued.
         start_layout: Where every slot starts; empty: the mission places the ships. A
-            deathmatch only.
+            deathmatch, or (SIM_VERSION 11, the dock drills) a carrier battle or a
+            station assault, every ship on the field and nobody in a hangar.
+        start_hull: SIM_VERSION 11: each slot's hull at the start as a fraction of its
+            maximum, in (0, 1]; empty: full. Needs a ``start_layout``.
         opening_orders: Orders ``RustVecEnv`` queues whenever this roster's match is
             built, for teams with ``external`` commanders.
         time_limit_s: The match's clock; 0: the env's or the mission's default.
@@ -316,8 +353,8 @@ class Roster:
     Raises:
         ValueError: An empty team, more than ``MAX_SHIPS`` ships, an unknown mission
             or commander mode, ``hide_orders`` not two bools, a layout that does not
-            have one entry per ship or is not on a deathmatch, or a drill without a
-            layout.
+            have one entry per ship or is on a convoy, a drill without a layout, or a
+            ``start_hull`` without a layout, of the wrong length or out of (0, 1].
     """
 
     teams: tuple[tuple[str, ...], tuple[str, ...]]
@@ -325,6 +362,7 @@ class Roster:
     commanders: tuple[str, str] = (SCRIPTED, SCRIPTED)
     hide_orders: tuple[bool, bool] = (False, False)
     start_layout: tuple[ShipStart, ...] = ()
+    start_hull: tuple[float, ...] = ()
     opening_orders: tuple[OpeningOrder, ...] = ()
     time_limit_s: float = 0.0
     drill: DrillTag | None = None
@@ -364,10 +402,18 @@ class Roster:
                     f"start_layout has {len(self.start_layout)} entries for "
                     f"{self.n_ships} ships"
                 )
-            if self.mission != DEATHMATCH:
+            if self.mission not in LAYOUT_MISSIONS:
                 raise ValueError(f"{self.mission} places its own ships")
         elif self.drill is not None:
             raise ValueError("a drill needs a start_layout")
+        if self.start_hull:
+            if len(self.start_hull) != len(self.start_layout):
+                raise ValueError(
+                    f"start_hull has {len(self.start_hull)} entries for "
+                    f"{len(self.start_layout)} laid-out ships (it needs a layout)"
+                )
+            if not all(0.0 < f <= 1.0 for f in self.start_hull):
+                raise ValueError(f"start_hull must be in (0, 1], got {self.start_hull}")
         if self.time_limit_s < 0:
             raise ValueError(f"time_limit_s must be >= 0, got {self.time_limit_s}")
 
@@ -827,6 +873,12 @@ class PilotsDistribution:
             slot becomes a bomber with this chance (one draw per pilot, after the
             drill's seed). Go-to drills are untouched: their deadlines come from the
             drawn hulls' speeds. 0 draws no extra number.
+        drill_dock_share: SIM_VERSION 11: the share of drills that are dock drills
+            (``spacefight.env.drills``, ``DRILL_DOCK``); the rest are drawn by
+            ``drill_weights``. 0 draws no extra number.
+        drill_dock_threat_share: Of the dock drills, the share with enemies ordered
+            onto the pilot (else it flies home alone). The drill generator draws it
+            from the drill's own seed, so it draws no number here.
 
     Raises:
         ValueError: Bad weights, shares or draft sizes, or a live roster or a drill
@@ -851,6 +903,8 @@ class PilotsDistribution:
     bomber_share: float = 0.0
     drill_bomber_share: float = 0.0
     citadel_share: float = 0.0
+    drill_dock_share: float = 0.0
+    drill_dock_threat_share: float = 0.5
 
     def __post_init__(self) -> None:
         if self.kind != PILOTS_KIND:
@@ -871,6 +925,8 @@ class PilotsDistribution:
             "bomber_share",
             "drill_bomber_share",
             "citadel_share",
+            "drill_dock_share",
+            "drill_dock_threat_share",
         ):
             if not 0.0 <= getattr(self, name) <= 1.0:
                 raise ValueError(f"{name} must be in [0, 1], got {getattr(self, name)}")
@@ -968,6 +1024,10 @@ class DrillSource(Protocol):
 
     def roster(self, kind: str, seed: int, kite: bool = False) -> Roster:
         """The ``kind`` drill of ``seed``; ``kite``: an attack's kite variant."""
+        ...
+
+    def dock_roster(self, seed: int) -> Roster:
+        """The dock drill of ``seed`` (SIM_VERSION 11)."""
         ...
 
 
@@ -1199,7 +1259,10 @@ class PilotsRosterSampler:
             # Imported here: spacefight.env.drills builds Rosters from this module.
             from spacefight.env.drills import DrillGenerator
 
-            self.drills = DrillGenerator(goto_solo_share=d.drill_goto_solo_share)
+            self.drills = DrillGenerator(
+                goto_solo_share=d.drill_goto_solo_share,
+                dock_threat_share=d.drill_dock_threat_share,
+            )
 
     @property
     def max_ships(self) -> int:
@@ -1238,12 +1301,14 @@ class PilotsRosterSampler:
         return [self.sample() for _ in range(n)]
 
     def _drill(self) -> Roster:
-        """A fresh drill: a kind by ``drill_weights``, then for an attack whether it
-        is a kite drill (only with ``drill_attack_pool_share``), the rest from a drawn
-        seed."""
+        """A fresh drill: a dock drill by ``drill_dock_share`` (only when it is set),
+        else a kind by ``drill_weights``, then for an attack whether it is a kite drill
+        (only with ``drill_attack_pool_share``), the rest from a drawn seed."""
         d, rng = self.distribution, self.rng
         if self.drills is None:
             raise RuntimeError("_drill called without drill_share")
+        if d.drill_dock_share > 0 and rng.random() < d.drill_dock_share:
+            return self.drills.dock_roster(int(rng.integers(2**62)))
         p = np.asarray(d.drill_weights, dtype=np.float64)
         kind = DRILL_KINDS[int(rng.choice(len(DRILL_KINDS), p=p / p.sum()))]
         kite = (

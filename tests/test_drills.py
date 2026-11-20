@@ -68,6 +68,7 @@ from spacefight.eval.drills import (  # noqa: E402
     CHOSE_NAMED,
     CHOSE_OTHER,
     DEFAULT_BARS,
+    DOCK_BAR_PATHS,
     ENEMY_NEAR_M,
     EXEMPT,
     FAIL,
@@ -512,10 +513,12 @@ def test_rosters_with_layouts_are_validated() -> None:
         Roster.of(["fighter"], ["fighter"]).__class__(
             (("fighter",), ("fighter",)), start_layout=(at,)
         )
+    # A carrier battle or station assault takes a layout (the dock drills); a convoy
+    # escort still places its own ships.
     with pytest.raises(ValueError, match="places its own"):
         Roster(
-            (("carrier",), ("carrier",)),
-            mission="carrier_battle",
+            (("freighter",), ("fighter",)),
+            mission="convoy_escort",
             start_layout=(at, at),
         )
     with pytest.raises(ValueError, match="needs a start_layout"):
@@ -1032,8 +1035,12 @@ def _summary(value: float) -> dict[str, object]:
 
 def test_the_shipped_bars_are_all_set_and_judge_a_strong_and_a_weak_pilot() -> None:
     bars = load_bars(DEFAULT_BARS)
-    assert set(bars) == set(BAR_PATHS)
-    assert all(v is not None and 0.0 < v < 1.0 for v in bars.values())
+    # The order bars are all set; the dock bars (a gate of their own) start unset.
+    assert set(bars) == set(BAR_PATHS) | set(DOCK_BAR_PATHS)
+    assert all(
+        bars[name] is not None and 0.0 < bars[name] < 1.0  # type: ignore[operator]
+        for name in BAR_PATHS
+    )
     assert apply_gate(_summary(0.99), bars, "strong").verdict == PASS
     assert apply_gate(_summary(0.2), bars, "weak").verdict == FAIL
 

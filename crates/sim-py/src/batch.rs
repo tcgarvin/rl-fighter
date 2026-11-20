@@ -51,6 +51,8 @@ pub struct Roster {
     /// Where every ship starts (`MatchConfig.start_layout`); `None`: the mission places
     /// them.
     pub start_layout: Option<Vec<ShipStart>>,
+    /// v11: each slot's start hull fraction (`MatchConfig.start_hull`); `None`: full.
+    pub start_hull: Option<Vec<f32>>,
     /// Drill rules (`MatchConfig.drill`).
     pub drill: bool,
 }
@@ -76,8 +78,10 @@ pub struct BatchConfig {
     /// batch's for the same reason.
     pub goto_timed_bonus: f32,
     pub goto_miss_penalty: f32,
-    /// v11: `MatchConfig.docking` of every match, the batch's for the same reason.
+    /// v11: `MatchConfig.docking` and `dock_bonus` of every match, the batch's for the
+    /// same reason.
     pub docking: bool,
+    pub dock_bonus: f32,
     /// The roster every env starts with.
     pub roster: Roster,
     /// Buffer slots per match (S); at least the roster's ship count.
@@ -183,6 +187,9 @@ pub struct StepBuffers<'a> {
     pub hit_count: &'a mut [i32],
     /// v3: hull damage each ship took from collisions in the step (SIM_SPEC §5.5).
     pub collision_damage: &'a mut [f32],
+    /// v11: the ship docked in the step (`Match.docked_now`; the finished match on a
+    /// done step, like `rewards`).
+    pub docked: &'a mut [bool],
     // Per-match buffers, rewritten only when a match is rebuilt.
     pub thruster_mask: &'a mut [bool],
     pub turret_mask: &'a mut [bool],
@@ -211,6 +218,7 @@ struct MatchRows<'a> {
     hits: &'a mut [i32],
     hit_count: &'a mut i32,
     collision_damage: &'a mut [f32],
+    docked: &'a mut [bool],
     thruster_mask: &'a mut [bool],
     turret_mask: &'a mut [bool],
     fixed_turret: &'a mut [bool],
@@ -254,7 +262,9 @@ fn match_config(cfg: &BatchConfig, roster: &Roster, index: usize, episode: u32) 
         order_shaping_gamma: cfg.order_shaping_gamma,
         goto_timed_bonus: cfg.goto_timed_bonus,
         goto_miss_penalty: cfg.goto_miss_penalty,
+        dock_bonus: cfg.dock_bonus,
         start_layout: roster.start_layout.clone(),
+        start_hull: roster.start_hull.clone(),
         drill: roster.drill,
         docking: cfg.docking,
     }
@@ -379,6 +389,7 @@ impl Batch {
                     r.hits.fill(0);
                     *r.hit_count = 0;
                     r.collision_damage.fill(0.0);
+                    r.docked.fill(false);
                     slot.events.clear();
                     write_post_step(cat, slot, &mut r, true);
                 });
@@ -565,6 +576,7 @@ fn split_rows<'a>(cfg: &BatchConfig, b: StepBuffers<'a>) -> Vec<MatchRows<'a>> {
     let mut hits = b.hits.chunks_mut(MAX_HITS * HIT_FIELDS);
     let mut hit_count = b.hit_count.iter_mut();
     let mut collision_damage = b.collision_damage.chunks_mut(s);
+    let mut docked = b.docked.chunks_mut(s);
     let mut thruster_mask = b.thruster_mask.chunks_mut(s * MAX_THRUSTERS);
     let mut turret_mask = b.turret_mask.chunks_mut(s * ACTION_TURRETS);
     let mut fixed_turret = b.fixed_turret.chunks_mut(s * ACTION_TURRETS);
@@ -591,6 +603,7 @@ fn split_rows<'a>(cfg: &BatchConfig, b: StepBuffers<'a>) -> Vec<MatchRows<'a>> {
             hits: hits.next().expect(SHORT),
             hit_count: hit_count.next().expect(SHORT),
             collision_damage: collision_damage.next().expect(SHORT),
+            docked: docked.next().expect(SHORT),
             thruster_mask: thruster_mask.next().expect(SHORT),
             turret_mask: turret_mask.next().expect(SHORT),
             fixed_turret: fixed_turret.next().expect(SHORT),
@@ -625,6 +638,9 @@ fn step_one(
     r.order_rewards[k..].fill(0.0);
     r.collision_damage[..k].copy_from_slice(&m.collision_damage[..k]);
     r.collision_damage[k..].fill(0.0);
+    for (s, d) in r.docked.iter_mut().enumerate() {
+        *d = s < k && m.docked_now & (1 << s) != 0;
+    }
     write_wards(m, r);
     write_hits(m, r);
     if cfg.record_events {
@@ -742,6 +758,7 @@ mod tests {
         hits: Vec<i32>,
         hit_count: Vec<i32>,
         collision_damage: Vec<f32>,
+        docked: Vec<bool>,
         thruster_mask: Vec<bool>,
         turret_mask: Vec<bool>,
         fixed_turret: Vec<bool>,
@@ -770,6 +787,7 @@ mod tests {
                 hits: vec![0; n * MAX_HITS * HIT_FIELDS],
                 hit_count: vec![0; n],
                 collision_damage: vec![0.0; n * s],
+                docked: vec![false; n * s],
                 thruster_mask: vec![false; n * s * MAX_THRUSTERS],
                 turret_mask: vec![false; n * s * ACTION_TURRETS],
                 fixed_turret: vec![false; n * s * ACTION_TURRETS],
@@ -798,6 +816,7 @@ mod tests {
                 hits: &mut self.hits,
                 hit_count: &mut self.hit_count,
                 collision_damage: &mut self.collision_damage,
+                docked: &mut self.docked,
                 thruster_mask: &mut self.thruster_mask,
                 turret_mask: &mut self.turret_mask,
                 fixed_turret: &mut self.fixed_turret,
@@ -818,6 +837,7 @@ mod tests {
             time_limit_ticks: 300,
             hide_orders: [false; 2],
             start_layout: None,
+            start_hull: None,
             drill: false,
         }
     }
@@ -835,6 +855,7 @@ mod tests {
                 goto_timed_bonus: sim::reward::ORDER_TIMED_ARRIVAL_BONUS,
                 goto_miss_penalty: sim::reward::ORDER_MISS_PENALTY,
                 docking: true,
+                dock_bonus: sim::reward::DOCK_BONUS,
                 roster,
                 n_ships,
                 n_threads,
@@ -911,6 +932,7 @@ mod tests {
                 goto_timed_bonus: sim::reward::ORDER_TIMED_ARRIVAL_BONUS,
                 goto_miss_penalty: sim::reward::ORDER_MISS_PENALTY,
                 docking: true,
+                dock_bonus: sim::reward::DOCK_BONUS,
                 roster,
                 n_ships: 2,
                 n_threads: 1,
@@ -980,6 +1002,7 @@ mod tests {
             time_limit_ticks: 300,
             hide_orders: [true, false],
             start_layout: None,
+            start_hull: None,
             drill: false,
         };
         b.set_next_roster(3, roster.clone()).unwrap();
@@ -1015,6 +1038,7 @@ mod tests {
             goto_timed_bonus: sim::reward::ORDER_TIMED_ARRIVAL_BONUS,
             goto_miss_penalty: sim::reward::ORDER_MISS_PENALTY,
             docking: true,
+            dock_bonus: sim::reward::DOCK_BONUS,
             roster: roster.clone(),
             n_ships: 2,
             n_threads: 1,

@@ -94,6 +94,19 @@ share of go-to drill ships that arrived in time (a ship killed on the way counts
 against it), ``drill_goto_missed`` the share of ships under a deadline that were alive
 when it passed without them, and ``drill_goto_timed_ships`` how many that is of.
 
+Dock drills (SIM_VERSION 11, ``pilots_v1``'s ``drill_dock_share``): a damaged strike craft
+ordered home to its carrier, station or citadel, alone or with script craft ordered onto
+it (``spacefight.env.drills``). ``dock_bonus`` is the order pay for docking, for every
+match of the env (the sim's default is a go-to's arrival bonus, 0.2); the dock order is
+otherwise paid as a go-to to the bay, by potential shaping that pays nothing for a pass
+that does not dock. ``drill_success["dock"]`` is the share docked, and ``drill_dock``
+splits it by ``calm`` and ``threat``: docked, shot down, out of time, docked of those not
+shot down, fly-throughs per drill, seconds to dock and hull at the dock. In matches,
+``mission_docks`` gives per class the learner side's recalls (a dock order from the
+scripted or random commander) and docks per match, and the completion, for matches
+whose orders the learner's side sees; ``mission_docks_hidden`` the same for matches
+with its orders hidden.
+
 Kite drills (``pilots_v1``'s ``drill_attack_pool_share``, a training variant of the attack
 drill): the enemy team of such an attack drill (``DrillTag.kite``) is flown by a pool
 entry, drawn as a snapshot match's enemy is (``OpponentAssigner.force_snapshot``), still
@@ -165,7 +178,9 @@ from spacefight.commander.policy import CommanderActor
 from spacefight.commander.stable import StableSampler, commander_label, resolve_stable
 from spacefight.env.drills import DrillLedger, DrillOutcome
 from spacefight.env.rosters import (
+    CARRIER_BATTLE,
     CONVOY_ESCORT,
+    DRILL_DOCK,
     DRILL_GOTO,
     STATION_ASSAULT,
     Roster,
@@ -177,6 +192,7 @@ from spacefight.env.rosters import (
 )
 from spacefight.env.rust_env import (
     ATTACK_COL,
+    DEFAULT_DOCK_BONUS,
     DEFAULT_GOTO_MISS_PENALTY,
     DEFAULT_GOTO_TIMED_BONUS,
     HAS_ORDER_COL,
@@ -250,10 +266,16 @@ ARENA_PENALTY = -0.002
 _PRESENT_COL = 0
 # ``env.end_reason`` of a match that ended with a team wiped out.
 _ELIMINATED = rlf_sim.END_REASONS.index("eliminated")
+# ``dock_state()["phase"]`` of a ship under a dock order (SIM_VERSION 11).
+_DOCK_INBOUND = list(rlf_sim.DOCK_PHASES).index("inbound")
 _ARENA_MARGIN_COL = OBS_LAYOUT["self"][0] + 19
 _MAIN_ENGINE_LEVEL_COL = OBS_LAYOUT["thrusters"][0] + 6
 _FIRE_COL = HEAD_GROUPS["fire"].start
 LEARNER_SIDES = ("team0", "random")
+# Missions whose matches have a carrier, so recalls and docks (SIM_VERSION 11).
+DOCK_MISSIONS = (CARRIER_BATTLE, STATION_ASSAULT)
+# Ticks a second (the sim's 30 Hz).
+TICK_HZ = 30
 # Rows the script pull applies to (module docstring, "Ordered rows", "Transit rows").
 BETA_ROWS = ("all", "ordered", "transit")
 
@@ -353,6 +375,9 @@ LOG_KEYS: tuple[str, ...] = (
     "drill_goto_timed_ships",
     "drill_goto_missed",
     "drill_sides",
+    "drill_dock",
+    "mission_docks",
+    "mission_docks_hidden",
     "commander_decisions",
     "commander_share",
     "episodes_by_commander",
@@ -481,6 +506,10 @@ class PPOConfig:
     # for missing it. Before order_reward_weight, like the rest of the order pay.
     goto_timed_bonus: float = DEFAULT_GOTO_TIMED_BONUS
     goto_miss_penalty: float = DEFAULT_GOTO_MISS_PENALTY
+    # SIM_VERSION 11: order pay on the step a ship under a dock order docks (dock
+    # drills, the scripted commander's recalls), before order_reward_weight. The
+    # default (the sim's, a go-to's arrival bonus) is left out of ``to_dict``.
+    dock_bonus: float = DEFAULT_DOCK_BONUS
     # Reward hiding (run 2026-11-01-fighters-v2): a shot chosen on a row with an order
     # pays nothing from the team reward; the order reward pays what the order wants
     # (damage to its target or threat set). Damage taken, fire cost, arena and the
@@ -651,12 +680,13 @@ class PPOConfig:
         """The pay of a go-to with a deadline.
 
         Raises:
-            ValueError: ``goto_timed_bonus`` or ``goto_miss_penalty`` is not a finite
-                number >= 0.
+            ValueError: ``goto_timed_bonus``, ``goto_miss_penalty`` or ``dock_bonus`` is
+                not a finite number >= 0.
         """
         pay = {
             "goto_timed_bonus": self.goto_timed_bonus,
             "goto_miss_penalty": self.goto_miss_penalty,
+            "dock_bonus": self.dock_bonus,
         }
         for name, value in pay.items():
             if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -724,12 +754,15 @@ class PPOConfig:
 
     def to_dict(self) -> dict[str, object]:
         """Plain-type dict (yaml / checkpoint meta); ``update_device`` only when it
-        is not "cpu", ``match_order_pay_scale`` only when it is not 1.0."""
+        is not "cpu", ``match_order_pay_scale`` only when it is not 1.0, ``dock_bonus``
+        only when it is not the sim's default (so older runs write what they did)."""
         data = dataclasses.asdict(self)
         if data["update_device"] == "cpu":
             del data["update_device"]
         if data["match_order_pay_scale"] == 1.0:
             del data["match_order_pay_scale"]
+        if data["dock_bonus"] == DEFAULT_DOCK_BONUS:
+            del data["dock_bonus"]
         return data
 
     @classmethod
@@ -1257,6 +1290,27 @@ class EpisodeTally:
         default_factory=lambda: {"ordered": [0, 0, 0], "hidden": [0, 0, 0]}
     )
     by_condition: dict[str, list[int]] = field(default_factory=dict)
+    # Dock drills by variant ("calm", "threat") -> [drills, docked, shot down, fly-throughs,
+    # seconds to dock (summed over the docked), hull at the dock (summed likewise)].
+    docks: dict[str, list[float]] = field(default_factory=dict)
+    # Matches with recalls possible, by class -> [matches, recalls, docks] of the learner's
+    # side; orders shown to it, and (one row) hidden from it.
+    mission_docks: dict[str, list[int]] = field(default_factory=dict)
+    mission_docks_hidden: list[int] = field(default_factory=lambda: [0, 0, 0])
+
+    def add_mission_docks(
+        self, size_class: str, recalls: int, docks: int, hidden: bool
+    ) -> None:
+        """Record one finished match's learner-side recalls and docks (a match of a
+        mission with a carrier)."""
+        row = (
+            self.mission_docks_hidden
+            if hidden
+            else self.mission_docks.setdefault(size_class, [0, 0, 0])
+        )
+        row[0] += 1
+        row[1] += recalls
+        row[2] += docks
 
     def add(
         self,
@@ -1300,6 +1354,18 @@ class EpisodeTally:
         self.goto_timed_ships += outcome.timed_ships
         self.goto_missed += outcome.missed
         if outcome.kind == DRILL_GOTO:
+            return
+        if outcome.kind == DRILL_DOCK:
+            dock = self.docks.setdefault(
+                "threat" if outcome.threat else "calm", [0.0] * 6
+            )
+            dock[0] += 1
+            dock[1] += float(outcome.docked)
+            dock[2] += float(outcome.pilots_lost > 0 and not outcome.docked)
+            dock[3] += outcome.fly_throughs
+            if outcome.docked:
+                dock[4] += outcome.docked_ticks / TICK_HZ
+                dock[5] += outcome.dock_hull
             return
         row = self.sides.setdefault(outcome.kind, [0.0] * 7)
         for k, value in enumerate(
@@ -1347,6 +1413,35 @@ class EpisodeTally:
                 self.sides.items()
             )
         }
+        out["drill_dock"] = {
+            variant: {
+                "episodes": int(n),
+                "docked": docked / n,
+                "shot_down": lost / n,
+                "timed_out": (n - docked - lost) / n,
+                "docked_of_survivors": docked / (n - lost) if n > lost else None,
+                "fly_throughs": flown / n,
+                "seconds_to_dock": seconds / docked if docked else None,
+                "hull_at_dock": hull / docked if docked else None,
+            }
+            for variant, (n, docked, lost, flown, seconds, hull) in sorted(
+                self.docks.items()
+            )
+        }
+
+        def dock_row(row: list[int]) -> dict[str, object]:
+            matches, recalls, docks = row
+            return {
+                "episodes": matches,
+                "recalls_per_match": recalls / matches if matches else None,
+                "docks_per_match": docks / matches if matches else None,
+                "completion": docks / recalls if recalls else None,
+            }
+
+        out["mission_docks"] = {
+            klass: dock_row(row) for klass, row in sorted(self.mission_docks.items())
+        }
+        out["mission_docks_hidden"] = dock_row(self.mission_docks_hidden)
         out["drill_goto_timed_ships"] = self.goto_timed_ships
         out["drill_goto_missed"] = (
             self.goto_missed / self.goto_timed_ships if self.goto_timed_ships else None
@@ -1525,8 +1620,14 @@ class SpikeTrainer:
             order_shaping_gamma=config.gamma,
             goto_timed_bonus=config.goto_timed_bonus,
             goto_miss_penalty=config.goto_miss_penalty,
+            dock_bonus=config.dock_bonus,
         )
         self.n_envs, self.n_ships = self.env.n_envs, self.env.n_ships
+        # SIM_VERSION 11: each env's learner-side recalls and docks in its current
+        # match, and which slots were under a dock order at the last look (``_see_dock``).
+        self.match_recalls = np.zeros(self.n_envs, dtype=np.int64)
+        self.match_docks = np.zeros(self.n_envs, dtype=np.int64)
+        self.inbound = np.zeros((self.n_envs, self.n_ships), dtype=np.bool_)
         self.rows = self.n_envs * self.n_ships
         # Each env's team 0 and team 1 commander, as an index into the stable.
         self.side_commander = np.full((self.n_envs, 2), NOT_IN_STABLE, dtype=np.int64)
@@ -2070,6 +2171,8 @@ class SpikeTrainer:
             env.actions[...] = actions.reshape(n_envs, n_ships, ACTION_WIDTH)
             tally.commander_decisions += self._decide_commanders()
             rosters = list(env.rosters)
+            own_slots = own.reshape(n_envs, n_ships)
+            self._see_dock(own_slots)
             _, rewards, dones, info = env.step()
             self.credit.record_step(
                 b,
@@ -2084,8 +2187,10 @@ class SpikeTrainer:
             )
             self._record_step(b, rewards, dones, info)
             self._forget_present(dones)
+            self._count_docks(own_slots, info.docked)
             if self.drills_on:
                 self.drill_ledger.add_hits(info.hits, info.hit_count)
+                self.drill_ledger.see_docks(info.docked, info.prev_tick)
                 self.drill_ledger.see_deaths(
                     info.prev_alive,
                     np.asarray(info.alive, dtype=np.bool_),
@@ -2104,6 +2209,13 @@ class SpikeTrainer:
                         tally.add_drill(self.drill_ledger.finish(int(env_id)))
                         continue
                     learner_team = int(self.learner_team[env_id])
+                    if roster.mission in DOCK_MISSIONS:
+                        tally.add_mission_docks(
+                            episode_class(roster, learner_team),
+                            int(self.match_recalls[env_id]),
+                            int(self.match_docks[env_id]),
+                            roster.hide_orders[learner_team],
+                        )
                     tally.add(
                         int(kinds[env_id]),
                         int(info.winner[env_id]),
@@ -2115,6 +2227,9 @@ class SpikeTrainer:
                         roster.hide_orders,
                     )
                 self._note_commanders(done_envs)
+                self.match_recalls[done_envs] = 0
+                self.match_docks[done_envs] = 0
+                self.inbound[done_envs] = False
                 self.opponents.record_results(done_envs, info.winner, self.learner_team)
                 if self.drills_on:
                     self._start_new_matches_with_drills(done_envs, update)
@@ -2124,6 +2239,31 @@ class SpikeTrainer:
         store.filled = store.length
         self._collected = collect
         return tally, len(collect)
+
+    def _see_dock(self, own: NDArray[np.bool_]) -> None:
+        """Before a step (SIM_VERSION 11): count the learner side's new recalls in
+        matches (a slot newly under a dock order; drills are not counted) and show the
+        drill ledger where its dock drills' pilots are. One ``dock_state`` call, and only
+        while the dock rules run.
+
+        Args:
+            own: ``[N, S]`` the learner side's strike craft in each env.
+        """
+        if not self.env.docking:
+            return
+        state = self.env.dock_state()
+        inbound = np.asarray(state["phase"]) == _DOCK_INBOUND
+        fresh = inbound & ~self.inbound & own & ~self.drill_ledger.running[:, None]
+        self.match_recalls += fresh.sum(axis=1)
+        self.inbound = inbound
+        if self.drills_on and self.drill_ledger.any_dock_running():
+            self.drill_ledger.see_dock(state["dist"], state["rel_speed"], self.env.obs)
+
+    def _count_docks(self, own: NDArray[np.bool_], docked: NDArray[np.bool_]) -> None:
+        """After a step: the learner side's docks in matches (not drills)."""
+        rows = np.asarray(docked, dtype=np.bool_) & own
+        rows &= ~self.drill_ledger.running[:, None]
+        self.match_docks += rows.sum(axis=1)
 
     def _record_step(
         self,

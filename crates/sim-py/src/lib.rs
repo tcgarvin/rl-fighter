@@ -118,6 +118,8 @@ fn rlf_sim(m: &Bound<'_, PyModule>) -> PyResult<()> {
     dock.set_item("point_offset", sim::dock::DOCK_POINT_OFFSET)?;
     dock.set_item("repair_frac_per_s", sim::dock::REPAIR_FRAC_PER_S)?;
     dock.set_item("turnaround_ticks", sim::dock::DOCK_TURNAROUND_TICKS)?;
+    // The default order reward for docking (`MatchConfig.dock_bonus`).
+    dock.set_item("bonus", sim::reward::DOCK_BONUS)?;
     // The scripted (and random) commander's recall rule (`sim::scripted::commander`).
     use sim::scripted::commander as sc;
     dock.set_item("recall_hull_frac", sc::RECALL_HULL_FRAC)?;

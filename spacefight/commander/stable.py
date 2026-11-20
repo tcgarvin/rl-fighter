@@ -88,11 +88,12 @@ def resolve_stable(
     live_registry: Path = DEFAULT_LIVE_REGISTRY,
 ) -> CommanderStable:
     """The stable named by ``specs`` (module docstring), with per-spec ``weights``
-    (empty: 1 each).
+    (empty: 1 each). A commander that two specs name (``[live, scripted]``: the live
+    stable holds the script) is in it once, with both weights.
 
     Raises:
         ValueError: No specs, a weight count that does not match, negative weights or
-            a zero total, or two commanders with the same label.
+            a zero total.
         FileNotFoundError: A checkpoint is missing.
     """
     # Imported here: only a run with a stable needs the registry's tools.
@@ -109,8 +110,16 @@ def resolve_stable(
     per_commander: list[float] = []
     for spec, weight in zip(specs, spec_weights):
         group = [c for c, _ in resolve_commanders([spec], live_registry)]
-        commanders.extend(group)
-        per_commander.extend([weight / len(group)] * len(group))
+        for commander in group:
+            share = weight / len(group)
+            # Two specs may name one commander (``[live, scripted]``: the live stable
+            # holds the script too): its weights add up, so a run can lean on it.
+            same = [k for k, c in enumerate(commanders) if c.label == commander.label]
+            if same:
+                per_commander[same[0]] += share
+            else:
+                commanders.append(commander)
+                per_commander.append(share)
     total = sum(per_commander)
     return CommanderStable(tuple(commanders), tuple(w / total for w in per_commander))
 

@@ -94,6 +94,8 @@ HAS_ORDER_COL: int = OBS_LAYOUT["order"][0]
 ATTACK_COL: int = HAS_ORDER_COL + 1
 # ``order_tracks()["effective_kind"]`` / ``["standing_kind"]`` codes (SIM_VERSION 6).
 TRACK_NONE, TRACK_ATTACK, TRACK_DEFEND, TRACK_GOTO = 0, 1, 2, 3
+# SIM_VERSION 11: a ship's own dock order.
+TRACK_DOCK = 4
 # SIM_VERSION 6: the v5 obs width (the prefix a v5 pilot reads), the per-ship extras
 # record, the ships observed round the order point, and the order kinds in the
 # obs one-hot's order (kind codes 1, 2, 3; 0 is none).
@@ -121,6 +123,8 @@ DEFAULT_ORDER_SHAPING_GAMMA: float = float(rlf_sim.ORDER_SHAPING_GAMMA)
 # for arriving by the deadline tick, and the one-shot charge for missing it.
 DEFAULT_GOTO_TIMED_BONUS: float = float(rlf_sim.ORDER_TIMED_ARRIVAL_BONUS)
 DEFAULT_GOTO_MISS_PENALTY: float = float(rlf_sim.ORDER_MISS_PENALTY)
+# SIM_VERSION 11: the sim's default order pay for docking (``MatchConfig.dock_bonus``).
+DEFAULT_DOCK_BONUS: float = float(rlf_sim.DOCK["bonus"])
 
 # Number of choices of each action head (SIM_SPEC §7.1): values are 0..n-1.
 ACTION_HEAD_CHOICES: dict[str, int] = {"throttle": 3, "slew": 3, "fire": 2, "power": 7}
@@ -201,6 +205,9 @@ class StepInfo:
         collision_damage: [N, S] f32 view: hull damage each ship took from ship-ship
             collisions this step, after impact arcs (SIM_VERSION 3, SIM_SPEC §5.5).
             Collisions make no ``hits`` rows and credit nobody.
+        docked: [N, S] bool view: the ship docked this step (SIM_VERSION 11; the
+            finished match's for a done env, like ``rewards``). A dock drill ends on
+            the step its pilot docks, so this tells a dock from a death there.
         order_rewards: [N, S] f32 view: the order reward of this step (SIM_VERSION 5,
             SIM_SPEC §8), separate from ``rewards``; the trainer weights it.
         thruster_mask: [N, S, 8] bool view, of the current match.
@@ -223,6 +230,7 @@ class StepInfo:
     hits: NDArray[np.int32]
     hit_count: NDArray[np.int32]
     collision_damage: NDArray[np.float32]
+    docked: NDArray[np.bool_]
     order_rewards: NDArray[np.float32]
     thruster_mask: NDArray[np.bool_]
     turret_mask: NDArray[np.bool_]
@@ -282,6 +290,8 @@ class RustVecEnv:
             scripted and random commanders recall craft below
             ``rlf_sim.DOCK["recall_hull_frac"]`` of their hull; a learned commander
             never does. False plays every match as SIM_VERSION 10.
+        dock_bonus: Order pay on the step a ship under a dock order docks
+            (SIM_VERSION 11), finite and >= 0, for every match of the env.
 
     Raises:
         ValueError: Invalid arguments or assets (from ``rlf_sim``), or a sampled
@@ -308,6 +318,7 @@ class RustVecEnv:
         goto_timed_bonus: float = DEFAULT_GOTO_TIMED_BONUS,
         goto_miss_penalty: float = DEFAULT_GOTO_MISS_PENALTY,
         docking: bool = True,
+        dock_bonus: float = DEFAULT_DOCK_BONUS,
     ) -> None:
         if max_ships is None and roster_sampler is not None:
             max_ships = roster_sampler.max_ships
@@ -331,6 +342,7 @@ class RustVecEnv:
             goto_timed_bonus=goto_timed_bonus,
             goto_miss_penalty=goto_miss_penalty,
             docking=docking,
+            dock_bonus=dock_bonus,
         )
         self.fleets: tuple[tuple[str, ...], ...] = tuple(tuple(t) for t in fleets)
         self.reaction_ticks = reaction_ticks
@@ -398,12 +410,19 @@ class RustVecEnv:
         """Whether this env's matches run the dock rules (SIM_VERSION 11)."""
         return bool(self._env.docking)
 
+    @property
+    def dock_bonus(self) -> float:
+        """Order pay for docking in this env's matches, as the sim holds it (f32)."""
+        return float(self._env.dock_bonus)
+
     def dock_state(self) -> dict[str, np.ndarray]:
         """Every slot's dock state now (SIM_VERSION 11; ``rlf_sim.VecEnv.dock_state``):
         ``phase`` ``[N, S] int8`` (index into ``rlf_sim.DOCK_PHASES``: none, inbound,
         repairing, ready), ``bay`` (the dock order's bay, -1 without one), ``since``,
-        ``docked_at``, ``ready_at`` (ticks, 0 when not set) and ``live`` ``[N] bool``
-        (the dock rules run in the match). New arrays."""
+        ``docked_at``, ``ready_at`` (ticks, 0 when not set), ``live`` ``[N] bool``
+        (the dock rules run in the match), and for a ship under a dock order ``point``
+        ``[N, S, 2]``, ``dist`` and ``rel_speed`` ``[N, S]`` (its bay's dock point, its
+        distance to it and its speed relative to it; -1 without one). New arrays."""
         return {k: np.asarray(v) for k, v in self._env.dock_state().items()}
 
     @property
@@ -496,6 +515,7 @@ class RustVecEnv:
             hide_orders=list(hide),
             start_layout=[s.row() for s in roster.start_layout] or None,
             drill=roster.drill is not None,
+            start_hull=list(roster.start_hull) or None,
         )
         self._next[i] = (
             roster if hide == roster.hide_orders else replace(roster, hide_orders=hide)
@@ -680,6 +700,7 @@ class RustVecEnv:
             hits=env.hits,
             hit_count=env.hit_count,
             collision_damage=env.collision_damage,
+            docked=env.docked,
             order_rewards=env.order_rewards,
             thruster_mask=env.thruster_mask,
             turret_mask=env.turret_mask,

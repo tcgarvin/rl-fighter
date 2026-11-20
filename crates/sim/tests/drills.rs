@@ -135,13 +135,26 @@ fn bad_layouts_are_refused_at_the_boundary() {
     let mut fast = at(100.0, 0.0);
     fast.vel = Vec2::new(61.0, 0.0);
     refused(duel(vec![at(0.0, 0.0), fast]), "speed cap");
-    let carrier = MatchConfig {
-        fleets: [ids(&cat, &["carrier"]), ids(&cat, &["carrier"])],
-        mission: Mission::standard(sim::mission::MissionKind::CarrierBattle, 450.0),
+    let convoy = MatchConfig {
+        fleets: [ids(&cat, &["freighter"]), ids(&cat, &["fighter"])],
+        mission: Mission::standard(sim::mission::MissionKind::ConvoyEscort, 450.0),
         start_layout: Some(vec![at(-100.0, 0.0), at(100.0, 0.0)]),
         ..MatchConfig::default()
     };
-    refused(carrier, "only a deathmatch");
+    refused(convoy, "a convoy escort places its own ships");
+    let mut weak = duel(vec![at(-100.0, 0.0), at(100.0, 0.0)]);
+    weak.start_hull = Some(vec![0.5]);
+    refused(weak.clone(), "start_hull has 1 entries for 2 ships");
+    weak.start_hull = Some(vec![0.5, 0.0]);
+    refused(weak.clone(), "slot 1 start hull 0 is not in (0, 1]");
+    weak.start_hull = Some(vec![f32::NAN, 1.0]);
+    refused(weak, "slot 0 start hull NaN");
+    let unplaced = MatchConfig {
+        fleets: [ids(&cat, &["fighter"]), ids(&cat, &["fighter"])],
+        start_hull: Some(vec![0.5, 1.0]),
+        ..MatchConfig::default()
+    };
+    refused(unplaced, "start_hull needs a start_layout");
     let no_layout = MatchConfig {
         fleets: [ids(&cat, &["fighter"]), ids(&cat, &["fighter"])],
         drill: true,
@@ -386,4 +399,230 @@ fn a_drill_reads_as_a_deathmatch_in_the_obs() {
     // Only the clock block may differ: the two have different time limits.
     let differing = a.iter().zip(&b).filter(|(x, y)| x != y).count();
     assert!(differing <= 1, "{differing} obs floats differ");
+}
+
+// -- v11: dock drills (a carrier battle or a station assault laid out by hand) -----------
+
+/// A dock drill in a carrier battle: team 0 a carrier at the origin heading +x (moving
+/// at `carrier_vel`) and `pilot` at `pilot_at` with `hull` of its maximum hull; team 1 a
+/// carrier far away, plus `attackers` beside the pilot.
+fn dock_drill(
+    cat: &Catalogue,
+    pilot: &str,
+    pilot_at: Vec2,
+    hull: f32,
+    carrier_vel: Vec2,
+    attackers: &[&str],
+) -> MatchConfig {
+    let mut team1 = vec!["carrier"];
+    team1.extend_from_slice(attackers);
+    let mut layout = vec![
+        ShipStart {
+            pos: Vec2::ZERO,
+            vel: carrier_vel,
+            heading: 0.0,
+        },
+        at(pilot_at.x, pilot_at.y),
+        ShipStart {
+            pos: Vec2::new(320.0, 200.0),
+            vel: Vec2::ZERO,
+            heading: std::f32::consts::PI,
+        },
+    ];
+    for k in 0..attackers.len() {
+        layout.push(at(pilot_at.x + 60.0, pilot_at.y + 40.0 * k as f32));
+    }
+    let mut start_hull = vec![1.0; layout.len()];
+    start_hull[1] = hull;
+    MatchConfig {
+        mission: Mission::standard(sim::mission::MissionKind::CarrierBattle, 450.0),
+        time_limit_ticks: 1800,
+        start_hull: Some(start_hull),
+        ..drill(cat, &["carrier", pilot], &team1, layout)
+    }
+}
+
+fn dock(ship: u8) -> Command {
+    Command::Dock { ship, bay: None }
+}
+
+#[test]
+fn a_carrier_battle_laid_out_by_hand_has_everyone_on_the_field() {
+    let cat = asset_catalogue();
+    let cfg = dock_drill(
+        &cat,
+        "gunship",
+        Vec2::new(-200.0, 0.0),
+        0.3,
+        Vec2::new(3.0, 0.0),
+        &[],
+    );
+    let m = Match::new(&cat, &cfg).unwrap();
+    assert!(m.ships().iter().all(|s| s.present && s.alive));
+    assert_eq!(
+        m.mission.carrier,
+        [0, 2],
+        "each team's carrier is its carrier"
+    );
+    assert!(
+        m.reserves.iter().all(|r| r.is_empty()),
+        "nobody in a hangar"
+    );
+    assert!(m.docking_live());
+    let gunship = cat.hull(cat.hull_id("gunship").unwrap()).hp;
+    assert!((m.ships()[1].hp - 0.3 * gunship).abs() < 1e-3);
+    assert_eq!(m.ships()[0].hp, cat.hull(m.ships()[0].hull).hp);
+    assert_eq!(m.ships()[0].vel, Vec2::new(3.0, 0.0));
+    assert_eq!(m.rng, sim::rng::Pcg32::new(cfg.seed), "no rng draw");
+}
+
+#[test]
+fn a_station_assault_laid_out_by_hand_makes_the_station_team_0s_carrier() {
+    let cat = asset_catalogue();
+    let layout = vec![
+        at(-150.0, 0.0),
+        at(50.0, 100.0),
+        ShipStart {
+            pos: Vec2::new(320.0, 0.0),
+            vel: Vec2::ZERO,
+            heading: std::f32::consts::PI,
+        },
+    ];
+    let cfg = MatchConfig {
+        mission: Mission::standard(sim::mission::MissionKind::StationAssault, 450.0),
+        start_hull: Some(vec![1.0, 0.4, 1.0]),
+        ..drill(&cat, &["station", "fighter"], &["carrier"], layout)
+    };
+    let mut m = Match::new(&cat, &cfg).unwrap();
+    assert_eq!(m.mission.carrier, [0, 2]);
+    m.submit_command(0, dock(1));
+    while m.tick() < 61 {
+        m.step(&cat);
+    }
+    assert!(m.has_dock_order(1), "the station takes a dock order");
+    let (point, ..) = m.dock_approach(1).unwrap();
+    assert!((point - Vec2::new(-150.0, 0.0)).length() < 40.0);
+}
+
+#[test]
+fn a_dock_drill_ends_on_the_step_its_pilot_docks_as_a_draw_paying_the_dock_bonus() {
+    let cat = asset_catalogue();
+    let mut cfg = dock_drill(
+        &cat,
+        "fighter",
+        Vec2::new(-200.0, 50.0),
+        0.4,
+        Vec2::ZERO,
+        &["fighter"],
+    );
+    cfg.dock_bonus = 0.7;
+    let mut m = Match::new(&cat, &cfg).unwrap();
+    m.submit_command(0, dock(1));
+    while m.tick() < 61 {
+        m.step(&cat);
+    }
+    assert!(m.has_dock_order(1));
+    assert_eq!(m.phase(), MatchPhase::Running);
+    // Put the pilot at its dock point, at rest like the carrier: the bay takes it in.
+    let (point, ..) = m.dock_approach(1).unwrap();
+    m.ships[1].pos = point;
+    m.ships[1].vel = Vec2::ZERO;
+    m.step(&cat);
+    assert_eq!(m.docked_now, 1 << 1);
+    assert_eq!(m.phase(), MatchPhase::Over, "its last pilot left the field");
+    assert_eq!(m.winner(), WINNER_DRAW);
+    assert_eq!(m.mission.end_reason, EndReason::Eliminated);
+    let paid = m.order_rewards()[1];
+    assert!(
+        (paid - 0.7).abs() < 0.02,
+        "the dock bonus, less a small shaping term: {paid}"
+    );
+    assert!(m.rewards()[1].abs() < 0.05, "no result: {}", m.rewards()[1]);
+}
+
+#[test]
+fn a_dock_drill_ends_when_its_pilot_is_shot_down() {
+    let cat = asset_catalogue();
+    let cfg = dock_drill(
+        &cat,
+        "strafer",
+        Vec2::new(-200.0, 50.0),
+        0.4,
+        Vec2::ZERO,
+        &[],
+    );
+    let mut m = Match::new(&cat, &cfg).unwrap();
+    m.submit_command(0, dock(1));
+    while m.tick() < 61 {
+        m.step(&cat);
+    }
+    m.ships[1].hp = 0.0;
+    m.step(&cat);
+    assert_eq!(m.phase(), MatchPhase::Over);
+    assert_eq!(m.winner(), WINNER_DRAW);
+    assert_eq!(m.docked_now, 0);
+}
+
+#[test]
+fn dock_bonus_must_be_finite_and_not_negative() {
+    let cat = asset_catalogue();
+    for bad in [-0.1, f32::NAN, f32::INFINITY] {
+        let mut cfg = dock_drill(
+            &cat,
+            "fighter",
+            Vec2::new(-200.0, 0.0),
+            0.4,
+            Vec2::ZERO,
+            &[],
+        );
+        cfg.dock_bonus = bad;
+        assert!(matches!(
+            Match::new(&cat, &cfg),
+            Err(SetupError::InvalidGotoPay {
+                name: "dock_bonus",
+                ..
+            })
+        ));
+    }
+    assert_eq!(
+        MatchConfig::default().dock_bonus,
+        sim::reward::ORDER_ARRIVAL_BONUS
+    );
+}
+
+/// The script, which flies a dock order in every mission, docks from 250 m out with its
+/// carrier under way (a waypoint ahead), alone and with an enemy on its tail.
+#[test]
+fn the_script_docks_in_a_dock_drill_with_its_carrier_under_way() {
+    let cat = asset_catalogue();
+    for (pilot, attackers) in [("fighter", &[][..]), ("gunship", &["fighter"][..])] {
+        let cfg = dock_drill(
+            &cat,
+            pilot,
+            Vec2::new(-150.0, -200.0),
+            0.35,
+            Vec2::new(4.0, 0.0),
+            attackers,
+        );
+        let mut m = Match::new(&cat, &cfg).unwrap();
+        m.submit_command(0, dock(1));
+        m.submit_command(
+            0,
+            Command::Waypoint {
+                ship: 0,
+                waypoint: sim::command::Waypoint::At(Vec2::new(300.0, 0.0)),
+            },
+        );
+        if !attackers.is_empty() {
+            m.submit_command(1, squad(1 << 3, Order::Attack { target: 1 }));
+        }
+        let mut docked = false;
+        while m.phase() == MatchPhase::Running {
+            scripted_step(&mut m, &cat);
+            docked |= m.docked_now & (1 << 1) != 0;
+        }
+        assert!(docked, "{pilot} did not dock by tick {}", m.tick());
+        assert!(m.ships()[0].pos.x > 20.0, "the carrier was under way");
+        assert_eq!(m.winner(), WINNER_DRAW);
+    }
 }
