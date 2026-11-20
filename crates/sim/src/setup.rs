@@ -5,6 +5,7 @@ use core::fmt;
 use crate::actions::ShipAction;
 use crate::command::{CommandState, CommanderMode};
 use crate::data::{Catalogue, HullId};
+use crate::dock::{BayMount, DockState};
 use crate::events::EventBuf;
 use crate::math::Vec2;
 use crate::mission::{self, Mission, MissionState};
@@ -102,6 +103,10 @@ pub struct MatchConfig {
     /// slow tick has landed the orders. Needs a `start_layout`, so a deathmatch. The obs
     /// and the order rules are a deathmatch's.
     pub drill: bool,
+    /// v11: the dock rules (`dock` module, SIM_SPEC §5.11): dock orders, docking at a
+    /// live bay, repair and relaunch. They only run in a match with a carrier (a carrier
+    /// battle, a station assault). `false` plays every match exactly as v10.
+    pub docking: bool,
 }
 
 impl Default for MatchConfig {
@@ -120,6 +125,7 @@ impl Default for MatchConfig {
             goto_miss_penalty: ORDER_MISS_PENALTY,
             start_layout: None,
             drill: false,
+            docking: true,
         }
     }
 }
@@ -345,6 +351,10 @@ impl Match {
             alive_mark: [false; MAX_SHIPS],
             ward_threat: [0; MAX_SHIPS],
             hull_lost: [0.0; MAX_SHIPS],
+            dock: DockState::default(),
+            bay_mounts: [[BayMount::default(); crate::state::MAX_BAYS]; 2],
+            bay_count: [0; 2],
+            docked_now: 0,
         };
         for (s, ship) in m.ships.iter().enumerate() {
             let def = cat.hull(ship.hull);
@@ -352,6 +362,7 @@ impl Match {
             m.ship_class[s] = order::hull_class(def);
         }
         m.setup_mission(cat);
+        m.init_bay_mounts(cat);
         m.init_order_tracks();
         Ok(m)
     }

@@ -91,7 +91,13 @@ fn pilot_obs_dims_cover_every_compatible_version() {
     assert_eq!(pilot_obs_dim(5), Some(OBS_DIM_V5));
     assert_eq!(pilot_obs_dim(6), Some(OBS_DIM_V7));
     assert_eq!(pilot_obs_dim(7), Some(OBS_DIM_V7));
-    assert_eq!((OBS_DIM_V5, OBS_DIM_V7, OBS_DIM), (403, 583, 587));
+    for v in 8..=10 {
+        assert_eq!(pilot_obs_dim(v), Some(sim::obs::OBS_DIM_V10));
+    }
+    assert_eq!(
+        (OBS_DIM_V5, OBS_DIM_V7, sim::obs::OBS_DIM_V10, OBS_DIM),
+        (403, 583, 587, 592)
+    );
     assert_eq!(pilot_obs_dim(sim::SIM_VERSION), Some(OBS_DIM));
     assert_eq!(pilot_obs_dim(2), None);
 }
@@ -888,6 +894,7 @@ fn random_commander_issues_only_valid_commands() {
                                 assert!((GOTO_RADIUS_MIN..GOTO_RADIUS_MAX).contains(&radius));
                             }
                             Order::None => {}
+                            Order::Dock { .. } => panic!("a squad never holds a dock order"),
                         }
                     }
                 }

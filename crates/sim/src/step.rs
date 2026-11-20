@@ -78,6 +78,8 @@ impl Match {
         self.resolve_deaths();
         // 12b. v4: mission rules: a lost carrier's hangar, convoy jumps (mission.rs).
         self.step_mission_rules();
+        // 12c. v11: dock orders, docking and hangar repair (dock.rs).
+        self.step_docking(cat);
         // 13. Termination, winner and end reason per mission (mission.rs).
         self.check_termination(cat);
         // 13b. v5: order instances and the order reward (order.rs, reward.rs).

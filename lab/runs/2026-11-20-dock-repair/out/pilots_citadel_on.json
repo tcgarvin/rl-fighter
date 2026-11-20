@@ -1,0 +1,199 @@
+{
+ "schema": "rlf.lab.dock/1",
+ "sim_version": 11,
+ "mission": "citadel",
+ "docking": true,
+ "n": 512,
+ "seed": 1100000,
+ "rosters": [
+  [
+   [
+    "citadel",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship",
+    "fighter",
+    "strafer",
+    "fighter"
+   ],
+   [
+    "carrier",
+    "dreadnought",
+    "fighter",
+    "bomber",
+    "fighter",
+    "bomber",
+    "strafer",
+    "bomber",
+    "fighter",
+    "gunship",
+    "fighter"
+   ]
+  ]
+ ],
+ "pilots": "../../live_pilots.json",
+ "team1_win_rate": 0.2890625,
+ "team1_win_ci95": 0.03930585157319245,
+ "end_reasons": {
+  "time_limit": 0.125,
+  "station_destroyed": 0.2890625,
+  "assault_repelled": 0.5859375
+ },
+ "length_median_s": 117.23333333333333,
+ "length_p90_s": 150.0,
+ "dock": {
+  "recalls": 1600,
+  "recalls_per_match": 3.125,
+  "docked": 18,
+  "docked_per_match": 0.03515625,
+  "completion": 0.01125,
+  "completion_of_survivors": 0.23684210526315788,
+  "seconds_to_dock": {
+   "p25": 1.4333333333333333,
+   "p50": 13.083333333333332,
+   "p75": 22.208333333333332
+  },
+  "metres_at_order": {
+   "p25": 76.78406524658203,
+   "p50": 283.94549560546875,
+   "p75": 464.1151123046875
+  },
+  "outcomes": {
+   "killed en route": 1524,
+   "match ended": 37,
+   "carrier lost": 21,
+   "docked": 18
+  },
+  "failure_modes": {
+   "never close": 35,
+   "overshoot": 2
+  },
+  "failed_closest_m": {
+   "p25": 56.16974639892578,
+   "p50": 132.58160400390625,
+   "p75": 202.04156494140625
+  },
+  "came_near": 159,
+  "came_near_docked": 18,
+  "inside_not_docked": 17,
+  "inside_not_docked_slowest_rel": {
+   "p25": 23.59799575805664,
+   "p50": 36.512088775634766,
+   "p75": 42.906436920166016
+  },
+  "killed_seconds_after_order": {
+   "p25": 6.1,
+   "p50": 13.166666666666666,
+   "p75": 24.641666666666666
+  },
+  "killed_metres_closed": {
+   "p25": 0.0,
+   "p50": 15.23316764831543,
+   "p75": 110.94339179992676
+  },
+  "failed_rel_speed_at_closest": {
+   "p25": 24.000003814697266,
+   "p50": 31.08340835571289,
+   "p75": 39.96754455566406
+  },
+  "relaunches": 18,
+  "relaunches_per_match": 0.03515625,
+  "repaired_full": 0,
+  "hull_restored_per_match": 0.017675795570539776,
+  "by_pilot": {
+   "f995_400": {
+    "recalls": 171,
+    "docked": 3,
+    "completion": 0.017543859649122806,
+    "completion_of_survivors": 0.42857142857142855,
+    "failure_modes": {
+     "never close": 4
+    }
+   },
+   "f995_701": {
+    "recalls": 169,
+    "docked": 2,
+    "completion": 0.011834319526627219,
+    "completion_of_survivors": 0.5,
+    "failure_modes": {
+     "never close": 1
+    }
+   },
+   "f99_696": {
+    "recalls": 186,
+    "docked": 3,
+    "completion": 0.016129032258064516,
+    "completion_of_survivors": 0.21428571428571427,
+    "failure_modes": {
+     "never close": 7
+    }
+   },
+   "fighters_pay1_1317": {
+    "recalls": 190,
+    "docked": 2,
+    "completion": 0.010526315789473684,
+    "completion_of_survivors": 0.6666666666666666,
+    "failure_modes": {
+     "never close": 1
+    }
+   },
+   "fighters_pay1_462": {
+    "recalls": 166,
+    "docked": 2,
+    "completion": 0.012048192771084338,
+    "completion_of_survivors": 0.2857142857142857,
+    "failure_modes": {
+     "never close": 4
+    }
+   },
+   "fighters_pay1_school_821": {
+    "recalls": 198,
+    "docked": 2,
+    "completion": 0.010101010101010102,
+    "completion_of_survivors": 0.125,
+    "failure_modes": {
+     "never close": 9,
+     "overshoot": 1
+    }
+   },
+   "fighters_pay1_v8_351": {
+    "recalls": 155,
+    "docked": 0,
+    "completion": 0.0,
+    "completion_of_survivors": 0.0,
+    "failure_modes": {
+     "never close": 3
+    }
+   },
+   "followers_pay3_810": {
+    "recalls": 117,
+    "docked": 0,
+    "completion": 0.0,
+    "completion_of_survivors": 0.0,
+    "failure_modes": {
+     "never close": 1
+    }
+   },
+   "followers_school_600": {
+    "recalls": 134,
+    "docked": 0,
+    "completion": 0.0,
+    "completion_of_survivors": 0.0,
+    "failure_modes": {
+     "overshoot": 1,
+     "never close": 3
+    }
+   },
+   "followers_v8_352": {
+    "recalls": 114,
+    "docked": 4,
+    "completion": 0.03508771929824561,
+    "completion_of_survivors": 0.5714285714285714,
+    "failure_modes": {
+     "never close": 2
+    }
+   }
+  }
+ }
+}

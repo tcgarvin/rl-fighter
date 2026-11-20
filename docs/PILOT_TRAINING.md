@@ -64,6 +64,23 @@ to land hits on the way. Both amounts are trainer settings (`PPOConfig`, `--set`
 the sim for every match of the run; the defaults are the sim's. Only drills issue deadlines
 today (section 2); no commander does.
 
+**Dock orders (SIM_VERSION 11, 2026-11-20).** In a carrier battle or a station assault the
+scripted commander (and the random one, which keeps its logistics) sends a strike craft
+below half its hull home: it gets a dock order, which the pilot sees as a go-to with no
+deadline whose point is the bay mouth of its own carrier (it moves with the carrier),
+radius 10 m. Unlike a go-to it does not end on arrival: the bay takes the ship in when it
+is within 10 m of the mouth at no more than 15 m/s relative to the carrier, and the order
+ends then. The ship repairs in the hangar and relaunches as the same ship. The pay is a
+go-to's: shaping toward the mouth and 0.2 on docking. What the pilot sees: in the first
+587 inputs a go-to to the bay mouth (a v8 to v10 pilot flies it as one); a v11 pilot
+also reads the 5-float `dock` block (587 to 592): a dock flag, the bay's velocity
+relative to the ship (to match it), and the bay's outward direction (to come in from
+outside). A 587-input pilot takes them with `--set obs_dim=592 --set
+new_input_lr_mult=3`, as the 583 to 587 widening did. A learned commander never recalls,
+and nothing in the sim does on its own: docking is to be taught, not stood in for (owner's
+call). No pilot has trained on it yet; the zero-shot numbers are in
+`lab/runs/2026-11-20-dock-repair/results.md`.
+
 The price of a shot: since night 4 (2026-11-09) every training line pays `extra_fire_cost`
 0.002 per shot on top of the sim's 0.002, twice the sim's price, charged by the trainer so
 the sim and the browser are unchanged. At 2x, pilots held the trigger less and hit a little

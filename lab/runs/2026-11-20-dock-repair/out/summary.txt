@@ -1,0 +1,83 @@
+| Run | Team 1 win | End reasons | Median s |
+|---|---|---|---|
+| script deathmatch off | 0.708 ± 0.039 | eliminated 0.61, time_limit 0.39 | 42 |
+| script deathmatch on | 0.708 ± 0.039 | eliminated 0.61, time_limit 0.39 | 42 |
+| script carrier_battle off | 0.517 ± 0.043 | time_limit 0.10, carrier_destroyed 0.90 | 131 |
+| script carrier_battle on | 0.504 ± 0.043 | time_limit 0.13, carrier_destroyed 0.87 | 132 |
+| script convoy_escort off | 0.002 ± 0.004 | eliminated 0.24, convoy_through 0.75, convoy_destroyed 0.00 | 75 |
+| script convoy_escort on | 0.002 ± 0.004 | eliminated 0.24, convoy_through 0.75, convoy_destroyed 0.00 | 75 |
+| script station_assault off | 0.572 ± 0.043 | time_limit 0.02, station_destroyed 0.57, assault_repelled 0.41 | 103 |
+| script station_assault on | 0.527 ± 0.043 | time_limit 0.04, station_destroyed 0.53, assault_repelled 0.43 | 99 |
+| script citadel off | 0.576 ± 0.043 | time_limit 0.05, station_destroyed 0.58, assault_repelled 0.38 | 116 |
+| script citadel on | 0.592 ± 0.043 | time_limit 0.09, station_destroyed 0.59, assault_repelled 0.31 | 118 |
+| pilots carrier_battle off | 0.539 ± 0.043 | carrier_destroyed 1.00 | 76 |
+| pilots carrier_battle on | 0.508 ± 0.043 | time_limit 0.01, carrier_destroyed 0.99 | 79 |
+| pilots station_assault off | 0.371 ± 0.042 | time_limit 0.15, station_destroyed 0.37, assault_repelled 0.47 | 107 |
+| pilots station_assault on | 0.424 ± 0.043 | time_limit 0.11, station_destroyed 0.42, assault_repelled 0.46 | 111 |
+| pilots citadel off | 0.268 ± 0.038 | time_limit 0.15, station_destroyed 0.27, assault_repelled 0.59 | 120 |
+| pilots citadel on | 0.289 ± 0.039 | time_limit 0.12, station_destroyed 0.29, assault_repelled 0.59 | 117 |
+
+| Run | Recalls/match | Docked/match | Completion | Of survivors | s to dock p50 | Relaunches/match | Hull restored/match | Outcomes | Failure modes |
+|---|---|---|---|---|---|---|---|---|---|
+| script deathmatch | 0.00 | 0.00 | 0.00 | 0.00 | nan | 0.00 | 0.00 | {} | {} |
+| script carrier_battle | 3.57 | 2.16 | 0.61 | 1.00 | 9.5 | 2.16 | 1.29 | {'docked': 1107, 'killed en route': 717, 'carrier lost': 3} | {} |
+| script convoy_escort | 0.00 | 0.00 | 0.00 | 0.00 | nan | 0.00 | 0.00 | {} | {} |
+| script station_assault | 2.60 | 1.66 | 0.64 | 0.97 | 10.2 | 1.60 | 0.84 | {'docked': 852, 'killed en route': 455, 'carrier lost': 18, 'match ended': 5} | {'never close': 3, 'too fast': 1, 'overshoot': 1} |
+| script citadel | 2.06 | 1.11 | 0.54 | 0.98 | 7.5 | 1.10 | 0.53 | {'docked': 569, 'killed en route': 474, 'match ended': 6, 'carrier lost': 5} | {'circling': 3, 'never close': 2, 'overshoot': 1} |
+| pilots carrier_battle | 4.81 | 0.08 | 0.02 | 0.14 | 0.0 | 0.07 | 0.04 | {'killed en route': 2181, 'match ended': 152, 'carrier lost': 89, 'docked': 39} | {'never close': 135, 'overshoot': 11, 'too fast': 4, 'circling': 2} |
+| pilots station_assault | 5.00 | 0.07 | 0.01 | 0.20 | 0.6 | 0.07 | 0.03 | {'killed en route': 2379, 'match ended': 114, 'docked': 36, 'carrier lost': 30} | {'never close': 89, 'overshoot': 21, 'too fast': 3, 'circling': 1} |
+| pilots citadel | 3.12 | 0.04 | 0.01 | 0.24 | 13.1 | 0.04 | 0.02 | {'killed en route': 1524, 'match ended': 37, 'carrier lost': 21, 'docked': 18} | {'never close': 35, 'overshoot': 2} |
+
+| Run | Killed en route | s after the order p25/p50/p75 | m closed p50 |
+|---|---|---|---|
+| script carrier_battle | 717 | 1.3 / 3.0 / 5.8 | 55 |
+| script station_assault | 455 | 1.5 / 3.7 / 6.8 | 57 |
+| script citadel | 474 | 1.7 / 3.3 / 7.5 | 33 |
+| pilots carrier_battle | 2181 | 2.8 / 7.4 / 15.4 | 11 |
+| pilots station_assault | 2379 | 4.5 / 10.3 / 22.0 | 22 |
+| pilots citadel | 1524 | 6.1 / 13.2 / 24.6 | 15 |
+
+| Run | Came within 30 m | Of them docked | Inside 10 m, not docked | Their slowest m/s there p50 |
+|---|---|---|---|---|
+| script carrier_battle | 1287 | 0.86 | 46 | 22 |
+| script station_assault | 1013 | 0.84 | 65 | 26 |
+| script citadel | 869 | 0.65 | 65 | 25 |
+| pilots carrier_battle | 248 | 0.16 | 58 | 26 |
+| pilots station_assault | 354 | 0.10 | 85 | 26 |
+| pilots citadel | 159 | 0.11 | 17 | 37 |
+
+pilots by pilot, carrier_battle:
+  f995_400: 232 recalls, 0 docked (0.00; of survivors 0.00), failures {'never close': 16, 'overshoot': 2}
+  f995_701: 213 recalls, 0 docked (0.00; of survivors 0.00), failures {'never close': 6, 'too fast': 2, 'overshoot': 1}
+  f99_696: 264 recalls, 5 docked (0.02; of survivors 0.19), failures {'never close': 10}
+  fighters_pay1_1317: 224 recalls, 2 docked (0.01; of survivors 0.07), failures {'never close': 18}
+  fighters_pay1_462: 216 recalls, 2 docked (0.01; of survivors 0.09), failures {'never close': 16, 'overshoot': 1}
+  fighters_pay1_school_821: 289 recalls, 2 docked (0.01; of survivors 0.06), failures {'never close': 15, 'overshoot': 3, 'too fast': 1, 'circling': 1}
+  fighters_pay1_v8_351: 244 recalls, 1 docked (0.00; of survivors 0.06), failures {'never close': 9}
+  followers_pay3_810: 228 recalls, 8 docked (0.04; of survivors 0.29), failures {'overshoot': 2, 'never close': 9}
+  followers_school_600: 295 recalls, 3 docked (0.01; of survivors 0.08), failures {'never close': 23, 'too fast': 1, 'circling': 1}
+  followers_v8_352: 256 recalls, 16 docked (0.06; of survivors 0.40), failures {'overshoot': 2, 'never close': 13}
+
+pilots by pilot, station_assault:
+  f995_400: 240 recalls, 0 docked (0.00; of survivors 0.00), failures {'overshoot': 2, 'never close': 15, 'circling': 1}
+  f995_701: 231 recalls, 3 docked (0.01; of survivors 0.18), failures {'never close': 13, 'overshoot': 1}
+  f99_696: 237 recalls, 2 docked (0.01; of survivors 0.08), failures {'overshoot': 4, 'never close': 12}
+  fighters_pay1_1317: 255 recalls, 1 docked (0.00; of survivors 0.08), failures {'never close': 7, 'overshoot': 2}
+  fighters_pay1_462: 244 recalls, 1 docked (0.00; of survivors 0.08), failures {'never close': 5, 'overshoot': 2, 'too fast': 1}
+  fighters_pay1_school_821: 308 recalls, 3 docked (0.01; of survivors 0.11), failures {'too fast': 1, 'overshoot': 2, 'never close': 15}
+  fighters_pay1_v8_351: 208 recalls, 2 docked (0.01; of survivors 0.40), failures {'never close': 2}
+  followers_pay3_810: 263 recalls, 7 docked (0.03; of survivors 0.41), failures {'never close': 4, 'overshoot': 4, 'too fast': 1}
+  followers_school_600: 276 recalls, 8 docked (0.03; of survivors 0.40), failures {'overshoot': 3, 'never close': 6}
+  followers_v8_352: 297 recalls, 9 docked (0.03; of survivors 0.38), failures {'never close': 10, 'overshoot': 1}
+
+pilots by pilot, citadel:
+  f995_400: 171 recalls, 3 docked (0.02; of survivors 0.43), failures {'never close': 4}
+  f995_701: 169 recalls, 2 docked (0.01; of survivors 0.50), failures {'never close': 1}
+  f99_696: 186 recalls, 3 docked (0.02; of survivors 0.21), failures {'never close': 7}
+  fighters_pay1_1317: 190 recalls, 2 docked (0.01; of survivors 0.67), failures {'never close': 1}
+  fighters_pay1_462: 166 recalls, 2 docked (0.01; of survivors 0.29), failures {'never close': 4}
+  fighters_pay1_school_821: 198 recalls, 2 docked (0.01; of survivors 0.12), failures {'never close': 9, 'overshoot': 1}
+  fighters_pay1_v8_351: 155 recalls, 0 docked (0.00; of survivors 0.00), failures {'never close': 3}
+  followers_pay3_810: 117 recalls, 0 docked (0.00; of survivors 0.00), failures {'never close': 1}
+  followers_school_600: 134 recalls, 0 docked (0.00; of survivors 0.00), failures {'overshoot': 1, 'never close': 3}
+  followers_v8_352: 114 recalls, 4 docked (0.04; of survivors 0.57), failures {'never close': 2}

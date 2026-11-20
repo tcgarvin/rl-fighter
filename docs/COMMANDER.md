@@ -129,6 +129,22 @@ strike craft (the scripted commander holds it at a staging point until the strik
 goes; a learned commander leaves it to its own script). It does count toward "repelled": the assault fails only when the
 carrier, the dreadnought and every strike craft are gone.
 
+**Dock and repair (SIM_VERSION 11).** No input or output changed (`COMMANDER_IO_VERSION`
+1), so the learned commander cannot order a recall: its craft never go home until a
+commander is trained to send them (stage 4 of `lab/runs/2026-11-20-dock-repair/plan.md`,
+a new output). There is no sim-side stand-in (owner's call, 2026-11-20). The scripted
+commander does recall (`docs/SIM_SPEC.md` §5.11): every own strike craft below half its
+hull, unless it is finishing a kill or under an enemy capital ship's guns, and the random
+commander keeps those recalls with the scripted launches. So a learned commander's
+opponent recalls, and its entity inputs see it: a ship flying home holds a dock order of
+its own, which wins over its squad's (it is taken out of its squad when recalled), and
+its entity's order one-hot reads it as a go-to (a v8 to v10 pilot reads it so too; a v11
+pilot also sees the obs's dock block). A returned ship
+waits in the hangar ("reserves" counts it) and may launch 4 s after docking; the launch
+mask needs a reserve that may launch, so a hangar holding only returned ships inside
+their turnaround closes it. The eval's order timings (`orders_a` / `orders_b`) count
+squad orders only, not dock orders.
+
 **Masks** (a choice is allowed when its mask is true; "keep" and "hold" always are):
 
 - Launch a hull: my carrier alive, a reserve of that hull, a bay ready. Launches go

@@ -1,15 +1,13 @@
-# sim golden trace station_assault_s43 (SIM_VERSION 10); regenerate with UPDATE_GOLDEN=1
+# sim golden trace station_assault_s43 (SIM_VERSION 11); regenerate with UPDATE_GOLDEN=1
 # tick state_hash aux_digest; end tick state_hash aux_digest phase winner
-300 ab61c7d702d93b3f 37565361eb0bae28
-600 08738189b514f983 3d717ced2259c474
-900 7cdbd9b4c86575f3 2a37ba15efbf475d
-1200 da9b882da9b128b6 a609206f8a9083e2
-1500 e79f707584fec9fb 6f2494fbd44b73ae
-1800 3e2dee55a692dcf9 e56065e05bdf9a2c
-2100 4bbdde51c2bcfd2f 201cd8214bfc833c
-2400 d9ab0a63f88894c4 85d220e9f1907a69
-2700 e8c0dec2aff7c034 e19fadebc3da8fa6
-3000 8c9c87a9bb80a2e9 56c15bb833bf4f8c
-3300 b86da4d20380acc2 ebec25d7d4c5551c
-end 3427 9b5365640d8d3a3d 2c8ee824dc8f11e4 over 0
+300 68fd40285052bfef cdce1106f6074998
+600 b2a1b8e61f535d6b 8b969bdda22c5816
+900 5a86c472b279844f 535f760468c51b1a
+1200 aae4a9ff66a39d30 b5e2ef163aab51c6
+1500 2105b258a8470707 32f31016f379e416
+1800 52abf64ba357a381 3023241ac77c3eac
+2100 43ca670aa2bd0dc6 01d454e525be5e8d
+2400 b1a2fd36a237f81d 401e8751ee243df7
+2700 a647245d44278a6a 65ce2d80bed8fb5f
+end 2887 6f301c6482dc43e8 3786a202509443dc over 0
 reason assault_repelled

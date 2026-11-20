@@ -210,7 +210,13 @@ pub fn act(m: &Match, cat: &Catalogue, ship: ShipIdx) -> ShipAction {
         }
         let me = &predict(me_now, ahead, true);
         let plan = orders::station_manoeuvre(m, cat, me, hull, order);
-        let plan = avoid::avoid(m, cat, me, ahead, NONE, plan);
+        // v11: a docking pilot flies into its carrier's bounding circle on purpose (the
+        // dock point is inside it), slowly; it still avoids every other ship.
+        let skip = match order {
+            Order::Dock { carrier, .. } => carrier,
+            _ => NONE,
+        };
+        let plan = avoid::avoid(m, cat, me, ahead, skip, plan);
         let dist = nearest_enemy(m, cat, me.team, me.pos, f32::INFINITY, |_| true)
             .map_or(f32::INFINITY, |e| (e.pos - me.pos).length());
         return steer_and_fight(m, cat, me_now, me, hull, plan, dist, ahead);
@@ -645,6 +651,8 @@ fn choose_power(m: &Match, cat: &Catalogue, me: &Ship, hull: &HullDef, dist: f32
         POWER_PURSUIT
     };
     let (want, urgent) = match hull.shield {
+        // v11: flying home to dock, it runs on engines (and shields if it has them).
+        _ if m.has_dock_order(usize::from(me.slot)) => (evade, true),
         Some(s) if under_fire && me.shield / s.hp < SHIELD_NERVE => {
             (if hurt { evade } else { POWER_DEFEND }, true)
         }

@@ -1,0 +1,18 @@
+carrier wing of 8: 128 matches, winner draw/0/1 [0, 56, 72]; recalls 548 (4.28/match), docked 320 (0.58), median 9.2 s to dock, relaunches 320 (2.50/match), hull restored 1.45 max-hulls/match; outcomes {"carrier lost": 1, "docked": 320, "killed en route": 227}
+  deep: 0 recalls, 0 docked, 0 killed
+  engaged, not deep: 420 recalls, 218 docked, 201 killed
+  clear: 128 recalls, 102 docked, 26 killed
+  killed en route: seconds after the order p25/p50/p75 1.3/2.7/5.8; distance at the order p50 189 m (all recalls p50 171 m)
+  undocked closest approach (m, rel m/s): [(0.0, 25.0), (1.0, 50.0), (1.0, 38.0), (2.0, 36.0), (2.0, 55.0), (3.0, 51.0), (3.0, 65.0), (5.0, 25.0), (5.0, 36.0), (6.0, 51.0), (6.0, 38.0), (7.0, 51.0), (7.0, 23.0), (8.0, 28.0), (8.0, 21.0), (9.0, 48.0), (11.0, 3.0), (11.0, 4.0), (11.0, 25.0), (11.0, 24.0), (11.0, 6.0), (12.0, 26.0), (12.0, 25.0), (12.0, 22.0)]
+station strike of 8: 128 matches, winner draw/0/1 [0, 62, 66]; recalls 366 (2.86/match), docked 217 (0.59), median 10.2 s to dock, relaunches 211 (1.65/match), hull restored 0.88 max-hulls/match; outcomes {"carrier lost": 1, "docked": 217, "killed en route": 143, "match ended": 5}
+  deep: 1 recalls, 1 docked, 0 killed
+  engaged, not deep: 314 recalls, 177 docked, 136 killed
+  clear: 51 recalls, 39 docked, 7 killed
+  killed en route: seconds after the order p25/p50/p75 1.6/3.8/6.7; distance at the order p50 162 m (all recalls p50 165 m)
+  undocked closest approach (m, rel m/s): [(0.0, 25.0), (1.0, 28.0), (1.0, 35.0), (1.0, 69.0), (2.0, 24.0), (2.0, 18.0), (3.0, 21.0), (3.0, 62.0), (5.0, 31.0), (5.0, 26.0), (5.0, 24.0), (5.0, 31.0), (6.0, 41.0), (7.0, 18.0), (9.0, 26.0), (9.0, 38.0), (10.0, 69.0), (10.0, 19.0), (10.0, 8.0), (11.0, 19.0), (11.0, 38.0), (11.0, 70.0), (11.0, 16.0), (11.0, 15.0)]
+station citadel: 128 matches, winner draw/0/1 [0, 47, 81]; recalls 240 (1.88/match), docked 123 (0.51), median 7.8 s to dock, relaunches 122 (0.95/match), hull restored 0.44 max-hulls/match; outcomes {"carrier lost": 4, "docked": 123, "killed en route": 113}
+  deep: 0 recalls, 0 docked, 0 killed
+  engaged, not deep: 101 recalls, 48 docked, 51 killed
+  clear: 139 recalls, 75 docked, 62 killed
+  killed en route: seconds after the order p25/p50/p75 1.9/3.8/6.6; distance at the order p50 64 m (all recalls p50 64 m)
+  undocked closest approach (m, rel m/s): [(4.0, 28.0), (4.0, 51.0), (4.0, 21.0), (4.0, 34.0), (4.0, 34.0), (6.0, 44.0), (7.0, 38.0), (7.0, 22.0), (7.0, 25.0), (8.0, 22.0), (10.0, 26.0), (10.0, 20.0), (10.0, 21.0), (10.0, 4.0), (10.0, 18.0), (10.0, 16.0), (10.0, 29.0), (10.0, 7.0), (11.0, 5.0), (11.0, 17.0), (11.0, 3.0), (12.0, 24.0), (12.0, 42.0), (12.0, 22.0)]

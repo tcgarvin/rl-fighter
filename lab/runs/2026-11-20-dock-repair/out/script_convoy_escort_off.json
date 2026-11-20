@@ -1,0 +1,105 @@
+{
+ "schema": "rlf.lab.dock/1",
+ "sim_version": 11,
+ "mission": "convoy_escort",
+ "docking": false,
+ "n": 512,
+ "seed": 1100000,
+ "rosters": [
+  [
+   [
+    "freighter",
+    "freighter",
+    "freighter",
+    "freighter",
+    "freighter",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship"
+   ],
+   [
+    "fighter",
+    "fighter",
+    "strafer",
+    "gunship",
+    "fighter",
+    "strafer"
+   ]
+  ],
+  [
+   [
+    "freighter",
+    "freighter",
+    "freighter",
+    "freighter",
+    "freighter",
+    "freighter",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship"
+   ],
+   [
+    "fighter",
+    "fighter",
+    "strafer",
+    "gunship",
+    "fighter",
+    "strafer"
+   ]
+  ],
+  [
+   [
+    "freighter",
+    "freighter",
+    "freighter",
+    "freighter",
+    "freighter",
+    "freighter",
+    "freighter",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship"
+   ],
+   [
+    "fighter",
+    "fighter",
+    "strafer",
+    "gunship",
+    "fighter",
+    "strafer"
+   ]
+  ]
+ ],
+ "pilots": "script",
+ "team1_win_rate": 0.001953125,
+ "team1_win_ci95": 0.003828125,
+ "end_reasons": {
+  "eliminated": 0.244140625,
+  "convoy_through": 0.75390625,
+  "convoy_destroyed": 0.001953125
+ },
+ "length_median_s": 74.83333333333333,
+ "length_p90_s": 75.36666666666666,
+ "dock": {
+  "recalls": 0,
+  "recalls_per_match": 0.0,
+  "docked": 0,
+  "docked_per_match": 0.0,
+  "completion": 0.0,
+  "completion_of_survivors": 0.0,
+  "seconds_to_dock": {},
+  "metres_at_order": {},
+  "outcomes": {},
+  "failure_modes": {},
+  "failed_closest_m": {},
+  "failed_rel_speed_at_closest": {},
+  "relaunches": 0,
+  "relaunches_per_match": 0.0,
+  "repaired_full": 0,
+  "hull_restored_per_match": 0.0,
+  "by_pilot": {}
+ }
+}

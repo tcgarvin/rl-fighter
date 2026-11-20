@@ -8,6 +8,7 @@
 use crate::actions::ShipAction;
 use crate::command::{Command, CommandOutcome, CommandState};
 use crate::data::{HullDef, HullId, WeaponId, WeaponKind};
+use crate::dock::{BayMount, DockState};
 use crate::events::{EventBuf, HitRecord};
 use crate::hash::{StateHash, StateHasher};
 use crate::math::Vec2;
@@ -406,6 +407,16 @@ pub struct Match {
     /// v6, per slot: the hull fraction it lost in the last step (deaths count the rest
     /// of the hull). Output only.
     pub hull_lost: [f32; MAX_SHIPS],
+    /// v11, per slot: dock orders, returned ships and their turnarounds (`dock` module;
+    /// hashed while docking is live).
+    pub dock: DockState,
+    /// v11, per team: its carrier's bays in the carrier's body frame and how many (a
+    /// copy of hull data from setup; not hashed).
+    pub bay_mounts: [[BayMount; MAX_BAYS]; 2],
+    pub bay_count: [u8; 2],
+    /// v11: bit `s` set: slot `s` docked in the last step (output only; the order
+    /// reward pays the arrival bonus for it).
+    pub docked_now: u32,
 }
 
 /// `winner` before the match is over.
@@ -448,7 +459,8 @@ impl Match {
     /// every ship, every projectile pool slot, `proj_next`, phase, winner, then (v4)
     /// both teams' reserves (count, then slots), the mission state and the command
     /// state, then (v5) the random commander's state and every slot's order track,
-    /// then (v6) `hit_by` over the match's slots (row by row).
+    /// then (v6) `hit_by` over the match's slots (row by row), then (v11, only while
+    /// docking is live: `Match::docking_live`) the dock state over the match's slots.
     pub fn state_hash(&self) -> u64 {
         let mut h = StateHasher::new();
         h.write_u32(self.tick);
@@ -469,6 +481,9 @@ impl Match {
         let n = self.ships.len();
         for row in &self.hit_by[..n] {
             row[..n].hash_into(&mut h);
+        }
+        if self.docking_live() {
+            self.dock.hash_slots(n, &mut h);
         }
         h.finish()
     }

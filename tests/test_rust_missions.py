@@ -204,7 +204,7 @@ TRAIN_CARRIER = ["carrier", "fighter", "fighter", "strafer", "gunship"]
 
 
 def test_v5_constants_and_pilot_obs_dims() -> None:
-    assert rlf_sim.SIM_VERSION == 10
+    assert rlf_sim.SIM_VERSION == 11
     assert (ORDER_OFF, ORDER_W) == (385, 18)
     assert rlf_sim.OBS_DIM_V5 == ORDER_OFF + ORDER_W
     assert rlf_sim.PILOT_OBS_DIMS == {
@@ -216,6 +216,7 @@ def test_v5_constants_and_pilot_obs_dims() -> None:
         8: 587,
         9: 587,
         10: 587,
+        11: 592,
     }
     assert set(rlf_sim.PILOT_OBS_DIMS) == set(rlf_sim.PILOT_COMPAT_VERSIONS)
     assert rlf_sim.MAX_TRAIN_SHIPS == 12
@@ -428,9 +429,9 @@ def _citadel_env(n: int, seed: int) -> rlf_sim.VecEnv:
 
 
 def test_v10_constants_and_rosters() -> None:
-    assert rlf_sim.SIM_VERSION == 10
+    assert rlf_sim.SIM_VERSION >= 10
     assert 10 in rlf_sim.PILOT_COMPAT_VERSIONS
-    assert rlf_sim.PILOT_OBS_DIMS[10] == rlf_sim.OBS_DIM == 587
+    assert rlf_sim.PILOT_OBS_DIMS[10] == rlf_sim.OBS_DIM_V10 == 587
     assert rlf_sim.MAX_TURRETS == 12 and rlf_sim.ACTION_TURRETS == 6
     assert rlf_sim.ACTION_LAYOUT["slew"][1] == 6 and rlf_sim.ACTION_WIDTH == 21
     assert rlf_sim.EVENT_KINDS["turret_destroyed"] == 13

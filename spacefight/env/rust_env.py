@@ -101,6 +101,8 @@ OBS_DIM_V5: int = int(rlf_sim.OBS_DIM_V5)
 # SIM_VERSION 8: the v6 / v7 obs width (the prefix a v6 or v7 pilot reads), and the
 # deadline tick of a go-to without a deadline.
 OBS_DIM_V7: int = int(rlf_sim.OBS_DIM_V7)
+# SIM_VERSION 11: the v8 to v10 width; the dock block follows it.
+OBS_DIM_V10: int = int(rlf_sim.OBS_DIM_V10)
 NO_DEADLINE: int = int(rlf_sim.NO_DEADLINE)
 SHIP_EXTRA_W: int = int(rlf_sim.SHIP_EXTRA_W)
 N_ORDER_SHIPS: int = int(rlf_sim.N_ORDER_SHIPS)
@@ -274,6 +276,12 @@ class RustVecEnv:
         goto_miss_penalty: Order pay charged once, as its negative, when a go-to's
             deadline passes before the ship has arrived, finite and >= 0, for every
             match of the env.
+        docking: The dock rules (SIM_VERSION 11, SIM_SPEC §5.11), for every match of
+            the env: a strike craft under a dock order docks at a live bay of its
+            carrier, repairs and relaunches. Only a commander gives the order: the
+            scripted and random commanders recall craft below
+            ``rlf_sim.DOCK["recall_hull_frac"]`` of their hull; a learned commander
+            never does. False plays every match as SIM_VERSION 10.
 
     Raises:
         ValueError: Invalid arguments or assets (from ``rlf_sim``), or a sampled
@@ -299,6 +307,7 @@ class RustVecEnv:
         order_shaping_gamma: float = DEFAULT_ORDER_SHAPING_GAMMA,
         goto_timed_bonus: float = DEFAULT_GOTO_TIMED_BONUS,
         goto_miss_penalty: float = DEFAULT_GOTO_MISS_PENALTY,
+        docking: bool = True,
     ) -> None:
         if max_ships is None and roster_sampler is not None:
             max_ships = roster_sampler.max_ships
@@ -321,6 +330,7 @@ class RustVecEnv:
             order_shaping_gamma=order_shaping_gamma,
             goto_timed_bonus=goto_timed_bonus,
             goto_miss_penalty=goto_miss_penalty,
+            docking=docking,
         )
         self.fleets: tuple[tuple[str, ...], ...] = tuple(tuple(t) for t in fleets)
         self.reaction_ticks = reaction_ticks
@@ -382,6 +392,19 @@ class RustVecEnv:
         """Order pay charged once for missing a go-to's deadline, in this env's
         matches, as the sim holds it (f32)."""
         return float(self._env.goto_miss_penalty)
+
+    @property
+    def docking(self) -> bool:
+        """Whether this env's matches run the dock rules (SIM_VERSION 11)."""
+        return bool(self._env.docking)
+
+    def dock_state(self) -> dict[str, np.ndarray]:
+        """Every slot's dock state now (SIM_VERSION 11; ``rlf_sim.VecEnv.dock_state``):
+        ``phase`` ``[N, S] int8`` (index into ``rlf_sim.DOCK_PHASES``: none, inbound,
+        repairing, ready), ``bay`` (the dock order's bay, -1 without one), ``since``,
+        ``docked_at``, ``ready_at`` (ticks, 0 when not set) and ``live`` ``[N] bool``
+        (the dock rules run in the match). New arrays."""
+        return {k: np.asarray(v) for k, v in self._env.dock_state().items()}
 
     @property
     def obs_layout(self) -> dict[str, tuple[int, int]]:
@@ -530,7 +553,8 @@ class RustVecEnv:
     def order_tracks(self) -> dict[str, NDArray]:
         """Every slot's order instance now (SIM_VERSION 6; new arrays):
         ``standing_kind``/``effective_kind`` [N, S] int8 (0 none, 1 attack, 2
-        defend, 3 goto), ``target`` [N, S] int16 (-1), ``point`` [N, S, 2] f32,
+        defend, 3 goto; SIM_VERSION 11: 4 dock, the ship's own dock order),
+        ``target`` [N, S] int16 (-1), ``point`` [N, S, 2] f32,
         ``radius`` [N, S] f32, ``arrived`` [N, S] bool, ``instance_start`` [N, S]
         uint32, and (SIM_VERSION 8) ``deadline`` [N, S] uint32 (the instance's go-to
         deadline tick, ``NO_DEADLINE`` for none) and ``missed`` [N, S] bool (the

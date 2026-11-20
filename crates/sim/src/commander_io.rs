@@ -28,7 +28,7 @@ use crate::command::{Command, MAX_SQUADS, NO_DEADLINE, Order, Waypoint};
 use crate::data::{Catalogue, HullId};
 use crate::math::{PI, Vec2};
 use crate::mission::{JumpState, Mission, MissionKind, is_capital_ship};
-use crate::order::{N_HULL_CLASSES, effective_order};
+use crate::order::{N_HULL_CLASSES, effective_order, read_as};
 use crate::state::{Attach, MAX_BAYS, MAX_SHIPS, Match, NONE, ShipIdx};
 
 /// Version of this interface: any change to a layout below bumps it.
@@ -433,6 +433,16 @@ fn reserve_counts(m: &Match, team: u8) -> [usize; N_HULL_CLASSES] {
     out
 }
 
+/// v11: `team`'s reserves a launch may take now (`Match::launchable`: a returned ship
+/// waits out its turnaround) by obs hull class. Without docking, [`reserve_counts`].
+fn launchable_counts(m: &Match, team: u8) -> [usize; N_HULL_CLASSES] {
+    let mut out = [0; N_HULL_CLASSES];
+    for s in m.launchable(team) {
+        out[usize::from(m.ship_class[usize::from(s)])] += 1;
+    }
+    out
+}
+
 /// The masks of `team`'s next decision (`docs/COMMANDER.md` "Masks").
 pub fn masks(m: &Match, cat: &Catalogue, team: u8, locks: &CommanderLocks) -> CommanderMasks {
     let team = team & 1;
@@ -441,7 +451,7 @@ pub fn masks(m: &Match, cat: &Catalogue, team: u8, locks: &CommanderLocks) -> Co
     // v9: a static carrier (the station) cannot move, so its waypoint head only keeps.
     let mobile = live_carrier(m, team).is_some_and(|c| !cat.hull(m.ships[c].hull).is_static);
     let (ready, _) = bays(m, cat, team);
-    let reserves = reserve_counts(m, team);
+    let reserves = launchable_counts(m, team);
     let mut out = CommanderMasks {
         launch: [false; N_LAUNCH_HULLS],
         waypoint: [mobile; N_WAYPOINT_CHOICES],
@@ -553,7 +563,7 @@ pub fn features(m: &Match, cat: &Catalogue, team: u8, locks: &CommanderLocks) ->
                 .position(|q| q.contains(s))
                 .map_or(0, |k| k + 1);
             e[ent::SQUAD + squad] = 1.0;
-            e[ent::ORDER + usize::from(effective_order(m, s).kind())] = 1.0;
+            e[ent::ORDER + usize::from(read_as(m, effective_order(m, s)).kind())] = 1.0;
             e[ent::SHIP_HOLD] = ship_hold_left(m, locks, s) as f32 / HOLD_DECISIONS as f32;
         }
         for (k, q) in squads.iter().enumerate() {
@@ -645,12 +655,12 @@ pub fn features(m: &Match, cat: &Catalogue, team: u8, locks: &CommanderLocks) ->
     out
 }
 
-/// The hull of `team`'s first docked reserve of obs class `class`.
+/// The hull of `team`'s first docked reserve of obs class `class` that may launch (v11:
+/// `Match::launchable`).
 fn reserve_hull(m: &Match, team: u8, class: usize) -> Option<HullId> {
-    m.hangar(team)
-        .iter()
-        .find(|&&s| usize::from(m.ship_class[usize::from(s)]) == class)
-        .map(|&s| m.ships[usize::from(s)].hull)
+    m.launchable(team)
+        .find(|&s| usize::from(m.ship_class[usize::from(s)]) == class)
+        .map(|s| m.ships[usize::from(s)].hull)
 }
 
 /// Turn `team`'s decision `action` (`ACTION_DIM` values) into commands and update its

@@ -56,6 +56,17 @@ pub const SHIP_POWER_OFFSET: usize = SHIP_TURRET_OFFSET + ACTION_TURRETS;
 const _: () = assert!(SHIP_POWER_OFFSET + 3 == SHIP_STRIDE);
 const _: () = assert!(SHIP_STRIDE == 29);
 
+/// v11: floats per ship in the dock view (`dock_*`, ship order): `[phase, bay,
+/// point.x, point.y, since, docked_at, ready_at, hp_frac]`. `phase` 0 none, 1 inbound
+/// (flying home under a dock order to bay `bay` of its carrier, whose dock point is
+/// `point` now; the order given at tick `since`), 2 repairing (back in the hangar since
+/// tick `docked_at`, inside its turnaround), 3 ready (it may relaunch: from tick
+/// `ready_at`); `bay` -1 and `point` 0 without a dock order, ticks 0 when not set;
+/// `hp_frac` its hull fraction (repair progress while docked). All zero (bay -1) while
+/// the dock rules do not run (no carrier, or `docking: false`). A new view: the ships
+/// view and the mission view keep their strides (29, 10).
+pub const DOCK_STRIDE: usize = 8;
+
 /// v4: floats per ship in the mission view (`ship_ext_*`), same ship order as the
 /// ships view: `[role, docked, parent, jump, charge_until, has_waypoint, waypoint.x,
 /// waypoint.y, squad, order_kind]`. `role` 0 strike craft (or any other role), 1
@@ -102,6 +113,13 @@ struct ConfigJson {
     /// v6: `[team 0, team 1]` hidden-order mode; absent is both false.
     #[serde(default)]
     hide_orders: [bool; 2],
+    /// v11: the dock rules (`MatchConfig.docking`); absent is true.
+    #[serde(default = "default_true")]
+    docking: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 fn default_arena_radius() -> f32 {
@@ -149,6 +167,7 @@ pub fn parse_config(cat: &Catalogue, config_json: &str) -> Result<MatchConfig, S
         mission,
         commanders,
         hide_orders: raw.hide_orders,
+        docking: raw.docking,
         // The default: the live page reads no rewards, so no discount applies.
         ..MatchConfig::default()
     })
@@ -164,6 +183,7 @@ pub struct MatchCore {
     ships: Vec<f32>,
     ship_ext: Vec<f32>,
     hardpoints: Vec<f32>,
+    dock: Vec<f32>,
     projectiles: Vec<f32>,
     events: Vec<f32>,
 }
@@ -200,6 +220,7 @@ impl MatchCore {
             ships: Vec::new(),
             ship_ext: Vec::new(),
             hardpoints: Vec::new(),
+            dock: Vec::new(),
             projectiles: Vec::new(),
             events: Vec::new(),
         };
@@ -287,6 +308,11 @@ impl MatchCore {
     /// v10: the hardpoints view (`HARDPOINT_STRIDE` floats per ship).
     pub fn hardpoints_view(&self) -> &[f32] {
         &self.hardpoints
+    }
+
+    /// v11: the dock view (`DOCK_STRIDE` floats per ship).
+    pub fn dock_view(&self) -> &[f32] {
+        &self.dock
     }
 
     /// v4: `MissionKind` code (0 deathmatch, 1 carrier battle, 2 convoy escort; v9: 3
@@ -412,7 +438,7 @@ impl MatchCore {
         for team in 0..2u8 {
             for (k, sq) in self.m.command.squads[usize::from(team)].iter().enumerate() {
                 let (target, point, radius) = match sq.order {
-                    Order::None => (NONE, [0.0, 0.0], 0.0),
+                    Order::None | Order::Dock { .. } => (NONE, [0.0, 0.0], 0.0),
                     Order::Attack { target } | Order::Defend { ward: target } => {
                         let p = self.m.ships()[usize::from(target)].pos;
                         (target, [p.x, p.y], 0.0)
@@ -567,6 +593,27 @@ impl MatchCore {
                 rec[HARDPOINT_BAY_STATE_OFFSET + b] = state(s.bay_hp[b], bay.hp, s.bay_alive(b));
             }
             self.hardpoints.extend_from_slice(&rec);
+        }
+        self.dock.clear();
+        let live = self.m.docking_live();
+        for (k, s) in self.m.ships().iter().enumerate() {
+            let mut rec = [0.0f32; DOCK_STRIDE];
+            rec[1] = -1.0;
+            if live {
+                rec[0] = f32::from(self.m.dock_phase(k) as u8);
+                if self.m.has_dock_order(k) {
+                    let bay = self.m.dock.bay[k];
+                    let p = self.m.dock_point(self.m.carrier_of(s.team), bay);
+                    rec[1] = f32::from(bay);
+                    rec[2] = p.x;
+                    rec[3] = p.y;
+                }
+                rec[4] = self.m.dock.since[k] as f32;
+                rec[5] = self.m.dock.docked_at[k] as f32;
+                rec[6] = self.m.dock.ready_at[k] as f32;
+                rec[7] = s.hp / self.cat.hull(s.hull).hp;
+            }
+            self.dock.extend_from_slice(&rec);
         }
         self.ship_ext.clear();
         for s in self.m.ships() {

@@ -901,7 +901,8 @@ def test_gamma_changes_only_go_to_pay_and_survives_a_roster_swap() -> None:
         np.testing.assert_array_equal(low.raw.state_hash(), high.raw.state_hash())
         np.testing.assert_array_equal(low.raw.rewards, high.raw.rewards)
         difference = high.order_rewards - low.order_rewards
-        goto = low.order_tracks()["standing_kind"] == 3
+        # v11: a dock order (kind 4) is shaped as a go-to too.
+        goto = np.isin(low.order_tracks()["standing_kind"], (3, 4))
         assert not difference[~goto].any()
         assert (difference <= 1e-6).all(), "phi <= 0, so a higher gamma pays less"
         phi = difference / 0.005

@@ -32,6 +32,9 @@
 //!   at the end of the first step past the deadline, to a ship that has not arrived
 //!   (a ship that does not earn this step, dead or absent, is marked missed but not
 //!   charged). Time before the deadline costs nothing.
+//! - v11, *dock*: shaped as a go-to to the bay's dock point (radius
+//!   `dock::DOCK_CAPTURE_RADIUS`; never complete on arrival), and the step the ship docks
+//!   pays `ORDER_ARRIVAL_BONUS`.
 //!
 //! Hit credit and both defend terms use the standing order (the squad's order during
 //! the step: the effective order is already none on the tick an attack target or a
@@ -163,7 +166,8 @@ impl Match {
     /// kinds (only a go-to has a place to be).
     fn goto_distance(&self, s: usize, order: Order) -> Option<(f32, f32)> {
         match order {
-            Order::GoTo { .. } => {
+            // v11: a dock order is shaped like a go-to to its bay's dock point.
+            Order::GoTo { .. } | Order::Dock { .. } => {
                 let (point, radius) = order_geometry(self, order)?;
                 Some(((point - self.ships[s].pos).length(), radius))
             }
@@ -234,7 +238,7 @@ impl Match {
             let paid = match standing_order(self, s) {
                 Order::Attack { target } => target == h.target,
                 Order::Defend { ward } => self.ward_threat[usize::from(ward)] & (1 << t) != 0,
-                Order::None | Order::GoTo { .. } => false,
+                Order::None | Order::GoTo { .. } | Order::Dock { .. } => false,
             };
             if paid {
                 r[s] += order_hit_weight(h) * h.damage;
@@ -254,10 +258,17 @@ impl Match {
                     *reward += DEFEND_WARD_DEATH;
                 }
             }
+            // v11: docking pays the arrival bonus (stage 12c cleared the dock order, so
+            // the instance below is already the next one).
+            if earning[s] && self.docked_now & (1 << s) != 0 {
+                *reward += ORDER_ARRIVAL_BONUS;
+            }
             let order = standing_order(self, s);
             let place = self.goto_distance(s, order);
             let phi = place.map_or(0.0, |(d, rad)| order_potential(d, rad, radius));
-            let inside = place.is_some_and(|(d, rad)| d <= rad);
+            // A dock order is never complete on arrival: it ends by docking.
+            let inside =
+                !matches!(order, Order::Dock { .. }) && place.is_some_and(|(d, rad)| d <= rad);
             let track = &mut self.order_tracks[s];
             if !track.same_instance(order) {
                 // A new instance: Φ restarts here, so the jump pays nothing. v8: a ship

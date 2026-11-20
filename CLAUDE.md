@@ -40,6 +40,11 @@ uv run python -m pytest tests/test_rust_env.py -v
 uv run python -m pytest tests/test_rust_missions.py -v   # v4 missions + commander API, v5 orders/random commander, v9 station assault
 uv run python -m pytest tests/test_rust_orders_v6.py -v  # v6 orders: defend / go-to, hidden orders, transit, threat sets
 uv run python -m pytest tests/test_commander_io.py -v    # learned commander I/O (docs/COMMANDER.md); Rust: cargo test -p sim --test commander_io
+uv run python -m pytest tests/test_rust_dock.py -v       # v11 dock and repair (SIM_SPEC §5.11); Rust: cargo test -p sim --test dock
+# Dock statistics (script vs script, or --pilots <list>; --docking off is v10), and the
+# Rust harness by roster: lab/runs/2026-11-20-dock-repair (run.sh, dock_eval.py)
+uv run python lab/runs/2026-11-20-dock-repair/dock_eval.py --mission carrier_battle --n 512
+RLF_DIAG_N=128 cargo test --release -p sim --test dock diag_dock_stats -- --ignored --nocapture
 # Mission timeline diagnostic (carrier battle, convoy escort, stub commanders)
 cargo test -p sim --test missions timeline -- --ignored --nocapture
 uv run python tools/bench_env.py --assert-floors   # v5: + 12-slot carrier/convoy training shapes
@@ -182,6 +187,11 @@ nohup lab/runs/2026-10-31-order-pilot/run.sh > lab/runs/2026-10-31-order-pilot/r
 # --wasm-sim-version 6 --wasm-obs-dim 583 --wasm-pilot-compat 3,4,5,6
 # v8 pilots (go-to deadlines, 587 inputs): --wasm-sim-version 8 --wasm-obs-dim 587
 # --wasm-pilot-compat 3,4,5,6,7,8 --wasm-pilot-obs-dims '{"3":385,"4":385,"5":403,"6":583,"7":583,"8":587}'
+# v11 pilots (dock block, 592 inputs; SIM_SPEC §7.2): --wasm-sim-version 11 --wasm-obs-dim 592
+# --wasm-pilot-compat 3,...,11 --wasm-pilot-obs-dims '{...,"8":587,"9":587,"10":587,"11":592}'
+# (scripts/build_bundle.sh reads all of these from the wasm). A 587-input pilot takes the
+# dock inputs with --init <ckpt> --set obs_dim=592 --set new_input_lr_mult=3; in its own
+# 587-float view a dock order reads as a go-to to the bay mouth.
 # (JS parity on a real one: RLF_PARITY_CHECKPOINT_V8=<ckpt.pt> pytest tests/test_web_policy.py)
 uv run python -m spacefight.eval.orders --a <checkpoint.pt> --out orders.json
 nohup lab/runs/2026-11-01-order-pilot-b3/run.sh > lab/runs/2026-11-01-order-pilot-b3/run.out 2>&1 &

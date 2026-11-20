@@ -1,0 +1,64 @@
+{
+ "schema": "rlf.lab.dock/1",
+ "sim_version": 11,
+ "mission": "citadel",
+ "docking": false,
+ "n": 512,
+ "seed": 1100000,
+ "rosters": [
+  [
+   [
+    "citadel",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship",
+    "fighter",
+    "strafer",
+    "fighter"
+   ],
+   [
+    "carrier",
+    "dreadnought",
+    "fighter",
+    "bomber",
+    "fighter",
+    "bomber",
+    "strafer",
+    "bomber",
+    "fighter",
+    "gunship",
+    "fighter"
+   ]
+  ]
+ ],
+ "pilots": "script",
+ "team1_win_rate": 0.576171875,
+ "team1_win_ci95": 0.04284661678239172,
+ "end_reasons": {
+  "time_limit": 0.046875,
+  "station_destroyed": 0.576171875,
+  "assault_repelled": 0.376953125
+ },
+ "length_median_s": 115.75,
+ "length_p90_s": 143.82000000000002,
+ "dock": {
+  "recalls": 0,
+  "recalls_per_match": 0.0,
+  "docked": 0,
+  "docked_per_match": 0.0,
+  "completion": 0.0,
+  "completion_of_survivors": 0.0,
+  "seconds_to_dock": {},
+  "metres_at_order": {},
+  "outcomes": {},
+  "failure_modes": {},
+  "failed_closest_m": {},
+  "failed_rel_speed_at_closest": {},
+  "relaunches": 0,
+  "relaunches_per_match": 0.0,
+  "repaired_full": 0,
+  "hull_restored_per_match": 0.0,
+  "by_pilot": {}
+ }
+}

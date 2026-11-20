@@ -1,0 +1,60 @@
+{
+ "schema": "rlf.lab.dock/1",
+ "sim_version": 11,
+ "mission": "deathmatch",
+ "docking": false,
+ "n": 512,
+ "seed": 1100000,
+ "rosters": [
+  [
+   [
+    "fighter",
+    "strafer",
+    "gunship"
+   ],
+   [
+    "gunship",
+    "fighter",
+    "strafer"
+   ]
+  ],
+  [
+   [
+    "fighter",
+    "fighter"
+   ],
+   [
+    "strafer",
+    "gunship"
+   ]
+  ]
+ ],
+ "pilots": "script",
+ "team1_win_rate": 0.7080078125,
+ "team1_win_ci95": 0.0393764696471118,
+ "end_reasons": {
+  "eliminated": 0.611328125,
+  "time_limit": 0.388671875
+ },
+ "length_median_s": 41.71666666666667,
+ "length_p90_s": 90.0,
+ "dock": {
+  "recalls": 0,
+  "recalls_per_match": 0.0,
+  "docked": 0,
+  "docked_per_match": 0.0,
+  "completion": 0.0,
+  "completion_of_survivors": 0.0,
+  "seconds_to_dock": {},
+  "metres_at_order": {},
+  "outcomes": {},
+  "failure_modes": {},
+  "failed_closest_m": {},
+  "failed_rel_speed_at_closest": {},
+  "relaunches": 0,
+  "relaunches_per_match": 0.0,
+  "repaired_full": 0,
+  "hull_restored_per_match": 0.0,
+  "by_pilot": {}
+ }
+}

@@ -284,7 +284,8 @@ class Trainer:
         self.ordered_cols = slice(int(order) + 1, int(order) + 4)
         self.actor = initial_actor(cfg)
         pilots = live_pilot_checkpoints(
-            Path(cfg.live_pilots), Path(cfg.pilot_root) if cfg.pilot_root else PILOTS_ROOT
+            Path(cfg.live_pilots),
+            Path(cfg.pilot_root) if cfg.pilot_root else PILOTS_ROOT,
         )
         self.critic = CommanderCritic(n_pilots=len(pilots))
         self.opt = torch.optim.Adam(

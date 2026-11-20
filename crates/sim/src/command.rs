@@ -131,6 +131,11 @@ pub enum Order {
         radius: f32,
         deadline: u32,
     },
+    /// v11: fly to bay `bay` of the own carrier `carrier` and dock there (`dock`
+    /// module). A ship's own order (`Match.dock`), never a squad's: a squad command with
+    /// it is sanitised to none. Reads to the pilot nets as a go-to to the bay's dock
+    /// point (`order::read_as`); ends when the ship docks.
+    Dock { carrier: ShipIdx, bay: u8 },
 }
 
 /// `Order::GoTo::deadline` of a go-to without a deadline (v8). Tick 0 is free as the
@@ -138,13 +143,14 @@ pub enum Order {
 pub const NO_DEADLINE: u32 = 0;
 
 impl Order {
-    /// 0 none, 1 attack, 2 defend, 3 go-to.
+    /// 0 none, 1 attack, 2 defend, 3 go-to, (v11) 4 dock.
     pub fn kind(&self) -> u8 {
         match self {
             Order::None => 0,
             Order::Attack { .. } => 1,
             Order::Defend { .. } => 2,
             Order::GoTo { .. } => 3,
+            Order::Dock { .. } => 4,
         }
     }
 
@@ -154,14 +160,17 @@ impl Order {
             Order::Attack { .. } => "attack",
             Order::Defend { .. } => "defend",
             Order::GoTo { .. } => "goto",
+            Order::Dock { .. } => "dock",
         }
     }
 
-    /// The ship the order is about, `NONE` for none and go-to.
+    /// The ship the order is about (v11: a dock order's carrier), `NONE` for none and
+    /// go-to.
     pub fn target(&self) -> ShipIdx {
         match *self {
             Order::Attack { target } => target,
             Order::Defend { ward } => ward,
+            Order::Dock { carrier, .. } => carrier,
             Order::None | Order::GoTo { .. } => NONE,
         }
     }
@@ -171,7 +180,9 @@ impl Order {
     pub fn deadline(&self) -> u32 {
         match *self {
             Order::GoTo { deadline, .. } => deadline,
-            Order::None | Order::Attack { .. } | Order::Defend { .. } => NO_DEADLINE,
+            Order::None | Order::Attack { .. } | Order::Defend { .. } | Order::Dock { .. } => {
+                NO_DEADLINE
+            }
         }
     }
 }
@@ -283,6 +294,10 @@ pub enum Command {
         members: u32,
         order: Order,
     },
+    /// v11: give own strike craft `ship`, on the field, a dock order to `bay` of its
+    /// carrier (the live bay whose dock point is nearest the ship if `None`); it leaves
+    /// its squad (`dock` module).
+    Dock { ship: ShipIdx, bay: Option<u8> },
 }
 
 /// Why a command was refused.
@@ -312,6 +327,16 @@ pub enum Refusal {
     NoSuchSquad,
     /// v10: the requested bay (or, with no bay requested, every bay) was destroyed.
     BayDestroyed,
+    /// v11: every reserve (of the requested hull) is a returned ship still inside its
+    /// turnaround.
+    Repairing,
+    /// v11: a dock order for a capital ship.
+    NotStrikeCraft,
+    /// v11: a dock order for a ship that is not on the field (docked, arriving).
+    NotInSpace,
+    /// v11: a dock order in a match without the dock rules (`MatchConfig.docking` off,
+    /// or no carrier).
+    DockingOff,
 }
 
 impl Refusal {
@@ -329,6 +354,10 @@ impl Refusal {
             Refusal::BadPoint => "bad_point",
             Refusal::NoSuchSquad => "no_such_squad",
             Refusal::BayDestroyed => "bay_destroyed",
+            Refusal::Repairing => "repairing",
+            Refusal::NotStrikeCraft => "not_strike_craft",
+            Refusal::NotInSpace => "not_in_space",
+            Refusal::DockingOff => "docking_off",
         }
     }
 }
@@ -539,6 +568,8 @@ impl Match {
                     deadline,
                 }
             }
+            // v11: a ship's own order (`Command::Dock`), never a squad's.
+            Order::Dock { .. } => Order::None,
         }
     }
 
@@ -549,7 +580,7 @@ impl Match {
             Order::GoTo { point, radius, .. } => (point, radius),
             Order::Attack { target } => (self.ships[usize::from(target)].pos, 0.0),
             Order::Defend { ward } => (self.ships[usize::from(ward)].pos, 0.0),
-            Order::None => (Vec2::ZERO, 0.0),
+            Order::None | Order::Dock { .. } => (Vec2::ZERO, 0.0),
         };
         self.events.push(Event::Order {
             team,
@@ -643,7 +674,60 @@ impl Match {
                     Outcome::Applied
                 }
             }
+            Command::Dock { ship, bay } => match self.dock_command(cat, team, ship, bay) {
+                Ok(()) => Outcome::Applied,
+                Err(r) => Outcome::Refused(r),
+            },
         }
+    }
+
+    /// v11: `Command::Dock` (`dock` module): `ship` must be an own strike craft on the
+    /// field in a match with the dock rules, its carrier up, the bay (or, with none
+    /// asked, some bay) live. A ship already under a dock order takes the new bay.
+    fn dock_command(
+        &mut self,
+        cat: &Catalogue,
+        team: u8,
+        ship: ShipIdx,
+        bay: Option<u8>,
+    ) -> Result<(), Refusal> {
+        let s = usize::from(ship);
+        if !self.docking_live() {
+            return Err(Refusal::DockingOff);
+        }
+        if s >= self.ships.len() || self.ships[s].team != team {
+            return Err(Refusal::NotOwnShip);
+        }
+        if !self.in_match(s) {
+            return Err(Refusal::ShipLost);
+        }
+        if is_capital_ship(cat.hull(self.ships[s].hull)) {
+            return Err(Refusal::NotStrikeCraft);
+        }
+        if !self.ships[s].active() {
+            return Err(Refusal::NotInSpace);
+        }
+        let t = usize::from(team & 1);
+        let carrier = self.mission.carrier[t];
+        if carrier == NONE {
+            return Err(Refusal::NoCarrier);
+        }
+        let c = &self.ships[usize::from(carrier)];
+        if !c.active() {
+            return Err(Refusal::CarrierLost);
+        }
+        let n_bays = self.bay_count[t];
+        let b = match bay {
+            Some(b) if b >= n_bays => return Err(Refusal::NoSuchBay),
+            Some(b) if !c.bay_alive(usize::from(b)) => return Err(Refusal::BayDestroyed),
+            Some(b) => b,
+            None if n_bays == 0 => return Err(Refusal::NoSuchBay),
+            None => self
+                .nearest_open_bay(carrier, self.ships[s].pos)
+                .ok_or(Refusal::BayDestroyed)?,
+        };
+        self.set_dock_order(s, b);
+        Ok(())
     }
 
     /// Launch one reserve of `team` (SIM_SPEC §5.9). On success the ship is present
@@ -671,13 +755,16 @@ impl Match {
         if self.reserves[t].is_empty() {
             return Err(Refusal::HangarEmpty);
         }
-        let pick = match hull {
-            None => 0,
-            Some(h) => self.reserves[t]
-                .iter()
-                .position(|&s| self.ships[usize::from(s)].hull == h)
-                .ok_or(Refusal::NoReserveOfHull)?,
-        };
+        // v11: the first reserve (of the hull) that may launch: a returned ship waits out
+        // its turnaround (`dock` module); one that never launched always may.
+        let of_hull = |s: ShipIdx| hull.is_none_or(|h| self.ships[usize::from(s)].hull == h);
+        if !self.reserves[t].iter().any(|&s| of_hull(s)) {
+            return Err(Refusal::NoReserveOfHull);
+        }
+        let pick = self.reserves[t]
+            .iter()
+            .position(|&s| of_hull(s) && self.launch_ready(s))
+            .ok_or(Refusal::Repairing)?;
         let n_bays = c_hull.bays.len();
         let ready = |b: usize| self.tick >= self.mission.bay_ready[t][b];
         // v10: a destroyed bay never launches; with every bay destroyed the hangar is
@@ -726,6 +813,7 @@ impl Match {
         ship.arrive_tick = tick;
         ship.control_lock_until = tick + LAUNCH_LOCK_TICKS;
         ship.queue = [ShipAction::IDLE; MAX_REACTION_TICKS];
+        let hp_frac = ship.hp / cat.hull(ship.hull).hp;
         self.mission.bay_ready[t][b] = tick + BAY_COOLDOWN_TICKS;
         self.events.push(Event::Launch {
             ship: slot,
@@ -734,6 +822,18 @@ impl Match {
             pos: mouth,
             dir,
         });
+        // v11: a returned ship back in space.
+        let s = usize::from(slot);
+        if self.dock.docked_at[s] != 0 {
+            self.dock.docked_at[s] = 0;
+            self.dock.ready_at[s] = 0;
+            self.events.push(Event::Relaunched {
+                ship: slot,
+                carrier,
+                bay: b as u8,
+                hp_frac,
+            });
+        }
         Ok((slot, b as u8))
     }
 

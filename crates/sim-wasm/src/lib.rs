@@ -260,7 +260,11 @@ pub fn projectile_stride() -> usize {
 /// (SIM_SPEC §9; kinds 0 fire, 1 beam, 2 hit, 3 shield hit, 4 burst, 5 death,
 /// 6 arrival, 7 collision (v3), 8 launch, 9 order, 10 jump charge, 11 jump out,
 /// 12 match end (v4), 13 turret destroyed, 14 bay destroyed (v10: `[kind, ship,
-/// turret or bay index, x, y, 0, 0, shooter]`, the mount's world position)).
+/// turret or bay index, x, y, 0, 0, shooter]`, the mount's world position), 15 dock
+/// ordered `[k, ship, carrier, x, y, 0, 0, bay]` (the dock point), 16 docked
+/// `[k, ship, carrier, x, y, hp_frac, 0, bay]` (where it was), 17 repaired `[k, ship,
+/// carrier, 0, 0, 0, 0, 0]`, 18 relaunched `[k, ship, carrier, 0, 0, hp_frac, 0, bay]`
+/// (after its launch), 19 dock aborted `[k, ship, carrier, 0, 0, 0, 0, reason]` (v11)).
 #[wasm_bindgen(js_name = EVENT_STRIDE)]
 pub fn event_stride() -> usize {
     sim::events::EVENT_STRIDE
@@ -272,6 +276,14 @@ pub fn event_stride() -> usize {
 #[wasm_bindgen(js_name = HARDPOINT_STRIDE)]
 pub fn hardpoint_stride() -> usize {
     bridge::HARDPOINT_STRIDE
+}
+
+/// v11: floats per ship in `dock_*`: `[phase, bay, point.x, point.y, since,
+/// docked_at, ready_at, hp_frac]` (phase 0 none, 1 inbound, 2 repairing, 3 ready;
+/// `bridge::DOCK_STRIDE`).
+#[wasm_bindgen(js_name = DOCK_STRIDE)]
+pub fn dock_stride() -> usize {
+    bridge::DOCK_STRIDE
 }
 
 /// v10: offset of `turret_angle[12]` within a hardpoints record.
@@ -392,6 +404,17 @@ impl WasmMatch {
     /// v10: floats in the hardpoints view (`n_ships * HARDPOINT_STRIDE`).
     pub fn hardpoints_len(&self) -> usize {
         self.core.hardpoints_view().len()
+    }
+
+    /// v11: the per-ship dock view (`DOCK_STRIDE` floats per ship, ship order): each
+    /// ship's dock phase, its dock order's bay and dock point, its turnaround.
+    pub fn dock_ptr(&self) -> *const f32 {
+        self.core.dock_view().as_ptr()
+    }
+
+    /// v11: floats in the dock view (`n_ships * DOCK_STRIDE`).
+    pub fn dock_len(&self) -> usize {
+        self.core.dock_view().len()
     }
 
     /// v4: 0 deathmatch, 1 carrier battle, 2 convoy escort; v9: 3 station assault.

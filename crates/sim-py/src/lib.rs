@@ -46,6 +46,8 @@ fn rlf_sim(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // v8: the v6 / v7 obs width, and the sentinel of a go-to without a deadline.
     m.add("OBS_DIM_V7", sim::obs::OBS_DIM_V7)?;
     m.add("NO_DEADLINE", sim::command::NO_DEADLINE)?;
+    // v11: the v8 to v10 obs width (a dock order reads as a go-to in it).
+    m.add("OBS_DIM_V10", sim::obs::OBS_DIM_V10)?;
     m.add("ORDER_TIME_TICKS", sim::obs::ORDER_TIME_TICKS)?;
     m.add("CLOSENESS_RANGE", sim::obs::CLOSENESS_RANGE)?;
     m.add("SHIP_EXTRA_W", SHIP_EXTRA_W)?;
@@ -96,10 +98,34 @@ fn rlf_sim(m: &Bound<'_, PyModule>) -> PyResult<()> {
         // v10: [kind, ship, turret or bay, x, y, 0, 0, shooter].
         ("turret_destroyed", events::KIND_TURRET_DESTROYED),
         ("bay_destroyed", events::KIND_BAY_DESTROYED),
+        // v11 (SIM_SPEC §9): dock_ordered [k, ship, carrier, x, y, 0, 0, bay],
+        // docked [k, ship, carrier, x, y, hp_frac, 0, bay], repaired [k, ship, carrier,
+        // 0...], relaunched [k, ship, carrier, 0, 0, hp_frac, 0, bay], dock_aborted [k,
+        // ship, carrier, 0, 0, 0, 0, reason (0 carrier lost, 1 no bay left)].
+        ("dock_ordered", events::KIND_DOCK_ORDERED),
+        ("docked", events::KIND_DOCKED),
+        ("repaired", events::KIND_REPAIRED),
+        ("relaunched", events::KIND_RELAUNCHED),
+        ("dock_aborted", events::KIND_DOCK_ABORTED),
     ] {
         event_kinds.set_item(name, code)?;
     }
     m.add("EVENT_KINDS", event_kinds)?;
+    // v11: the dock rules' numbers (`sim::dock`) and `VecEnv.dock_state()`'s phases.
+    let dock = PyDict::new(py);
+    dock.set_item("capture_radius", sim::dock::DOCK_CAPTURE_RADIUS)?;
+    dock.set_item("max_rel_speed", sim::dock::DOCK_MAX_REL_SPEED)?;
+    dock.set_item("point_offset", sim::dock::DOCK_POINT_OFFSET)?;
+    dock.set_item("repair_frac_per_s", sim::dock::REPAIR_FRAC_PER_S)?;
+    dock.set_item("turnaround_ticks", sim::dock::DOCK_TURNAROUND_TICKS)?;
+    // The scripted (and random) commander's recall rule (`sim::scripted::commander`).
+    use sim::scripted::commander as sc;
+    dock.set_item("recall_hull_frac", sc::RECALL_HULL_FRAC)?;
+    dock.set_item("recall_finish_frac", sc::RECALL_FINISH_FRAC)?;
+    dock.set_item("recall_clear_margin", sc::RECALL_CLEAR_MARGIN)?;
+    dock.set_item("relaunch_hull_frac", sc::RELAUNCH_HULL_FRAC)?;
+    m.add("DOCK", dock)?;
+    m.add("DOCK_PHASES", vec!["none", "inbound", "repairing", "ready"])?;
 
     // name -> (offset, width), in layout order (dicts keep insertion order).
     let obs_layout = PyDict::new(py);

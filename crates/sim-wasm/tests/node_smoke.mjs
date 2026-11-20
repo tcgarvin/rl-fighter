@@ -89,6 +89,28 @@ const scenarios = [
       ["carrier", "dreadnought", "fighter", "bomber", "fighter", "bomber", "strafer", "bomber", "fighter", "gunship", "fighter"],
     ],
   },
+  // v11: the live carrier roster ("wing of 8"), strike craft recalled, docked, repaired
+  // and relaunched (the dock view must show it).
+  {
+    golden: "carrier_battle_dock_s61",
+    seed: 61,
+    docks: true,
+    extra: { mission: "carrier_battle", time_limit_ticks: 9000 },
+    fleets: [
+      ["carrier", "fighter", "strafer", "fighter", "gunship", "fighter", "strafer", "fighter", "gunship"],
+      ["carrier", "fighter", "strafer", "fighter", "gunship", "fighter", "strafer", "fighter", "gunship"],
+    ],
+  },
+  // v11 with the dock rules off replays the v10 record of the same carrier battle.
+  {
+    golden: "v10/carrier_battle_s23",
+    seed: 23,
+    extra: { mission: "carrier_battle", time_limit_ticks: 9000, docking: false },
+    fleets: [
+      ["carrier", "fighter", "strafer", "fighter", "gunship", "fighter", "fighter"],
+      ["carrier", "fighter", "strafer", "fighter", "gunship", "fighter", "fighter"],
+    ],
+  },
 ];
 
 function goldenEnd(name) {
@@ -108,14 +130,15 @@ function check(cond, msg) {
 
 check(sim.SHIP_STRIDE() === 29 && sim.EVENT_STRIDE() === 8 && sim.PROJECTILE_STRIDE() === 9, "strides");
 check(sim.HARDPOINT_STRIDE() === 30 && sim.HARDPOINT_TURRET_STATE_OFFSET() === 14 && sim.HARDPOINT_BAY_STATE_OFFSET() === 26, "v10 hardpoint stride");
-check(sim.ACTION_WIDTH() === 21 && sim.OBS_DIM() === 587, "action/obs widths");
-check(sim.sim_version() === 10 && Array.from(sim.pilot_compat_versions()).join() === "3,4,5,6,7,8,9,10", "v10 + pilot compat");
+check(sim.ACTION_WIDTH() === 21 && sim.OBS_DIM() === 592, "action/obs widths");
+check(sim.sim_version() === 11 && Array.from(sim.pilot_compat_versions()).join() === "3,4,5,6,7,8,9,10,11", "v11 + pilot compat");
+check(sim.DOCK_STRIDE() === 8, "v11 dock stride");
 check(
-  sim.pilotObsDim(3) === 385 && sim.pilotObsDim(4) === 385 && sim.pilotObsDim(5) === 403 && sim.pilotObsDim(6) === 583 && sim.pilotObsDim(7) === 583 && sim.pilotObsDim(8) === 587 && sim.pilotObsDim(9) === 587,
+  sim.pilotObsDim(3) === 385 && sim.pilotObsDim(4) === 385 && sim.pilotObsDim(5) === 403 && sim.pilotObsDim(6) === 583 && sim.pilotObsDim(7) === 583 && sim.pilotObsDim(8) === 587 && sim.pilotObsDim(9) === 587 && sim.pilotObsDim(10) === 587 && sim.pilotObsDim(11) === 592,
   "pilot obs dims",
 );
-check(JSON.stringify(JSON.parse(sim.pilotObsDimsJson())) === '{"3":385,"4":385,"5":403,"6":583,"7":583,"8":587,"9":587,"10":587}', "pilotObsDimsJson");
-check(JSON.parse(sim.obsLayoutJson()).blocks.at(-1).join() === "order_time,583,4", "obs layout ends with the order_time block");
+check(JSON.stringify(JSON.parse(sim.pilotObsDimsJson())) === '{"3":385,"4":385,"5":403,"6":583,"7":583,"8":587,"9":587,"10":587,"11":592}', "pilotObsDimsJson");
+check(JSON.parse(sim.obsLayoutJson()).blocks.at(-1).join() === "dock,587,5", "obs layout ends with the v11 dock block");
 check(sim.MAX_TRAIN_SHIPS() === 12, "MAX_TRAIN_SHIPS");
 check(sim.pilot_compatible(3) && !sim.pilot_compatible(2), "pilot_compatible");
 check(sim.SHIP_EXT_STRIDE() === 10 && sim.SQUAD_STRIDE() === 9 && sim.TEAM_STRIDE() === 8 && sim.CONVOY_STRIDE() === 14, "v4 strides");
@@ -154,6 +177,7 @@ for (const sc of scenarios) {
   const m = new sim.WasmMatch(hulls, weapons, cfg);
   const nShips = sc.fleets[0].length + sc.fleets[1].length;
   let maxEvents = 0;
+  const phases = new Set();
   while (m.phase() === 0 && m.tick() < 9000) {
     for (let s = 0; s < nShips; s++) m.set_action(s, m.scripted_action(s));
     m.step();
@@ -164,7 +188,11 @@ for (const sc of scenarios) {
     check(ext.length === nShips * sim.SHIP_EXT_STRIDE(), `${sc.golden} ship_ext view length`);
     const events = new Float32Array(mem, m.events_ptr(), m.events_len());
     maxEvents = Math.max(maxEvents, events.length / sim.EVENT_STRIDE());
+    const dock = new Float32Array(mem, m.dock_ptr(), m.dock_len());
+    check(dock.length === nShips * sim.DOCK_STRIDE(), `${sc.golden} dock view length`);
+    for (let s = 0; s < nShips; s++) phases.add(dock[s * sim.DOCK_STRIDE()]);
   }
+  if (sc.docks) check(phases.has(1) && phases.has(2) && phases.has(3), `${sc.golden}: inbound, repairing and ready all seen`);
   check(m.obs(0).length === sim.OBS_DIM(), "obs length");
   const want = goldenEnd(sc.golden);
   const got = { tick: m.tick(), hash: m.state_hash_hex(), winner: m.winner() };
