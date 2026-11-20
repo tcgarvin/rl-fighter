@@ -270,6 +270,55 @@ fn docking_takes_the_ship_off_the_field_into_the_hangar_with_its_shield_full() {
     assert!(obs.iter().all(|&f| f == 0.0));
 }
 
+/// Dock ship 1 of `m` at `frac` of its hull; the tick it docked.
+fn dock_at(m: &mut Match, cat: &Catalogue, frac: f32) -> u32 {
+    command(
+        m,
+        cat,
+        Command::Dock {
+            ship: 1,
+            bay: Some(0),
+        },
+    );
+    m.ships[1].hp = frac * cat.hull(m.ships[1].hull).hp;
+    let p = m.dock_point(0, 0);
+    let v = m.ships[0].vel;
+    place(m, 1, p, v);
+    m.step(cat);
+    assert_eq!(m.ships[1].attach, Attach::Docked);
+    m.tick()
+}
+
+#[test]
+fn under_the_doctrine_a_badly_damaged_ship_waits_until_it_would_not_be_recalled() {
+    let cat = asset_catalogue();
+    // Doctrine on (external commanders too): docked at 0.1, it needs (0.5 - 0.1) / 0.05 =
+    // 8 s of repair, longer than the turnaround.
+    let mut m = external_battle(&cat);
+    let at = dock_at(&mut m, &cat, 0.1);
+    let wait = m.dock.ready_at[1] - at;
+    assert!(wait > DOCK_TURNAROUND_TICKS && wait <= 8 * 30 + 2, "{wait}");
+    while m.tick() < m.dock.ready_at[1] {
+        assert_eq!(m.dock_phase(1), DockPhase::Repairing);
+        m.step(&cat);
+    }
+    let max = cat.hull(m.ships[1].hull).hp;
+    assert!(m.ships[1].hp >= RECALL_HULL_FRAC * max);
+    assert_eq!(m.dock_phase(1), DockPhase::Ready);
+    // Doctrine off: the plain turnaround, however damaged.
+    let mut cfg = carrier_cfg(
+        &cat,
+        5,
+        &["fighter", "fighter"],
+        [CommanderMode::External, CommanderMode::External],
+    );
+    cfg.recall_doctrine = false;
+    let mut m = Match::new(&cat, &cfg).expect("setup");
+    settle(&mut m, &cat);
+    let at = dock_at(&mut m, &cat, 0.1);
+    assert_eq!(m.dock.ready_at[1] - at, DOCK_TURNAROUND_TICKS);
+}
+
 #[test]
 fn hull_repairs_at_the_rate_and_the_ship_relaunches_as_the_same_slot_after_the_turnaround() {
     let cat = asset_catalogue();
@@ -283,7 +332,7 @@ fn hull_repairs_at_the_rate_and_the_ship_relaunches_as_the_same_slot_after_the_t
         },
     );
     let max = cat.hull(m.ships[1].hull).hp;
-    m.ships[1].hp = 0.25 * max;
+    m.ships[1].hp = 0.45 * max;
     let p = m.dock_point(0, 0);
     let v = m.ships[0].vel;
     place(&mut m, 1, p, v);
@@ -292,7 +341,7 @@ fn hull_repairs_at_the_rate_and_the_ship_relaunches_as_the_same_slot_after_the_t
     assert_eq!(m.dock.ready_at[1], docked_tick + DOCK_TURNAROUND_TICKS);
     // Repair starts on the docking step; then exactly one second of it.
     let start = m.ships[1].hp;
-    assert!(start > 0.25 * max);
+    assert!(start > 0.45 * max);
     for _ in 0..30 {
         m.step(&cat);
     }

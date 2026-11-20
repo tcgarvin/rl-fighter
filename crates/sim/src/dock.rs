@@ -20,7 +20,9 @@
 //!   and it joins the back of the hangar (`Match.reserves`): `Docked`.
 //! - **Repair**: every step a returned ship is in a live carrier's hangar its hull gains
 //!   [`REPAIR_FRAC_PER_S`] of its maximum a second (`Repaired` once full). It may launch
-//!   again [`DOCK_TURNAROUND_TICKS`] after docking (`DockState::ready_at`); the launch
+//!   again [`DOCK_TURNAROUND_TICKS`] after docking (`DockState::ready_at`), and while the
+//!   recall doctrine runs for its team not before it is repaired past
+//!   [`RECALL_HULL_FRAC`] (else it would be recalled as it left the bay); the launch
 //!   takes the first *ready* reserve, so a fresh reserve, always ready, goes first. It
 //!   relaunches as the same slot, so its pilot and identity are unchanged (`Relaunched`
 //!   follows its `Launch`). If the carrier dies it dies with the hangar, as reserves do.
@@ -310,7 +312,7 @@ impl Match {
     /// The recall doctrine (module docs) for `team`, after its slow tick's commands.
     pub(crate) fn apply_recall_doctrine(&mut self, cat: &Catalogue, team: u8) {
         let t = usize::from(team & 1);
-        if !self.docking_live() || !self.cfg.recall_doctrine || self.cfg.hide_orders[t] {
+        if !self.docking_live() || !self.doctrine_applies(t) {
             return;
         }
         let carrier = self.mission.carrier[t];
@@ -453,7 +455,7 @@ impl Match {
         ship.shield = hull.shield.map_or(0.0, |sh| sh.hp);
         self.clear_dock_order(s);
         self.dock.docked_at[s] = tick;
-        self.dock.ready_at[s] = tick + DOCK_TURNAROUND_TICKS;
+        self.dock.ready_at[s] = tick + self.turnaround_ticks(t, hp_frac);
         self.reserves[t].push(s as ShipIdx);
         for q in self.command.squads[t].iter_mut() {
             q.members &= !(1 << s);
@@ -466,6 +468,25 @@ impl Match {
             pos,
             hp_frac,
         });
+    }
+
+    /// Whether the recall doctrine runs for team `t` (docking itself is live).
+    fn doctrine_applies(&self, t: usize) -> bool {
+        self.cfg.recall_doctrine && !self.cfg.hide_orders[t]
+    }
+
+    /// Ticks from docking to the first launch of a ship of team `t` that docked at
+    /// `hp_frac` of its hull: [`DOCK_TURNAROUND_TICKS`], or longer while the doctrine runs
+    /// for the team, until the hangar has repaired it to [`RECALL_HULL_FRAC`] (one tick
+    /// spare for rounding), so a relaunched craft is never recalled on its first slow
+    /// tick out of the bay.
+    fn turnaround_ticks(&self, t: usize, hp_frac: f32) -> u32 {
+        if !self.doctrine_applies(t) || hp_frac >= RECALL_HULL_FRAC {
+            return DOCK_TURNAROUND_TICKS;
+        }
+        let per_tick = REPAIR_FRAC_PER_S * DT;
+        let repair = ((RECALL_HULL_FRAC - hp_frac) / per_tick).ceil() as u32 + 1;
+        repair.max(DOCK_TURNAROUND_TICKS)
     }
 
     /// Repair every returned ship in a live carrier's hangar.

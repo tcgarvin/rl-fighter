@@ -137,7 +137,8 @@ team hides its orders (the eval's `unseen` side). A ship flying home holds a doc
 of its own, which wins over its squad's (it is taken out of its squad when recalled;
 putting it back in one changes nothing until it docks), and its entity's order one-hot
 reads it as a go-to, as the pilots read it. A returned ship waits in the hangar
-("reserves" counts it) and may launch 4 s after docking; the launch mask needs a reserve
+("reserves" counts it) and may launch 4 s after docking (later if it docked so damaged
+that the doctrine would recall it again: not before it is repaired past half); the launch mask needs a reserve
 that may launch, so a hangar holding only returned ships inside their turnaround closes
 it. The trainer's `TrainConfig.recall_doctrine` (default true) turns the doctrine off for
 a run. Stage 4 of the dock plan (`lab/runs/2026-11-20-dock-repair/plan.md`) gives the
