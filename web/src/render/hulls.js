@@ -178,7 +178,105 @@ export const HULLS = {
       { id: "turret.gauss.2", pos: [8, -13.9], height: 3, rest: -60, arc: 220, slew: 120, weapon: "gauss" },
     ],
   },
+  // SIM_VERSION 10 (lab/runs/2026-11-19-citadel-dreadnought/plan.md is the contract for
+  // every mount below). The citadel: a core and six modules on spokes, open gaps
+  // between the modules, twelve turrets that can be shot off one by one, four bays on
+  // the core facing the gaps. Static, role carrier in the sim; drawn with the station's
+  // turret scale and its own look.
+  citadel: {
+    role: "station",
+    model: "citadel",
+    length: 100,
+    beam: 100,
+    radius: 49,
+    hp: 3000,
+    mass: 5000,
+    inertia: 1e6,
+    speedCap: 0,
+    static: true,
+    shield: { hp: 600, regenRate: 30, regenDelay: 5, radius: 56 },
+    collision: citadelCollision(),
+    thrusters: [],
+    turrets: citadelTurrets(),
+    bays: [30, 150, 210, 330].map((deg, i) => {
+      const a = (deg * Math.PI) / 180;
+      return { id: `bay.${i}`, pos: [22 * Math.cos(a), 22 * Math.sin(a)], dir: [Math.cos(a), Math.sin(a)] };
+    }),
+  },
+  // The dreadnought: a 62 m gun ship (role line), armoured wedge bow, soft stern, two
+  // heavy rail turrets on the spine, no bays.
+  dreadnought: {
+    role: "line",
+    model: "dreadnought",
+    length: 62,
+    beam: 20,
+    radius: 31,
+    hp: 1800,
+    mass: 900,
+    inertia: 150000,
+    speedCap: 7,
+    shield: { hp: 350, regenRate: 18, regenDelay: 5, radius: 36 },
+    collision: [
+      { pos: [20, 0], r: 7 },
+      { pos: [6, 0], r: 9 },
+      { pos: [-10, 0], r: 9 },
+      { pos: [-24, 0], r: 7 },
+    ],
+    thrusters: [
+      { id: "thruster.main.l", pos: [-31, 5], dir: [1, 0], force: 420, size: 3.1 },
+      { id: "thruster.main.c", pos: [-31, 0], dir: [1, 0], force: 420, size: 3.1 },
+      { id: "thruster.main.r", pos: [-31, -5], dir: [1, 0], force: 420, size: 3.1 },
+      { id: "thruster.rcs.fl", pos: [22, 7], dir: [0, -1], force: 600, size: 1.2 },
+      { id: "thruster.rcs.fr", pos: [22, -7], dir: [0, 1], force: 600, size: 1.2 },
+      { id: "thruster.rcs.rl", pos: [-22, 8], dir: [0, -1], force: 600, size: 1.2 },
+      { id: "thruster.rcs.rr", pos: [-22, -8], dir: [0, 1], force: 600, size: 1.2 },
+    ],
+    turrets: [
+      { id: "turret.rail.fore", pos: [14, 0], height: 3.4, rest: 0, arc: 300, slew: 25, weapon: "rail" },
+      { id: "turret.rail.aft", pos: [-14, 0], height: 3.4, rest: 180, arc: 300, slew: 25, weapon: "rail" },
+      { id: "turret.flak.port", pos: [0, 9], height: 2.2, rest: 90, arc: 200, slew: 90, weapon: "flak" },
+      { id: "turret.flak.starboard", pos: [0, -9], height: 2.2, rest: -90, arc: 200, slew: 90, weapon: "flak" },
+      { id: "turret.gauss.bow", pos: [26, 0], height: 2, rest: 0, arc: 180, slew: 120, weapon: "gauss" },
+    ],
+  },
 };
+
+/** The citadel's six module discs and its core (plan: core r 20, modules r 11 at 38 m). */
+function citadelCollision() {
+  const out = [{ pos: [0, 0], r: 20 }];
+  for (let k = 0; k < 6; k++) {
+    const a = (k * Math.PI) / 3;
+    out.push({ pos: [38 * Math.cos(a), 38 * Math.sin(a)], r: 11 });
+  }
+  return out;
+}
+
+/**
+ * The citadel's twelve turrets in the contract's order: per module (0, 60, ..., 300 deg)
+ * a lance at r 44 on the module angle (0 and 180) or a gauss at r 42, +8 deg, and a flak
+ * at r 42, -8 deg; every one rests facing outward along its module's angle.
+ */
+function citadelTurrets() {
+  const counts = { lance: 0, flak: 0, gauss: 0 };
+  const out = [];
+  const add = (weapon, r, deg, moduleDeg) => {
+    const a = (deg * Math.PI) / 180;
+    const spec = weapon === "lance" ? { arc: 240, slew: 20, height: 4 } : weapon === "flak" ? { arc: 200, slew: 90, height: 3.2 } : { arc: 200, slew: 120, height: 3.2 };
+    const rest = moduleDeg > 180 ? moduleDeg - 360 : moduleDeg;
+    out.push({ id: `turret.${weapon}.${counts[weapon]++}`, pos: [r * Math.cos(a), r * Math.sin(a)], height: spec.height, rest, arc: spec.arc, slew: spec.slew, weapon });
+  };
+  for (let k = 0; k < 6; k++) {
+    const m = k * 60;
+    if (m === 0 || m === 180) {
+      add("lance", 44, m, m);
+      add("flak", 42, m - 8, m);
+    } else {
+      add("flak", 42, m - 8, m);
+      add("gauss", 42, m + 8, m);
+    }
+  }
+  return out;
+}
 
 export const WEAPONS = {
   gauss: { kind: "bullet", speed: 240, range: 300, damage: 6, interval: 0.16 },
@@ -186,6 +284,10 @@ export const WEAPONS = {
   flak: { kind: "flak", speed: 180, range: 230, damage: 4, interval: 0.09 },
   // Torpedoes hit hard but are slow enough that only big, sluggish targets fail to dodge.
   torpedo: { kind: "torpedo", speed: 95, range: 340, damage: 55, interval: 3.2 },
+  // v10 capital guns (plan *start* numbers): the dreadnought's rail and the citadel's
+  // lance, which only capital ships stop.
+  rail: { kind: "bullet", speed: 260, range: 380, damage: 40, interval: 1.6 },
+  lance: { kind: "bullet", speed: 300, range: 430, damage: 55, interval: 2.2, capitalOnly: true },
 };
 
 /** Convert a body-frame [x, y] to three.js hull-local [x, y, z] (y = height). */
