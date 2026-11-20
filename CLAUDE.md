@@ -40,6 +40,11 @@ uv run python -m pytest tests/test_rust_env.py -v
 uv run python -m pytest tests/test_rust_missions.py -v   # v4 missions + commander API, v5 orders/random commander, v9 station assault
 uv run python -m pytest tests/test_rust_orders_v6.py -v  # v6 orders: defend / go-to, hidden orders, transit, threat sets
 uv run python -m pytest tests/test_commander_io.py -v    # learned commander I/O (docs/COMMANDER.md); Rust: cargo test -p sim --test commander_io
+uv run python -m pytest tests/test_rust_dock.py -v       # v11 dock and repair (SIM_SPEC §5.11); Rust: cargo test -p sim --test dock
+# Dock statistics (script vs script, or --pilots <list>; --docking off is v10), and the
+# Rust harness by roster: lab/runs/2026-11-20-dock-repair (run.sh, dock_eval.py)
+uv run python lab/runs/2026-11-20-dock-repair/dock_eval.py --mission carrier_battle --n 512
+RLF_DIAG_N=128 cargo test --release -p sim --test dock diag_dock_stats -- --ignored --nocapture
 # Mission timeline diagnostic (carrier battle, convoy escort, stub commanders)
 cargo test -p sim --test missions timeline -- --ignored --nocapture
 uv run python tools/bench_env.py --assert-floors   # v5: + 12-slot carrier/convoy training shapes

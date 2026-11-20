@@ -64,6 +64,17 @@ to land hits on the way. Both amounts are trainer settings (`PPOConfig`, `--set`
 the sim for every match of the run; the defaults are the sim's. Only drills issue deadlines
 today (section 2); no commander does.
 
+**Dock orders (SIM_VERSION 11, 2026-11-20).** In a carrier battle or a station assault the
+sim's recall doctrine sends a strike craft below half its hull home: it gets a dock order,
+which the pilot sees as a go-to with no deadline whose point is the bay mouth of its own
+carrier (it moves with a carrier), radius 10 m. Unlike a go-to it does not end on arrival:
+the bay takes the ship in when it is within 10 m of the mouth at no more than 15 m/s
+relative to the carrier, and the order ends then. The ship repairs in the hangar and
+relaunches as the same ship. The pay is a go-to's: shaping toward the mouth and 0.2 on
+docking. No pilot has trained on it; the zero-shot numbers are in
+`lab/runs/2026-11-20-dock-repair/results.md`. `PPOConfig.recall_doctrine` (default true,
+`--set recall_doctrine=false`) trains without the doctrine; the dock rules stay.
+
 The price of a shot: since night 4 (2026-11-09) every training line pays `extra_fire_cost`
 0.002 per shot on top of the sim's 0.002, twice the sim's price, charged by the trainer so
 the sim and the browser are unchanged. At 2x, pilots held the trigger less and hit a little

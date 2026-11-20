@@ -103,7 +103,12 @@ retire from the active league, though they stay in history.
   directly; it is an actuator, not a mode. Prototyped in `prototypes/story/power.js`.
 - **Bays:** launch a hull from the fleet's queue at the bay's mount point. Strike craft
   below a hull threshold may fly back, dock, repair and relaunch (prototyped in the
-  story demo's flagship mission); docking is flown by the pilot, not automated.
+  story demo's flagship mission); docking is flown by the pilot, not automated. Built in
+  SIM_VERSION 11 (`docs/SIM_SPEC.md` §5.11): a dock order reads to the pilot as a go-to
+  to the bay's mouth; the bay catches a ship that comes within 10 m of it slowly enough
+  (15 m/s relative); the hangar repairs it and it relaunches as the same ship. Until a
+  learned commander decides recalls, the sim's recall doctrine sends home every craft
+  below half its hull.
 - **Collision:** each hull is a compound of circles derived from the model's
   footprint. Projectiles are tested against those circles, using swept segments for
   fast bullets. Ships can collide with each other; the impulse depends on mass.

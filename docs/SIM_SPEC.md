@@ -287,6 +287,39 @@ scripted commander; convoy reading under the random one). Old-mission script-vs-
 numbers are unchanged to the last digit (`results.md`). Python: training draws the v9
 station roster unless `PilotsDistribution.citadel_share` > 0 (default 0).
 
+### 0.9 v11 changes (SIM_VERSION 10 → 11, dock and repair)
+
+The owner's ask (2026-11-20): strike craft never came home. Before v11 a carrier only
+launched; the story demo's return-and-repair never reached the sim. Now a damaged strike
+craft is sent home, flies its own approach, docks through a live bay, repairs in the
+hangar and relaunches as the same slot. No retreat, withdrawal or surrender. The design,
+the numbers and how they were tuned: `lab/runs/2026-11-20-dock-repair/plan.md` and
+`results.md`; the rules: §5.11.
+
+| # | change | why | sections |
+|---|---|---|---|
+| 1 | **`Order::Dock { carrier, bay }`** (kind 4), a ship's *own* order (`Match.dock`, per slot), never a squad's: a squad command carrying it is sanitised to none. Its standing order wins over its squad's (`order::standing_order`); it is valid while its carrier is active and the bay alive; it never completes on arrival (no go-to `arrived`) and ends when the ship docks. Giving it takes the ship out of its squads. `Command::Dock { ship, bay: Option<u8> }` (JSON `{"kind": "dock", "ship": s, "bay": b \| null}`; `None`: the live bay whose dock point is nearest) gives it; refusals `NotStrikeCraft`, `NotInSpace`, `DockingOff` appended, and `NoSuchBay`, `BayDestroyed`, `NoCarrier`, `CarrierLost`, `NotOwnShip`, `ShipLost` as for a launch | a recall is per ship, not per squad, and a squad order must not be able to say it | §5.9, §5.11, §10.3 |
+| 2 | **It reads to the nets as a go-to** (`order::read_as`): the point is the ordered bay's **dock point** now (the bay mouth plus `DOCK_POINT_OFFSET = 8` m along the bay direction, so it moves with the carrier), radius `DOCK_CAPTURE_RADIUS = 10`, no deadline. The pilot obs's order and order-time blocks, the order-ship extras and the learned commander's per-ship order one-hot all see a go-to; `OBS_DIM` stays 587, `COMMANDER_IO_VERSION` 1. The point's velocity is not in the obs (a go-to's point is still; the carrier moves at most 8 m/s) | today's pilots can try it untrained, and no input grows | §7.2, `docs/COMMANDER.md` |
+| 3 | **Docking** (stage 12c, a sim rule; the pilot flies): an active ship with a dock order docks when within `DOCK_CAPTURE_RADIUS` (10 m) of the dock point of **any** live bay of its carrier with its velocity within `DOCK_MAX_REL_SPEED` (15 m/s) of that point's (carrier velocity plus spin). It leaves the field like a reserve (`Attach::Docked`, `parent` the carrier, not present, at the carrier, thrust and queue cleared), its shield refills, it joins the back of `Match.reserves`, `Docked` is emitted. A destroyed ordered bay moves the order to the nearest live one; no bay left or the carrier lost drops it (`DockAborted`) | a bay that catches a slow pass, not a perfect stop; any live bay so a craft that lines up on the wrong mouth of a four-bay citadel is not punished for it | §5.11 |
+| 4 | **Repair and relaunch**: a returned ship in a live carrier's hangar gains `REPAIR_FRAC_PER_S = 0.05` of its hull a second (`Repaired` when full) and may launch from `DOCK_TURNAROUND_TICKS = 120` (4 s) after docking. `Match::launch` takes the first reserve (of the hull) that may launch (`Refusal::Repairing` appended when only returned ships inside their turnaround are left); a fresh reserve, always ready, goes first. The relaunched ship is the same slot (pilot and identity unchanged); `Relaunched` follows its `Launch`. A dead carrier's hangar dies with it, returned ships included (stage 12b) | the repaired craft has to fight again, and the live page's per-ship pilot draw has to hold | §5.9, §5.11 |
+| 5 | **The recall doctrine** (`MatchConfig.recall_doctrine`, default on): on each of its slow ticks, after its commands, a team whose pilots see their orders (not `hide_orders`: the eval's "unseen" side) gives the dock order to every own strike craft on the field below `RECALL_HULL_FRAC = 0.5` of its hull, whatever its commander mode (scripted, random, learned, external), while its carrier is active with a live bay; except a craft finishing a kill (its attack target within its reach, below `RECALL_FINISH_FRAC = 0.25` of its hull) or under an enemy capital ship's guns (within its longest weapon range + `RECALL_CLEAR_MARGIN = 40` m), which is recalled once clear. `DockOrdered` (`by_doctrine` 1). A stopgap until a learned commander decides recalls (stage 4 of the dock plan); the trainers' `recall_doctrine` turns it off | the live page draws learned commanders too, and they cannot order a recall yet | §5.9, §5.11 |
+| 6 | **`MatchConfig.docking`** (default on): the rules above run only with it and a carrier in the match (`Match::docking_live`: a carrier battle or a station assault). The state hash appends `Match.dock` (per slot over the match's slots: bay, since, docked_at, ready_at) only while docking is live | gating: off, every match is v10's; a deathmatch or a convoy hashes as v10 either way | §3, §12 |
+| 7 | Order reward: a dock order is shaped as a go-to to the dock point (no shaping on the step it starts); docking pays `ORDER_ARRIVAL_BONUS` (0.2) on its step. Hit credit none | a trainer that wants docking can pay for it; no new config | §8 |
+| 8 | Scripts: a docking pilot flies a funnel along the bay axis (a station point `0.5 ×` its distance out from the dock point along the bay direction, at most 80 m), matches the carrier's velocity with a pull of 0.8 /s, runs engines (and shields) power, and leaves its own carrier out of crash avoidance (the dock point lies inside the carrier's bounding circle). The scripted and random commanders leave ships under a dock order out of their squads and launch from `Match::launchable` (the reserves a launch may take, in order); the scripted commander relaunches a returned ship only once repaired to `RELAUNCH_HULL_FRAC = 0.9` unless it is scrambling, in its last minute, or (station defender) alarmed. The learned commander's launch mask needs a reserve that may launch | §11, `docs/COMMANDER.md` |
+| 9 | Events 15 `DockOrdered`, 16 `Docked`, 17 `Repaired`, 18 `Relaunched`, 19 `DockAborted`, appended (§9). `PILOT_COMPAT_VERSIONS = [3, …, 11]`, `PILOT_OBS_DIMS` adds `11: 587`. Bindings: `rlf_sim.DOCK`, `DOCK_PHASES`, `EVENT_KINDS` 15–19, `VecEnv(docking=, recall_doctrine=)` and getters, `VecEnv.dock_state()`, render state `dock_phase`, `mission_state()` ship `dock`; WASM `docking` / `recall_doctrine` config keys and the dock view (`DOCK_STRIDE` 8); the ships, mission, hardpoint and squad views keep their strides | §10 |
+
+**Compatibility.** With `MatchConfig.docking = false` every match is v10's: no dock order
+can exist, every reserve is ready, and the hash writes nothing new.
+`v10_compat_all_thirteen_scenarios_replay_bit_for_bit` replays the thirteen v10 traces
+(kept verbatim in `tests/golden/v10/`) with docking off and matches them line for line;
+the older compat replays play with docking off too. With the v11 default the
+deathmatch and convoy traces differ from v10's in their header only (no carrier: the
+rules never run), and the carrier-battle and station-assault traces change.
+`golden_carrier_battle_dock_s61` is new: the live "wing of 8" roster, five docks and
+five relaunches. Python: `RustVecEnv(docking=, recall_doctrine=)` (both default true),
+`PPOConfig.recall_doctrine` and the commander `TrainConfig.recall_doctrine` (default
+true) turn the doctrine off for a training run.
+
 ---
 
 ## 1. Conventions
@@ -705,6 +738,10 @@ Each stage loops over ships in slot order and over projectiles in pool order.
 12b. **Mission rules** (v4, §5.10): a carrier battle kills the docked reserves of a
     carrier that died this step (no `Death` events) and empties its hangar; a convoy
     escort starts and completes transport jump charges (`JumpCharge`, `JumpOut`).
+12c. (v11) **Docking** (§5.11, only while `Match::docking_live`): keep every dock order
+    valid (a destroyed bay re-picked, `DockAborted` when the carrier is lost or no bay is
+    left), dock the ships that reach a live bay slowly enough (`Docked`), repair the
+    returned ships in every live carrier's hangar (`Repaired`).
 13. **Termination** (§5.8, per mission in v4) and terminal rewards; emits `MatchEnd`.
 13b. **Orders** (v5, §5.9, §8): refresh every ship's order instance and compute
     `order_rewards` (cleared in stage 1 with `rewards`).
@@ -1242,6 +1279,70 @@ or a convoy escort (`Convoy`: index 2; the commander's role 2 for team 0, the co
 defender, and 3 for team 1, the attacker). The scripts read no obs, so a script-only
 match is the same match under either reading.
 
+### 5.11 Dock and repair (v11, `dock.rs`)
+
+Live only with `MatchConfig.docking` (default true) in a match with a carrier
+(`Match::docking_live`: a carrier battle, a station assault, the station counting as team
+0's carrier). Constants: `DOCK_POINT_OFFSET = 8` m, `DOCK_CAPTURE_RADIUS = 10` m,
+`DOCK_MAX_REL_SPEED = 15` m/s, `REPAIR_FRAC_PER_S = 0.05`, `DOCK_TURNAROUND_TICKS = 120`,
+`RECALL_HULL_FRAC = 0.5`, `RECALL_FINISH_FRAC = 0.25`, `RECALL_CLEAR_MARGIN = 40` m.
+
+**State** (`Match.dock`, hashed while live, per slot over the match's slots in this
+order): `bay` (the dock order's bay, `NO_BAY = 255` for none), `since` (the tick it was
+given, 0), `docked_at` (the tick a returned ship docked, 0 while it is not back in the
+hangar), `ready_at` (the first tick it may launch, 0 = always). Not hashed, from setup:
+`bay_mounts[team]` and `bay_count[team]` (the carrier's bays in its body frame); output:
+`docked_now` (bit `s`: docked this step).
+
+**Dock point** of bay `b` of carrier `c`: `c.to_world(bay.pos) + bay.dir.rotated(c.heading)
+· DOCK_POINT_OFFSET`, recomputed whenever read, so it rides on the carrier. Its velocity:
+`c.vel + perp(p − c.pos) · c.omega`.
+
+**The dock order** of slot `s` is `Order::Dock { carrier: own carrier, bay: dock.bay[s] }`
+while `dock.bay[s] != NO_BAY`. Given by `Command::Dock` (§5.9, `dock_command`: docking
+live (`DockingOff`), own ship (`NotOwnShip`), in the match (`ShipLost`), not a capital ship
+(`NotStrikeCraft`), active (`NotInSpace`), a carrier (`NoCarrier`) that is active
+(`CarrierLost`); the bay asked for (`NoSuchBay`, `BayDestroyed`) or the live bay whose dock
+point is nearest the ship) or by the recall doctrine. Giving it sets `bay` and `since`,
+clears the ship's bit from every squad of its team, and emits `DockOrdered`. The ship's
+standing order is it (after a waypoint, which strike craft never have); valid while the
+carrier is active and the bay alive; never complete on arrival. The pilot obs and the
+learned commander read it as `GoTo { dock point now, DOCK_CAPTURE_RADIUS, NO_DEADLINE }`.
+
+**Stage 12c**, per slot with a dock order, in slot order: dead → the order clears (no
+event; the `Death` says it); carrier not active → clears, `DockAborted { reason: 0 }`;
+ordered bay destroyed → `bay` = the nearest live bay to the ship, or with none clears,
+`DockAborted { reason: 1 }`; then, if the ship is active and within
+`DOCK_CAPTURE_RADIUS` of the dock point of a live bay of its carrier with `|vel − point
+velocity| ≤ DOCK_MAX_REL_SPEED` (the nearest such bay if several), it **docks**: `attach =
+Docked`, `parent` = carrier, `present = false`, `pos` and `heading` the carrier's, `vel`
+0, `omega` 0, thrust levels 0, queue `IDLE`, shield full; the order clears; `docked_at =
+tick`, `ready_at = tick + DOCK_TURNAROUND_TICKS`; pushed to the back of
+`reserves[team]`; cleared from every squad; `Docked { ship, carrier, bay, pos (where it
+was), hp_frac }`. Then **repair**: for each team whose carrier is active, every reserve
+with `docked_at != 0` and `hp < max` gains `REPAIR_FRAC_PER_S · max · DT` (capped at max;
+`Repaired` on reaching it). A ship that docks is repaired on its docking step too.
+
+**Launch** (§5.9) picks the first reserve (of the requested hull, else
+`NoReserveOfHull`) with `tick ≥ ready_at` (none: `Repairing`). For a returned ship it
+then sets `docked_at = ready_at = 0` and emits `Relaunched { ship, carrier, bay, hp_frac
+}` after the `Launch`. Stage 12b's hangar death (a carrier that died this step) kills
+returned ships like any reserve.
+
+**Recall doctrine** (`MatchConfig.recall_doctrine`, default true), stage 1b after both
+teams' commands, for each team due this slow tick that does not hide its orders, while
+docking is live and its carrier active: every own non-capital ship, active, without a
+dock order, with `hp < RECALL_HULL_FRAC · max`, gets a dock order to the live bay whose
+dock point is nearest it (`DockOrdered { by_doctrine: true }`), unless (a) its effective
+order is an attack whose target is within its reach (`ship_reach`) and below
+`RECALL_FINISH_FRAC` of its hull, or (b) it is within an active enemy capital ship's
+longest weapon range plus `RECALL_CLEAR_MARGIN` of it. With every bay destroyed none is
+recalled. It runs for every commander mode (scripted, random, external, learned).
+
+**Pay** (§8): the dock order is shaped as a go-to to the dock point (Φ with radius
+`DOCK_CAPTURE_RADIUS`; it never sets `arrived`), and the step a ship docks pays it
+`ORDER_ARRIVAL_BONUS`.
+
 ## 6. Weapons
 
 | kind | spawn | hit | notes |
@@ -1563,8 +1664,21 @@ pub enum Event {
     // v10:
     TurretDestroyed { ship: u8, turret: u8, pos: Vec2, shooter: u8 },
     BayDestroyed    { ship: u8, bay: u8, pos: Vec2, shooter: u8 },
+    // v11:
+    DockOrdered { ship: u8, carrier: u8, bay: u8, pos: Vec2, by_doctrine: bool }, // pos = dock point
+    Docked      { ship: u8, carrier: u8, bay: u8, pos: Vec2, hp_frac: f32 },      // pos = where it was
+    Repaired    { ship: u8, carrier: u8 },
+    Relaunched  { ship: u8, carrier: u8, bay: u8, hp_frac: f32 },                 // after its Launch
+    DockAborted { ship: u8, carrier: u8, reason: u8 },  // 0 carrier lost, 1 no bay left
 }
 ```
+
+v11 flat encodings (kinds 15–19, §5.11): `DockOrdered` = `[15, ship, carrier, x, y,
+by_doctrine, 0, bay]` (x, y: the dock point when ordered); `Docked` = `[16, ship, carrier,
+x, y, hp_frac, 0, bay]` (where it was); `Repaired` = `[17, ship, carrier, 0, 0, 0, 0, 0]`;
+`Relaunched` = `[18, ship, carrier, 0, 0, hp_frac, 0, bay]`, the same step as and after its
+`Launch` (whose mouth and direction it shares); `DockAborted` = `[19, ship, carrier, 0, 0,
+0, 0, reason]`. A recalled ship killed on the way has a `Death` and no `DockAborted`.
 
 v4 flat encodings (kinds 8–12): `Launch` = `[8, ship, carrier, mouth.x, mouth.y,
 dir.x, dir.y, bay]`; `Order` = `[9, team, squad, point.x, point.y, target (−1 none),
@@ -1710,7 +1824,29 @@ env.hardpoints()   # copies: turret_alive / turret_hp / turret_max_hp [N, S, MAX
 env.render_state(i)  # ships gain turret_alive, turret_hp, bay_alive, bay_hp;
                      # projectiles gain weapon (weapon id)
 env.mission_state(i)["ships"][k]["hardpoints"]  # only for hulls with hardpoints
+# v11:
+rlf_sim.SIM_VERSION == 11; PILOT_COMPAT_VERSIONS == [3, ..., 11]; PILOT_OBS_DIMS adds 11: 587
+rlf_sim.EVENT_KINDS: dock_ordered 15, docked 16, repaired 17, relaunched 18, dock_aborted 19
+rlf_sim.DOCK          # {"capture_radius", "max_rel_speed", "point_offset", "repair_frac_per_s",
+                      #  "turnaround_ticks", "recall_hull_frac", "recall_finish_frac",
+                      #  "recall_clear_margin"}
+rlf_sim.DOCK_PHASES == ["none", "inbound", "repairing", "ready"]
+VecEnv(..., docking=True, recall_doctrine=True)   # batch-wide, like order_shaping_gamma
+env.docking; env.recall_doctrine                  # getters
+env.dock_state()   # new arrays: phase [N,S] i8 (DOCK_PHASES index), bay [N,S] i8 (-1),
+                   # since / docked_at / ready_at [N,S] u32 (0 unset), live [N] bool,
+                   # point [N,S,2] f32 (the dock order's dock point now), dist / rel_speed
+                   # [N,S] f32 (to it; -1 without a dock order)
+env.render_state(i)["ships"][k]["dock_phase"]     # "none" | "inbound" | "repairing" | "ready"
+env.mission_state(i)["ships"][k]["dock"]          # {phase, bay?, since?, docked_at?, ready_at?}
+                                                  # while docking is live (absent otherwise)
+env.submit_command(i, team, {"kind": "dock", "ship": s, "bay": None})
 ```
+
+v11 Python side: `RustVecEnv(docking=, recall_doctrine=)` (default true) with matching
+properties and `dock_state()`; `PPOConfig.recall_doctrine` and the commander
+`TrainConfig.recall_doctrine` (default true; `--set recall_doctrine=false`) turn the
+doctrine off for a run; `spike_policy.PILOT_OBS_DIMS[11] = 587`.
 
 v10 Python side: `rosters.CAPITAL_ROLES` adds `line`; `PilotsDistribution.citadel_share`
 (default 0) draws the citadel roster for that share of station assaults (the sampler
@@ -1849,6 +1985,23 @@ hardpoints_ptr(): number; hardpoints_len(): number;  // HARDPOINT_STRIDE = 30 pe
 // HARDPOINT_TURRET_STATE_OFFSET() (14), HARDPOINT_BAY_STATE_OFFSET() (26)
 // ship_ext role 3 = line (the dreadnought); team_state bays_ready skips destroyed bays
 // events 13 TurretDestroyed, 14 BayDestroyed (§9)
+```
+
+v11 additions (every existing view keeps its stride: ships 29, ship_ext 10, hardpoints
+30, squads 9, projectiles 9; a docked ship reads as before: `present` 0, ship_ext
+`docked` 1, `parent` its carrier, and squad -1 while it flies home):
+
+```ts
+// config_json gains "docking": bool and "recall_doctrine": bool, both optional (true).
+dock_ptr(): number; dock_len(): number;  // DOCK_STRIDE = 8 per ship, ship order:
+    // [phase (0 none, 1 inbound, 2 repairing, 3 ready), bay (-1), point.x, point.y (the
+    //  dock order's dock point now; 0 without one), since, docked_at, ready_at (ticks,
+    //  0 unset), hp_frac (repair progress while docked)]; all 0 (bay -1) when the dock
+    //  rules do not run
+// module: DOCK_STRIDE() (8)
+// events 15 DockOrdered, 16 Docked, 17 Repaired, 18 Relaunched (after its Launch),
+// 19 DockAborted (§9); mission_state_json ships gain "dock" while docking is live
+// submit_commands(team, '{"kind": "dock", "ship": 3}')  // external teams
 ```
 
 v5 additions:
