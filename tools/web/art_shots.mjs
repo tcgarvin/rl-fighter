@@ -1,5 +1,6 @@
 // Screenshots of the M3 art preview (web/dev/m3-art.html: carrier, transport, bay
-// launch, jump charge and jump-out, quick jump-out, the order overlay) at the iPhone
+// launch, jump charge and jump-out, quick jump-out, the order overlay; v10's citadel,
+// dreadnought, shot-off hardpoints and lance / rail fire) at the iPhone
 // portrait size (390×844) and a desktop (1440×900). The page is dev-only, so serve it
 // with the Vite dev server: `cd web && npx vite --port 5179 --strictPort`.
 // Fails on page errors.
@@ -44,6 +45,22 @@ const SHOTS = {
   burn: [1.5],
   "burnpair&close=80": [1.5, 1.62],
   "burnfast&close=50": [1.5, 1.62],
+  // v10 capitals: scale against the v9 station and the carrier, then close looks (a
+  // close shot's times differ from its scene's, since the file name leaves out `close`).
+  capitals: [0.3],
+  citadel: [0.5],
+  "citadel&close=120": [0.55],
+  dreadnought: [0.5],
+  "dreadnought&close=80": [0.55],
+  // Hardpoints: the citadel's lance goes at 0.4 (burst 0.45), its bay.0 at 0.9; by 3.6
+  // ten are down; 7 s shows the lingering smoke, embers and sparks.
+  hardpoints: [0.47, 0.95, 3.6, 7],
+  "hardpoints&close=110": [1.0, 7.05],
+  // Lances leave at 0.2, 2.4; rails at 0.5, 1.1, 2.1; a lance lands about 0.8 s later.
+  lance: [0.45, 0.75, 2.75],
+  "wreckage&close=90": [2],
+  "citadelwreck&close=70": [0.85, 6],
+  "lance&close=160": [0.47, 0.78],
 };
 const only = process.env.RLF_ART_SCENES?.split(",").filter(Boolean);
 

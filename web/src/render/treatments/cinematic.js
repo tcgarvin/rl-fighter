@@ -307,6 +307,8 @@ export default {
       trim: detailed(new THREE.MeshStandardMaterial({ color: team === 0 ? 0xbacbd2 : 0xe0c7a6, metalness: .72, roughness: .29 }), [3.4, 1.7, .2, .07]),
       machinery: detailed(new THREE.MeshStandardMaterial({ color: 0x26313f, metalness: .8, roughness: .42 }), [1.1, .7, .45, .26]),
       marking: bounded(new THREE.MeshStandardMaterial({ color: 0xf1ede0, metalness: .2, roughness: .43 })),
+      // Burnt-out metal where a hardpoint was shot off: sooty, rough, barely reflective.
+      scorch: detailed(new THREE.MeshStandardMaterial({ color: 0x17130f, metalness: .35, roughness: .86 }), [1.1, .7, .45, .26]),
       glow: bounded(new THREE.MeshStandardMaterial({ color: 0xa4dfff, emissive: team === 0 ? 0x6bc6ff : 0xffa15a, emissiveIntensity: 3.2, roughness: .3 })),
       exhaust: plume ??= plumeMaterial(),
     });

@@ -17,6 +17,9 @@
 // Per frame:
 //   fx.updateProjectiles(projectiles, beams, alpha)  shots in flight (current tick)
 //   fx.update(dt)                                     ages and draws everything else
+// Each projectile is {kind, team, x, y, vx, vy, weapon?}: `weapon` (the weapon's name in
+// assets/weapons.yaml) picks the look when it has one of its own (v10's 'rail' and
+// 'lance', both kind 'bullet' in the sim); otherwise `kind` does.
 // fx.drawOrders(orders) sets the commander overlay; it is drawn every frame until the
 // next call (pass [] to clear). The array is read, never copied or changed.
 // Fire-and-forget events:
@@ -52,6 +55,14 @@
 //       trail: a ribbon in the team's colour, as bright as the throttle when each point
 //       was laid, fading over ~1.25 s. head() each frame, lay() once a sim tick.
 //   fx.beacons(model, team) -> {show(on), dispose()}  running lights at model.strobes
+//   fx.destroyHardpoint({model, kind, index, team?, burst?}) -> changed  turret or bay
+//       `index` (kind 'turret' | 'bay', the hull spec's order) of a capital hull built by
+//       hullgeo.buildHull is shot off: the model swaps the gun for a scorched stump or
+//       the bay mouth for a dark hole, and from then on the wound smokes and glints
+//       (a turret) or sparks and flickers (a bay) while the hull is on show. burst
+//       (default true) adds the one-shot blast for the moment of destruction; pass false
+//       to show a hardpoint already lost (a match joined late). Returns false when it was
+//       already shown destroyed (calling it every frame from sim state is fine).
 //   fx.attachDamage(model) -> {update(hpFraction, visible, dt), smoulder(dt, heat), dispose()}
 //       pressure vents ride with breaches so speed cannot pull fire off the hull;
 //       smoke detaches to leave a damage trail.
@@ -243,7 +254,7 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
   // that the smoke, fire and vent looks are shaded from (vents use heat for lateral
   // lag / width). Vents use a world axis with a view-facing width, never an "up".
   function batch(geo, cap, billboard = false, smoke = false, additive = true, flame = false, trace = 0, ringWidth = 0, ringMin = .022, opts = {}) {
-    const { minPx = 0, fire = false } = opts;
+    const { minPx = 0, fire = false, floorPx = trace === 1 ? 2.8 : .95 } = opts;
     const shaded = smoke || fire || flame;
     const rgba = new T.InstancedBufferAttribute(new Float32Array(cap * 4), 4).setUsage(T.DynamicDrawUsage);
     geo.setAttribute('tint', rgba);
@@ -269,7 +280,7 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
         vVentSide=dot(side.xy,across)/max(length(side.xy),.0001);` : ''}
         float width=length(instanceMatrix[1].xyz);
         float pixelWorld=2.*max(1.,-center.z)/(projectionMatrix[1][1]*viewportHeight);
-        width=max(width,pixelWorld*${trace === 1 ? '2.8' : '.95'});
+        width=max(width,pixelWorld*${floorPx.toFixed(2)});
         ${flame ? 'center.xyz+=axis*position.x; center.xy+=across*position.y*width;' : 'center.xy+=axis.xy*position.x+across*position.y*width;'}
         gl_Position=projectionMatrix*center;` : ringWidth ? `float radius=length(position.xz);
         vec3 rim=position/max(radius,.0001);
@@ -378,6 +389,10 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
   const tracers = batch(new T.PlaneGeometry(1, 1), 1200, false, false, true, false, 1);
   const cores = batch(new T.PlaneGeometry(1, 1), 1200, false, false, true, false, 2);
   const bolts = batch(new T.BoxGeometry(1, 1, 1), 512);
+  // Capital guns' slugs: a wider pixel floor, so a lance or rail shot stays a bold
+  // stroke on a phone's battle-wide view where gauss tracers thin to hairlines.
+  const heavyTracers = batch(new T.PlaneGeometry(1, 1), 128, false, false, true, false, 1, 0, .022, { floorPx: 6 });
+  const heavyCores = batch(new T.PlaneGeometry(1, 1), 128, false, false, true, false, 2, 0, .022, { floorPx: 3 });
   // Launch trails (tapered, like tracers) and the commander overlay's hairlines; both
   // keep a minimum pixel width, so they read on a phone at any zoom.
   const trails = batch(new T.PlaneGeometry(1, 1), 256, false, false, true, false, 1);
@@ -823,17 +838,147 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
       }
     }
   }
+  // ---- Capital guns (v10) ----
+  // The lance: a long, thick, beam-like slug in its own hue (violet-white for team 0,
+  // rose-white for team 1), a white-hot core and a faint ionised wake, so a lance shot
+  // reads across a phone screen and never as gauss fire.
+  const lanceColor = [new T.Color(0x9a7bff).multiplyScalar(1.6), new T.Color(0xff5f8a).multiplyScalar(1.6)];
+  const lanceCore = new T.Color(0xf4ecff).multiplyScalar(1.8);
+  // The slug's body: hot, but still in the lance's hue, so over a bright planet it stays
+  // a thick violet (rose) bar rather than thinning to a white thread.
+  const lanceBody = lanceColor.map(c => c.clone().lerp(new T.Color(0xffffff), .4).multiplyScalar(1.1));
+  function lanceShot(x, z, a, teamIndex) {
+    const c=lanceColor[teamIndex] || white, dx=Math.cos(a), dz=-Math.sin(a);
+    put(tracers,x-dx*35,1.9,z-dz*35,72,2.6,1,a,c,.28);
+    put(heavyTracers,x-dx*20,2,z-dz*20,44,5,1,a,c,1);
+    put(heavyCores,x-dx*12,2.05,z-dz*12,26,1.5,1,a,lanceBody[teamIndex] || lanceCore,1);
+    put(heavyCores,x-dx*4,2.1,z-dz*4,8,.6,1,a,lanceCore,.9);
+  }
+  // The rail: a heavy, fast slug, short and white-hot, with a short warm trail.
+  const railColor = shot.map(c => c.clone().lerp(new T.Color(0xffe3b0), .55).multiplyScalar(1.4));
+  function railShot(x, z, a, teamIndex) {
+    const c=goldWhite, dx=Math.cos(a), dz=-Math.sin(a);
+    put(heavyTracers,x-dx*8,1.8,z-dz*8,18,2.7,1,a,c,.9);
+    put(heavyCores,x-dx*1.2,1.85,z-dz*1.2,5.4,1.2,1,a,goldWhite,1);
+  }
+  // ---- Hardpoints shot off (v10) ----
+  // A destroyed turret's stump smokes and glints, a destroyed bay sparks and flickers,
+  // for as long as the hull is on show; each wound rides with its hull.
+  const wounds = new Set();
+  const electric = new T.Color(0x99ddff), bayFlicker = new T.Color(0xff7a2a).multiplyScalar(.5);
+  function hardpointBurst(model, h, kind, teamIndex) {
+    point.copy(h.local).applyMatrix4(model.object.matrixWorld);
+    const x=point.x, y=point.y+.5, z=point.z, s=h.size, bay=kind==='bay';
+    particle(x,y+.4,z,s*2.2,.12,white);
+    particle(x,y+.2,z,s*3.8,.24,puffA);
+    particle(x,y,z,s*2.8,.18,team[teamIndex] || orange);
+    flash(x,y+5,z,warmWhite,Math.min(300*s*s,7000),s*13,.3);
+    ripple(x,z,s*5,.4,.14,.25);
+    shock(x,z,s*4.5,.4,shockColor,.4,0);
+    for(let j=0;j<4;j++) {
+      const b=j*1.57+Math.random(), v=s*(1+Math.random());
+      particle(x+Math.cos(b)*s*.4,y,z+Math.sin(b)*s*.4,s*(.7+.4*Math.random()),.45+.35*Math.random(),soot,8,
+        Math.cos(b)*v,s*.5,Math.sin(b)*v,j*.03);
+      particles[(pc+particles.length-1)%particles.length].hot=j<2;
+    }
+    for(let j=0;j<16;j++) {
+      const b=Math.random()*TAU, v=s*(4+5*Math.random());
+      particle(x,y,z,Math.max(.6,s*.12),.35+.4*Math.random(),j%3?emberColor:bay?electric:goldWhite,3,
+        Math.cos(b)*v,2+3*Math.random(),Math.sin(b)*v,Math.random()*.06);
+    }
+    // Torn plate: a few tumbling chips (a turret throws its armour; a bay its doors).
+    for(let j=0;j<(bay?4:6);j++) {
+      const b=j*2.399+Math.random()*.4, v=s*(1.5+2*Math.random());
+      particle(x,y,z,Math.min(1.8,s*(.2+.15*Math.random())),1+.8*Math.random(),j%2?shell:smokeColor,2,
+        Math.cos(b)*v,s*.6,Math.sin(b)*v);
+    }
+    for(let j=0;j<5;j++) {
+      const b=Math.random()*TAU;
+      particle(x,y,z,s*(.45+.45*Math.random()),2.1+Math.random(),soot,7,Math.cos(b)*s*.55,s*.9,Math.sin(b)*s*.55,.1+.3*Math.random());
+      particles[(pc+particles.length-1)%particles.length].hot=j<2;
+    }
+  }
+  function updateWounds(dt) {
+    for(const w of wounds) {
+      const {model, h}=w;
+      if(model._released || !h.destroyed) { wounds.delete(w); continue; }
+      if(!model.object.visible) continue;
+      w.age+=dt;
+      point.copy(h.local).applyMatrix4(model.object.matrixWorld);
+      const x=point.x, y=point.y, z=point.z, s=h.size;
+      // Fierce for the first few seconds, then a steady smoulder.
+      const fresh=Math.max(0,1-w.age/5);
+      if(w.kind==='turret') {
+        w.smoke+=dt*(2.8+2*fresh);
+        while(w.smoke>=1) {
+          w.smoke--;
+          // Thin, and drifting off the stump: smoke over a still hull must not hide it.
+          const b=w.seed+(Math.random()-.5)*.35;
+          particle(x+(Math.random()-.5)*s*.35,y+.3,z+(Math.random()-.5)*s*.35,s*(.38+.18*Math.random()),2.6+.7*Math.random(),smokeColor,5,
+            Math.cos(b)*2.7,3.3,Math.sin(b)*2.7).gain=.85;
+        }
+        w.spark+=dt*(3.2+6*fresh);
+        while(w.spark>=1) {
+          w.spark--;
+          const b=Math.random()*TAU, v=1+3*Math.random();
+          particle(x+Math.cos(b)*s*.35,y+.2,z+Math.sin(b)*s*.35,Math.max(.35,s*.11),.8+.6*Math.random(),emberHot,6,
+            Math.cos(b)*v,1.8+Math.random()*2,Math.sin(b)*v);
+        }
+        if(fresh>0 && Math.random()<dt*5*fresh) particle(x,y+.3,z,s*(.5+.3*Math.random()),.24,fireColor,8,0,s*.4,0);
+        // The torn metal glows where it broke, pulsing as it cools.
+        const glowing=(.85+.35*fresh)*(.82+.18*Math.sin(clock*2.3+w.seed));
+        put(embers,x,y-.2,z,s*.6,s*.38,1,0,emberHot,glowing);
+        put(emberHalos,x,y-.12,z,s*1.4,s*1.05,1,0,emberDim,.5*glowing);
+      } else {
+        w.smoke+=dt*(2.2+1.5*fresh);
+        while(w.smoke>=1) {
+          w.smoke--;
+          const b=w.seed+(Math.random()-.5)*.4;
+          particle(x,y+.3,z,s*(.28+.15*Math.random()),2.5+.7*Math.random(),smokeColor,5,Math.cos(b)*2.7,3.1,Math.sin(b)*2.7).gain=.75;
+        }
+        // Shorting power: irregular showers of sparks, and a fire flickering deep inside.
+        w.spark-=dt;
+        if(w.spark<=0) {
+          w.spark=.2+Math.random()*(.65-.3*fresh);
+          const n=2+Math.floor(Math.random()*4), hot=Math.random()<.35;
+          for(let j=0;j<n;j++) {
+            const b=Math.random()*TAU, v=s*(1.5+3*Math.random());
+            particle(x+(Math.random()-.5)*s,y+.3,z+(Math.random()-.5)*s,Math.max(.4,s*.07),.25+.35*Math.random(),
+              hot?electric:emberColor,3,Math.cos(b)*v,1+2*Math.random(),Math.sin(b)*v);
+          }
+          if(hot) particle(x,y+.1,z,s*.65,.055,electric);
+        }
+        const flick=(.8+.4*fresh)*(.8+.2*Math.sin(clock*13+w.seed)*Math.sin(clock*7.3+w.seed*2));
+        put(glow,x,y-.3,z,s*1.1,s*.8,1,0,bayFlicker,.85*flick);
+        put(embers,x,y-.3,z,s*.4,s*.26,1,0,emberHot,.9*flick);
+        put(emberHalos,x,y-.25,z,s*1.2,s*.85,1,0,emberDim,.4*flick);
+      }
+    }
+  }
   return {
+    destroyHardpoint(e) {
+      const model=e.model, kind=e.kind;
+      if(!model || !model.setHardpointDestroyed || !model.setHardpointDestroyed(kind,e.index,true)) return false;
+      const h=model.hardpoints[kind][e.index];
+      // A burst needs a hull that is drawn where it stands this frame.
+      if(e.burst!==false && model.object.visible) { model.object.updateMatrixWorld(); hardpointBurst(model,h,kind,e.team ?? -1); }
+      wounds.add({model,h,kind,age:e.burst===false?10:0,smoke:0,spark:0,seed:Math.random()*6.283});
+      return true;
+    },
     updateProjectiles(projectiles, beams, alpha) {
-      tracers.n=cores.n=0;
+      tracers.n=cores.n=heavyTracers.n=heavyCores.n=0;
       // CSS pixels keep the minimum width stable at phone DPR 1–2 and desktop.
       const height=Math.max(1,renderer.domElement.clientHeight || renderer.domElement.height);
       tracers.mesh.material.uniforms.viewportHeight.value=height;
       cores.mesh.material.uniforms.viewportHeight.value=height;
+      heavyTracers.mesh.material.uniforms.viewportHeight.value=height;
+      heavyCores.mesh.material.uniforms.viewportHeight.value=height;
       for(let i=0;i<Math.min(projectiles.length,1024);i++) {
         const p=projectiles[i], flak=p.kind==='flak';
         const c=(flak?pellet:shot)[p.team] || white, a=Math.atan2(p.vy,p.vx);
         const x=p.x+p.vx*alpha/30, z=-p.y-p.vy*alpha/30;
+        if(p.weapon==='lance') { lanceShot(x,z,a,p.team); continue; }
+        if(p.weapon==='rail') { railShot(x,z,a,p.team); continue; }
         if(p.kind==='torpedo') {
           // Slow, fat and smoking, so a torpedo run reads as different from gunfire.
           const dx=Math.cos(a), dz=-Math.sin(a);
@@ -851,10 +996,24 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
         segment(tracers,b.x1,1.6,-b.y1,b.x2,1.6,-b.y2,1.25,c,.42*fade);
         segment(cores,b.x1,1.6,-b.y1,b.x2,1.6,-b.y2,.22,white,.95*fade);
       }
-      finish(tracers);finish(cores);
+      finish(tracers);finish(cores);finish(heavyTracers);finish(heavyCores);
     },
     muzzle(e) {
       const c=shot[e.team] || white, dx=Math.cos(e.angle), dz=-Math.sin(e.angle);
+      if(e.weapon==='lance' || e.weapon==='rail') {
+        // A capital gun's report: a big flash in the shot's colour, a white-hot core, a
+        // forward blast of sparks and a puff of smoke that hangs at the muzzle.
+        const lance=e.weapon==='lance', lc=lance?lanceColor[e.team] || white:railColor[e.team] || white;
+        particle(e.x+dx*2,2,-e.y+dz*2,lance?12:8,lance?.24:.1,lc);
+        particle(e.x+dx,2.1,-e.y+dz,lance?3.6:4,lance?.065:.045,lance?lanceCore:goldWhite);
+        flash(e.x,6,-e.y,lc,lance?2200:1600,lance?65:48,lance?.24:.12);
+        for(let j=0;j<6;j++) {
+          const b=e.angle+(Math.random()-.5)*(lance?.22:.65), v=60+60*Math.random();
+          particle(e.x+dx*2,2,-e.y+dz*2,lance?.65:1,.1+.08*Math.random(),j%2?(lance?lanceCore:goldWhite):lc,3,Math.cos(b)*v,0,-Math.sin(b)*v);
+        }
+        particle(e.x+dx*3,1.6,-e.y+dz*3,lance?1.8:3.2,lance?.65:1,smokeColor,1,dx*6,1.5,dz*6);
+        return;
+      }
       particle(e.x,1.5,-e.y,e.weapon==='flak'?5:3.8,.085,c);
       particle(e.x+dx,1.5,-e.y+dz,2,.055,white);
       // A lick of flame out of the barrel.
@@ -1131,6 +1290,7 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
       updateLaunches();
       // Charges run before the particle pass so their sparks are drawn this frame.
       updateCharges(dt);
+      updateWounds(dt);
       for(const p of particles) {
         if(p.life<=0) { p.vent=null; continue; }
         // A recycled or future unbound kind-4 spawn must never dereference a vent.

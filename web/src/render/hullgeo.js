@@ -6,7 +6,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mountToLocal } from './hulls.js';
 
-const SLOTS = ['paint', 'trim', 'machinery', 'glow', 'marking'];
+// `scorch` is burnt metal (destroyed hardpoints); a treatment without it uses machinery.
+const SLOTS = ['paint', 'trim', 'machinery', 'glow', 'marking', 'scorch'];
 const kits = new Map();
 const pools = new Map();
 const transform = new THREE.Object3D();
@@ -242,16 +243,261 @@ function station(b,h) {
   return [[0,2.85,0],[5,2.2,2],[-5,2.2,-2],[0,2.15,19],[0,2.15,-19],[18.5,2.15,0],[-18.5,2.15,0],[12.5,2.15,12.5],[-12.5,2.15,12.5],[12.5,2.15,-12.5]];
 }
 
+const CITADEL_BAY={depth:8,width:7.2,y:-.64};
+function citadel(b,h) {
+  // The rim stops at each launch cutout: a solid core plate would roof the wells.
+  const hub=Array.from({length:12},(_,i)=>radial(14,i*Math.PI/6));
+  b.add('machinery',plate(hub,-1.2,3,.24));
+  for (let i=0;i<12;i++) {
+    const a=i*Math.PI/6;
+    if ([1,5,7,11].includes(i)) continue;
+    b.add('machinery',plate(ringSector(13,20,a,Math.PI/12),-1.2,3,.18));
+    b.add('paint',plate(ringSector(13.6,19.5,a,Math.PI/12-.025),2.08,.45,.13));
+    b.add('trim',plate(ringSector(18.7,19.65,a,Math.PI/12-.04),2.7,.18,.07));
+    b.add('glow',plate(ringSector(17.9,18.15,a,.14),2.7,.045,.02));
+  }
+  for (const bay of h.bays) {
+    const a=Math.atan2(bay.dir[1],bay.dir[0]);
+    const add=(slot,g)=>b.add(slot,g,0,0,0,a);
+    add('machinery',plate(clipped(18,0,CITADEL_BAY.depth,CITADEL_BAY.width,.3),-1,.25,.1));
+    add('machinery',plate(clipped(14.1,0,.8,7.2,.15),-.8,2.8,.1));
+    for (const s of [-1,1]) {
+      // Low cheeks frame a sunken mouth. Tall black walls looked like fins bolted
+      // outside the rim, especially after the edge lights were covered by wreckage.
+      add('machinery',plate([[13.2,s*3.6],[13.2,s*3.9],[19.32,s*5.18],[22,s*4.65],[22,s*3.65]],-1.1,1.8,.12));
+      add('paint',plate([[14.5,s*3.95],[19,s*4.8],[21.6,s*4.4],[21.6,s*3.9]],.88,.3,.1));
+      add('trim',plate(clipped(18.2,s*3.85,7.5,.45,.1),1.36,.16,.055));
+      add('glow',plate(clipped(18.3,s*3.61,6.8,.2,.04),1.36,.06,.02));
+      add('trim',plate(clipped(18,s*2.25,6.3,.22,.06),-.62,.08,.025));
+      add('glow',plate(clipped(21.25,s*2.25,.9,.35,.06),-.49,.04,.02));
+    }
+    // A pale, low threshold makes the dark floor read as a recess at phone scale.
+    add('trim',plate(clipped(21.75,0,.36,7.1,.08),-.53,.16,.04));
+  }
+  // Six narrow bridges only on module bearings; the inter-module annulus stays empty.
+  const damage=[[0,4.95,0],[9,3.8,4],[-9,3.8,-4],[0,2.9,-16]];
+  for (let k=0;k<6;k++) {
+    const a=k*Math.PI/3, [x,z]=radial(38,a);
+    const add=(slot,g)=>b.add(slot,g,x,0,z,-a);
+    b.add('machinery',plate(clipped(24,0,12,3.6,.5),-.8,1.7,.14),0,0,0,-a);
+    b.add('trim',plate(clipped(24,0,10,1.7,.3),1.1,.22,.08),0,0,0,-a);
+    const hex=Array.from({length:6},(_,i)=>radial(11,i*Math.PI/3));
+    add('machinery',plate(hex,-1.1,2.8,.2));
+    // Separated armour leaves dark seams and a pale perimeter, as on the v9 station.
+    for (let j=0;j<6;j++) {
+      const q=j*Math.PI/3+Math.PI/6, half=Math.PI/6-.035;
+      add('paint',plate([radial(2.9,q-half),radial(10.4,q-half),radial(9.08,q),
+        radial(10.4,q+half),radial(2.9,q+half)],1.96,.4,.12));
+      add('trim',plate([radial(9.6,q-half+.02),radial(10.4,q-half+.02),radial(9.08,q),
+        radial(10.4,q+half-.02),radial(9.6,q+half-.02),radial(8.4,q)],2.52,.16,.065));
+    }
+    add('paint',plate(clipped(-3,0,7.4,6.6,.9),2.42,.34,.12));
+    add('machinery',plate(clipped(-6.2,0,2.4,3.5,.3),2.88,.12,.06));
+    for (const s of [-1,1]) {
+      add('glow',plate(clipped(-3.2,s*7,3.1,.22,.05),2.57,.05,.02));
+      add('trim',plate(clipped(-5,s*4.5,2.5,.65,.15),2.56,.14,.06));
+    }
+    damage.push([x,3,z]);
+  }
+  for (const t of h.turrets) {
+    const heavy=t.weapon==='lance', l=heavy?7.6:5.2, w=heavy?7.2:4.9;
+    const x=t.pos[0], z=-t.pos[1], a=(t.rest??0)*Math.PI/180;
+    b.add('machinery',plate(clipped(0,0,l,w,.7),2.25,t.height-2.7,.14),x,0,z,a);
+    b.add('trim',plate(clipped(0,0,l-.45,w-.45,.6),t.height-.53,.23,.1),x,0,z,a);
+  }
+  b.add('trim',plate(hub.map(([x,z])=>[x*.85,z*.85]),2.12,.55,.17));
+  b.add('paint',plate(hub.map(([x,z])=>[x*.76,z*.76]),2.93,.58,.16));
+  b.panel('trim',0,0,13,13,3.72,.4,.18);
+  return damage;
+}
+function dreadnought(b,h) {
+  // A deep arrowhead belt thins into exposed engineering aft, never a flight deck.
+  const outline=[[27,0],[22,7],[8,9.6],[-17,8.6],[-23,7.5],[-31,7],[-31,-7],[-23,-7.5],[-17,-8.6],[8,-9.6],[22,-7]];
+  b.add('machinery',plate(outline,-1.25,2.5,.24));
+  for (const s of [-1,1]) {
+    b.add('trim',plate([[26,s*.35],[21.6,s*6.7],[8,s*9.15],[-17,s*8.15],[-18,s*6.2],[9,s*6.6],[21,s*4.4]],1.38,.35,.16));
+    b.add('paint',plate([[25.6,s*.55],[21.3,s*6.25],[8,s*8.65],[-17,s*7.65],[-17,s*3.5],[10,s*3.4],[20.5,s*2.8]],1.96,.46,.15));
+    // Overlapping bow cheeks make the armoured end readable even at phone scale.
+    b.add('machinery',plate([[24.8,s*.7],[21,s*5.6],[10,s*7.7],[5.6,s*5.9],[10,s*3.65],[21,s*2.4]],2.58,.3,.12));
+    b.add('paint',plate([[24.2,s*.9],[20.6,s*5.05],[10.4,s*7.15],[7.2,s*5.8],[11,s*4],[20.8,s*2.6]],3.03,.42,.14));
+    b.add('trim',plate([[22.8,s*1.6],[20.4,s*4.7],[11.5,s*6.6],[12.5,s*5.7],[20.1,s*3.8]],3.64,.16,.065));
+    b.panel('glow',-7,s*7.45,3.3,.2,2.56,.05,.025);
+    // Low flak sponsons project from the belt, below the rail barbettes.
+    b.add('machinery',plate(clipped(0,s*8.6,6.1,4.6,.8),.4,1.05,.13));
+    b.panel('trim',0,s*9,4.6,4,1.72,.28,.1);
+    b.panel('machinery',-23.8,s*5,10.2,3.5,.7,.7,.15);
+    b.panel('trim',-24,s*5,7.6,2.7,1.62,.18,.08);
+    for (let i=0;i<5;i++) b.panel('machinery',-27+i*1.35,s*5,.62,2.3,1.88,.22,.04);
+    b.panel('paint',-20,s*6.8,2.6,1.5,1.72,.3,.1);
+  }
+  b.panel('machinery',0,0,35,6.8,1.35,1,.2);
+  b.panel('trim',0,0,34,5.8,2.58,.25,.12);
+  b.panel('paint',0,0,32.8,4.8,2.99,.18,.09);
+  for (const t of h.turrets.filter(t=>t.weapon==='rail')) {
+    b.add('machinery',new THREE.CylinderGeometry(3.35,3.8,.62,12),t.pos[0],2.65,0);
+    b.add('trim',new THREE.CylinderGeometry(3.25,3.35,.22,12),t.pos[0],3.05,0);
+  }
+  // The tiny bow gun overhangs a low nose deck; it must not bury in the bow cheeks.
+  b.add('trim',plate([[27,0],[25.2,2.3],[23.5,1.5],[23.5,-1.5],[25.2,-2.3]],1.42,.3,.1));
+  b.panel('machinery',-2,0,7.5,4.6,3.27,.6,.17);
+  b.panel('trim',-2.5,0,5.5,4.1,4.1,.45,.14);
+  b.panel('paint',-2.8,0,4.7,3.6,4.75,.45,.12);
+  b.panel('machinery',1.05,0,.5,3.5,3.9,.9,.06);
+  b.panel('glow',1.33,0,.12,2.9,4.22,.25,.025);
+  // Three independent engine blocks leave the stern visibly less armoured.
+  for (const z of [-5,0,5]) {
+    b.panel('machinery',-28.7,z,4.6,4.2,-1.4,2.7,.18);
+    b.panel('trim',-28.6,z,2.1,3.7,1.55,.22,.09);
+    b.panel('machinery',-28.6,z,.65,3.2,1.87,.12,.035);
+  }
+  b.panel('paint',-22.6,0,6.1,5.2,1.5,.45,.13);
+  return [[21,3.9,4],[21,3.9,-4],[10,3.6,6],[10,3.6,-6],[-2.8,5.75,0],
+    [-14,2.8,6],[-23,2.3,5],[-23,2.3,-5],[-28.6,2.1,0]];
+}
+
+// Capital turret kits by weapon (body frame: barrel along +X; y up from the base ring).
+// Each fills the batch and returns where its muzzle is: {tip, muzzleHeight}.
+const TURRET_KITS={
+  lance(tb,r) {
+    // A single coil-wrapped accelerator, much heavier than the point-defence guns.
+    tb.panel('machinery',-.35,0,r*1.95,r*1.6,.02,.65,.2);
+    tb.panel('trim',-.4,0,r*1.7,r*1.45,.81,.65,.18);
+    tb.panel('paint',-.85,0,r*1.12,r*1.25,1.63,.3,.12);
+    const y=1.18, tip=11.8;
+    tb.add('machinery',cylinder(.68,.8,10.2),6.5,y,0);
+    for (const x of [2.2,4.15,6.1,8.05,10]) {
+      tb.add('trim',cylinder(1.04,1.04,.58),x,y,0);
+      tb.add('machinery',cylinder(1.12,1.12,.18),x-.23,y,0);
+    }
+    for (const s of [-1,1]) {
+      tb.panel('machinery',3.2,s*.88,4.1,.38,.9,.62,.07);
+      tb.panel('glow',1.9,s*r*.61,1.2,.15,1.62,.06,.02);
+    }
+    tb.add('trim',cylinder(.94,.94,.65),11.35,y,0);
+    tb.add('machinery',cylinder(.75,.75,.11),11.72,y,0);
+    tb.add('glow',cylinder(.48,.48,.07),tip,y,0);
+    return {tip:tip+.04,muzzleHeight:y};
+  },
+  rail(tb,r) {
+    // Two broad rails keep a visible dark slot; there is no tube joining their tips.
+    tb.panel('machinery',-.45,0,r*1.95,r*1.65,.03,.6,.18);
+    tb.panel('trim',-.7,0,r*1.65,r*1.46,.79,.85,.2);
+    tb.panel('paint',-1.05,0,r*1.16,r*1.2,1.85,.23,.1);
+    for (const s of [-1,1]) {
+      tb.panel('machinery',5.15,s*.95,8.1,.95,.77,.63,.08);
+      tb.panel('trim',5.05,s*1.15,7.8,.5,1.55,.24,.055);
+      tb.panel('glow',6.6,s*.51,4.4,.12,1.44,.07,.02);
+      for (const x of [2.3,4.4,6.5]) tb.panel('paint',x,s*1.13,.42,.62,1.86,.12,.04);
+      tb.panel('trim',8.98,s*.96,.4,1.08,.74,.75,.08);
+    }
+    return {tip:9.22,muzzleHeight:1.17};
+  },
+};
+
+/**
+ * A destroyed turret's stump on a base ring of radius r (hull-local, centred on the
+ * mount, y from the base ring's top): scorched, torn plate and a snapped barrel root.
+ */
+function stump(sb,r,weapon) {
+  const heavy=weapon==='lance'||weapon==='rail';
+  // An open annulus, not a cap: the pale race surrounds jagged, raised scorch walls
+  // and a low black floor. Leave the middle clear for the wound's orange embers.
+  const inner=[.69,.78,.6,.73,.66,.79,.64,.72,.59,.76,.65,.74];
+  const pit=inner.map((v,i)=>radial(r*v,i*Math.PI/6));
+  sb.add('scorch',plate(pit,.012,.025,.005));
+  for(let i=0;i<12;i++) {
+    const a=i*Math.PI/6, b=(i+1)*Math.PI/6, j=(i+1)%12;
+    sb.add('trim',plate([radial(r,a),radial(r,b),radial(r*.85,b),radial(r*.85,a)],.025,.14,.025));
+    sb.add('scorch',plate([radial(r*.85,a),radial(r*.85,b),pit[j],pit[i]],
+      .035,.17+(i%3)*.12,.015));
+  }
+  // A substantial remnant projects beyond the race: ~36% of a live heavy barrel.
+  // Its skewed, zigzag fracture and pale end cannot be mistaken for a live muzzle.
+  const len=weapon==='lance'?3.7:weapon==='rail'?3:r*.95;
+  const width=heavy?.95:r*.32, root=r*.43, tip=root+len;
+  const stub=plate([[root,-width*.7],[tip-width*.2,-width*.5],
+    [tip-width*.55,-width*.05],[tip,width*.32],[tip-width*.5,width*.7],
+    [root,width*.55]],0,heavy?.82:.5,.045);
+  stub.rotateZ(.19); sb.add('machinery',stub,0,.46,-r*.16,.18);
+  const tear=plate([[tip-width*.43,-width*.56],[tip-width*.2,-width*.5],
+    [tip-width*.55,-width*.05],[tip,width*.32],[tip-width*.5,width*.7],
+    [tip-width*.72,width*.56],[tip-width*.26,width*.27],[tip-width*.8,-width*.05]],
+    heavy?.83:.51,.065,.015);
+  tear.rotateZ(.19); sb.add('trim',tear,0,.46,-r*.16,.18);
+  // Two folded armour scraps lean out from the broken race; broad torn lips survive
+  // phone zoom, while the unequal shapes leave most of the cavity unobstructed.
+  for(const s of [-1,1]) {
+    const reach=s<0?.74:1;
+    const outline=[[-r*.66,0],[r*.26,0],[r*.12,s*r*.55*reach],
+      [-r*.13,s*r*.39*reach],[-r*.48,s*r*.62*reach]];
+    const scrap=plate(outline,0,r*.12,.025);
+    scrap.rotateX(-s*.88); sb.add('scorch',scrap,-r*.3,.25,s*r*.67);
+    const lip=plate([[-r*.48,s*r*.62*reach],[-r*.13,s*r*.39*reach],[r*.12,s*r*.55*reach],
+      [r*.14,s*r*.42*reach],[-r*.12,s*r*.27*reach],[-r*.5,s*r*.48*reach]],r*.13,.045,.015);
+    lip.rotateX(-s*.88); sb.add('trim',lip,-r*.3,.25,s*r*.67);
+  }
+}
+
+/**
+ * Where a bay's mouth is drawn on look `name`: hull-local centre (x, z), the angle of
+ * its long axis (rad about +Y), deck height y, and its size [length, width] in metres.
+ */
+function bayFrame(name,h,bay) {
+  if (name==='carrier') {
+    // The carrier's open launch wells run fore and aft from the bay mount (see carrier()).
+    const s=Math.sign(-bay.pos[1]), outer=Math.abs(bay.pos[1]), inner=3.35;
+    return {x:bay.pos[0],z:s*(inner+outer)/2,angle:0,y:-.76,size:[10.7,outer-inner]};
+  }
+  const a=Math.atan2(bay.dir[1],bay.dir[0]), depth=name==='citadel'?CITADEL_BAY.depth:3;
+  return {x:bay.pos[0]-bay.dir[0]*depth/2,z:-(bay.pos[1]-bay.dir[1]*depth/2),angle:a,
+    y:name==='citadel'?CITADEL_BAY.y:1.3,size:[depth,name==='citadel'?CITADEL_BAY.width:5]};
+}
+/** A destroyed bay: a dark, burnt-out mouth of length l (along the launch) and width w. */
+function bayHole(hb,l,w) {
+  const citadel=Math.abs(l-CITADEL_BAY.depth)<.01;
+  // The burn sits on the well floor; no raised slab or complete black rim.
+  hb.add('scorch',plate([[-l*.48,-w*.44],[-l*.28,-w*.48],[-l*.09,-w*.39],
+    [l*.17,-w*.47],[l*.47,-w*.41],[l*.49,w*.2],[l*.36,w*.46],
+    [l*.09,w*.39],[-l*.23,w*.48],[-l*.48,w*.36]],.015,.055,.015));
+  for (const s of [-1,1]) {
+    hb.add('scorch',plate([[-l*.46,s*w*.49],[-l*.29,s*w*.46],[-l*.18,s*w*.35],
+      [-l*.04,s*w*.48],[l*.16,s*w*.4],[l*.33,s*w*.48],[l*.46,s*w*.45],
+      [l*.46,s*w*.52],[-l*.46,s*w*.52]],.09,.07,.015));
+    // Wreck caps cover the permanent edge lights: these bays have no live node to hide.
+    if (citadel) hb.panel('scorch',.3,s*(w/2+.01),l-.9,.24,2.08,.035,.015);
+    else {
+      hb.panel('scorch',s*(l/2-.35),0,.25,w-.2,2.35,.035,.015);
+      hb.panel('scorch',0,s*(w/2-.08),l-.4,.3,2.34,.035,.015);
+    }
+    // Shattered guide rails and a few folded scraps stay below the intact sill.
+    hb.panel('scorch',citadel?0:s*l*.196,citadel?s*w*.3125:0,
+      citadel?l-.35:.45,citadel?.46:w-.1,.24,.07,.015);
+    hb.add('scorch',plate([[-l*.32,s*w*.42],[-l*.08,s*w*.4],
+      [-l*.22,s*w*.2],[-l*.37,s*w*.31]],.14,.28,.015));
+    hb.add('trim',plate([[-l*.37,s*w*.31],[-l*.22,s*w*.2],[-l*.08,s*w*.4],
+      [-l*.15,s*w*.41],[-l*.24,s*w*.29]],.43,.055,.015));
+  }
+}
+
 // Keyed by look (spec.model ?? spec.role). `transport` is the role's default look.
-const BUILDERS={fighter,skirmisher:strafer,anchor:gunship,bomber,carrier,freighter,transport:freighter,station};
+const BUILDERS={fighter,skirmisher:strafer,anchor:gunship,bomber,carrier,freighter,transport:freighter,station,citadel,dreadnought};
 /** The look a spec is built with: its explicit model, else its role. */
 function look(h) { return h.model ?? h.role; }
+// Roles drawn at capital scale: big turret kits, hardpoint stumps, large markings.
+const CAPITAL_ROLES=new Set(['carrier','station','line']);
 // Dimensions are explicit per role; capital-ship weapons cannot inherit darts.
 const TURRETS={
   fighter:{r:.46,base:.5,len:1.45}, skirmisher:{r:.46,base:.5,len:1.45},
   anchor:{r:1,base:1.25,len:2.5}, bomber:{r:.55,base:.7,len:1.25},
   carrier:{r:1.35,base:1.65,len:3.1}, station:{r:1.6,base:1.95,len:3.6},
+  line:{r:1.45,base:1.75,len:3.3},
 };
+// Capital guns heavier than their hull's standard turret: a base radius of their own.
+const HEAVY_BASE={lance:3.1,rail:2.9};
+/** The radius of the base ring `weapon` sits on, on hull `h`. */
+function turretBase(h,weapon) {
+  return CAPITAL_ROLES.has(h.role) && HEAVY_BASE[weapon] ? HEAVY_BASE[weapon] : TURRETS[h.role].base;
+}
 
 function insignia(b,team,x,z,y,scale) {
   b.panel('machinery',x,z,1.75*scale,1.65*scale,y,.06,.08*scale);
@@ -277,6 +523,15 @@ function largeMarkings(b,kind,team) {
     stripe(10.45,0,cabTop+.015*.65,3.1,1);
     stripe(-8.35,0,engineTop+.015*.65,7.1,.9);
     insignia(b,team,8.25,0,cabTop+.08*1.05*.65,1.05);
+  } else if (kind==='citadel') {
+    for (const s of [-1,1]) stripe(s*35,0,2.87,5.3,2.5);
+    for (const s of [-1,1]) stripe(0,s*9,3.65,2.6,2.7);
+    insignia(b,team,0,0,4.28,6);
+  } else if (kind==='dreadnought') {
+    for (const s of [-1,1]) stripe(-9,s*5.65,2.56,3.5,2);
+    stripe(-20.5,0,2.08,4.1,1.2);
+    // Keep the badge on the bridge, clear of the aft gun's long rest-bearing rails.
+    insignia(b,team,-2.8,0,5.3,1.95);
   } else {
     for (const s of [-1,1]) stripe(0,s*17.2,1.99,6.6,3);
     insignia(b,team,0,0,2.72,3.6);
@@ -288,7 +543,7 @@ function createKit(h,team) {
   const build=BUILDERS[look(h)];
   if (!build) throw new Error(`hullgeo: no builder for look "${look(h)}" (role ${h.role})`);
   const damage=build(b,h,team);
-  const capital=h.role==='carrier'||h.role==='station';
+  const capital=CAPITAL_ROLES.has(h.role);
   const legacy=h.role==='fighter'||heavy||ray;
   // Raised, high-contrast fleet insignia. The split square has a real gap.
   if (legacy) {
@@ -316,35 +571,57 @@ function createKit(h,team) {
   }
   // Unarmed hulls (the freighter) have no turret kit at all.
   if (!h.turrets.length) {
-    return {body:b.finish(),turret:[],tip:0,muzzleHeight:0,damagePoints:damage.map(p=>new THREE.Vector3(...p))};
+    return {body:b.finish(),turrets:new Map(),stumps:new Map(),hole:[],damagePoints:damage.map(p=>new THREE.Vector3(...p))};
   }
   const weapon=TURRETS[h.role];
   if (!weapon) throw new Error(`hullgeo: no turret dimensions for role ${h.role}`);
   for (const t of h.turrets) {
-    const r=weapon.base;
+    const r=turretBase(h,t.weapon);
     const g=new THREE.CylinderGeometry(r,r*1.12,.23,12);
     b.add('machinery',g,t.pos[0],t.height-.12,-t.pos[1]);
   }
-  const tb=batch(), r=weapon.r, len=weapon.len;
-  if (h.role==='bomber') {
-    // Three short launch tubes in a small fixed rack, rather than a gun barrel.
-    tb.panel('machinery',.2,0,1.45,1.85,.04,.36,.08);
-    for (const z of [-.6,0,.6]) {
-      tb.panel('trim',.45,z,1.6,.45,.13,.42,.055);
-      tb.panel('machinery',1.24,z,.1,.33,.21,.27,.025);
-      tb.panel('glow',1.3,z,.025,.12,.3,.06,.01);
+  // One turret kit per weapon the hull mounts (most hulls: one look for all of them).
+  const turrets=new Map();
+  for (const name of new Set(h.turrets.map(t=>t.weapon))) {
+    const special=TURRET_KITS[name];
+    if (capital && special) {
+      const tb=batch(), dims=special(tb,turretBase(h,name));
+      turrets.set(name,{meshes:tb.finish(),...dims});
+      continue;
     }
-  } else {
-    const scale=capital?r:1;
-    tb.panel('trim',0,0,r*1.65,r*1.5,.08,heavy||capital?.42*scale:.27,.1);
-    tb.panel('paint',-.22*scale,0,r*.8,r*1.2,heavy||capital?.58*scale:.42,.07,.04);
-    tb.panel('machinery',len*.5+.35,0,len,.3*scale,.19,.25*scale,.035);
-    tb.panel('trim',len+.25,0,.35,.49*scale,.14,.35*scale,.04);
-    tb.panel('glow',len+.44,0,.045,.24*scale,.26,.1*scale,.01);
+    const tb=batch(), r=weapon.r, len=weapon.len;
+    if (h.role==='bomber') {
+      // Three short launch tubes in a small fixed rack, rather than a gun barrel.
+      tb.panel('machinery',.2,0,1.45,1.85,.04,.36,.08);
+      for (const z of [-.6,0,.6]) {
+        tb.panel('trim',.45,z,1.6,.45,.13,.42,.055);
+        tb.panel('machinery',1.24,z,.1,.33,.21,.27,.025);
+        tb.panel('glow',1.3,z,.025,.12,.3,.06,.01);
+      }
+    } else {
+      const scale=capital?r:1;
+      tb.panel('trim',0,0,r*1.65,r*1.5,.08,heavy||capital?.42*scale:.27,.1);
+      tb.panel('paint',-.22*scale,0,r*.8,r*1.2,heavy||capital?.58*scale:.42,.07,.04);
+      tb.panel('machinery',len*.5+.35,0,len,.3*scale,.19,.25*scale,.035);
+      tb.panel('trim',len+.25,0,.35,.49*scale,.14,.35*scale,.04);
+      tb.panel('glow',len+.44,0,.045,.24*scale,.26,.1*scale,.01);
+    }
+    turrets.set(name,{meshes:tb.finish(),tip:h.role==='bomber'?1.33:len+.46,
+      muzzleHeight:h.role==='bomber'?.345:capital?.19+.125*r:.315});
   }
   const damagePoints=damage.map(p=>new THREE.Vector3(...p));
-  return {body:b.finish(),turret:tb.finish(),tip:h.role==='bomber'?1.33:len+.46,
-    muzzleHeight:h.role==='bomber'?.345:capital?.19+.125*r:.315,damagePoints};
+  // Destroyed hardpoints (capital hulls): one stump per weapon's base size, one bay hole.
+  const stumps=new Map();
+  if (capital) for (const name of turrets.keys()) {
+    const sb=batch(); stump(sb,turretBase(h,name),name);
+    stumps.set(name,sb.finish());
+  }
+  let hole=[];
+  if (h.bays?.length) {
+    const hb=batch(); const [l,w]=bayFrame(look(h),h,h.bays[0]).size; bayHole(hb,l,w);
+    hole=hb.finish();
+  }
+  return {body:b.finish(),turrets,stumps,hole,damagePoints};
 }
 // Unit plume: a soft body of revolution from the nozzle (x = 0) to its tip (x = 1),
 // swelling a little before it tapers. The treatment's exhaust material shades it.
@@ -358,6 +635,8 @@ const STROBES={
   carrier:[[19.3,1.6,4.6],[19.3,1.6,-4.6],[-18.9,1.6,6.6],[-18.9,1.6,-6.6],[-10.6,3.2,0]],
   freighter:[[12.2,2.2,0],[-12.8,1.6,4.2],[-12.8,1.6,-4.2]],
   station:[[21.4,2.2,0],[-21.4,2.2,0],[0,2.2,21.4],[0,2.2,-21.4]],
+  citadel:Array.from({length:6},(_,i)=>{const [x,z]=radial(48.5,i*Math.PI/3);return [x,2.9,z];}),
+  dreadnought:[[25.2,2.1,2.2],[25.2,2.1,-2.2],[10,3.7,8.8],[10,3.7,-8.8],[-30.6,1.9,6.6],[-30.6,1.9,-6.6],[-2.8,5.7,0]],
 };
 STROBES.transport=STROBES.freighter;
 
@@ -366,12 +645,14 @@ export function buildHull(hull,team,mats) {
   let pool=pools.get(key);
   if (!pool) pools.set(key,pool=[]);
   let model=pool.pop();
+  const material=slot=>mats[slot] ?? (slot==='scorch'?mats.machinery:undefined);
   if (model) {
-    model.object.traverse(o=>{if(o.isMesh) o.material=mats[o.userData.slot];});
+    model.object.traverse(o=>{if(o.isMesh) o.material=material(o.userData.slot);});
     model.object.position.set(0,0,0);model.object.rotation.set(0,0,0);
     model.object.scale.set(1,1,1);model.object.visible=true;
     for (const t of model.thrusters) {t.level=0;t.node.visible=false;}
     for (const p of model.turrets) p.rotation.y=0;
+    for (const kind of ['turret','bay']) model.hardpoints[kind].forEach((_,i)=>model.setHardpointDestroyed(kind,i,false));
     model._released=false;
     return model;
   }
@@ -380,7 +661,7 @@ export function buildHull(hull,team,mats) {
   const object=new THREE.Group();object.name=`hull.${look(hull)}`;
   function meshes(parent,entries) {
     for (const [slot,g] of entries) {
-      const m=new THREE.Mesh(g,mats[slot]);m.userData.slot=slot;
+      const m=new THREE.Mesh(g,material(slot));m.userData.slot=slot;
       // Lit trim (glow) throws no shadow; everything takes them (where the page casts any).
       m.castShadow=slot!=='glow';m.receiveShadow=true;parent.add(m);
     }
@@ -406,17 +687,57 @@ export function buildHull(hull,team,mats) {
     return state;
   });
   const muzzles=[];
+  const hardpoints={turret:[],bay:[]};
   const turrets=hull.turrets.map(t=>{
+    const gun=kit.turrets.get(t.weapon);
     const pivot=new THREE.Group();pivot.name=t.id;
     pivot.position.set(...mountToLocal(t.pos,t.height));
-    meshes(pivot,kit.turret);
+    meshes(pivot,gun.meshes);
     const muzzle=new THREE.Object3D();muzzle.name=`${t.id}.muzzle`;
-    muzzle.position.set(kit.tip,kit.muzzleHeight,0);pivot.add(muzzle);muzzles.push(muzzle);
-    object.add(pivot);return pivot;
+    muzzle.position.set(gun.tip,gun.muzzleHeight,0);pivot.add(muzzle);muzzles.push(muzzle);
+    object.add(pivot);
+    // The stump replaces the gun where it stood, at its rest bearing (it no longer slews).
+    let wreck=null;
+    const stumpKit=kit.stumps.get(t.weapon);
+    if (stumpKit) {
+      wreck=new THREE.Group();wreck.name=`${t.id}.stump`;
+      wreck.position.set(...mountToLocal(t.pos,t.height));
+      wreck.rotation.y=(t.rest ?? 0)*Math.PI/180;
+      meshes(wreck,stumpKit);wreck.visible=false;object.add(wreck);
+    }
+    hardpoints.turret.push({live:pivot,wreck,destroyed:false,size:turretBase(hull,t.weapon),
+      local:new THREE.Vector3(...mountToLocal(t.pos,t.height+.4))});
+    return pivot;
   });
-  model={object,thrusters,turrets,muzzles,
+  for (const bay of hull.bays ?? []) {
+    const f=bayFrame(look(hull),hull,bay);
+    const wreck=new THREE.Group();wreck.name=`${bay.id}.hole`;
+    wreck.position.set(f.x,f.y,f.z);wreck.rotation.y=f.angle;
+    meshes(wreck,kit.hole);wreck.visible=false;object.add(wreck);
+    hardpoints.bay.push({live:null,wreck,destroyed:false,size:Math.max(...f.size)/2,
+      local:new THREE.Vector3(f.x,f.y+.6,f.z)});
+  }
+  model={object,thrusters,turrets,muzzles,hardpoints,
     damagePoints:kit.damagePoints.map(p=>p.clone()),
     strobes:(STROBES[look(hull)] ?? []).map(p=>new THREE.Vector3(...p)),_released:false,
+    /**
+     * Show turret or bay `index` (the hull spec's order) destroyed or whole. A destroyed
+     * turret becomes a scorched stump (its gun and muzzle hidden), a destroyed bay a
+     * dark hole over its mouth. Returns whether anything changed; out-of-range indices
+     * (a hull without that hardpoint) change nothing.
+     */
+    setHardpointDestroyed(kind,index,destroyed=true) {
+      const h=hardpoints[kind]?.[index];
+      if (!h || h.destroyed===destroyed) return false;
+      h.destroyed=destroyed;
+      // The barrel snaps where the gun last pointed.
+      if (destroyed && h.live && h.wreck && kind==='turret') h.wreck.rotation.y=h.live.rotation.y;
+      if (h.live) h.live.visible=!destroyed;
+      if (h.wreck) h.wreck.visible=destroyed;
+      return true;
+    },
+    /** Whether turret or bay `index` is shown destroyed. */
+    hardpointDestroyed(kind,index) { return !!hardpoints[kind]?.[index]?.destroyed; },
     setThrottles(throttles,dt) {
       const k=1-Math.exp(-Math.max(0,dt)*24);
       for (let i=0;i<thrusters.length;i++) {
