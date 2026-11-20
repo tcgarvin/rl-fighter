@@ -310,7 +310,9 @@ function missionPanel(match: LiveMatch): string {
     const rows = [0, 1].map((team) => {
       const t = match.teams[team]!;
       const p = t.carrier >= 0 ? pct(t.hp, t.maxHp) : 0;
-      const hangar = t.hangar > 0 ? `${t.hangar} in hangar` : "hangar empty";
+      // v11: returned craft repairing count among the hangar's.
+      const repairing = match.repairing(team);
+      const hangar = (t.hangar > 0 ? `${t.hangar} in hangar` : "hangar empty") + (repairing > 0 ? ` · ${repairing} repairing` : "");
       const ship = t.carrier >= 0 ? match.ships[t.carrier] : undefined;
       // v10: a capital ship's guns can be shot off; the citadel's count is worth a glance.
       const guns = station && team === 0 && ship ? ` · ${gunsLeft(ship)}` : "";

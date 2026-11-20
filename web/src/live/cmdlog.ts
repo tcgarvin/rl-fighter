@@ -1,5 +1,6 @@
 // The command log behind "show commands": an ambient computer readout of what each
-// side's commander does (launches, squad orders) and what the convoy's jump drives do,
+// side's commander does (launches, squad orders, v11 recalls and the docks and relaunches
+// that follow) and what the convoy's jump drives do,
 // fed from the sim's events, which it raises alike for a scripted commander and for the
 // decisions a learned one submits. Collapsed it is a few faint lines, not meant to be read
 // in passing; a tap opens it into a readable panel, and another tap closes it.
@@ -7,7 +8,7 @@
 import { commanderName } from "./bundle.ts";
 import type { LiveMatch } from "./match.ts";
 import { MISSION_TITLES, type MissionName } from "./missions.ts";
-import { ORDER_KINDS, SIM_HZ, type SimEvent } from "./sim.ts";
+import { DOCK_ABORT_REASONS, ORDER_KINDS, SIM_HZ, type SimEvent } from "./sim.ts";
 import { TEAM_CLASSES, TEAM_NAMES, escapeHtml } from "./teams.ts";
 
 // Enough to scroll back through a whole carrier battle's orders; older lines drop.
@@ -110,6 +111,30 @@ export class CommandLog {
         if (kind === "defend") return [team, `${head} · defend → ${target}`];
         if (kind === "goto") return [team, `${head} · go to{ ${fmtPoint(e.x, e.y)} r${Math.round(e.f6)}}`];
         return [team, `${head} · stand down`];
+      }
+      // v11: a craft called home, taken in, repaired and out again (the relaunch follows
+      // its own launch line, so it only says the ship is the same one, repaired).
+      case "dockOrdered": {
+        const ship = m.ships[e.a];
+        if (!ship) return null;
+        const hull = Math.round((100 * Math.max(0, ship.hp)) / Math.max(1, m.maxHp[e.a] ?? 1));
+        return [ship.team, `${this.who(ship.team)} › ${m.labels[e.a]} · home to repair{ · hull ${hull}%}`];
+      }
+      case "docked": {
+        const ship = m.ships[e.a];
+        if (!ship) return null;
+        const bay = this.bays(m.hullNames[e.b] ?? "")[e.extra] ?? `bay ${e.extra}`;
+        return [ship.team, `${TEAM_NAMES[ship.team]} BAY › ${m.labels[e.a]} docked · bay ${bay}{ · hull ${Math.round(e.f5 * 100)}%}`, "cl-hi"];
+      }
+      case "relaunched": {
+        const ship = m.ships[e.a];
+        if (!ship) return null;
+        return [ship.team, `${TEAM_NAMES[ship.team]} BAY › ${m.labels[e.a]} back out · hull ${Math.round(e.f5 * 100)}%`];
+      }
+      case "dockAborted": {
+        const ship = m.ships[e.a];
+        if (!ship) return null;
+        return [ship.team, `${TEAM_NAMES[ship.team]} BAY › ${m.labels[e.a]} recall off · ${DOCK_ABORT_REASONS[e.extra] ?? "aborted"}`];
       }
       case "jumpCharge": {
         const ship = m.ships[e.a];

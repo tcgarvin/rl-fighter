@@ -7,6 +7,10 @@
 // tumbling, charred dark with a few embers (no smoke or fire, so it doesn't pull the
 // eye), sunk below the battle plane so the living fly over it. Behind "show commands" the
 // commanders' squad orders, carrier waypoints and the jump point are drawn faintly.
+// A craft called home (v11 dock order) draws a fine line to its bay there, and always
+// while inspected; on docking it slides into the bay well, shrinking, under a brief soft
+// flash; a bay with returned craft repairing inside breathes a soft glow; the relaunch is
+// an ordinary bay launch.
 // Strike craft lay engine trails (a record of their thrust), the key light casts
 // shadows, and the scene is drawn at a scale that holds the frame rate (pacing.ts).
 
@@ -20,7 +24,7 @@ import { HULLS } from "../render/hulls.js";
 import { FitCamera, TYPICAL_ZOOM, emptyBounds, growBounds, type Bounds, type SafeRect } from "./camera.ts";
 import type { LiveMatch } from "./match.ts";
 import { RenderScale } from "./pacing.ts";
-import { JUMP_DEPARTED, SIM_HZ, WEAPON_NAMES, type HullInfo, type ShipState, type SimEvent } from "./sim.ts";
+import { DOCK_INBOUND, JUMP_DEPARTED, MAX_BAYS, SIM_HZ, WEAPON_NAMES, type HullInfo, type ShipState, type SimEvent } from "./sim.ts";
 
 // Jump-in streak, as in the story and the duel.
 const JUMP_DISTANCE = 900;
@@ -84,6 +88,26 @@ const BENCH_BLOCKS = 6;
 // see what it is shooting at.
 const FOCUS_MIN_SPAN = 60;
 const FOCUS_HULLS = 2.2;
+// Docking (v11): the craft slides from where it was into the bay well over DOCK_SLIDE
+// seconds, turning to the bay's axis (DOCK_ALIGN of the way by DOCK_ALIGN_BY); from
+// DOCK_SINK_FROM of the way it sinks DOCK_SINK metres, below the well's floor, and from
+// DOCK_SHRINK_FROM shrinks a little (to DOCK_SHRINK), so the deck hides it rather than
+// it dwindling; the flash comes DOCK_FLASH_AT of the way in, as it passes the mouth.
+const DOCK_SLIDE = 0.7;
+const DOCK_ALIGN = 0.9;
+const DOCK_ALIGN_BY = 0.6;
+const DOCK_SINK_FROM = 0.4;
+const DOCK_SINK = 4;
+const DOCK_SHRINK_FROM = 0.65;
+const DOCK_SHRINK = 0.85;
+const DOCK_FLASH_AT = 0.45;
+// The bay well's centre: this far in from the bay mount, against the launch direction.
+const BAY_WELL_DEPTH = 3.5;
+// A busy bay's glow across, metres: about a bay well.
+const BAY_PULSE_SIZE = 9;
+// Where a craft's line home stops short of its bay's mouth (metres): the marker there
+// carries the last of the approach.
+const DOCK_MARK = 4;
 
 /** The render-side hull spec (render/hulls.js, overlaid with the sim's YAML mounts). */
 export interface HullSpec {
@@ -123,11 +147,17 @@ interface DamageFx {
 }
 
 interface Order {
-  kind: "attack" | "defend" | "goto" | "jump";
+  kind: "attack" | "defend" | "goto" | "jump" | "dock";
   team: number;
   x2: number;
   y2: number;
   radius?: number;
+  /** A dock marker's way into the bay, radians CCW from +x. */
+  angle?: number;
+  /** A dock marker: how far out of the mouth the dock point lies (metres). */
+  reach?: number;
+  /** A dock marker: the inspected craft's, drawn brighter. */
+  focus?: boolean;
   x1?: number;
   y1?: number;
   progress?: number;
@@ -166,6 +196,8 @@ interface Effects {
   explosion(e: { x: number; y: number; radius: number; team: number; kind: string }): void;
   arrival(e: { x: number; y: number; heading: number; team: number; size: number; duration: number }): void;
   bayLaunch(e: { x: number; y: number; heading: number; team: number; size: number; speed: number }): void;
+  dockFlash(e: { x: number; y: number; team: number; size: number }): void;
+  bayPulse(e: { x: number; y: number; team: number; size: number; phase: number }): void;
   jumpCharge(e: { object: THREE.Object3D; team: number; size: number; duration: number }): Charge;
   jumpOut(e: Departure): void;
   jumpOutQuick(e: Departure): void;
@@ -261,11 +293,37 @@ interface ShipView {
   /** Interpolation origin: the ship at the previous tick. */
   prev: { x: number; y: number; heading: number };
   /** Where it was drawn this frame (sim metres), for the order overlay. */
-  drawn: { x: number; y: number; visible: boolean };
+  drawn: { x: number; y: number; heading: number; visible: boolean };
+  /** Sliding into its carrier's bay (v11 docking), or null. */
+  docking: Docking | null;
   charge: Charge | null;
   /** Jumped out (or quick-jumped at the end): when (world time) and from where. */
   departAt: number;
   depart: { x: number; y: number; heading: number };
+}
+
+/** A craft going into a bay: since when (world time), from where, and which bay. */
+interface Docking {
+  at: number;
+  from: { x: number; y: number; heading: number };
+  carrier: number;
+  bay: number;
+  flashed: boolean;
+}
+
+/** A carrier's bay as drawn this frame (World.bayFrame). */
+interface BayFrame {
+  /** The mouth (sim metres) and the way out of it (unit). */
+  x: number;
+  y: number;
+  dirx: number;
+  diry: number;
+  /** The middle of the well behind the mouth. */
+  wellX: number;
+  wellY: number;
+  /** The drawn carrier less the sim's, to move a point the sim gives at this tick onto the drawn hull. */
+  dx: number;
+  dy: number;
 }
 
 const treatment = treatmentModule as unknown as Treatment;
@@ -344,6 +402,10 @@ export class World {
   private focus = -1;
   private readonly orders: Order[] = [];
   private readonly orderPool: Order[] = [];
+  /** The overlay holds orders from the last frame that drew any. */
+  private ordersDrawn = false;
+  /** Bays already given a pulse this frame, as carrier * MAX_BAYS + bay. */
+  private readonly pulsed = new Set<number>();
   /** The viewer asked for less motion: no camera shake, no shockwave refraction. */
   private readonly calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   private readonly pace: RenderScale;
@@ -448,7 +510,12 @@ export class World {
   private focusBounds(): Bounds | null {
     const v = this.views[this.focus];
     if (!v) return null;
-    const at = v.drawn.visible ? v.drawn : v.wreck && !v.wreck.gone ? v.wreck : null;
+    // A craft back in its hangar (v11) is framed on its carrier until it relaunches.
+    const m = this.match;
+    const ship = m?.ships[this.focus];
+    const carrier = m && ship && m.returned(ship) ? this.views[m.teams[ship.team]!.carrier] : undefined;
+    const home = carrier?.drawn.visible ? carrier.drawn : null;
+    const at = v.drawn.visible ? v.drawn : (home ?? (v.wreck && !v.wreck.gone ? v.wreck : null));
     if (!at) return null;
     const half = Math.max(FOCUS_MIN_SPAN, v.hull.length * FOCUS_HULLS) / 2;
     const b = emptyBounds();
@@ -464,6 +531,8 @@ export class World {
   beginMatch(match: LiveMatch): void {
     for (const v of this.views) {
       v.charge?.cancel();
+      // The pooled model must not come back shrunk from a docking cut short.
+      v.model.object.scale.setScalar(1);
       v.damage.dispose();
       v.beacons.dispose();
       for (const e of v.engines) e.trail.dispose();
@@ -496,7 +565,8 @@ export class World {
         wreck: null,
         char: [],
         prev: { x: ship.x, y: ship.y, heading: ship.heading },
-        drawn: { x: ship.x, y: ship.y, visible: false },
+        drawn: { x: ship.x, y: ship.y, heading: ship.heading, visible: false },
+        docking: null,
         charge: null,
         departAt: Infinity,
         depart: { x: 0, y: 0, heading: 0 },
@@ -549,6 +619,9 @@ export class World {
       if (e.kind === "death" && ship && view) {
         view.charge?.cancel();
         view.charge = null;
+        // A craft lost with its carrier while still sliding into the bay dies whole-sized.
+        view.docking = null;
+        view.model.object.scale.setScalar(1);
         // A station (a hull that cannot move) always goes up: its loss ends the match,
         // and a hulk that never moved would just sit there.
         const major = view.hull.speedCap === 0 || fate(m.seed, e.a, 0) < MAJOR_CHANCE;
@@ -568,7 +641,17 @@ export class World {
         if (!quiet) fx.explosion({ x: e.x, y: e.y, radius: view.hull.radius * DEATH_RADIUS_SCALE, team: ship.team, kind: "death" });
         continue;
       }
+      if (e.kind === "docked" && ship && view) {
+        // Into the bay from where it was last drawn; a fast-forward just lets it go.
+        if (!quiet && view.drawn.visible) {
+          view.docking = { at: this.elapsed, from: { x: view.drawn.x, y: view.drawn.y, heading: view.drawn.heading }, carrier: e.b, bay: e.extra, flashed: false };
+        }
+        continue;
+      }
       if (e.kind === "launch" && ship && view) {
+        // A relaunch (v11) is the same slot leaving the bay again: whole size, no slide.
+        view.docking = null;
+        view.model.object.scale.setScalar(1);
         // Out of the bay at its launch velocity: interpolate from a tick back along it,
         // not from the hangar (the carrier's centre).
         view.prev.x = ship.x - ship.vx / SIM_HZ;
@@ -674,13 +757,23 @@ export class World {
     if (m) {
       this.runQuickJumps(m);
       for (const [i, v] of this.views.entries()) this.drawShip(m, i, v, dt, alpha, bounds, frameAll);
+      this.pulseBays(m);
       this.frameConvoy(m, bounds);
       for (const b of this.beams) b.ttl -= dt;
       // Projectiles are at the current tick and ships between the previous and current
       // one, so back the shots up by a tick to keep them on the muzzles.
       this.effects.updateProjectiles(m.projectiles, this.beams, alpha - 1);
-      // The jump point is part of the convoy mission, always shown; the rest is the commands layer.
-      if (this.showOrders || m.convoy) this.updateOrders(m, this.showOrders);
+      // The jump point is part of the convoy mission, always shown; the rest is the
+      // commands layer, but for the inspected craft's way home, which shows whenever it is
+      // called back.
+      const homing = this.focus >= 0 && m.ships[this.focus]?.dockPhase === DOCK_INBOUND;
+      if (this.showOrders || m.convoy || homing) {
+        this.updateOrders(m, this.showOrders);
+        this.ordersDrawn = true;
+      } else if (this.ordersDrawn) {
+        this.effects.drawOrders([]);
+        this.ordersDrawn = false;
+      }
     }
     const focus = this.focusBounds();
     this.cam.update(focus ?? bounds, dt, focus !== null);
@@ -779,6 +872,28 @@ export class World {
       const o = this.nextOrder();
       Object.assign(o, { kind: "goto", team: s.team, x2: s.waypointX, y2: s.waypointY, radius: WAYPOINT_MARK, x1: d.x, y1: d.y });
     }
+    // Craft called home (v11): a fine line to their bay, its mouth marked with a U and an arrow in.
+    for (const [i, s] of m.ships.entries()) {
+      if (s.dockPhase !== DOCK_INBOUND || (!commands && i !== this.focus)) continue;
+      const d = this.views[i]!.drawn;
+      const bay = this.bayFrame(m, m.teams[s.team]!.carrier, s.dockBay);
+      if (!d.visible || !bay) continue;
+      const o = this.nextOrder();
+      // The sim's dock point is at this tick; the drawn carrier between ticks (bay.dx, dy).
+      const reach = Math.hypot(s.dockX + bay.dx - bay.x, s.dockY + bay.dy - bay.y);
+      Object.assign(o, {
+        kind: "dock",
+        team: s.team,
+        x2: bay.x,
+        y2: bay.y,
+        radius: DOCK_MARK,
+        x1: d.x,
+        y1: d.y,
+        angle: Math.atan2(-bay.diry, -bay.dirx),
+        reach,
+        focus: i === this.focus,
+      });
+    }
     const c = m.convoy;
     if (c) {
       let sx = 0;
@@ -800,12 +915,89 @@ export class World {
     this.effects.drawOrders(this.orders);
   }
 
+  /** Bay `bay` of the carrier in slot `carrier` as drawn this frame; null for no such bay. */
+  private bayFrame(m: LiveMatch, carrier: number, bay: number): BayFrame | null {
+    const v = this.views[carrier];
+    const ship = m.ships[carrier];
+    const mount = v?.hull.bays?.[bay];
+    if (!v || !ship || !mount) return null;
+    const { x: cx, y: cy, heading: h } = v.drawn;
+    const c = Math.cos(h);
+    const sn = Math.sin(h);
+    const [px, py] = mount.pos;
+    const x = cx + c * px - sn * py;
+    const y = cy + sn * px + c * py;
+    const dirx = c * mount.dir[0] - sn * mount.dir[1];
+    const diry = sn * mount.dir[0] + c * mount.dir[1];
+    return { x, y, dirx, diry, wellX: x - dirx * BAY_WELL_DEPTH, wellY: y - diry * BAY_WELL_DEPTH, dx: cx - ship.x, dy: cy - ship.y };
+  }
+
+  /** A soft breathing glow in each bay that has returned craft repairing behind it (v11). */
+  private pulseBays(m: LiveMatch): void {
+    this.pulsed.clear();
+    for (const [i, s] of m.ships.entries()) {
+      const bay = m.hangarBay[i]!;
+      if (bay < 0 || !m.returned(s)) continue;
+      const carrier = m.teams[s.team]!.carrier;
+      const key = carrier * MAX_BAYS + bay;
+      const cv = this.views[carrier];
+      if (this.pulsed.has(key) || !cv?.drawn.visible || cv.model.hardpointDestroyed("bay", bay)) continue;
+      const f = this.bayFrame(m, carrier, bay);
+      if (!f) continue;
+      this.pulsed.add(key);
+      this.effects.bayPulse({ x: f.wellX, y: f.wellY, team: s.team, size: BAY_PULSE_SIZE, phase: bay * 0.37 });
+    }
+  }
+
+  /** A craft sliding into its bay: from where it was to the well, shrinking and sinking. */
+  private drawDocking(m: LiveMatch, v: ShipView, team: number, dt: number): void {
+    const d = v.docking!;
+    const obj = v.model.object;
+    const t = (this.elapsed - d.at) / DOCK_SLIDE;
+    const f = this.bayFrame(m, d.carrier, d.bay);
+    for (const e of v.engines) e.trail.cut();
+    if (t >= 1 || !f) {
+      v.docking = null;
+      obj.visible = false;
+      obj.scale.setScalar(1);
+      v.damage.update(1, false, dt);
+      return;
+    }
+    const ease = t * t * (3 - 2 * t);
+    const x = d.from.x + (f.wellX - d.from.x) * ease;
+    const y = d.from.y + (f.wellY - d.from.y) * ease;
+    const align = Math.min(1, t / DOCK_ALIGN_BY);
+    const heading = lerpAngle(d.from.heading, Math.atan2(-f.diry, -f.dirx), DOCK_ALIGN * align * align * (3 - 2 * align));
+    const sink = Math.max(0, (t - DOCK_SINK_FROM) / (1 - DOCK_SINK_FROM));
+    const shrink = Math.max(0, (t - DOCK_SHRINK_FROM) / (1 - DOCK_SHRINK_FROM));
+    obj.visible = true;
+    obj.scale.setScalar(1 - (1 - DOCK_SHRINK) * shrink);
+    obj.position.set(x, -DOCK_SINK * sink * sink, -y);
+    obj.rotation.set(0, heading, 0);
+    obj.updateMatrixWorld();
+    v.drawn.x = x;
+    v.drawn.y = y;
+    v.drawn.heading = heading;
+    v.drawn.visible = true;
+    v.model.setThrottles([], dt);
+    // Its smoke and fire go out with it: the bay takes the ship in, not its damage.
+    v.damage.update(1, false, dt);
+    if (!d.flashed && t >= DOCK_FLASH_AT) {
+      d.flashed = true;
+      this.effects.dockFlash({ x: f.x, y: f.y, team, size: v.hull.length });
+    }
+  }
+
   private drawShip(m: LiveMatch, i: number, v: ShipView, dt: number, alpha: number, bounds: Bounds, frameAll: boolean): void {
     const ship = m.ships[i]!;
     const obj = v.model.object;
     v.drawn.visible = false;
     if (v.wreck) {
       this.drawWreck(v, dt, frameAll ? bounds : null, ship.team);
+      return;
+    }
+    if (v.docking) {
+      this.drawDocking(m, v, ship.team, dt);
       return;
     }
     if (v.departAt !== Infinity) {
@@ -828,6 +1020,7 @@ export class World {
     obj.updateMatrixWorld();
     v.drawn.x = x;
     v.drawn.y = y;
+    v.drawn.heading = heading;
     v.drawn.visible = visible;
     v.model.setThrottles(ship.throttles, dt);
     v.model.turrets.forEach((pivot, k) => (pivot.rotation.y = ship.turretAngles[k] ?? 0));

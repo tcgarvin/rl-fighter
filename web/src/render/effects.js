@@ -40,6 +40,12 @@
 //       the bay mouth, heading/speed the launch velocity (m/s), size the launched hull's
 //       length. A flash at the mouth, an afterglow inside the bay and a short trail that
 //       follows the ship out for 0.6 s (it assumes the launch's straight, locked coast).
+//   fx.dockFlash({x, y, team, size})  a strike craft taken in by a bay (v11 docking): x, y
+//       is the bay mouth, size the docked hull's length. A brief soft flash, with no
+//       shockwave ring or afterglow (DESIGN: as a jump's landing, only smaller).
+//   fx.bayPulse({x, y, team, size, phase})  a bay busy with craft under repair: call it
+//       every frame it should show (x, y the bay well, size about its length); it draws a
+//       soft breathing glow that frame only. phase (0..1) keeps two bays off each other's beat.
 //   fx.jumpCharge({object, team, size, duration}) -> {cancel()}  a transport spooling
 //       its jump drive: contracting rings, a growing core glow, inward sparks and, at the
 //       end, a forward aperture line. It follows `object` (the hull's THREE.Object3D, so
@@ -70,11 +76,15 @@
 //       points fixed on the hull where it burned; heat 0..1, call every frame to keep them
 //
 // drawOrders(orders): each order is {kind, team, x2, y2, radius?, x1?, y1?, progress?}.
-//   kind 'attack' | 'defend' | 'goto' | 'jump'. With x1, y1 a faint dashed line crawls
+//   kind 'attack' | 'defend' | 'goto' | 'jump' | 'dock'. With x1, y1 a faint dashed line crawls
 //   from the squad (x1, y1) toward the target (x2, y2) and stops at its marker:
 //   attack = four corner brackets, defend = a thin ring round the ward, goto = a ring
 //   with inward ticks, jump = a slowly turning dashed ring with a brighter arc for
-//   `progress` (0..1, e.g. the jump charge). radius is the marker's (metres).
+//   `progress` (0..1, e.g. the jump charge), dock = a craft called home: a fainter
+//   line to the bay's mouth (x2, y2), drawn as a shallow U open to the craft with one
+//   arrow in along `angle` (the way into the bay, radians CCW from +x) from `reach`
+//   metres out (the dock point); `focus` (the inspected craft) draws it brighter. radius
+//   is the marker's (metres).
 import { noiseTexture } from './noise.js';
 
 export const JUMP_OUT_DISTANCE = 900;
@@ -452,6 +462,10 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
   const shields = Array.from({ length: SHIELD_CAP }, () => ({ age: 0, max: 0, object: null,
     x: 0, z: 0, dx: 1, dz: 0, radius: 1, color: white, depleted: false, seed: 0, strength: 1, born: 0 }));
   let pc = 0, wc = 0, jc = 0, lc = 0, cc = 0, sc = 0, clock = 0, drawFrame = 0, orders = [];
+  // Bays busy with repairs this frame (bayPulse), drawn and cleared by update().
+  const pulses = Array.from({ length: 16 }, () => ({ x: 0, z: 0, size: 1, color: white, phase: 0 }));
+  let pulseCount = 0;
+  const bayLight = team.map(c => white.clone().lerp(c, .3));
   // kind: 0 glow, 1 smoke, 2 shell fragment, 3 spark, 4 vent jet (hull pressure, no up),
   // 5 damage smoke,
   // 6 ember (a flickering hot point), 7 explosion smoke (`hot`: with a glowing pocket),
@@ -713,6 +727,8 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
     }
   }
   const TAU=Math.PI*2;
+  // A dock marker's mouth across, metres (about a strike craft bay's width).
+  const DOCK_MOUTH=6, DOCK_MARK_Y=2.6;
   function order(o) {
     const c=team[o.team] || white, x=o.x2, z=-o.y2, r=o.radius ?? (o.kind==='attack'?10:o.kind==='defend'?24:40);
     if(o.x1!==undefined && o.y1!==undefined) {
@@ -723,13 +739,16 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
         // Dashes crawl toward the target, so the line says which way the order points.
         let dash=7, gap=6;
         if((to-from)/(dash+gap)>60) { const k=(to-from)/(60*(dash+gap)); dash*=k; gap*=k; }
+        // A craft's way home is a single ship's, so its line is finer and fainter.
+        const home=o.kind==='dock', w=home?.35:.5, alpha=home?(o.focus?.24:.17):.22, crawl=home?20:14;
+        if(home) { dash=4; gap=5; }
         const period=dash+gap;
-        for(let s=from-period+(clock*14)%period;s<to;s+=period) {
+        for(let s=from-period+(clock*crawl)%period;s<to;s+=period) {
           const a=Math.max(from,s), b=Math.min(to,s+dash);
           if(b<=a) continue;
           // Fade in from the squad and out at the marker.
           const m=(a+b)*.5, fade=Math.min(1,(m-from)/30)*Math.min(1,(to-m)/20+.35);
-          segment(lines,sx+ux*a,1.2,sz+uz*a,sx+ux*b,1.2,sz+uz*b,.5,c,.22*fade);
+          segment(lines,sx+ux*a,1.2,sz+uz*a,sx+ux*b,1.2,sz+uz*b,w,c,alpha*fade);
         }
       }
     }
@@ -744,6 +763,22 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
         const a=i*Math.PI/2+Math.PI/4, ca=Math.cos(a), sa=Math.sin(a);
         segment(lines,x+ca*r,1.2,z+sa*r,x+ca*r*.84,1.2,z+sa*r*.84,.5,c,.5);
       }
+    } else if(o.kind==='dock') {
+      // The bay's entrance as a shallow U open to the incoming craft, its floor across the
+      // mouth (x2, y2), and one arrow from the dock point outside into the mouth: "in here".
+      // `angle` points into the bay; `reach` is how far out the dock point lies.
+      const a=o.angle ?? 0, ux=Math.cos(a), uz=-Math.sin(a), px=-uz, pz=ux;
+      // Drawn above the deck (y = DOCK_MARK_Y): the mouth sits on the hull's edge.
+      const half=DOCK_MOUTH*.5, lip=DOCK_MOUTH*.45, reach=o.reach ?? 8, op=o.focus?.65:.4, w=o.focus?.55:.45, y=DOCK_MARK_Y;
+      segment(lines,x+px*half,y,z+pz*half,x-px*half,y,z-pz*half,w,c,op);
+      for(const side of [-1,1]) {
+        const sx=x+px*side*half, sz=z+pz*side*half;
+        segment(lines,sx,y,sz,sx-ux*lip,y,sz-uz*lip,w,c,op);
+      }
+      // The arrow's tip sits just short of the mouth's floor line.
+      const tx=x-ux*.6, tz=z-uz*.6, head=Math.min(2.4,reach*.3);
+      segment(lines,x-ux*reach,y,z-uz*reach,tx,y,tz,w,c,op*.8);
+      for(const side of [-1,1]) segment(lines,tx-ux*head+px*side*head*.6,y,tz-uz*head+pz*side*head*.6,tx,y,tz,w,c,op);
     } else if(o.kind==='jump') {
       // Dashed outer ring turns slowly; the progress arc runs clockwise from the top.
       const spin=clock*.12;
@@ -1106,6 +1141,18 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
           Math.cos(a)*v,1+Math.random()*2,-Math.sin(a)*v);
       }
     },
+    dockFlash(e) {
+      const c=team[e.team] || white, size=e.size || 10, x=e.x, z=-e.y;
+      // Soft and quick: a team-tinted bloom with a small white core, a dim lent light.
+      particle(x,2.2,z,size*1.8,.32,c);
+      particle(x,2.3,z,size*.65,.18,white);
+      flash(x,5,z,c,800,size*4,.24);
+    },
+    bayPulse(e) {
+      if(pulseCount>=pulses.length) return;
+      const p=pulses[pulseCount++];
+      p.x=e.x; p.z=-e.y; p.size=e.size || 8; p.color=bayLight[e.team] || white; p.phase=e.phase || 0;
+    },
     jumpCharge(e) {
       const c=charges[cc++]; if(cc===charges.length)cc=0;
       c.active=true; c.age=0; c.duration=Math.max(.2,e.duration ?? 2); c.object=e.object || null;
@@ -1277,6 +1324,14 @@ export function createEffects({ THREE: T, scene, renderer, palette, sun: sunIn, 
       fires.mesh.material.uniforms.time.value=clock;
       shieldFx.mesh.material.uniforms.time.value=clock;
       for(const o of orders) order(o);
+      // Busy bays breathe slowly (about 1.4 s a breath): a hangar at work, not an alarm.
+      for(let i=0;i<pulseCount;i++) {
+        const p=pulses[i], beat=.5+.5*Math.sin((clock/1.4+p.phase)*TAU);
+        // The bay's own work lights: near white, so they read on a hull of the team's colour.
+        put(glow,p.x,1.6,p.z,p.size*(.8+.2*beat),p.size*(.8+.2*beat),1,0,p.color,.2+.35*beat);
+        put(glow,p.x,1.7,p.z,p.size*.4,p.size*.4,1,0,white,.14+.26*beat);
+      }
+      pulseCount=0;
       updateShields(dt);
       for(const s of shocksLive) {
         if(s.life<=0)continue;
