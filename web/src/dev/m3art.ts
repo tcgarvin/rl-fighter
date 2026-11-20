@@ -7,9 +7,9 @@
 // v10: capitals (every capital hull side by side), citadel, dreadnought, hardpoints
 // (turrets and bays shot off one by one), wreckage and citadelwreck (lost hardpoints up
 // close), lance (the citadel's lances and the dreadnought's rails trading fire, gauss and
-// flak around them).
+// flak around them). bombers: bomber against gunship on both teams, live zoom or close.
 //
-// URL: ?scene=lineup|convoy|launch|jump|quick|orders|shield|deplete|explode|burn|burnpair|burnfast|
+// URL: ?scene=lineup|bombers|convoy|launch|jump|quick|orders|shield|deplete|explode|burn|burnpair|burnfast|
 //   capitals|citadel|dreadnought|hardpoints|wreckage|citadelwreck|lance
 //   &close=<m> a fixed close shot that wide; &at=<x>,<y> centres it on a sim point;
 //   &shadows=1 the key light casts shadows as on the live page; window.artBench(frames)
@@ -302,6 +302,17 @@ const SCENES: Record<string, () => Scene> = {
       new Ship("carrier", 1, 66, -40, Math.PI),
     ];
     return { ships, events: [], caption: "lineup: carrier, freighter, gunship, bomber, fighter, strafer (blue); freighter, gunship, fighter, carrier (orange)" };
+  },
+  // Bomber against gunship, both teams, at the live page's strike-craft zoom (the frame
+  // points hold a ~300 m view, as in a station assault) or close (?close=80). Rows: blue
+  // gunship, blue bomber, orange gunship, orange bomber; columns turn through four headings.
+  bombers: () => {
+    const rows: Array<[string, number]> = [["gunship", 0], ["bomber", 0], ["gunship", 1], ["bomber", 1]];
+    const headings = [0, Math.PI / 2, Math.PI + 0.4, -0.8];
+    const ships = rows.flatMap(([name, team], r) => headings.map((h, c) => new Ship(name, team, (c - 1.5) * 20, (1.5 - r) * 20, h)));
+    ships.push(new Ship("fighter", 0, 50, 10, 0.3), new Ship("fighter", 1, 50, -10, Math.PI - 0.3));
+    const frame: Array<[number, number]> = [[-150, -150], [150, 150]];
+    return { ships, events: [], frame: closeSpan > 0 ? [] : frame, caption: "bombers: rows blue gunship, blue bomber, orange gunship, orange bomber; fighters right" };
   },
   // The two capital-scale hulls next to a gunship and a fighter, for a close look (?close=90).
   detail: () => {

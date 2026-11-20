@@ -26,6 +26,9 @@ const VIEWPORTS = [
 // A key may carry extra query parameters after the scene name.
 const SHOTS = {
   lineup: [0.5],
+  // Bomber against gunship, both teams: the live page's strike-craft zoom, then close.
+  bombers: [0.3],
+  "bombers&close=100": [0.35],
   "detail&close=80": [0.3],
   convoy: [1.5],
   // Launch at 0.9 (port, 2nd craft, starboard) / 1.5 (bomber): flash, trail, coast.

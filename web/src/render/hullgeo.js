@@ -112,29 +112,26 @@ function gunship(b) {
 }
 
 function bomber(b) {
-  // Broad haunches and a blunt, low nose leave the forward rack exposed.
-  const outline=[[6,1.45],[3.5,3.05],[-3.6,3.8],[-5.7,2.65],[-5.7,-2.65],[-3.6,-3.8],[3.5,-3.05],[6,-1.45]];
-  b.add('machinery',plate(outline,-.65,1.05,.16));
+  // Swept wings leave deep aft cutouts: the silhouette must survive phone zoom.
+  b.panel('machinery',.45,0,8.1,1.8,-.55,.95,.12);
   for (const s of [-1,1]) {
-    b.add('paint',plate([[4.2,s*1.15],[3.25,s*2.85],[-3.45,s*3.55],[-5.35,s*2.5],[-5.1,s*.65],[-.7,s*.65]],.55,.38,.14));
-    b.panel('machinery',-4.6,s*1.6,2.35,1.65,-.2,1.2,.13);
-    b.panel('trim',-4.5,s*1.6,1.85,1.3,1.12,.16,.08);
-    for (let i=0;i<3;i++) b.panel('machinery',-5+i*.48,s*1.6,.19,1.03,1.33,.06,.02);
-    b.panel('trim',-.65,s*2.65,3.3,.55,1.04,.14,.07);
-    b.panel('glow',2.6,s*2.5,.75,.16,1.04,.045,.02);
-    // External torpedoes in dark saddles: long pale bodies, pointed warheads.
-    b.panel('machinery',.85,s*1.65,4.3,1.15,.92,.22,.1);
-    b.add('trim',plate([[3.15,s*1.65],[2.35,s*2.04],[-.95,s*2.04],[-1.3,s*1.65],[-.95,s*1.26],[2.35,s*1.26]],1.18,.38,.09));
-    for (const x of [-.55,1.35]) b.panel('machinery',x,s*1.65,.25,.98,1.6,.08,.025);
-    b.panel('paint',2.25,s*1.65,.65,.67,1.6,.07,.035);
+    // 5.75 m half-span keeps the chevron broad at live zoom (~2.4 m disc overhang).
+    const wing=[[4.35,s*.65],[3.65,s*3.25],[-1.8,s*5.75],[-3.9,s*5.4],
+      [-3.5,s*3.8],[-.6,s*2.5],[-3.55,s*2.35],[-3.65,s*.65]];
+    b.add('machinery',plate(wing,-.55,.85,.13));
+    b.add('paint',plate([[4.05,s*.85],[3.4,s*3.1],[-1.85,s*5.52],[-3.55,s*5.25],
+      [-3.3,s*3.95],[-.1,s*2.45],[-3.3,s*2.1],[-3.4,s*.85]],.44,.3,.12));
+    // A small root lug supports the fixed rear RCS nozzle across the cutout corner.
+    b.panel('machinery',-3.5,s*3.65,.65,.7,-.55,.85,.08);
+    // Long, narrow root nacelles meet the fixed mains; no slab closes the cutouts.
+    b.panel('machinery',-4.25,s*1.6,3.6,1.55,-.55,1.05,.12);
+    b.panel('paint',-4.2,s*1.6,3.35,1.35,.63,.28,.09);
+    b.panel('trim',-5.35,s*1.6,1.1,1.12,.99,.12,.055);
+    b.panel('machinery',-5.35,s*1.6,.65,.65,1.16,.07,.035);
+    b.panel('glow',-3.6,s*1.6,.8,.18,1,.04,.02);
   }
-  b.panel('trim',-1.3,0,5.6,1.25,.65,.5,.12);
-  b.panel('paint',-1.35,0,2.3,1.05,1.25,.22,.09);
-  b.panel('machinery',.6,0,1.3,.8,1.22,.14,.05);
-  b.panel('glow',.9,0,.48,.6,1.4,.04,.02);
-  // The rack is lower than the dorsal armour, with clear space ahead of it.
-  b.panel('machinery',4.3,0,2.4,2.05,.38,.2,.1);
-  return [[-4.4,1.4,1.6],[-4.4,1.4,-1.6],[-2.5,1.1,3],[-2.5,1.1,-3],[-1.3,1.6,0],[1.3,1.7,1.65],[1.3,1.7,-1.65],[3.6,.95,0]];
+  return [[-5.35,1.3,1.6],[-5.35,1.3,-1.6],[-2.4,.85,5.55],[-2.4,.85,-5.55],
+    [1.2,.85,2.5],[1.2,.85,-2.5],[0,1.8,0],[3.8,1.8,0]];
 }
 
 function carrier(b,h) {
@@ -511,8 +508,11 @@ function largeMarkings(b,kind,team) {
     for (let i=0;i<(team?2:1);i++) b.panel('marking',x+(team?(i-.5)*.68*scale:0),z,(team?.27:.85)*scale,span,y,.045,.015);
   };
   if (kind==='bomber') {
-    stripe(-2.8,0,1.06,6.1,1.2);
-    insignia(b,team,-1.4,0,1.56,.95);
+    // Clear the wing bevels; markings never bridge the open trailing edge.
+    for (const s of [-1,1]) {
+      stripe(-1.15,s*4.5,.827,1.1,.8);
+      insignia(b,team,1.2,s*2.5,.86,.8);
+    }
   } else if (kind==='carrier') {
     // Split across the aft deck; stripes never bridge an open launch bay.
     for (const s of [-1,1]) stripe(-12.7,s*5.7,1.91,4.1,2.8);
@@ -591,13 +591,15 @@ function createKit(h,team) {
     }
     const tb=batch(), r=weapon.r, len=weapon.len;
     if (h.role==='bomber') {
-      // Three short launch tubes in a small fixed rack, rather than a gun barrel.
-      tb.panel('machinery',.2,0,1.45,1.85,.04,.36,.08);
-      for (const z of [-.6,0,.6]) {
-        tb.panel('trim',.45,z,1.6,.45,.13,.42,.055);
-        tb.panel('machinery',1.24,z,.1,.33,.21,.27,.025);
-        tb.panel('glow',1.3,z,.025,.12,.3,.06,.01);
-      }
+      // One oversized torpedo, not a turret: its nose ends at the sim's muzzle.
+      tb.panel('machinery',-3.2,0,8.2,1.9,-.12,.3,.08);
+      tb.add('trim',cylinder(.7,.7,6.5),-3.55,.345,0);
+      tb.add('trim',cylinder(.03,.7,1.63),.515,.345,0);
+      tb.add('machinery',cylinder(.53,.53,.45),-7.025,.345,0);
+      tb.panel('paint',-6.7,0,1.1,2.45,.04,.16,.045);
+      for (const x of [-5.7,-1.6]) tb.add('machinery',cylinder(.74,.74,.22),x,.345,0);
+      // Neutral ivory collar separates the warm torpedo from Ember's orange wings.
+      tb.add('marking',cylinder(.71,.71,.5),-1.05,.345,0);
     } else {
       const scale=capital?r:1;
       tb.panel('trim',0,0,r*1.65,r*1.5,.08,heavy||capital?.42*scale:.27,.1);
