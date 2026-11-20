@@ -3,7 +3,8 @@
 // mid-battle (plain and with technical details) and the result banner; for the carrier
 // battle, the convoy escort and the station assault the muster, the opening, mid-battle
 // with the commander layer on (lines, markers and the command log) and the result, and
-// the station assault's torpedo run and an inspected bomber. Serve web/dist (with
+// the station assault's heavy guns (rail and lance), its torpedo run, the citadel with
+// turrets and bays shot off, and an inspected citadel, dreadnought and bomber. Serve web/dist (with
 // the bundle) first, e.g. `cd web && npx vite preview --port 4173`.
 //
 // Usage: node tools/web/live_shots.mjs [base=http://localhost:4173] [out=web/shots/live]
@@ -57,14 +58,20 @@ const SCENES = [
   { name: "inspect-carrier", query: "seed=5&mission=carrier&warmup=50&commands=0&inspect=0&outputs=1", phase: "battle", after: 3 },
   ...MISSION_SCENES("carrier", 5, 50),
   ...MISSION_SCENES("convoy", 3, 30),
-  // The station assault plays only when pinned (?mission=station). Seed 5: the scripted
-  // defence against a learned attacker, the station's shield down by 21 s and the station
-  // destroyed at 85 s; slot 9 is the attackers' first bomber.
-  ...MISSION_SCENES("station", 5, 40),
-  { name: "station-torpedoes", query: "seed=5&mission=station&warmup=19&commands=0", phase: "battle", after: 1.0 },
-  { name: "station-inspect-bomber", query: "seed=5&mission=station&warmup=14&commands=0&inspect=9&outputs=0", phase: "battle", after: 3 },
-  // Played, not fast-forwarded, through the station's death, so its blast is in the shot.
-  { name: "station-falls", query: "seed=5&mission=station&warmup=83.5&commands=0", phase: "result", after: 0.8 },
+  // The station assault (v10: the citadel against a carrier and a dreadnought). Seed 2
+  // (c1_outcome on both sides): rail fire from 2 s and lance from 17 s, the
+  // dreadnought's flak turret 3 shot off at 53 s, the citadel's bays 3 and 2 and turret
+  // 10 at 67 to 70 s, and the citadel destroyed at 100.4 s. Slot 0 is the citadel, 9 the
+  // dreadnought, 11 the attackers' first bomber.
+  ...MISSION_SCENES("station", 2, 40),
+  { name: "station-heavy-fire", query: "seed=2&mission=station&warmup=21&commands=0", phase: "battle", after: 1.0 },
+  { name: "station-torpedoes", query: "seed=2&mission=station&warmup=55&commands=0", phase: "battle", after: 1.0 },
+  { name: "station-hardpoints", query: "seed=2&mission=station&warmup=72&commands=0", phase: "battle", after: 1.0 },
+  { name: "station-inspect-citadel", query: "seed=2&mission=station&warmup=72&commands=0&inspect=0&outputs=0", phase: "battle", after: 3 },
+  { name: "station-inspect-dreadnought", query: "seed=2&mission=station&warmup=54&commands=0&inspect=9&outputs=1", phase: "battle", after: 3 },
+  { name: "station-inspect-bomber", query: "seed=2&mission=station&warmup=14&commands=0&inspect=11&outputs=0", phase: "battle", after: 3 },
+  // Played, not fast-forwarded, through the citadel's death, so its blast is in the shot.
+  { name: "station-falls", query: "seed=2&mission=station&warmup=99.6&commands=0", phase: "result", after: 0.8 },
   ...learnedScenes(process.env.RLF_SHOTS_COMMANDER ?? ""),
   ...(process.env.RLF_SHOTS_EXTRA ?? "").split(";").filter(Boolean).map((s) => {
     const [name, query, phase, after] = s.split("|");
