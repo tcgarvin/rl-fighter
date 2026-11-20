@@ -1,0 +1,4 @@
+attacker win 1.000 (128/128); ends {"station_destroyed": 128}; mean 107s
+citadel hardpoints destroyed a match: turrets 2.08, bays 0.87; first kill {"bay": 36, "flak": 39, "gauss": 29, "lance": 24}
+on citadel a match: bomber 827, carrier 499, dreadnought 1537, fighter 37, gunship 935, strafer 25
+citadel on dreadnought 28 a match; dreadnought hull lost 1, turrets lost 0.00, died 0/128; live projectiles max 83
