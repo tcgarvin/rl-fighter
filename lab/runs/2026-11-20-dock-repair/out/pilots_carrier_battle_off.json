@@ -1,0 +1,107 @@
+{
+ "schema": "rlf.lab.dock/1",
+ "sim_version": 11,
+ "mission": "carrier_battle",
+ "docking": false,
+ "n": 512,
+ "seed": 1100000,
+ "rosters": [
+  [
+   [
+    "carrier",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship"
+   ],
+   [
+    "carrier",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship"
+   ]
+  ],
+  [
+   [
+    "carrier",
+    "fighter",
+    "fighter",
+    "strafer",
+    "fighter",
+    "strafer",
+    "gunship"
+   ],
+   [
+    "carrier",
+    "fighter",
+    "fighter",
+    "strafer",
+    "fighter",
+    "strafer",
+    "gunship"
+   ]
+  ],
+  [
+   [
+    "carrier",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship",
+    "fighter"
+   ],
+   [
+    "carrier",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship",
+    "fighter"
+   ]
+  ]
+ ],
+ "pilots": "/home/timg/code/rl-fighter/.claude/worktrees/agent-aef94716851da93f3/lab/live_pilots.json",
+ "team1_win_rate": 0.5390625,
+ "team1_win_ci95": 0.04322014333400161,
+ "end_reasons": {
+  "carrier_destroyed": 1.0
+ },
+ "length_median_s": 76.3,
+ "length_p90_s": 111.44666666666669,
+ "dock": {
+  "recalls": 0,
+  "recalls_per_match": 0.0,
+  "docked": 0,
+  "docked_per_match": 0.0,
+  "completion": 0.0,
+  "completion_of_survivors": 0.0,
+  "seconds_to_dock": {},
+  "metres_at_order": {},
+  "outcomes": {},
+  "failure_modes": {},
+  "failed_closest_m": {},
+  "failed_rel_speed_at_closest": {},
+  "relaunches": 0,
+  "relaunches_per_match": 0.0,
+  "repaired_full": 0,
+  "hull_restored_per_match": 0.0,
+  "by_pilot": {}
+ }
+}

@@ -1,0 +1,63 @@
+{
+ "schema": "rlf.lab.dock/1",
+ "sim_version": 11,
+ "mission": "station_assault",
+ "docking": false,
+ "n": 512,
+ "seed": 1100000,
+ "rosters": [
+  [
+   [
+    "station",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship",
+    "fighter",
+    "strafer"
+   ],
+   [
+    "carrier",
+    "fighter",
+    "bomber",
+    "fighter",
+    "bomber",
+    "strafer",
+    "bomber",
+    "fighter",
+    "gunship"
+   ]
+  ]
+ ],
+ "pilots": "/home/timg/code/rl-fighter/.claude/worktrees/agent-aef94716851da93f3/lab/live_pilots.json",
+ "team1_win_rate": 0.37109375,
+ "team1_win_ci95": 0.04188710994006382,
+ "end_reasons": {
+  "time_limit": 0.154296875,
+  "station_destroyed": 0.37109375,
+  "assault_repelled": 0.474609375
+ },
+ "length_median_s": 107.18333333333334,
+ "length_p90_s": 150.0,
+ "dock": {
+  "recalls": 0,
+  "recalls_per_match": 0.0,
+  "docked": 0,
+  "docked_per_match": 0.0,
+  "completion": 0.0,
+  "completion_of_survivors": 0.0,
+  "seconds_to_dock": {},
+  "metres_at_order": {},
+  "outcomes": {},
+  "failure_modes": {},
+  "failed_closest_m": {},
+  "killed_seconds_after_order": {},
+  "killed_metres_closed": {},
+  "failed_rel_speed_at_closest": {},
+  "relaunches": 0,
+  "relaunches_per_match": 0.0,
+  "repaired_full": 0,
+  "hull_restored_per_match": 0.0,
+  "by_pilot": {}
+ }
+}

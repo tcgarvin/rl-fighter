@@ -1,0 +1,66 @@
+{
+ "schema": "rlf.lab.dock/1",
+ "sim_version": 11,
+ "mission": "citadel",
+ "docking": false,
+ "n": 512,
+ "seed": 1100000,
+ "rosters": [
+  [
+   [
+    "citadel",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship",
+    "fighter",
+    "strafer",
+    "fighter"
+   ],
+   [
+    "carrier",
+    "dreadnought",
+    "fighter",
+    "bomber",
+    "fighter",
+    "bomber",
+    "strafer",
+    "bomber",
+    "fighter",
+    "gunship",
+    "fighter"
+   ]
+  ]
+ ],
+ "pilots": "/home/timg/code/rl-fighter/.claude/worktrees/agent-aef94716851da93f3/lab/live_pilots.json",
+ "team1_win_rate": 0.267578125,
+ "team1_win_ci95": 0.03838411906294356,
+ "end_reasons": {
+  "time_limit": 0.146484375,
+  "station_destroyed": 0.267578125,
+  "assault_repelled": 0.5859375
+ },
+ "length_median_s": 119.98333333333333,
+ "length_p90_s": 150.0,
+ "dock": {
+  "recalls": 0,
+  "recalls_per_match": 0.0,
+  "docked": 0,
+  "docked_per_match": 0.0,
+  "completion": 0.0,
+  "completion_of_survivors": 0.0,
+  "seconds_to_dock": {},
+  "metres_at_order": {},
+  "outcomes": {},
+  "failure_modes": {},
+  "failed_closest_m": {},
+  "killed_seconds_after_order": {},
+  "killed_metres_closed": {},
+  "failed_rel_speed_at_closest": {},
+  "relaunches": 0,
+  "relaunches_per_match": 0.0,
+  "repaired_full": 0,
+  "hull_restored_per_match": 0.0,
+  "by_pilot": {}
+ }
+}
