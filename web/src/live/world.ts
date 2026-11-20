@@ -37,6 +37,8 @@ const MAJOR_DELAY_MAX = 2;
 const MAJOR_RADIUS_SCALE = 2.6;
 const MAJOR_RADIUS_LARGE = 1.6;
 const MAJOR_RADIUS_PAD = 12;
+// A hull this big (collision radius, m) is a capital ship whose blast the camera frames whole.
+const CAPITAL_RADIUS = 20;
 // Drift decays at this rate (1/s): a doomed wreck slows hard, a hulk coasts on.
 const WRECK_DRAG = 0.7;
 const HULK_DRAG = 0.12;
@@ -310,6 +312,11 @@ function drift(w: Wreck, dt: number): void {
   w.x += w.vx * dt;
   w.y += w.vy * dt;
   w.heading += w.omega * dt;
+}
+
+/** A major explosion's radius for a hull of collision radius r (see MAJOR_RADIUS_SCALE). */
+function majorRadius(r: number): number {
+  return Math.min(r * MAJOR_RADIUS_SCALE, r * MAJOR_RADIUS_LARGE + MAJOR_RADIUS_PAD);
 }
 
 function lerpAngle(a: number, b: number, t: number): number {
@@ -890,7 +897,7 @@ export class World {
       w.gone = true;
       obj.visible = false;
       v.damage.update(1, false, dt);
-      const radius = Math.min(v.hull.radius * MAJOR_RADIUS_SCALE, v.hull.radius * MAJOR_RADIUS_LARGE + MAJOR_RADIUS_PAD);
+      const radius = majorRadius(v.hull.radius);
       this.effects.explosion({ x: w.x, y: w.y, radius, team, kind: "major" });
       // The blast jolts the picture by how much of the view it fills.
       if (!this.calm) this.cam.shake((radius * SHAKE_PER_RADIUS) / Math.max(1, this.cam.extent));
@@ -912,8 +919,9 @@ export class World {
     } else {
       v.damage.update(WRECK_HP, true, dt);
     }
-    // Only a wreck still to blow is worth holding in the shot.
-    if (bounds && !hulk) this.cam.grow(bounds, w.x, w.y);
+    // Only a wreck still to blow is worth holding in the shot, and a capital ship's blast
+    // whole (the citadel's is some 160 m across).
+    if (bounds && !hulk) this.cam.growDisc(bounds, w.x, w.y, v.hull.radius > CAPITAL_RADIUS ? majorRadius(v.hull.radius) : 0);
   }
 
   /** Darken hulk `v` to `t` (0..1) charred, giving it its own materials on first call. */
