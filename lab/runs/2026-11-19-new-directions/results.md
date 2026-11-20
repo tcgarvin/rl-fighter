@@ -23,7 +23,7 @@ work ran on the laptop and on Beast (two GTX 1080 Ti) from 22:00 to 16:00.
 | [Order kinds](../2026-11-19-order-kinds/results.md) | Go-to costs a fifth of an attack order; defend and rally depend on the hull |
 | [Kite drills](../2026-11-18-kite-drills/results.md) | **PASS**: ordered 0.42 to 0.47 against a free 1052, against 0.14 for the parent |
 | [Base assault](../2026-11-19-station-bomber/results.md) | Scripts balanced at 0.55 for the attacker; learned pilots 0.36 to 0.39 and barely fire torpedoes |
-| [Pairing by side](../2026-11-19-pairing/results.md) | No interaction beyond what we knew; `?pairing=side` on the live page |
+| [Pairing by side](../2026-11-19-pairing/results.md) | No interaction beyond what we knew; the option was then removed |
 | [Station hand rules](../2026-11-19-station-rules/results.md) | Launch timing and the carrier's position beat no orders by 0.13 to 0.19; orders to fighters do not |
 | [Learned commander](../2026-11-19-station-commander/results.md) | **FAIL**: both arms level with no orders (−0.06 to +0.04); both launch the reserve at 2 s |
 | [Station-mix pilots](../2026-11-19-station-mix/results.md) | **PARTIAL**: station attack 0.50 → 0.87 against the parent, bomber as good as the gunship; old missions slip with training |
@@ -92,7 +92,7 @@ holding one decision instead of a run of them.
 Every ship on a side flown by the same pilot, under the same commander, scores what the
 per-ship random draw does, within ±0.06. The one strong interaction is the one we knew:
 orders cost a side up to 0.28 with three of the four pilots tested and nothing with
-`f995_701`, which ignores them. The live page takes `?pairing=side`; it is not the default.
+`f995_701`, which ignores them. The live page had a `?pairing=side` option for a day; it was removed after this result, at the owner's call.
 
 ## Piracy
 
@@ -118,12 +118,14 @@ pilots cannot see. It needs `SIM_VERSION` 10.
 
 ## Decisions for the owner
 
-1. Put the station assault into the live rotation, and with which pilots. With today's
+1. Put the station assault into the live rotation, and with which pilots. Answered:
+   yes, with all the live pilots and no special selection; it rotates since 2026-11-19. With today's
    live ten the attacker wins 0.36 to 0.39; with a station-mix pilot on both sides,
    0.74 to 0.82. Either way it wants rebalancing for the pilots that will fly it. A
    station-mix pilot (`mix_s1` 2422, or `mix_s2` 725, the one that meets every bar)
    could join the live list after a WAR round.
 2. Make `?pairing=side` the default (it measured the same; it is a look, not a gain).
+   Answered: no, and the option is removed.
 3. Change the script's launch logistics to the hand rules' (`hold_late`, `carrier_push`).
-   This moves WAR's replacement level, so it wants a new season baseline.
-4. Build piracy, which bumps `SIM_VERSION` to 10.
+   This moves WAR's replacement level, so it wants a new season baseline. Answered: no.
+4. Build piracy, which bumps `SIM_VERSION` to 10. Answered: not yet.
