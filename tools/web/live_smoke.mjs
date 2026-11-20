@@ -9,7 +9,9 @@
 // exits non-zero if a match does not finish with a proper end reason,
 // a ship's state goes non-finite, an event kind is unknown, a mission's defining
 // events never happen (no launch in a carrier battle, no convoy jump-out or kill in a
-// convoy escort, no launch or no station-assault ending in a station assault), a
+// convoy escort, no launch or no station-assault ending in a station assault; on a v10
+// bundle, a station assault without the citadel and the dreadnought, or one where no
+// turret is shot off), a capital ship flown by a pilot (only scripts fly them), a
 // learned commander never decides, or a mean tick blows the 30 Hz budget. The TS
 // sources need Node's type stripping:
 //
@@ -21,7 +23,7 @@
 // convoy_escort, station_assault; the page's ?mission=) or a deathmatch roster mode
 // (as ?fleets=; "draft" uses the manifest's roster rules). The default puts the four
 // missions first, so the bundle build's 4 smoke matches cover every one (the station
-// assault, which the page plays only when pinned, is skipped by a bundle without it). --hulls overrides
+// assault is skipped by a bundle without it). --hulls overrides
 // which strike craft are drafted, to exercise fleets before a champion is certified.
 // --commanders pins each side's commander by id (as the page's ?commander=); "draw"
 // draws them as the page does. By default a bundle with a learned commander cycles
@@ -126,12 +128,16 @@ for (let i = 0; i < Number(nArg); i++) {
     const id = match.pilotId(s);
     if (id) flown.set(id, (flown.get(id) ?? 0) + 1);
   }
-  const b = missionBrief(mission, match.convoy, match.timeLimitTicks);
+  const b = missionBrief(mission, match.convoy, match.timeLimitTicks, roster.fleets);
   const brief = stripTags(`${b.headline ? `${b.headline} ` : ""}${b.brief}`);
   let simTotal = 0;
   let nnTotal = 0;
   let nnWorst = 0;
-  const counts = { launch: 0, order: 0, jumpCharge: 0, jumpOut: 0, matchEnd: 0, arrival: 0, death: 0, unknown: 0 };
+  const counts = { launch: 0, order: 0, jumpCharge: 0, jumpOut: 0, matchEnd: 0, arrival: 0, death: 0, turretDestroyed: 0, bayDestroyed: 0, unknown: 0 };
+  // v10: the heavy guns' shots (Fire events, weapon id 4 rail, 5 lance), and which of
+  // them showed up as projectiles named by weapon, as the renderer reads them.
+  const heavyShots = { rail: 0, lance: 0 };
+  const heavySlugs = new Set();
   const limit = match.timeLimitTicks + 100;
   let nonFinite = false;
   let peakPresent = 0;
@@ -147,7 +153,9 @@ for (let i = 0; i < Number(nArg); i++) {
       if (e.kind in counts) counts[e.kind] += 1;
       if (e.kind === "order") sideOrders[e.a] += 1;
       if (e.kind === "launch") sideLaunches[match.ships[e.a].team] += 1;
+      if (e.kind === "fire" && (e.f5 === 4 || e.f5 === 5)) heavyShots[e.f5 === 4 ? "rail" : "lance"] += 1;
     }
+    for (const p of match.projectiles) if (p.weapon === "rail" || p.weapon === "lance") heavySlugs.add(p.weapon);
     peakPresent = Math.max(peakPresent, match.ships.filter((s) => match.active(s)).length);
     if (match.ships.some((s) => !Number.isFinite(s.x) || !Number.isFinite(s.y) || !Number.isFinite(s.hp))) nonFinite = true;
   }
@@ -170,7 +178,17 @@ for (let i = 0; i < Number(nArg); i++) {
     if (counts.launch === 0) fail("no bay launch in a station assault");
     if (!["station_destroyed", "assault_repelled", "time_limit"].includes(match.simReason)) fail(`a station assault ended by ${match.simReason}`);
     if (!roster.fleets[1].includes("bomber")) fail("the attackers have no bomber");
+    if (bundle.layout.simVersion >= 10) {
+      if (!roster.fleets[0].includes("citadel") || !roster.fleets[1].includes("dreadnought")) fail("a v10 station assault without the citadel and the dreadnought");
+      if (counts.turretDestroyed === 0) fail("no turret shot off in a v10 station assault");
+      for (const w of ["rail", "lance"]) {
+        if (heavyShots[w] === 0) fail(`no ${w} fired in a v10 station assault`);
+        else if (!heavySlugs.has(w)) fail(`${w} fired, but no projectile was read as one`);
+      }
+    }
   }
+  const piloted = match.ships.flatMap((s, k) => (s.role !== "strike" && match.pilotId(k) ? [match.hullNames[k]] : []));
+  if (piloted.length) fail(`capital ships flown by a pilot: ${piloted.join(", ")}`);
   const c = match.convoy;
   if (mission === "convoy_escort" && (!c || c.escaped + c.destroyed === 0) && match.simReason !== "eliminated") fail("no freighter escaped or died");
   const w = match.winner;
@@ -185,7 +203,10 @@ for (let i = 0; i < Number(nArg); i++) {
       : mission === "convoy_escort" && c
         ? `; convoy ${c.escaped} escaped / ${c.destroyed} destroyed of ${c.total} (need ${c.toEscape} / ${c.toDestroy})`
         : "";
-  const ev = `events launch ${counts.launch} arrival ${counts.arrival} order ${counts.order} charge ${counts.jumpCharge} jump-out ${counts.jumpOut} death ${counts.death}`;
+  const hardpoints = counts.turretDestroyed + counts.bayDestroyed + heavyShots.rail + heavyShots.lance > 0
+    ? ` turret-destroyed ${counts.turretDestroyed} bay-destroyed ${counts.bayDestroyed} rail ${heavyShots.rail} lance ${heavyShots.lance}`
+    : "";
+  const ev = `events launch ${counts.launch} arrival ${counts.arrival} order ${counts.order} charge ${counts.jumpCharge} jump-out ${counts.jumpOut} death ${counts.death}${hardpoints}`;
   const sides = [0, 1].map((t) => {
     const c = match.commanders[t];
     const st = match.commanderStats[t];

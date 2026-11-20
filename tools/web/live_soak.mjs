@@ -12,6 +12,7 @@
 // Usage: node tools/web/live_soak.mjs [minutes=10] [speed=8] [warmup-minutes=2]
 // Env: RLF_GPU=1 to use the host GPU (tools/web/browser.mjs). RLF_SOAK_INSPECT=1 keeps a ship
 // inspected with its details open, moving to another when it goes, to soak the inspector too.
+// RLF_SOAK_QUERY=<params> appends page parameters (mission=station soaks the station assault).
 
 import fs from "node:fs";
 import http from "node:http";
@@ -58,7 +59,9 @@ page.on("console", (m) => {
 });
 const cdp = await page.context().newCDPSession(page);
 const inspecting = process.env.RLF_SOAK_INSPECT === "1";
-await page.goto(`${base}/?debug&speed=${speedArg}${inspecting ? "&outputs=1" : ""}`);
+// RLF_SOAK_QUERY adds page parameters, e.g. mission=station to soak one mission's effects.
+const extra = process.env.RLF_SOAK_QUERY ? `&${process.env.RLF_SOAK_QUERY}` : "";
+await page.goto(`${base}/?debug&speed=${speedArg}${inspecting ? "&outputs=1" : ""}${extra}`);
 await page.waitForFunction(() => window.rlfLive?.stats().matches >= 1, null, { timeout: 120_000 });
 if (inspecting) {
   await page.evaluate(() =>
