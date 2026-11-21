@@ -13,14 +13,14 @@
 #   lab/runs/2026-11-21-commander-4/eval.sh            # every arm's latest checkpoint
 #   ARMS="hold" lab/runs/2026-11-21-commander-4/eval.sh
 #
-# Writes eval/<name>/... Finished cells are kept on a rerun. Env: ARMS ("hold kite
-# noattack"; hold_quiet too), N (512, hold), N_PER_MISSION (384), THREADS (3 a commander eval), PY.
+# Writes eval/<name>/... Finished cells are kept on a rerun. Env: ARMS ("kite noattack";
+# "hold hold_quiet" plays their latest; eval_hold_curve.sh plays their curves), N (512, hold), N_PER_MISSION (384), THREADS (3 a commander eval), PY.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../.." && pwd)"
 cd "$ROOT"
 PY=${PY:-$ROOT/.venv/bin/python}
-ARMS=${ARMS:-"hold hold_quiet kite noattack"}
+ARMS=${ARMS:-"kite noattack"}  # the hold arms: eval_hold_curve.sh
 N=${N:-512}
 N_PER_MISSION=${N_PER_MISSION:-384}
 THREADS=${THREADS:-3}

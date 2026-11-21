@@ -99,6 +99,37 @@ is yet level with no orders. `hold_quiet` is at 21 updates (station matches are 
 first windows sit near `hold_late`'s 0.87, which the launch prior alone may explain. The
 morning's update-0 cell tells the two apart.
 
+## 07:55: all three hold runs slid the same way, so both arms stopped
+
+`hold_quiet` slid like `hold` even though it can give no orders. So orders were not what
+cost `hold` its ground, as the 05:11 note above guessed. What PPO did to launch timing was.
+
+There were in fact three runs, not two. Editing `run.sh` at 05:10, while the copy that
+started `hold` was still running, made bash read the edited file part-way through and start
+`hold` again from update 1 with the same settings. That second run overwrote the first
+run's checkpoints 10 to 50 (60 and 68 remain) and appended to its log. It trained beside
+`hold_quiet` until 07:55, a fourth trainer on the laptop the whole time. It is a replicate
+nobody planned, and the three agree:
+
+| Updates | 1–10 | 11–20 | 21–30 | 31–40 | 41–50 | 51–end |
+|---|---|---|---|---|---|---|
+| `hold`, first run | 0.85 | 0.80 | 0.72 | 0.67 | 0.57 | 0.61 (to 68) |
+| `hold`, second run | 0.84 | 0.76 | 0.65 | 0.60 | 0.62 | 0.64 (to 56) |
+| `hold_quiet` | 0.88 | 0.76 | 0.76 | 0.69 | 0.65 | 0.62 (to 57) |
+| Launch-head entropy, `hold_quiet` | 0.20 | 0.15 | 0.11 | 0.09 | 0.08 | 0.05 |
+
+These are defender wins against the attacker with no orders, from the trainers' logs. The
+launch rate stayed at about 4.4% of decisions throughout. The launch head instead grew
+nearly certain about *when* to launch, and its choice loses. One guess, not tested: an
+update sees only about 25 station matches, each won or lost 30 to 120 s after the launches
+that decided it. That is too little signal for a policy that starts near the best hand rule,
+so its steps are mostly noise, and from near the top noise leads down.
+
+The `hold` and `hold_quiet` trainers were stopped at 07:55. More of the same would only
+lose ground and slow `kite` and `noattack`. `eval_hold_curve.sh` plays checkpoints along
+all three curves on the preflight's seeds (512 matches a cell, paired with the no-orders
+and `hold_late` cells), to measure the slide outside training and the launch times behind it.
+
 ## In the morning
 
 - **`hold`, `hold_quiet`**: the station-commander eval (`../2026-11-19-station-commander/eval.sh`, defender
