@@ -21,6 +21,14 @@ rlf_sim = pytest.importorskip(
 
 from spacefight.env import rust_env  # noqa: E402
 from spacefight.env.drills import ORDER_TICK  # noqa: E402
+from spacefight.env.rosters import (  # noqa: E402
+    DRILL_DOCK,
+    STATION_ASSAULT,
+    citadel_roster,
+    hull_names_by_id,
+    make_sampler,
+    resolve_distribution,
+)
 from spacefight.rl.spike_policy import (  # noqa: E402
     PILOT_OBS_DIMS,
     V8_OBS_DIM,
@@ -180,3 +188,55 @@ def test_a_widened_pilot_trains_on_dock_drills_and_logs_them(
     assert "mission_docks" in row and "mission_docks_hidden" in row
     assert 0.0 < float(row["drill_rows_share"]) < 1.0  # type: ignore[arg-type]
     assert trainer.match_recalls.shape == (8,)
+
+
+def test_a_default_pilots_run_trains_citadel_assaults_and_dock_drills(
+    tmp_path: Path, v10_pilot: Path
+) -> None:
+    """The owner's rule (2026-11-21): a ``pilots_v1`` run that names only its drill
+    share trains what the live page plays, the citadel's station assault among the
+    missions, and dock drills among the drills, with no key of its own."""
+    cfg = PPOConfig.preset(
+        str(v10_pilot),
+        seed=23,
+        assets_dir=str(ASSETS),
+        n_envs=8,
+        n_steps=24,
+        t_tail=8,
+        n_updates=1,
+        minibatch=256,
+        epochs=1,
+        sim_threads=THREADS,
+        torch_threads=THREADS,
+        env_warmup_steps=ORDER_TICK + 4,
+        rosters="pilots_v1",
+        roster_overrides={"drill_share": 0.5},
+        critic="fleet",
+        learner_side="random",
+        opponent_bands=[[0, 0.5, 0.5, 0.0]],
+        critic_warmup_updates=0,
+        beta_start=0.0,
+        checkpoint_every=100,
+        obs_dim=V11_OBS_DIM,
+        new_input_lr_mult=3.0,
+        order_reward_weight=1.0,
+    )
+    dist = cfg.roster_distribution()
+    assert dist["mission_weights"] == [0.3, 0.25, 0.25, 0.2]
+    assert dist["citadel_share"] == 1.0 and dist["drill_dock_share"] == 0.25
+    citadel = citadel_roster().teams
+    drawn = make_sampler(resolve_distribution(dist), 1).sample_many(200)
+    assaults = [r for r in drawn if r.drill is None and r.mission == STATION_ASSAULT]
+    assert assaults and all(r.teams == citadel for r in assaults)
+    assert any(r.drill is not None and r.drill.kind == DRILL_DOCK for r in drawn)
+
+    trainer = SpikeTrainer(cfg, tmp_path / "run")
+    rosters = trainer.env.rosters
+    assert any(r.drill is None and r.teams == citadel for r in rosters), "seed 23"
+    assert any(r.drill is not None and r.drill.kind == DRILL_DOCK for r in rosters)
+    row = trainer.run_update()
+    assert np.isfinite(float(row["value_loss"]))  # type: ignore[arg-type]
+    store = trainer.storage
+    assert not (store.learner & np.isin(store.hull, trainer.capital_ids)).any()
+    citadel_id = hull_names_by_id(ASSETS).index("citadel")
+    assert citadel_id in np.asarray(trainer.env.hull_id)

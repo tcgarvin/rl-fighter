@@ -135,7 +135,11 @@ def test_share_zero_leaves_every_draw_and_the_generator_as_they_were(
 
 
 def test_the_share_of_attack_drills_that_are_kite_drills_follows_the_setting() -> None:
-    only_attack = {"drill_share": 1.0, "drill_weights": (0.0, 1.0, 0.0)}
+    only_attack = {
+        "drill_share": 1.0,
+        "drill_weights": (0.0, 1.0, 0.0),
+        "drill_dock_share": 0.0,
+    }
     every = PilotsRosterSampler(
         PilotsDistribution(drill_attack_pool_share=1.0, **only_attack), 6
     ).sample_many(40)
@@ -296,6 +300,7 @@ def _kite_config(seed_ckpt: Path, **overrides: object) -> PPOConfig:
         "roster_overrides": {
             "drill_share": 1.0,
             "drill_weights": [0.0, 1.0, 0.0],
+            "drill_dock_share": 0.0,
             "drill_attack_pool_share": 1.0,
         },
         "critic": "fleet",

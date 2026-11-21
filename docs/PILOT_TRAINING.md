@@ -310,9 +310,10 @@ drills are for theirs: told to dock, a pilot goes home and docks.
 - **No crutches** (owner's rules): the pilot flies the approach on its actuators, reads
   the dock order from the obs (its 5-float `dock` block, the go-to reading in the first
   587), and nothing slows it or steers it. The docking rule is the sim's (10 m, 15 m/s).
-- **Training:** `drill_dock_share` in `pilots_v1` (`roster_overrides`, default 0, and at
-  0 no extra number is drawn): the share of drills that are dock drills; the rest are
-  drawn by `drill_weights` as before. In matches the scripted (and random) commander's
+- **Training:** `drill_dock_share` in `pilots_v1` (`roster_overrides`; default 0.25 since
+  2026-11-21, so any run with `drill_share` set trains dock drills; at 0 no extra number
+  is drawn): the share of drills that are dock drills; the rest are drawn by
+  `drill_weights` as before. In matches the scripted (and random) commander's
   recalls are the real thing; `commander_stable: [live, scripted]` adds weight to the
   scripted commander, which the live stable already holds (a commander two specs name
   gets both weights).
@@ -321,8 +322,9 @@ drills are for theirs: told to dock, a pilot goes home and docks.
   drill, seconds to dock, hull at the dock); `mission_docks` by class (the learner side's
   recalls and docks a match and the completion, in matches whose orders it sees) and
   `mission_docks_hidden`.
-- **Eval:** `spacefight.eval.drills --kinds dock_calm,dock_threat` (not in the default
-  kinds): per kind, by base and by hull, docked, shot down, out of time, docked of the
+- **Eval:** `spacefight.eval.drills` plays `dock_calm` and `dock_threat` by default
+  since 2026-11-21, after the order drills (`--kinds dock_calm,dock_threat` plays them
+  alone, `--kinds goto,attack,defend` the order drills alone): per kind, by base and by hull, docked, shot down, out of time, docked of the
   survivors, time to dock, fly-throughs (left the bay's capture circle undocked), came
   within 30 m and of those docked, closest approach, hull at the dock, damage dealt; a
   pilot that is not the script also flies them with the order hidden (the lift). Their
@@ -347,7 +349,8 @@ as a real recall (0.54 to 0.64 completion in the dock-repair matches).
 ### Drill eval
 
 `spacefight/eval/drills.py`, JSON `rlf.eval.drills/1` and a plain report beside it. Fixed
-seeds, separate from training. The script gets no hidden pass, since it flies orders it
+seeds, separate from training. By default it plays every kind: the three order drills and,
+since 2026-11-21, the two dock drills (section "Dock drills"; their own gate, `dock_gate`). The script gets no hidden pass, since it flies orders it
 cannot see. Standard errors treat ships of one squad as independent for go-to, so they are a
 little small there. Attack and defend are per drill.
 
@@ -691,26 +694,32 @@ a mean over all the learner side's rows like `reward_order`, so the two add up t
 
 | Choice | Draw |
 |---|---|
-| Mission | `mission_weights`, default deathmatch 0.4, carrier 0.3, convoy 0.3, station assault 0 (SIM_VERSION 9; three weights mean station 0) |
+| Mission | `mission_weights`, default deathmatch 0.3, carrier 0.25, convoy 0.25, station assault 0.2 (since 2026-11-21; before, 0.4, 0.3, 0.3, 0). Three weights mean station 0 |
 | Carrier, convoy | `rlf_sim.mission_rosters` at run time: the first 0.5, the others evenly, as the page |
 | Deathmatch | The page's draft: 2 to 4 of the cheapest hull's worth of credits, the same budget a side, each side spending it independently |
 | Condition | `commander_p`, default 0.5: both teams' orders shown, else hidden from both |
 | Mixed (experiment) | `mixed_p`, default 0: of the shown matches, the share with one random side's orders hidden |
 | Station reading | `station_as_convoy_share`, default 0: the share of station assaults the nets read as a convoy escort (station side the defender), else as a carrier battle |
-| Citadel (SIM_VERSION 10) | `citadel_share`, default 0: the share of station assaults that play the sim's "citadel" roster (the citadel and 7 against a carrier, a dreadnought and 9: 19 ships, so `max_ships` must be at least 19), else the v9 station roster. The dreadnought reads to the nets as the obs class `spare`; pilots never fly it (`CAPITAL_ROLES`) |
+| Citadel (SIM_VERSION 10) | `citadel_share`, default 1 (since 2026-11-21, as the live page, which plays only the citadel from v10; before, 0): the share of station assaults that play the sim's "citadel" roster (the citadel and 7 against a carrier, a dreadnought and 9: 19 ships, so `max_ships` must be at least 19; the default `MAX_SHIPS` is 20), else the v9 station roster. The dreadnought reads to the nets as the obs class `spare`; pilots never fly it (`CAPITAL_ROLES`) |
 | Bombers (training only) | `bomber_share`, default 0: in a deathmatch, carrier battle or convoy, each strike slot of either team is a bomber with this chance (a swapped draft side's cost moves by the hull difference); a station assault keeps the sim's roster, which has three bombers. `drill_bomber_share`, default 0: the same for each pilot slot of an attack or defend drill (go-to drills keep their hulls, whose speeds set the deadline) |
 
 A family sets its own share with `roster_overrides`, e.g. `commander_p: 0.3`.
-Each of the three SIM_VERSION 9 keys draws nothing at 0, so a config without them draws
-exactly as before (`tests/test_station_mix.py`). Training logs a station assault as
+Each of the three SIM_VERSION 9 keys draws nothing at 0, so a config that sets them to 0
+draws as before (`tests/test_station_mix.py`). Since 2026-11-21 the defaults play what
+the live page plays (the owner's rule: what ships, the defaults pick up): station
+assaults in the mission mix, always the citadel, and dock drills among the drills. A
+config written before then names only what it changed, so it resumes on the new
+defaults; to replay the old mix, set `mission_weights: [0.4, 0.3, 0.3, 0]`,
+`citadel_share: 0` and `drill_dock_share: 0` (`tests/test_rosters.py`,
+`tests/test_dock_drills.py`). Training logs a station assault as
 `station_assault/defend` or `/attack` by the learner's side, as a convoy.
 `tests/test_pilots_rosters.py` runs the page's own `missionRoster` in Node and compares its
 draws with the sampler's.
 
 Where training still differs from the page:
 
-- **Mission mix.** The page rotates through the three evenly; training defaults to 0.4,
-  0.3, 0.3.
+- **Mission mix.** The page rotates through the four evenly; training defaults to 0.3,
+  0.25, 0.25, 0.2 (deathmatch, carrier, convoy, station assault).
 - **Hidden orders.** The page always shows orders; half of training hides them, by design.
 - **Uncertified hulls.** The page swaps a mission roster's strike craft that the champion
   is not certified to fly. Training does not, which matters only if a champion is ever
@@ -834,8 +843,9 @@ robin's combat rating (Bradley-Terry, below), which still runs.
 `spacefight/population/war.py` (fit, pure numpy), `war_matches.py` (matches), JSON
 `rlf.population.war/1` with every match and the fit, and a phone table beside it.
 
-- **Matches** are the live page's, through the commander eval's `play_matches`: live
-  rosters (deathmatch: 24 live drafts), orders shown, capital ships by script. Each
+- **Matches** are the live page's, through the commander eval's `play_matches`: all four
+  live missions (since 2026-11-21 the station assault too, the citadel roster only, as
+  live), live rosters (deathmatch: 24 live drafts), orders shown, capital ships by script. Each
   strike craft's pilot is drawn uniformly from the candidates **plus the script**, the
   one difference from live, and each side's commander uniformly from the stable
   (`lab/live_commanders.json` by default).

@@ -32,8 +32,8 @@ with the other side named. It *flips* if both times the squad chose the side it 
 ``same_side`` is the share of pairs that chose one side both times, whatever was named:
 that is the smart pilot who would have done the same with no order.
 
-**Dock drills** (SIM_VERSION 11, ``--kinds dock_calm,dock_threat``; not in the default
-set): a damaged strike craft ordered home to its carrier, station or citadel, alone
+**Dock drills** (SIM_VERSION 11, ``dock_calm`` and ``dock_threat``; in the default set
+since 2026-11-21, ``--kinds goto,attack,defend`` plays the order drills alone): a damaged strike craft ordered home to its carrier, station or citadel, alone
 (``dock_calm``) or with script craft ordered onto it (``dock_threat``;
 ``spacefight.env.drills``). Per kind, by base and by hull: docked, shot down, out of time
 (the three add up), docked of those not shot down, seconds from the order to the dock,
@@ -60,7 +60,7 @@ and the go-to bars were set on the old drills. The JSON schema is still
     python -m spacefight.eval.drills --a ckpt.pt --name f995_701 --out drills.json
     python -m spacefight.eval.drills --a script --n-per-kind 64 --out script.json
     python -m spacefight.eval.drills --a ckpt.pt --kinds dock_calm,dock_threat \
-        --n-per-kind 128 --out dock.json
+        --n-per-kind 128 --out dock.json      # the dock drills alone
 """
 
 from __future__ import annotations
@@ -929,15 +929,15 @@ class DrillEvalConfig:
         seed: Base of the drills' and the matches' seeds.
         hidden_goto: Run the go-to's (and the dock drills') hidden pass (never for the
             script, module docstring).
-        kinds: The kinds played, of ``EVAL_KINDS``: the order drills by default, the
-            dock drills (SIM_VERSION 11) when named.
+        kinds: The kinds played, of ``EVAL_KINDS``: all of them by default (the
+            order drills and the SIM_VERSION 11 dock drills).
     """
 
     n_per_kind: int = 256
     seed: int = DEFAULT_SEED
     hidden_goto: bool = True
     sim_version: int = int(rlf_sim.SIM_VERSION)
-    kinds: tuple[str, ...] = ORDER_EVAL_KINDS
+    kinds: tuple[str, ...] = EVAL_KINDS
 
     def __post_init__(self) -> None:
         unknown = [k for k in self.kinds if k not in EVAL_KINDS]
@@ -1291,9 +1291,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--no-hidden", action="store_true")
     parser.add_argument(
         "--kinds",
-        default=",".join(ORDER_EVAL_KINDS),
-        help=f"Comma-separated kinds of {','.join(EVAL_KINDS)} (default: the order "
-        "drills)",
+        default=",".join(EVAL_KINDS),
+        help=f"Comma-separated kinds of {','.join(EVAL_KINDS)} (default: all, the "
+        "order and dock drills)",
     )
     parser.add_argument("--out", type=Path, help="JSON path; the report goes beside it")
     args = parser.parse_args(argv)

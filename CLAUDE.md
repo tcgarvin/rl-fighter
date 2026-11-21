@@ -165,15 +165,17 @@ uv run python -m spacefight.eval.fleet --a <checkpoint.pt> --b script --out flee
 PYTHONPATH=. uv run python tools/fleet_survey.py --n-per-roster 128
 nohup lab/runs/2026-10-30-fleet-pilot/run.sh > lab/runs/2026-10-30-fleet-pilot/run.out 2>&1 &
 
-# Stage B (orders, SIM_VERSION 5): mission eval (rlf.eval.mission/1; carrier + convoy,
-# live default rosters, capital ships by script), the v5 order-following eval
-# (spacefight.eval.orders_v1, rlf.eval.orders/1, runs 1 and B2b; v5 sim only), and the
+# Stage B (orders, SIM_VERSION 5): mission eval (rlf.eval.mission/1; carrier, convoy and
+# station assault, live default rosters, capital ships by script), the v5 order-following
+# eval (spacefight.eval.orders_v1, rlf.eval.orders/1, runs 1 and B2b; v5 sim only), and the
 # order pilot run (rosters orders_v1, arms w1 / w03; SMOKE=1 for tiny sizes into smoke/)
 uv run python -m spacefight.eval.missions --a <checkpoint.pt> --b <v1.pt> --out missions.json
 
 # Station assault (SIM_VERSION 9; docs/SIM_SPEC.md §0.7, §5.10): a static `station`
 # (role carrier) defended by team 0 against a carrier with `bomber`s (role anchor, fixed
-# torpedo rack). Not in the default eval set; {"kind": "station_assault", "as":
+# torpedo rack). In every default as on the live page: the mission eval and WAR play it
+# (the citadel roster only, v10+), pilots_v1 trains it (mission_weights 0.3, 0.25, 0.25,
+# 0.2; citadel_share 1). {"kind": "station_assault", "as":
 # "carrier"|"convoy"} picks what the nets read it as (Roster.station_as). Hull ids: the
 # v4 hulls keep theirs (LEGACY_HULL_ORDER), new hulls follow by name. Balance and the
 # zero-shot / bomber-swap measurements: lab/runs/2026-11-19-station-bomber (run.sh).
@@ -212,8 +214,9 @@ cargo test -p sim --test drills
 # Dock drills (SIM_VERSION 11; docs/PILOT_TRAINING.md section 2 "Dock drills"): a damaged
 # strike craft ordered home to its carrier (under way), station or citadel, calm or with
 # script craft on it; a carrier battle / station assault laid out by hand (start_layout +
-# start_hull). Not in the drill eval's default kinds; their bars are a gate of their own.
-# roster_overrides keys drill_dock_share (0), drill_dock_threat_share (0.5); trainer key
+# start_hull). In the drill eval's default kinds (--kinds dock_calm,dock_threat alone);
+# their bars are a gate of their own. roster_overrides keys drill_dock_share (0.25 of the
+# drills by default), drill_dock_threat_share (0.5); trainer key
 # dock_bonus (the sim's 0.2); logs drill_dock, mission_docks. The first training run:
 # lab/runs/2026-11-20-dock-pilot (run.sh: two arms on Beast; SMOKE=1 tiny into smoke/).
 uv run python -m spacefight.eval.drills --a <checkpoint.pt|script> --kinds dock_calm,dock_threat \

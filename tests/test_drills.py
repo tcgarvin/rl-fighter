@@ -43,6 +43,7 @@ from spacefight.env.drills import (  # noqa: E402
 from spacefight.env.rosters import (  # noqa: E402
     DRILL_ATTACK,
     DRILL_DEFEND,
+    DRILL_DOCK,
     DRILL_GOTO,
     DRILL_KINDS,
     EXTERNAL,
@@ -69,7 +70,10 @@ from spacefight.eval.drills import (  # noqa: E402
     CHOSE_OTHER,
     DEFAULT_BARS,
     DOCK_BAR_PATHS,
+    DOCK_CALM,
+    DOCK_THREAT,
     ENEMY_NEAR_M,
+    EVAL_KINDS,
     EXEMPT,
     FAIL,
     FATES,
@@ -267,7 +271,11 @@ def test_a_solo_share_makes_more_go_tos_one_ship_alone() -> None:
 
 
 def test_the_sampler_passes_the_solo_share_to_its_go_to_drills() -> None:
-    only_goto = {"drill_share": 1.0, "drill_weights": (1.0, 0.0, 0.0)}
+    only_goto = {
+        "drill_share": 1.0,
+        "drill_weights": (1.0, 0.0, 0.0),
+        "drill_dock_share": 0.0,
+    }
     solo = PilotsRosterSampler(
         PilotsDistribution(drill_goto_solo_share=1.0, **only_goto), 7
     )
@@ -1118,6 +1126,12 @@ def test_a_tiny_eval_runs_on_the_script_and_writes_its_report(tmp_path: Path) ->
     data = json.loads(out.read_text())
     assert data["schema"] == SCHEMA
     assert data["gate"]["verdict"] == REPORT_ONLY
+    # Every kind by default (2026-11-21): the order drills and the dock drills, which
+    # report on a gate of their own.
+    assert (
+        set(data["kinds"]) == set(EVAL_KINDS) == {*DRILL_KINDS, DOCK_CALM, DOCK_THREAT}
+    )
+    assert data["dock_gate"]["verdict"] == REPORT_ONLY
     assert data["kinds"][DRILL_GOTO]["hidden"] is None, "the script has no hidden pass"
     assert data["kinds"][DRILL_ATTACK]["n_pairs"] == 4
     assert data["kinds"][DRILL_GOTO]["by_slack"].keys() == {"tight", "medium", "loose"}
@@ -1151,9 +1165,14 @@ def test_drill_share_draws_drills_of_every_kind_by_their_weights() -> None:
     rosters = sampler.sample_many(400)
     drills = [r for r in rosters if r.drill is not None]
     assert 150 <= len(drills) <= 250
-    assert {r.drill.kind for r in drills} == set(DRILL_KINDS)  # type: ignore[union-attr]
+    # The order drills by their weights, and dock drills (a quarter by default).
+    kinds = {r.drill.kind for r in drills}  # type: ignore[union-attr]
+    assert kinds == {*DRILL_KINDS, DRILL_DOCK}
     only_attack = PilotsRosterSampler(
-        PilotsDistribution(drill_share=1.0, drill_weights=(0.0, 1.0, 0.0)), 6
+        PilotsDistribution(
+            drill_share=1.0, drill_weights=(0.0, 1.0, 0.0), drill_dock_share=0.0
+        ),
+        6,
     )
     assert {r.drill.kind for r in only_attack.sample_many(20)} == {DRILL_ATTACK}  # type: ignore[union-attr]
     assert sum(r.hide_orders[0] for r in drills) == 0, "a drill shows its order"
@@ -1270,6 +1289,10 @@ def test_training_smoke_with_drills_logs_them_and_keeps_them_apart(
     for env_id in drills_now:
         env_id = int(env_id)
         assert trainer.learner_team[env_id] == 0
+        drill = trainer.env.rosters[env_id].drill
+        assert drill is not None
+        if drill.kind == DRILL_DOCK:
+            continue  # a dock drill (in the default mix) has the enemy carrier too
         assert (team[env_id][capital[env_id]] == 0).all(), "wards fly for team 0"
 
 
@@ -1279,6 +1302,7 @@ def test_a_drill_finished_in_training_is_counted_as_a_drill_not_as_a_match(
     fast: dict[str, object] = {
         "drill_share": 1.0,
         "drill_weights": [0.0, 1.0, 1.0],
+        "drill_dock_share": 0.0,
     }
     trainer = SpikeTrainer(
         _drill_config(roster_overrides=fast, n_steps=64, n_updates=1), tmp_path

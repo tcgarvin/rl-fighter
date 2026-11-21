@@ -250,8 +250,8 @@ from v8's in their header only. No state was added to the hash (a station assaul
 its mission state in the carrier fields). The older compat replays still pass.
 `golden_station_assault_*` are new (the carrier reading under the scripted commander,
 the convoy reading under the random one). Python's `mission_weights` gain a fourth
-entry, 0 by default; a three-weight tuple means station 0 and draws exactly as before
-(`tests/test_rosters.py`).
+entry, 0 by default at v9 (`pilots_v1`'s is 0.2 since 2026-11-21); a three-weight
+tuple means station 0 and draws exactly as before (`tests/test_rosters.py`).
 
 ### 0.8 v10 changes (SIM_VERSION 9 → 10, hardpoints, the citadel and the dreadnought)
 
@@ -285,7 +285,8 @@ and weapons too; the regenerated v10 traces of those eleven differ in their head
 `golden_station_assault_v10_*` are new (the citadel roster, carrier reading under the
 scripted commander; convoy reading under the random one). Old-mission script-vs-script
 numbers are unchanged to the last digit (`results.md`). Python: training draws the v9
-station roster unless `PilotsDistribution.citadel_share` > 0 (default 0).
+station roster unless `PilotsDistribution.citadel_share` > 0 (default 0 at v10; 1 since
+2026-11-21, as the live page, so training's station assaults are the citadel's).
 
 ### 0.9 v11 changes (SIM_VERSION 10 → 11, dock and repair)
 
@@ -1907,9 +1908,9 @@ for every older one). Training under scripted or
 random commanders now sees recalls (dock orders); a learned commander gives none.
 
 v10 Python side: `rosters.CAPITAL_ROLES` adds `line`; `PilotsDistribution.citadel_share`
-(default 0) draws the citadel roster for that share of station assaults (the sampler
-otherwise plays the sim's first station roster only); `spike_policy.PILOT_OBS_DIMS[10] =
-587`.
+(default 0 then, 1 since 2026-11-21) draws the citadel roster for that share of station
+assaults (the sampler otherwise plays the sim's first station roster only);
+`spike_policy.PILOT_OBS_DIMS[10] = 587`.
 
 v9 Python side: `rosters.MISSIONS` appends `STATION_ASSAULT`, `Roster.station_as` (one of
 `STATION_READS_AS`, default `"carrier"`) reaches the sim through `Roster.mission_spec`,

@@ -109,16 +109,22 @@ def test_preset_resolves_and_orders_v1_is_unchanged() -> None:
 def test_mission_shares_follow_the_weights() -> None:
     rosters = _sampler().sample_many(6000)
     counts = Counter(r.mission for r in rosters)
-    for mission, share in zip(MISSIONS, (0.4, 0.3, 0.3)):
+    # Every live mission by default (2026-11-21), the station assault a fifth.
+    for mission, share in zip(MISSIONS, (0.3, 0.25, 0.25, 0.2)):
         assert counts[mission] / len(rosters) == pytest.approx(share, abs=0.03)
+    # The pre-2026-11-21 mix still draws as it did: no station assault.
+    old = Counter(
+        r.mission for r in _sampler(mission_weights=(0.4, 0.3, 0.3)).sample_many(6000)
+    )
+    assert old[STATION_ASSAULT] == 0
+    for mission, share in zip(MISSIONS, (0.4, 0.3, 0.3)):
+        assert old[mission] / 6000 == pytest.approx(share, abs=0.03)
 
 
 def test_commander_share_follows_commander_p_in_every_mission() -> None:
     for commander_p in (0.5, 0.25):
         rosters = _sampler(commander_p=commander_p).sample_many(6000)
-        # The station assault (SIM_VERSION 9) has weight 0 by default: never drawn.
-        assert not any(r.mission == STATION_ASSAULT for r in rosters)
-        for mission in LIVE_MISSIONS:
+        for mission in MISSIONS:
             of_mission = [r for r in rosters if r.mission == mission]
             shown = sum(not r.hide_orders[0] for r in of_mission) / len(of_mission)
             assert shown == pytest.approx(commander_p, abs=0.05), mission

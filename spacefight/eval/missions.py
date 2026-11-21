@@ -14,7 +14,8 @@ commander" is ``evaluate(candidate, v1)`` (``lab/runs/2026-10-31-order-pilot``).
     python -m spacefight.eval.missions --a script --b script   # baseline
     python -m spacefight.eval.missions --missions station_assault --station-as convoy
 
-The station assault (SIM_VERSION 9) is optional, not in the default set; its defenders
+The station assault (SIM_VERSION 9) is in the default set, as on the live page: from
+SIM_VERSION 10 it plays only the "citadel" roster (``CITADEL_ROSTER``). Its defenders
 are team 0. ``station_as`` (``carrier`` or ``convoy``) is what the nets read it as.
 
 Metrics (JSON schema ``rlf.eval.mission/1``), per mission and overall:

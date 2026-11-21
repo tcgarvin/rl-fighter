@@ -49,7 +49,10 @@ a size from ``draft_min_per_side..draft_max_per_side``, a budget of that many of
 cheapest hull, then each side spends it independently. A carrier battle or a convoy is
 one of the sim's own rosters, read from ``rlf_sim.mission_rosters`` at run time and
 never copied here (``web/src/live/missions.ts``, ``fromSim``): the first, the sim's
-default, with ``default_roster_share``, else one of the others uniformly. Both teams
+default, with ``default_roster_share``, else one of the others uniformly. A station
+assault is the sim's v10 "citadel" roster by default (``citadel_share`` 1, as the live
+page plays it on SIM_VERSION >= 10), and ``mission_weights`` gives it a fifth of the
+matches by default, so pilots train on all four live missions. Both teams
 have ``scripted`` commanders. With ``commander_p`` their orders are shown; otherwise
 they are hidden from both teams (``Roster.hide_orders``), which is "no commander": the
 script's logistics still run, because a carrier or a convoy cannot play without them.
@@ -61,10 +64,10 @@ also draws drills from ``spacefight.env.drills``. A drill is a ``Roster`` like a
 with a start layout, the orders it opens with, its own clock and drill rules; ``drill``
 tells the trainer and the logs what it is. With ``drill_attack_pool_share`` (training only,
 default 0) that share of the attack drills are kite drills, whose enemies the trainer has
-learned pilots fly (``DrillTag.kite``). With ``drill_dock_share`` (SIM_VERSION 11, default
-0) that share of the drills are dock drills: a damaged strike craft ordered home to its
-carrier or station (``DRILL_DOCK``; a carrier battle or a station assault laid out by
-hand, with ``Roster.start_hull``).
+learned pilots fly (``DrillTag.kite``). ``drill_dock_share`` (SIM_VERSION 11, default
+0.25) of the drills are dock drills: a damaged strike craft ordered home to its carrier
+or station (``DRILL_DOCK``; a carrier battle or a station assault laid out by hand, with
+``Roster.start_hull``).
 """
 
 from __future__ import annotations
@@ -832,7 +835,8 @@ class PilotsDistribution:
     Attributes:
         kind: Always ``"pilots"`` (tells ``resolve_distribution`` the class apart).
         mission_weights: Weights of ``MISSIONS`` (deathmatch, carrier, convoy,
-            station; three weights mean station 0).
+            station; three weights mean station 0). The default plays every live
+            mission (the live page rotates all four), station assault a fifth.
         commander_p: Chance a match has orders shown on both sides (else hidden from
             both).
         mixed_p: Experimental (``docs/PILOT_TRAINING.md`` §3, training only): of the
@@ -863,6 +867,7 @@ class PilotsDistribution:
         citadel_share: Chance a station assault plays the sim's v10 "citadel" roster
             (the citadel against a carrier, a dreadnought and nine: 19 ships, so
             ``max_ships`` must hold them), else the sim's first (v9) station roster.
+            The default, 1, is the live page's (the citadel only, SIM_VERSION >= 10).
             0 draws no extra number, so the draws are those of v9.
         bomber_share: Training only: in a deathmatch, carrier battle or convoy, each
             strike slot (a ``FLEET_HULLS`` hull, either team) becomes a bomber with this
@@ -875,7 +880,8 @@ class PilotsDistribution:
             drawn hulls' speeds. 0 draws no extra number.
         drill_dock_share: SIM_VERSION 11: the share of drills that are dock drills
             (``spacefight.env.drills``, ``DRILL_DOCK``); the rest are drawn by
-            ``drill_weights``. 0 draws no extra number.
+            ``drill_weights``. The default, 0.25, has dock drills in the mix whenever
+            ``drill_share`` is set. 0 draws no extra number.
         drill_dock_threat_share: Of the dock drills, the share with enemies ordered
             onto the pilot (else it flies home alone). The drill generator draws it
             from the drill's own seed, so it draws no number here.
@@ -886,7 +892,7 @@ class PilotsDistribution:
     """
 
     kind: str = PILOTS_KIND
-    mission_weights: tuple[float, ...] = (0.4, 0.3, 0.3, 0.0)
+    mission_weights: tuple[float, ...] = (0.3, 0.25, 0.25, 0.2)
     commander_p: float = 0.5
     mixed_p: float = 0.0
     default_roster_share: float = 0.5
@@ -902,8 +908,8 @@ class PilotsDistribution:
     station_as_convoy_share: float = 0.0
     bomber_share: float = 0.0
     drill_bomber_share: float = 0.0
-    citadel_share: float = 0.0
-    drill_dock_share: float = 0.0
+    citadel_share: float = 1.0
+    drill_dock_share: float = 0.25
     drill_dock_threat_share: float = 0.5
 
     def __post_init__(self) -> None:

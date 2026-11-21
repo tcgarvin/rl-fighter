@@ -106,17 +106,23 @@ def test_hull_ids_keep_the_legacy_hulls_first() -> None:
     assert capital_hull_ids() == [0, 2, 6, 7, 8]
 
 
-def test_the_citadel_roster_is_opt_in_for_training() -> None:
-    """SIM_VERSION 10: a station assault trains on the sim's v9 roster unless
-    ``citadel_share`` asks for the citadel's, which has 19 ships in a 550 m arena."""
+def test_the_citadel_roster_is_the_training_default() -> None:
+    """SIM_VERSION 10: a station assault trains on the citadel's roster (19 ships in a
+    550 m arena) by default, as the live page plays it; ``citadel_share`` 0 keeps the
+    sim's v9 roster, and a share between mixes them."""
     from spacefight.env.rosters import PilotsDistribution, citadel_roster, make_sampler
 
     citadel = citadel_roster()
     assert citadel.teams[0][0] == "citadel" and "dreadnought" in citadel.teams[1]
     assert citadel.n_ships == 19 and citadel.arena_radius == 550.0
+    assert citadel.n_ships <= PilotsDistribution().max_ships
     station_only = (0.0, 0.0, 0.0, 1.0)
-    plain = make_sampler(PilotsDistribution(mission_weights=station_only), 3)
-    assert all(r.teams[0][0] == "station" for r in plain.sample_many(200))
+    default = make_sampler(PilotsDistribution(mission_weights=station_only), 3)
+    assert all(r.teams == citadel.teams for r in default.sample_many(200))
+    v9 = make_sampler(
+        PilotsDistribution(mission_weights=station_only, citadel_share=0.0), 3
+    )
+    assert all(r.teams[0][0] == "station" for r in v9.sample_many(200))
     mixed = make_sampler(
         PilotsDistribution(mission_weights=station_only, citadel_share=0.5), 3
     )
@@ -127,6 +133,29 @@ def test_the_citadel_roster_is_opt_in_for_training() -> None:
         PilotsDistribution(
             mission_weights=station_only, citadel_share=0.5, max_ships=16
         )
+
+
+def test_the_default_pilots_mix_plays_every_live_mission() -> None:
+    """The owner's rule (2026-11-21): what ships, the defaults pick up. ``pilots_v1``
+    trains all four missions the live page rotates, its station assaults the citadel's,
+    and dock drills among the drills."""
+    from spacefight.env.rosters import (
+        ROSTER_PRESETS,
+        PilotsDistribution,
+        citadel_roster,
+        make_sampler,
+    )
+
+    d = PilotsDistribution()
+    assert ROSTER_PRESETS["pilots_v1"] == d
+    assert d.mission_weights == (0.3, 0.25, 0.25, 0.2)
+    assert d.citadel_share == 1.0 and d.drill_dock_share == 0.25
+    drawn = make_sampler(d, 8).sample_many(2000)
+    shares = Counter(r.mission for r in drawn)
+    assert set(shares) == set(MISSIONS)
+    assert shares[STATION_ASSAULT] / len(drawn) == pytest.approx(0.2, abs=0.03)
+    citadel = citadel_roster().teams
+    assert all(r.teams == citadel for r in drawn if r.mission == STATION_ASSAULT)
 
 
 def test_bomber_is_an_opt_in_strike_hull() -> None:

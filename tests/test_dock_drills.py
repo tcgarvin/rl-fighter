@@ -285,8 +285,17 @@ def test_the_dock_eval_has_its_own_gate_and_leaves_the_order_gate_alone() -> Non
     assert set(BAR_PATHS).isdisjoint(DOCK_BAR_PATHS)
 
 
+def test_the_default_drill_mix_has_dock_drills() -> None:
+    """The owner's rule (2026-11-21): any run with drills trains dock drills, a quarter
+    of the drills, without a key of its own."""
+    assert PilotsDistribution().drill_dock_share == 0.25
+    drawn = PilotsRosterSampler(PilotsDistribution(drill_share=0.5), 4).sample_many(800)
+    kinds = [r.drill.kind for r in drawn if r.drill is not None]
+    assert kinds.count(DRILL_DOCK) / len(kinds) == pytest.approx(0.25, abs=0.06)
+
+
 def test_drill_dock_share_zero_draws_nothing_and_a_share_draws_dock_drills() -> None:
-    base = PilotsDistribution(drill_share=0.5)
+    base = PilotsDistribution(drill_share=0.5, drill_dock_share=0.0)
     plain = PilotsRosterSampler(base, 3).sample_many(60)
     same = PilotsRosterSampler(replace(base, drill_dock_threat_share=0.9), 3)
     assert same.sample_many(60) == plain, "the threat share draws nothing here"

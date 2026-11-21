@@ -31,11 +31,12 @@ from spacefight.env.rosters import (  # noqa: E402
     STATION_AS_CARRIER,
     STATION_AS_CONVOY,
     STATION_ASSAULT,
+    DRILL_DOCK,
     PilotsDistribution,
     PilotsRosterSampler,
     capital_hull_ids,
+    citadel_roster,
     hull_names_by_id,
-    live_mission_rosters,
 )
 from spacefight.env.rust_env import RustVecEnv  # noqa: E402
 from spacefight.rl.spike_ppo import PPOConfig, SpikeTrainer  # noqa: E402
@@ -43,6 +44,8 @@ from spacefight.rl.spike_ppo import PPOConfig, SpikeTrainer  # noqa: E402
 REPO = Path(__file__).resolve().parent.parent
 ASSETS = str(REPO / "assets")
 MIX = (0.3, 0.225, 0.225, 0.25)
+# The mission weights before 2026-11-21: no station assault.
+NO_STATION = (0.4, 0.3, 0.3, 0.0)
 
 
 def _sampler(seed: int = 0, **overrides: object) -> PilotsRosterSampler:
@@ -69,8 +72,13 @@ def test_shares_zero_leave_every_draw_and_the_generator_as_they_were(
 
 
 def test_without_a_station_weight_the_convoy_share_draws_nothing() -> None:
-    plain = _sampler(seed=2, commander_p=0.667)
-    split = _sampler(seed=2, commander_p=0.667, station_as_convoy_share=0.5)
+    plain = _sampler(seed=2, commander_p=0.667, mission_weights=NO_STATION)
+    split = _sampler(
+        seed=2,
+        commander_p=0.667,
+        mission_weights=NO_STATION,
+        station_as_convoy_share=0.5,
+    )
     assert plain.sample_many(500) == split.sample_many(500)
     assert plain.rng.bit_generator.state == split.rng.bit_generator.state
 
@@ -84,7 +92,8 @@ def test_the_station_share_and_its_reading_follow_the_settings() -> None:
     reads = Counter(r.station_as for r in station)
     assert set(reads) == {STATION_AS_CARRIER, STATION_AS_CONVOY}
     assert reads[STATION_AS_CONVOY] / len(station) == pytest.approx(0.5, abs=0.05)
-    sim_roster = live_mission_rosters(STATION_ASSAULT)[0].teams
+    # The citadel's roster (``citadel_share`` 1 by default, as live).
+    sim_roster = citadel_roster().teams
     assert all(r.teams == sim_roster for r in station)
     assert all(r.station_as == STATION_AS_CARRIER for r in rosters if r not in station)
 
@@ -96,10 +105,12 @@ def test_bombers_replace_that_share_of_strike_slots_outside_the_station() -> Non
     strike = bombers = 0
     for r in rosters:
         if r.drill is not None:
-            assert BOMBER not in r.teams[0] + r.teams[1], "drills are unchanged"
+            # A dock drill draws its own hull (a bomber among them).
+            if r.drill.kind != DRILL_DOCK:
+                assert BOMBER not in r.teams[0] + r.teams[1], "drills are unchanged"
             continue
         if r.mission == STATION_ASSAULT:
-            assert r.teams == live_mission_rosters(STATION_ASSAULT)[0].teams
+            assert r.teams == citadel_roster().teams
             continue
         for h in r.teams[0] + r.teams[1]:
             strike += h in FLEET_HULLS or h == BOMBER
@@ -204,7 +215,12 @@ def test_trains_on_station_assaults_and_bombers(tmp_path: Path) -> None:
 
 
 def test_drill_bomber_share_zero_draws_nothing_and_a_share_swaps_pilots_only() -> None:
-    extra = {"drill_share": 0.5, "drill_weights": (1.0, 1.0, 1.0)}
+    # Order drills only: a dock drill draws its own hull, bombers among them.
+    extra = {
+        "drill_share": 0.5,
+        "drill_weights": (1.0, 1.0, 1.0),
+        "drill_dock_share": 0.0,
+    }
     plain = _sampler(seed=5, **extra)
     zero = _sampler(seed=5, drill_bomber_share=0.0, **extra)
     assert plain.sample_many(300) == zero.sample_many(300)
@@ -223,12 +239,21 @@ def test_drill_bomber_share_zero_draws_nothing_and_a_share_swaps_pilots_only() -
         pilots += len(r.drill.pilots)
         bombers += sum(r.teams[0][k] == BOMBER for k in r.drill.pilots)
     assert bombers / pilots == pytest.approx(0.5, abs=0.04)
-    assert all(BOMBER not in r.teams[0] + r.teams[1] for r in rosters if r.drill is None)
+    # Matches keep their hulls (a station assault's roster has bombers of its own).
+    assert all(
+        BOMBER not in r.teams[0] + r.teams[1]
+        for r in rosters
+        if r.drill is None and r.mission != STATION_ASSAULT
+    )
 
 
 def test_the_env_plays_a_bomber_drill_from_its_layout() -> None:
     sampler = _sampler(
-        seed=6, drill_share=1.0, drill_weights=(0.0, 1.0, 1.0), drill_bomber_share=1.0
+        seed=6,
+        drill_share=1.0,
+        drill_weights=(0.0, 1.0, 1.0),
+        drill_bomber_share=1.0,
+        drill_dock_share=0.0,
     )
     env = RustVecEnv(
         ASSETS, 4, [["fighter"], ["fighter"]], 6, n_threads=1, roster_sampler=sampler
