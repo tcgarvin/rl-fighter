@@ -63,11 +63,29 @@ Holding is still worth about 0.2 to the defender on both stations, so there is s
 to find on the citadel, the one the live page plays. The `hold` arm trains there; it
 started at 03:40, the other two at 03:23.
 
+## A change at 05:11: `hold_quiet`
+
+The `hold` arm started well and then slid. Its defender's win rate against the attacker
+with no orders, averaged over 15-update windows (about 500 matches each, ± 0.04):
+
+| Updates | 1–15 | 16–30 | 31–45 | 46–67 |
+|---|---|---|---|---|
+| Defender wins | 0.79 | 0.73 | 0.64 | 0.59 |
+| Ship time under an order | 3% | 8% | 9% | 13% |
+
+At the start, the launch prior alone put it well above the no-orders defender (0.68 in the
+preflight's matches) and close to `hold_late` (0.87). It then drifted into giving orders,
+which cost these pilots fights, as everywhere before, and lost ground. Its launches stayed
+at about 4% of decisions. The question for this arm is launch timing, so it was stopped
+at update 68 and replaced by **`hold_quiet`**: the same start and settings, with attack,
+defend and go-to forbidden, so it chooses only when each hull class launches. `hold`'s
+checkpoints stay for the morning eval.
+
 ## In the morning
 
-- **`hold`**: the station-commander eval (`../2026-11-19-station-commander/eval.sh`, defender
+- **`hold`, `hold_quiet`**: the station-commander eval (`../2026-11-19-station-commander/eval.sh`, defender
   cells) for the final checkpoint, update 0 and `hold_late`, with first-launch time and the
-  hull at first launch.
+  hull at first launch; `eval.sh` here plays them on the preflight's seeds.
 - **`kite`, `noattack`**: `spacefight.commander.eval` against `unseen`, 384 a mission, over
   their own pilots and the live ten, with the order kinds by hull.
 - The measures go into results.md. A commander that beats unseen goes into the live stable

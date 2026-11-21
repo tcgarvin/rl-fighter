@@ -14,13 +14,13 @@
 #   ARMS="hold" lab/runs/2026-11-21-commander-4/eval.sh
 #
 # Writes eval/<name>/... Finished cells are kept on a rerun. Env: ARMS ("hold kite
-# noattack"), N (512, hold), N_PER_MISSION (384), THREADS (3 a commander eval), PY.
+# noattack"; hold_quiet too), N (512, hold), N_PER_MISSION (384), THREADS (3 a commander eval), PY.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../../.." && pwd)"
 cd "$ROOT"
 PY=${PY:-$ROOT/.venv/bin/python}
-ARMS=${ARMS:-"hold kite noattack"}
+ARMS=${ARMS:-"hold hold_quiet kite noattack"}
 N=${N:-512}
 N_PER_MISSION=${N_PER_MISSION:-384}
 THREADS=${THREADS:-3}
@@ -62,11 +62,11 @@ for arm in $ARMS; do
     name=${arm}_$(basename "$ckpt" .pt | sed 's/^commander_//')
     echo "$(date +%H:%M:%S) $name"
     case $arm in
-        hold)
-            zero=$HERE/eval/hold_0/commander_0.pt
+        hold | hold_quiet)
+            zero=$HERE/eval/${arm}_0/commander_0.pt
             if [[ ! -f $zero ]]; then
                 mkdir -p "$(dirname "$zero")"
-                "$PY" - "$HERE/hold/config.json" "$zero" <<'EOF'
+                "$PY" - "$HERE/$arm/config.json" "$zero" <<'EOF'
 import json, sys
 from pathlib import Path
 
@@ -82,7 +82,7 @@ save_commander(Path(sys.argv[2]), initial_actor(cfg), {**meta, "update": 0})
 EOF
             fi
             station_cell "$name" "$ckpt" &
-            station_cell hold_0 "$zero" &
+            station_cell "${arm}_0" "$zero" &
             ;;
         kite | noattack)
             pilots=$(pilots_of "$arm")

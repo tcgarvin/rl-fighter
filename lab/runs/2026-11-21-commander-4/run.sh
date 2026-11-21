@@ -8,6 +8,8 @@
 #             its launch head reset to launch each hull 3% of decisions (launch_prior),
 #             long credit (gamma 0.997, lambda 0.98), no shaping; enemies 3/4 unseen,
 #             1/4 scripted; the live ten. Can it learn to hold the reserve?
+#   hold_quiet  as hold, its orders forbidden (only launches): started at 05:15 when hold,
+#             which may give orders, drifted into giving them and lost ground.
 #   kite      a fresh commander over the two kite pilots (orders cost them least), half
 #             against unseen, all four missions. Do orders help pilots that can take them?
 #   noattack  a fresh commander that cannot give attack orders (forbid_orders), over
@@ -56,6 +58,10 @@ arm_args() {
             --set init=\"$C3_LIVE\" --set opponent_shares=[0.25,0,0,0,0.75]
             --set live_pilots=\"$LIVE\" --set ent_coef=0.002 --set gamma=0.997 --set lam=0.98
             --set shaping=0.0" ;;
+        hold_quiet) echo "--set mission_weights=[0,0,0,1] --set learner_team=0 --set launch_prior=0.03
+            --set init=\"$C3_LIVE\" --set opponent_shares=[0.25,0,0,0,0.75]
+            --set live_pilots=\"$LIVE\" --set ent_coef=0.002 --set gamma=0.997 --set lam=0.98
+            --set shaping=0.0 --set forbid_orders=[\"attack\",\"defend\",\"goto\"]" ;;
         kite) echo "--set live_pilots=\"$KITE\" --set opponent_shares=[0,0,0.25,0.25,0.5]
             --set ent_coef=0.002 --set shaping=0.5 --set keep_prior=0.8" ;;
         noattack) echo "--set forbid_orders=[\"attack\"] --set live_pilots=\"$FOLLOWERS\"
@@ -67,7 +73,7 @@ arm_args() {
 arm_size() {  # hold: half-size updates (station matches are long; more updates a night).
     if [[ $SMOKE == 1 ]]; then return; fi
     case $1 in
-        hold) echo "--set decisions_per_update=4096" ;;
+        hold | hold_quiet) echo "--set decisions_per_update=4096" ;;
         *) echo "${BIG[@]}" ;;
     esac
 }

@@ -1,0 +1,4 @@
+03:39:48 hold pid 912371
+05:10:42 done: commanders (status 0)
+05:10:42 hold pid 990097
+lab/runs/2026-11-21-commander-4/run.sh: line 103: syntax error near unexpected token `done'
