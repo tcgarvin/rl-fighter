@@ -9,6 +9,10 @@ came out.
 ## The plan in short
 
 - Commanders and pilots train in alternating phases, with the other side frozen.
+- **Build on what we have.** A run starts from existing weights: a pilot from a member of
+  the season (its child; `--init`, widened when the inputs grew), a commander from the
+  best commander checkpoint (`docs/COMMANDER.md` "Training"). From scratch only on
+  purpose, as the Scratch family is, or when no checkpoint fits; the plan says why.
 - About 10 pilots at a time, in families, with the script pilot in the population at first.
 - **What an order means is fixed by a drill.** Orders stay human-intelligible. Drills are
   measured and reported; since 2026-11-08 failing them archives nobody.

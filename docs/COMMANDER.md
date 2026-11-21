@@ -332,7 +332,16 @@ commander we had. A learner that beats it gives orders worth more than no orders
 third phase none did: with half their matches against it, two fresh commanders learned to
 keep ships under an order only 3 to 6% of the time and ended level with it; one with
 `ent_coef` 0.01 kept ordering about half the time and lost 0.34 to 0.66
-(`lab/runs/2026-11-15-commander-3/results.md`).
+(`lab/runs/2026-11-15-commander-3/results.md`). So `TrainConfig.ent_coef` defaults to
+0.002 since 2026-11-21, the value every run since has used.
+
+**Build on what we have.** A commander run starts from the best commander checkpoint
+that fits (`init`), not from a fresh net. Today that is commander 3's `live` 197
+(`lab/runs/2026-11-15-commander-3/live/checkpoints/commander_197.pt`), level with the
+no-orders side over the live ten. Start fresh only on purpose: when the inputs or outputs
+changed so that no checkpoint loads, or as a deliberate unrelated line for comparison.
+The plan says which, and why. Pilots do the same: a new pilot is a child of a member
+(`docs/PILOT_TRAINING.md` "The plan in short").
 
 **Keep prior** (`TrainConfig.keep_prior`, default 0.8): a fresh actor's order and squad
 heads start with a bias toward "keep", so an untrained commander keeps with about that

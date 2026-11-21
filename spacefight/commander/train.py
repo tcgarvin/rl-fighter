@@ -109,7 +109,9 @@ class TrainConfig:
     minibatch: int = 512
     lr: float = 3e-4
     clip: float = 0.2
-    ent_coef: float = 0.01
+    # 0.002 since 2026-11-21: at 0.01 a commander-3 arm kept ordering half the time and
+    # lost 0.34 to 0.66; every run since has used 0.002 (docs/COMMANDER.md "Training").
+    ent_coef: float = 0.002
     vf_coef: float = 0.5
     max_grad_norm: float = 0.5
     gamma: float = 0.99

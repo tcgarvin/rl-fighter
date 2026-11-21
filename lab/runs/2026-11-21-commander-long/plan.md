@@ -17,7 +17,10 @@ training moved away from it.
 
 The owner's reading: more training time and patience, not more shortcuts. So this run is
 one learner on the trainer's own defaults (`spacefight.commander.train.TrainConfig`),
-given days.
+given days. And it builds on what we have rather than starting over (the rule now in
+`docs/COMMANDER.md` "Training"). It starts from the best general commander so far,
+commander 3's `live` 197, which is level with the no-orders side over the live ten (0.49).
+A first launch from a fresh net was stopped after 3 updates for this reason.
 
 ## What it is
 
@@ -26,8 +29,9 @@ given days.
 | Missions | All four, equal weight: deathmatch, carrier battle, convoy escort, station assault (citadel) |
 | Pilots | The live ten (`lab/live_pilots.json`, as it stands when the run starts or resumes) |
 | Opponents | The defaults: scripted 0.35, random 0.1, itself 0.3, its snapshots 0.25 |
-| Start | A fresh commander: no prior beyond the trainer's default lean to "keep", nothing forbidden |
-| Set for the machine only | 128 envs, 5 sim + 5 torch threads, `nice` 10 |
+| Start | Commander 3's `live` 197 (`init`; its actor, a new critic). No launch prior, nothing forbidden |
+| Entropy bonus | 0.002, the trainer's default since 2026-11-21 (it was 0.01, which commander 3 found kept a commander ordering) |
+| Set for the machine | 128 envs, 5 sim + 5 torch threads, `nice` 10 |
 | Stops | 2026-11-28 12:00 (`DEADLINE`), or SIGTERM with a checkpoint; `run.sh` resumes |
 
 ## How it is measured
