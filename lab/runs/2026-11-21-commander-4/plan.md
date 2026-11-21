@@ -81,6 +81,24 @@ at update 68 and replaced by **`hold_quiet`**: the same start and settings, with
 defend and go-to forbidden, so it chooses only when each hull class launches. `hold`'s
 checkpoints stay for the morning eval.
 
+## Midway, at 06:10
+
+The trainers' own win rates against the side with no orders, in 10-update windows
+(about 250 to 500 matches each, so ± 0.04 to 0.06). `hold_quiet` is the defender's.
+
+| Updates | 1–10 | 11–20 | 21–30 | 31–40 | 41–50 | 51–60 | 61–70 |
+|---|---|---|---|---|---|---|---|
+| `hold_quiet` | 0.88 | 0.76 | | | | | |
+| `kite` | 0.32 | 0.34 | 0.38 | 0.40 | 0.41 | 0.44 | 0.44 |
+| `kite`: ship time under an order | 49% | 49% | 47% | 42% | 40% | 38% | 35% |
+| `noattack` | 0.33 | 0.34 | 0.35 | 0.37 | 0.44 | 0.38 | 0.39 |
+| `noattack`: ship time under an order | 41% | 38% | 31% | 26% | 17% | 13% | 10% |
+
+`kite` and `noattack` climb as they give fewer orders, the path commander 3 took. Neither
+is yet level with no orders. `hold_quiet` is at 21 updates (station matches are long); its
+first windows sit near `hold_late`'s 0.87, which the launch prior alone may explain. The
+morning's update-0 cell tells the two apart.
+
 ## In the morning
 
 - **`hold`, `hold_quiet`**: the station-commander eval (`../2026-11-19-station-commander/eval.sh`, defender

@@ -172,6 +172,25 @@ DEADLINE="2026-11-21 11:30" nohup setsid lab/runs/2026-11-21-orderable-pilots/ru
     > lab/runs/2026-11-21-orderable-pilots/run_beast.out 2>&1 &
 ```
 
+## Midway, at 06:10
+
+Both arms are at update 670, about 10 s an update, so about 2,500 by 11:30. The periodic
+eval at update 500, at the quick sizes (64 drills a kind, ± about 0.1):
+
+| | `kitedock` 500 | `dockkite` 500 |
+|---|---|---|
+| Calm dock drills: docked | 0.02 | 0.53 |
+| Under fire: docked | 0.09 | 0.25 |
+| Attack drills: target hit | 0.91 | 0.93 |
+| Go-to drills: arrived | 0.87 | 0.84 |
+| Carrier battle: recalls that end in a dock | 0.03 | 0.04 |
+
+`dockkite` kept its parent's docking while it trains kite drills. `kitedock` has not
+started to dock yet: 0.05 of calm drills in training over updates 500 to 670. The first
+dock runs were slow too. `dock600` docked 0.12 to 0.15 of calm drills from update 500 to
+1,750 and only then climbed to 0.51, and `dock352` passed 0.15 near update 1,000. So
+this is not yet a verdict.
+
 ## Smoke (laptop, 2026-11-21)
 
 `SMOKE=1 DATA_ROOT=/home/timg/code/rl-fighter PY=/home/timg/code/rl-fighter/.venv/bin/python
