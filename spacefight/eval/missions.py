@@ -83,13 +83,28 @@ def default_rosters(mission: str) -> list[tuple[str, Roster]]:
     rosters = rlf_sim.mission_rosters(mission)
     if mission == STATION_ASSAULT and int(rlf_sim.SIM_VERSION) >= 10:
         rosters = [r for r in rosters if r["name"] == CITADEL_ROSTER]
-    return [
-        (
-            str(r["name"]),
-            Roster.of(r["fleets"][0], r["fleets"][1], mission=str(r["mission"])),
-        )
-        for r in rosters
-    ]
+    return [_named_roster(r) for r in rosters]
+
+
+def named_roster(mission: str, name: str) -> tuple[str, Roster]:
+    """``(name, roster)`` of the sim's roster ``name`` of ``mission``, live or not.
+
+    Raises:
+        ValueError: ``mission`` has no roster of that name.
+    """
+    rosters = rlf_sim.mission_rosters(mission)
+    for r in rosters:
+        if r["name"] == name:
+            return _named_roster(r)
+    names = ", ".join(repr(str(r["name"])) for r in rosters)
+    raise ValueError(f"{mission} has no roster {name!r}; it has {names}")
+
+
+def _named_roster(r: dict[str, Any]) -> tuple[str, Roster]:
+    return (
+        str(r["name"]),
+        Roster.of(r["fleets"][0], r["fleets"][1], mission=str(r["mission"])),
+    )
 
 
 @dataclass(frozen=True)

@@ -351,6 +351,36 @@ default none): a commander checkpoint the actor starts from instead of a fresh n
 critic starts fresh). `pilot_root` names the checkout holding the pilots' weights, for a
 run from a worktree. First used by `lab/runs/2026-11-19-station-commander`.
 
+**Settings for one-sided and narrowed runs** (2026-11-21; each defaults to the old
+behaviour):
+
+- `launch_prior` (default 0, off): after any `init` load (or on a fresh net), the launch
+  head restarts with small weights and biases such that each hull class launches with
+  this probability per decision (`policy.lean_to_hold`: hold's bias is
+  log((1 − p)/p) above launch's; the head's six outputs read as `[hull, hold|launch]`).
+  A head near even odds empties the hangar in about 4 s, so a learner never tries
+  holding a reserve, which the hand rules found worth +0.14 to +0.19 to the station
+  defender (`lab/runs/2026-11-19-station-rules`). At 0.03 a hull class launches about
+  once per 33 decisions (about 33 s).
+- `learner_team` (default −1, either side, drawn per match): 0 or 1 pins the learner to
+  that team in every match (a station assault's team 0 defends). The draw is still made
+  and discarded, so a pinned run's other draws are an unpinned run's. A pinned learner
+  must have self and snapshot shares of 0: self-play would train it on the other side
+  too, and its snapshots never played that side.
+- `station_roster` (default "", the live default: `spacefight.eval.missions.
+  default_rosters`, the citadel from SIM_VERSION 10): a roster name from
+  `rlf_sim.mission_rosters("station_assault")`, for example "strike of 8" (7 against 9
+  ships, one carrier attacking) or "citadel" (8 against 11: the citadel, and a carrier
+  and a dreadnought attacking). An unknown name raises `ValueError` at config time.
+- `forbid_orders` (default none): order kinds ("none", "attack", "defend", "goto") the
+  learner never picks (`policy.forbid_orders`, after any `init` load). Each one's weight
+  row in the order head is zeroed and −30 added to its bias, so it has about 1e-13 of
+  the probability in every state. It is only weights, so eval and the browser export
+  need nothing new, and snapshots (and so self-play enemies) inherit it. Training does
+  not undo it: a choice never sampled gets a gradient of about its probability, which
+  Adam (epsilon 1e-8) turns into steps of about 1e-9, so a bias rather than a mask in the
+  trainer is enough (`tests/test_commander_policy.py` runs PPO-like updates against it).
+
 **The pilots a commander trains over** (`TrainConfig.live_pilots`, default the live
 list): a file of the same schema naming other pilots, for example only those that follow
 orders (`lab/runs/2026-11-15-commander-3/pilots_followers.json`). The critic has one

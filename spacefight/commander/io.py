@@ -38,6 +38,7 @@ GOTO_POINT: Final = slice(36, 40)
 # Choices of the order head.
 ORDER_KEEP, ORDER_NONE, ORDER_ATTACK, ORDER_DEFEND, ORDER_GOTO = range(5)
 N_ORDER_CHOICES: Final = 5
+ORDER_NAMES: Final = ("keep", "none", "attack", "defend", "goto")
 N_SQUAD_CHOICES: Final = 2 + N_SQUADS  # keep, no squad, squad 1-4
 N_WAYPOINT_CHOICES: Final = 1 + N_POINTS
 
