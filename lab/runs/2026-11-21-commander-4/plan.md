@@ -1,6 +1,6 @@
 # Commander 4: three ways a commander might help its side
 
-Started 2026-11-21 at 03:23 (`hold` at 03:40) on the laptop; the trainers stop at 10:30. `SIM_VERSION` 11.
+Started 2026-11-21 at 03:23 (`hold` at 03:40) on the laptop; the trainers stop at 10:30. `SIM_VERSION` 11. The hold arms changed in the night: see "A change at 05:11", "07:55" and "08:25" below.
 
 ## Why
 
@@ -129,6 +129,42 @@ The `hold` and `hold_quiet` trainers were stopped at 07:55. More of the same wou
 lose ground and slow `kite` and `noattack`. `eval_hold_curve.sh` plays checkpoints along
 all three curves on the preflight's seeds (512 matches a cell, paired with the no-orders
 and `hold_late` cells), to measure the slide outside training and the launch times behind it.
+
+## 08:25: the hold runs learned to launch everything at once
+
+`eval_hold_curve.sh` played the checkpoints on the preflight's 512 seeds. Attacker wins,
+lower is better for the defender (± 1.96 standard errors):
+
+| Defender | Attacker wins | First launch, median (quartiles) | Hangar empty, median |
+|---|---|---|---|
+| No orders (the script's launches) | 0.322 ± 0.041 | 3 s | 7 s |
+| `hold_late` (hand rule) | **0.133** ± 0.029 | 57 s (49–67) | 59 s |
+| `hold_reserve` (hand rule) | 0.275 ± 0.039 | 19 s (15–33) | 25 s |
+| `hold_quiet` update 0 (the start) | **0.158** ± 0.032 | 9 s (5–17) | 76 s |
+| `hold_quiet` 10 | 0.191 ± 0.034 | 5 s (3–8) | 36 s |
+| `hold_quiet` 30 | 0.283 ± 0.039 | 2 s | 15 s |
+| `hold_quiet` 57 | 0.404 ± 0.043 | 2 s | 5 s |
+| `hold` update 0 | 0.162 ± 0.032 | 9 s (5–17) | 76 s |
+| `hold`, second run, 10 | 0.191 ± 0.034 | 4 s (3–7) | 32 s |
+| `hold`, second run, 56 | 0.422 ± 0.043 | 2 s | 7 s |
+| `hold`, first run, 68 | 0.383 ± 0.042 | 2 s | 9 s |
+
+The launch prior alone was nearly as good as `hold_late`. It holds part of the reserve
+for over a minute, though its first launch comes at 9 s, not 57. Every run then trained it
+away, toward launching the whole hangar at 2 s. By the end each was worse than no orders:
+0.40 against 0.32, so the defender wins less than it would with the script's launches.
+Three runs moving the same way is not noise but a steady push.
+
+**The guess, and the test.** The launch head's entropy bonus (`ent_coef` 0.002) is counted
+at every decision for every hull class. Most of those decisions come with that class's
+hangar empty, where a launch does nothing. There the bonus pushes the launch odds toward
+even, and no outcome ever pushes back. The net shares weights across states, so the
+odds rise where the hangar is full too. Launch-head entropy *fell* in the logs because the
+hangar emptied sooner, leaving more decisions with only one choice. **`hold_ent0`**
+(`run_hold_ent0.sh`, its own launcher) started at 08:30: `hold_quiet` with `ent_coef` 0,
+the only change, until 10:30. If it keeps its launch times where `hold_quiet` lost them by
+update 30, the bonus did it. The lasting fix would then be in the trainer: no entropy, and
+no gradient at all, for a launch choice that cannot launch.
 
 ## In the morning
 
