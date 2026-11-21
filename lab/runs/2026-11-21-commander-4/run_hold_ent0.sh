@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # hold_ent0 (plan.md, "08:30"): hold_quiet exactly, with no entropy bonus (ent_coef 0).
-# A test of one guess: the launch head's entropy counts at every decision, most of them
-# with an empty hangar where a launch does nothing, so the bonus raises launch odds with
-# nothing to push back, and the head learns to launch everything at 2 s.
+# A test of one guess: holding a reserve means choosing "hold" at every decision the
+# reserve could launch, and the entropy bonus pushes each toward even odds, while the only
+# push back is a win or loss a minute later; so the head learns to launch everything at 2 s.
 # Its own launcher, so run.sh (still running kite and noattack) is never edited while it runs.
 #
 #   DEADLINE="2026-11-21 10:30" nohup setsid lab/runs/2026-11-21-commander-4/run_hold_ent0.sh \

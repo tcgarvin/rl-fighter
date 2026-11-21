@@ -155,22 +155,25 @@ away, toward launching the whole hangar at 2 s. By the end each was worse than n
 0.40 against 0.32, so the defender wins less than it would with the script's launches.
 Three runs moving the same way is not noise but a steady push.
 
-**The guess, and the test.** The launch head's entropy bonus (`ent_coef` 0.002) is counted
-at every decision for every hull class. Most of those decisions come with that class's
-hangar empty, where a launch does nothing. There the bonus pushes the launch odds toward
-even, and no outcome ever pushes back. The net shares weights across states, so the
-odds rise where the hangar is full too. Launch-head entropy *fell* in the logs because the
-hangar emptied sooner, leaving more decisions with only one choice. **`hold_ent0`**
-(`run_hold_ent0.sh`, its own launcher) started at 08:30: `hold_quiet` with `ent_coef` 0,
-the only change, until 10:30. If it keeps its launch times where `hold_quiet` lost them by
-update 30, the bonus did it. The lasting fix would then be in the trainer: no entropy, and
-no gradient at all, for a launch choice that cannot launch.
+**The guess, and the test.** The launch head carries an entropy bonus (`ent_coef` 0.002)
+at every decision where that hull class can launch. When no reserve can launch, the mask
+closes the choice and the bonus does not count. Holding a reserve for a minute means
+choosing "hold" at every one of the many decisions in that minute, and the bonus pushes
+each of them toward even odds. Launching ends those decisions, because the mask closes. So
+the bonus presses hardest on exactly the behaviour that wins. Against that, the only signal
+is a win or a loss a minute later, shared by every decision in the match, with about 25
+station matches an update. Launch-head entropy *fell* in the logs because the hangar
+emptied sooner, which leaves more decisions with nothing to choose. **`hold_ent0`**
+(`run_hold_ent0.sh`, its own launcher) started at 08:30: `hold_quiet` with `ent_coef` 0, the
+only change, until 10:30. If it keeps its launch times where `hold_quiet` had lost them by
+update 30, the bonus did it. If it slides too, the weak signal is the problem, and the
+choice needs fewer, larger decisions (for instance, a hold time chosen once per hull class)
+or many more matches an update.
 
 ## In the morning
 
-- **`hold`, `hold_quiet`**: the station-commander eval (`../2026-11-19-station-commander/eval.sh`, defender
-  cells) for the final checkpoint, update 0 and `hold_late`, with first-launch time and the
-  hull at first launch; `eval.sh` here plays them on the preflight's seeds.
+- **`hold`, `hold_quiet`**: done at 08:25 (above, `eval_hold_curve.sh`). **`hold_ent0`**:
+  the same cells for its checkpoints at 10, 30 and its last, on the same seeds.
 - **`kite`, `noattack`**: `spacefight.commander.eval` against `unseen`, 384 a mission, over
   their own pilots and the live ten, with the order kinds by hull.
 - The measures go into results.md. A commander that beats unseen goes into the live stable
