@@ -1,0 +1,41 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "followers_dock_2624",
+ "family": "followers",
+ "founder": "transit_300",
+ "parent": "followers_school_600",
+ "relation": "fork",
+ "fork_update": 600,
+ "settings_changed": {
+  "sim_version": 11,
+  "obs_dim": 592,
+  "dock_bonus": 1.0,
+  "drill_share": 0.55,
+  "drill_dock_share": 0.5,
+  "drill_dock_threat_share": 0.5
+ },
+ "checkpoint": "lab/runs/2026-11-20-dock-pilot/dock600/checkpoints/ppo_bc_2624.pt",
+ "sha256": "3309950dc907d1fe784f49f32a533915266aa064795fb40c970bf11471f274f1",
+ "status": "active",
+ "archived_reason": "",
+ "archived_date": "",
+ "note": "Dock pilot night: followers_school_600 taught to answer a recall home, half its drills dock drills; docks 57 calm drills in 100 where its parent docked 2.",
+ "ratings": [],
+ "drills": [
+  {
+   "phase": "dock-pilot",
+   "date": "2026-11-21",
+   "scores": {
+    "goto_arrival": 0.7862068965517242,
+    "goto_lift": 0.6488023163990524,
+    "attack_target_hit": 0.953125,
+    "attack_side": 0.9296875,
+    "attack_flip": 0.859375,
+    "defend_more_on_named": 0.828125,
+    "defend_side": 0.9296875,
+    "defend_flip": 0.859375
+   },
+   "passed": false
+  }
+ ]
+}

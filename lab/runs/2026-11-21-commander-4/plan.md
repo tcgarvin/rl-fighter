@@ -21,7 +21,13 @@ Three phases have not found one:
   one pilot: `kite` 2205 loses 0.09 to 0.15 when ordered, where its parent lost 0.37.
 
 A design review of these results (with Fable, a second model) suggested two of tonight's
-arms; the third pairs the commander with the pilots the kite drills made.
+arms; the third pairs the commander with the pilots the kite drills made. On Beast,
+[orderable pilots](../2026-11-21-orderable-pilots/plan.md) trains the pilot half of the
+loop the same night: one pilot that both takes an attack order cheaply and answers a
+recall. The owner also suggested training a commander and its pilots together; the
+review argued against it for now (the [pairing grid](../2026-11-19-pairing/results.md)
+found no commander-pilot interaction beyond orders hurting followers, and the pilot
+trainer only plays frozen commanders), until some order is worth giving.
 
 ## Three arms, one learner each
 

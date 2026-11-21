@@ -1,7 +1,9 @@
 # Orderable pilots: one pilot that follows an attack order and answers a recall (plan)
 
-Prepared 2026-11-21 on the laptop. Nothing here is launched by this plan: another agent
-starts `run.sh` on Beast later.
+Prepared 2026-11-21 on the laptop. Started on Beast at 04:22, about 8.5 s an update an
+arm; training stops at 11:30, then the final evals and report.md (about 13:00). It runs
+beside [commander 4](../2026-11-21-commander-4/plan.md): pilots that can take orders, and
+commanders that might make orders worth giving.
 
 ## Question
 
@@ -166,7 +168,7 @@ ready about 8 hours in. WAR is about an hour at 12 threads.
   `~/.cache/rl-fighter/weights` (already there).
 
 ```bash
-DEADLINE="<now + 6.5 h>" nohup setsid lab/runs/2026-11-21-orderable-pilots/run.sh \
+DEADLINE="2026-11-21 11:30" nohup setsid lab/runs/2026-11-21-orderable-pilots/run.sh \
     > lab/runs/2026-11-21-orderable-pilots/run_beast.out 2>&1 &
 ```
 
