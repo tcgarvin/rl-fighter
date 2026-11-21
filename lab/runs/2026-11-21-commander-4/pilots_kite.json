@@ -1,0 +1,8 @@
+{
+ "schema": "rlf.live_pilots/1",
+ "note": "Not a live list: the two pilots an attack order costs least on 2026-11-21 (lab/runs/2026-11-18-kite-drills), for commander training and evals (TrainConfig.live_pilots, spacefight.commander.eval --pilots).",
+ "pilots": [
+  {"id": "kite_2205", "checkpoint": "lab/runs/2026-11-18-kite-drills/kite/checkpoints/ppo_bc_2205.pt"},
+  {"id": "kite_pay025_2211", "checkpoint": "lab/runs/2026-11-18-kite-drills/kite_pay025/checkpoints/ppo_bc_2211.pt"}
+ ]
+}
