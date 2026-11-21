@@ -76,6 +76,7 @@ MISSION_SHORT: Final[dict[str, str]] = {
     "deathmatch": "DM",
     "carrier_battle": "Carrier",
     "convoy_escort": "Convoy",
+    "station_assault": "Station",
 }
 
 

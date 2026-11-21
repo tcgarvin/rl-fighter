@@ -48,6 +48,7 @@ from spacefight.env.rosters import (
     CARRIER_BATTLE,
     CONVOY_ESCORT,
     SCRIPTED,
+    STATION_ASSAULT,
     STATION_AS_CARRIER,
     STATION_READS_AS,
     Roster,
@@ -66,19 +67,27 @@ SCHEMA = "rlf.eval.mission/1"
 TICK_HZ = 30
 STALEMATE_S = 30.0
 DEFAULT_SEED = 300_000
-DEFAULT_MISSIONS: tuple[str, ...] = (CARRIER_BATTLE, CONVOY_ESCORT)
+DEFAULT_MISSIONS: tuple[str, ...] = (CARRIER_BATTLE, CONVOY_ESCORT, STATION_ASSAULT)
 END_REASONS: tuple[str, ...] = tuple(rlf_sim.END_REASONS)
 TIME_LIMIT_CODE = END_REASONS.index("time_limit")
 
 
+# From SIM_VERSION 10 the live page's station assault is always the citadel roster; the
+# v9 station roster stays in the sim only for v9 replays.
+CITADEL_ROSTER = "citadel"
+
+
 def default_rosters(mission: str) -> list[tuple[str, Roster]]:
-    """``(name, roster)`` of the sim's live default rosters of ``mission``."""
+    """``(name, roster)`` of the live rosters of ``mission``, as the live page plays them."""
+    rosters = rlf_sim.mission_rosters(mission)
+    if mission == STATION_ASSAULT and int(rlf_sim.SIM_VERSION) >= 10:
+        rosters = [r for r in rosters if r["name"] == CITADEL_ROSTER]
     return [
         (
             str(r["name"]),
             Roster.of(r["fleets"][0], r["fleets"][1], mission=str(r["mission"])),
         )
-        for r in rlf_sim.mission_rosters(mission)
+        for r in rosters
     ]
 
 

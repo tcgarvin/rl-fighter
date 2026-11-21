@@ -35,8 +35,9 @@ from spacefight.commander.eval import (
     named_mission_rosters,
     play_matches,
 )
-from spacefight.commander.train import LEARNED, MISSIONS
-from spacefight.env.rosters import RANDOM, SCRIPTED, hull_names_by_id
+from spacefight.commander.train import LEARNED
+# Every live mission, the station assault included, as the live page rotates them.
+from spacefight.env.rosters import MISSIONS, RANDOM, SCRIPTED, hull_names_by_id
 from spacefight.population.records import (
     SCRIPT_ID,
     Population,
