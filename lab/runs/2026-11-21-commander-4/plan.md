@@ -35,7 +35,7 @@ trainer only plays frozen commanders), until some order is worth giving.
 |---|---|---|---|
 | `hold` | Station assault only, always the defender, the citadel. Starts from commander 3's `live` 197 (already quiet), its launch head reset to launch each hull on 3% of decisions, so holding the reserve is what it tries first. Longer credit (γ 0.997, λ 0.98), no shaping. | the live ten | 3/4 unseen, 1/4 scripted |
 | `kite` | A fresh commander over the two kite pilots, all four missions. | `kite_2205`, `kite_pay025_2211` | 1/2 unseen, the rest itself and its snapshots |
-| `noattack` | A fresh commander that cannot give an attack order (a fixed −30 on that choice), all four missions. What is left is go-to, defend and dock, and which hull gets which. | commander 3's four followers | 1/2 unseen, the rest itself and its snapshots |
+| `noattack` | A fresh commander that cannot give an attack order (a fixed −30 on that choice), all four missions. What is left is go-to, defend and no order, and which hull gets which. | commander 3's four followers | 1/2 unseen, the rest itself and its snapshots |
 
 "Unseen" is the scripted commander with its orders hidden from its own pilots: the side
 with no orders. A commander that gives no orders scores about 0.50 against it.

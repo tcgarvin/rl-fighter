@@ -1,0 +1,152 @@
+{
+ "schema": "rlf.eval.commander/1",
+ "a": "scripted",
+ "b": "unseen",
+ "seed": 20261107,
+ "pilots": [
+  "kite_2205",
+  "kite_pay025_2211"
+ ],
+ "missions": {
+  "deathmatch": {
+   "n": 384,
+   "score_a": 0.41796875,
+   "draw_rate": 0.0026041666666666665,
+   "a_on_team0": 0.3619791666666667,
+   "a_on_team1": 0.4739583333333333,
+   "end_reasons": {
+    "1": 381,
+    "2": 3
+   },
+   "orders_a": {
+    "orders_given": 2436,
+    "orders_ended": 1412,
+    "orders_per_ship_min": 5.029397798204593,
+    "ordered_share": 0.99650162760342,
+    "order_seconds_median": 10.0,
+    "order_seconds_mean": 11.757790368271955,
+    "orders_under_5s": 0.2847025495750708
+   },
+   "orders_b": {
+    "orders_given": 2871,
+    "orders_ended": 1847,
+    "orders_per_ship_min": 5.621426644505031,
+    "ordered_share": 0.996605040334862,
+    "order_seconds_median": 8.0,
+    "order_seconds_mean": 10.50243638332431,
+    "orders_under_5s": 0.25284244721169463
+   },
+   "secs": 204.6
+  },
+  "carrier_battle": {
+   "n": 384,
+   "score_a": 0.2708333333333333,
+   "draw_rate": 0.0,
+   "a_on_team0": 0.3697916666666667,
+   "a_on_team1": 0.171875,
+   "end_reasons": {
+    "3": 384
+   },
+   "orders_a": {
+    "orders_given": 5434,
+    "orders_ended": 3612,
+    "orders_per_ship_min": 3.505022532594748,
+    "ordered_share": 0.8845000258006691,
+    "order_seconds_median": 8.0,
+    "order_seconds_mean": 13.140642303433001,
+    "orders_under_5s": 0.24833887043189368
+   },
+   "orders_b": {
+    "orders_given": 5957,
+    "orders_ended": 3651,
+    "orders_per_ship_min": 3.493372672029573,
+    "ordered_share": 0.9163908266469335,
+    "order_seconds_median": 8.0,
+    "order_seconds_mean": 10.94987674609696,
+    "orders_under_5s": 0.3319638455217749
+   },
+   "secs": 955.7
+  },
+  "convoy_escort": {
+   "n": 384,
+   "score_a": 0.4348958333333333,
+   "draw_rate": 0.0,
+   "a_on_team0": 0.2916666666666667,
+   "a_on_team1": 0.578125,
+   "end_reasons": {
+    "1": 136,
+    "4": 1,
+    "5": 247
+   },
+   "orders_a": {
+    "orders_given": 4574,
+    "orders_ended": 2654,
+    "orders_per_ship_min": 5.22325328515172,
+    "ordered_share": 0.9699275309451053,
+    "order_seconds_median": 12.0,
+    "order_seconds_mean": 11.522230595327807,
+    "orders_under_5s": 0.20007535795026377
+   },
+   "orders_b": {
+    "orders_given": 4661,
+    "orders_ended": 2741,
+    "orders_per_ship_min": 4.673704687241518,
+    "ordered_share": 0.9735308257390783,
+    "order_seconds_median": 14.0,
+    "order_seconds_mean": 12.977015687705217,
+    "orders_under_5s": 0.16818679314118934
+   },
+   "secs": 386.5
+  },
+  "station_assault": {
+   "n": 384,
+   "score_a": 0.3619791666666667,
+   "draw_rate": 0.0,
+   "a_on_team0": 0.5729166666666666,
+   "a_on_team1": 0.15104166666666666,
+   "end_reasons": {
+    "2": 144,
+    "6": 111,
+    "7": 129
+   },
+   "orders_a": {
+    "orders_given": 8232,
+    "orders_ended": 5589,
+    "orders_per_ship_min": 3.733216699705047,
+    "ordered_share": 0.903212396488512,
+    "order_seconds_median": 6.0,
+    "order_seconds_mean": 10.366434066917158,
+    "orders_under_5s": 0.3469314725353373
+   },
+   "orders_b": {
+    "orders_given": 7719,
+    "orders_ended": 5240,
+    "orders_per_ship_min": 3.203170387584058,
+    "ordered_share": 0.8633584160972385,
+    "order_seconds_median": 6.0,
+    "order_seconds_mean": 12.988549618320612,
+    "orders_under_5s": 0.2933206106870229
+   },
+   "secs": 809.4
+  }
+ },
+ "score_a": 0.3714192708333333,
+ "orders_a": {
+  "orders_given": 20676,
+  "orders_ended": 13267,
+  "orders_per_ship_min": 4.041859541232264,
+  "ordered_share": 0.9177949532360554,
+  "order_seconds_median": 8.0,
+  "order_seconds_mean": 11.501017562372805,
+  "orders_under_5s": 0.28408833948895756
+ },
+ "orders_b": {
+  "orders_given": 21208,
+  "orders_ended": 13479,
+  "orders_per_ship_min": 3.7716286667253365,
+  "ordered_share": 0.9110831112063587,
+  "order_seconds_median": 8.0,
+  "order_seconds_mean": 12.093330365754136,
+  "orders_under_5s": 0.27279471770902886
+ }
+}

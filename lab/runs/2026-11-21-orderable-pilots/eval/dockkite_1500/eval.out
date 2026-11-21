@@ -1,0 +1,55 @@
+08:46:01 lab/runs/2026-11-21-orderable-pilots/eval/dockkite_1500/drills.json
+  45 s
+08:46:46 lab/runs/2026-11-21-orderable-pilots/eval/dockkite_1500/dockm_carrier.json
+  47 s
+08:47:33 lab/runs/2026-11-21-orderable-pilots/eval/dockkite_1500/dockm_station.json
+  54 s
+08:48:27 done: lab/runs/2026-11-21-orderable-pilots/eval/dockkite_1500
+# lab/runs/2026-11-21-orderable-pilots/eval/dockkite_1500
+
+| Measure | Value (± 95%) |
+|---|---|
+| calm dock drills: docked | 0.48 ± 0.12 |
+| calm dock drills: lift over the order hidden | 0.42 ± 0.14 |
+| calm dock drills: shot down | 0.06 ± 0.06 |
+| threat dock drills: docked | 0.33 ± 0.12 |
+| threat dock drills: docked of survivors | 0.50 ± 0.15 |
+| threat dock drills: shot down | 0.34 ± 0.12 |
+| carrier battle: recall completion | 0.03 ± 0.02 |
+| station assault: recall completion | 0.05 ± 0.02 |
+| order drills: goto_arrival | 0.85 ± 0.06 |
+| order drills: goto_lift | 0.73 ± 0.08 |
+| order drills: attack_target_hit | 0.95 ± 0.04 |
+| order drills: attack_side | 0.95 ± 0.04 |
+| order drills: attack_flip | 0.91 ± 0.07 |
+| order drills: defend_more_on_named | 0.88 ± 0.06 |
+| order drills: defend_side | 0.86 ± 0.06 |
+| order drills: defend_flip | 0.73 ± 0.11 |
+| order cost v free followers_school_1052: none | - |
+| order cost v free followers_school_1052: nearest | - |
+| order cost v free followers_school_1052: scripted | - |
+| order cost v free followers_school_1052: cost (nearest − none, paired) | - |
+| order cost v free followers_school_1052: nearest, target in arc | - |
+| order cost v free followers_school_1052: nearest, ships lost a match | - |
+| order cost v free followers_school_1052: nearest, dealt to target | - |
+| order cost v free followers_school_1052: nearest, taken from target | - |
+| order cost v free f995_701: none | - |
+| order cost v free f995_701: nearest | - |
+| order cost v free f995_701: scripted | - |
+| order cost v free f995_701: cost (nearest − none, paired) | - |
+| order cost v free f995_701: nearest, target in arc | - |
+| order cost v free f995_701: nearest, ships lost a match | - |
+| order cost v free f995_701: nearest, dealt to target | - |
+| order cost v free f995_701: nearest, taken from target | - |
+| vs script: carrier_battle | - |
+| vs script: convoy_escort | - |
+| vs script: station_assault | - |
+| vs script: fleet_v1, all | - |
+| vs script: fleet 1v1 | - |
+| vs script: fleet 2v2 | - |
+| vs script: fleet 3v3 | - |
+| vs script: fleet 4v4 | - |
+
+carrier: recalls a match 5.01, docked a match 0.16, of survivors 0.11, failures {'never close': 55, 'overshoot': 9, 'too fast': 2}
+
+station: recalls a match 5.36, docked a match 0.26, of survivors 0.29, failures {'never close': 21, 'overshoot': 11, 'too fast': 9, 'circling': 6}

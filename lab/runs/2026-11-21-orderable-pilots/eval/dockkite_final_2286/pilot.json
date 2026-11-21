@@ -1,0 +1,9 @@
+{
+ "schema": "rlf.live_pilots/1",
+ "pilots": [
+  {
+   "id": "dockkite_final_2286",
+   "checkpoint": "/home/timg/code/rl-fighter/lab/runs/2026-11-21-orderable-pilots/dockkite/checkpoints/ppo_bc_2286.pt"
+  }
+ ]
+}

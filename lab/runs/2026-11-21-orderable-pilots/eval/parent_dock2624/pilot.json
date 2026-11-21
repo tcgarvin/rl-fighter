@@ -1,0 +1,9 @@
+{
+ "schema": "rlf.live_pilots/1",
+ "pilots": [
+  {
+   "id": "parent_dock2624",
+   "checkpoint": "/home/timg/code/rl-fighter/lab/runs/2026-11-20-dock-pilot/dock600/checkpoints/ppo_bc_2624.pt"
+  }
+ ]
+}

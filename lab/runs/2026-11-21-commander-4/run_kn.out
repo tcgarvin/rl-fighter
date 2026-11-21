@@ -1,2 +1,5 @@
 03:22:54 kite pid 896415
 03:22:54 noattack pid 896420
+10:30:23 done: commanders (status 0)
+10:30:23 noattack pid 1248670
+lab/runs/2026-11-21-commander-4/run.sh: line 103: syntax error near unexpected token `done'

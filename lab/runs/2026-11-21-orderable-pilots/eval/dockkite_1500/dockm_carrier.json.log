@@ -1,0 +1,163 @@
+{
+ "schema": "rlf.lab.dock/1",
+ "sim_version": 11,
+ "mission": "carrier_battle",
+ "docking": true,
+ "n": 96,
+ "seed": 1100000,
+ "rosters": [
+  [
+   [
+    "carrier",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship"
+   ],
+   [
+    "carrier",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship"
+   ]
+  ],
+  [
+   [
+    "carrier",
+    "fighter",
+    "fighter",
+    "strafer",
+    "fighter",
+    "strafer",
+    "gunship"
+   ],
+   [
+    "carrier",
+    "fighter",
+    "fighter",
+    "strafer",
+    "fighter",
+    "strafer",
+    "gunship"
+   ]
+  ],
+  [
+   [
+    "carrier",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship",
+    "fighter"
+   ],
+   [
+    "carrier",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship",
+    "fighter"
+   ]
+  ]
+ ],
+ "pilots": "lab/runs/2026-11-21-orderable-pilots/eval/dockkite_1500/pilot.json",
+ "team1_win_rate": 0.3854166666666667,
+ "team1_win_ci95": 0.09787007103345523,
+ "end_reasons": {
+  "time_limit": 0.010416666666666666,
+  "carrier_destroyed": 0.9895833333333334
+ },
+ "length_median_s": 72.31666666666666,
+ "length_p90_s": 120.11666666666667,
+ "dock": {
+  "recalls": 481,
+  "recalls_per_match": 5.010416666666667,
+  "docked": 15,
+  "docked_per_match": 0.15625,
+  "completion": 0.031185031185031187,
+  "completion_of_survivors": 0.10638297872340426,
+  "seconds_to_dock": {
+   "p25": 0.0,
+   "p50": 19.033333333333335,
+   "p75": 58.28333333333333
+  },
+  "metres_at_order": {
+   "p25": 134.52520370483398,
+   "p50": 227.00347137451172,
+   "p75": 363.6860580444336
+  },
+  "outcomes": {
+   "killed en route": 340,
+   "match ended": 66,
+   "carrier lost": 60,
+   "docked": 15
+  },
+  "failure_modes": {
+   "never close": 55,
+   "overshoot": 9,
+   "too fast": 2
+  },
+  "failed_closest_m": {
+   "p25": 44.25662612915039,
+   "p50": 81.33868408203125,
+   "p75": 143.5300407409668
+  },
+  "came_near": 71,
+  "came_near_docked": 15,
+  "inside_not_docked": 13,
+  "inside_not_docked_slowest_rel": {
+   "p25": 25.270673751831055,
+   "p50": 28.370391845703125,
+   "p75": 31.124757766723633
+  },
+  "killed_seconds_after_order": {
+   "p25": 3.125,
+   "p50": 9.616666666666667,
+   "p75": 20.875
+  },
+  "killed_metres_closed": {
+   "p25": 4.702044486999512,
+   "p50": 59.84921836853027,
+   "p75": 158.3031768798828
+  },
+  "failed_rel_speed_at_closest": {
+   "p25": 19.505836486816406,
+   "p50": 31.186161041259766,
+   "p75": 45.451555252075195
+  },
+  "relaunches": 11,
+  "relaunches_per_match": 0.11458333333333333,
+  "repaired_full": 0,
+  "hull_restored_per_match": 0.04553844671075543,
+  "by_pilot": {
+   "dockkite_1500": {
+    "recalls": 481,
+    "docked": 15,
+    "completion": 0.031185031185031187,
+    "completion_of_survivors": 0.10638297872340426,
+    "failure_modes": {
+     "never close": 55,
+     "overshoot": 9,
+     "too fast": 2
+    }
+   }
+  }
+ }
+}

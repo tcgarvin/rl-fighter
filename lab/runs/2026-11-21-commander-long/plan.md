@@ -44,6 +44,20 @@ Above that, its decisions help its side. The curve, not an endpoint, is the resu
 checkpoint above 0.50 goes into the live stable as a pilot joins the season: measured,
 not gated.
 
+## So far (2026-11-21, about 140 updates an hour)
+
+`eval/unseen_<update>.json`, 768 matches each, about ±0.035. The start, `live` 197, scored
+0.460 over the live ten in commander 4's eval (1,536 matches,
+[results](../2026-11-21-commander-4/results.md)).
+
+| Update | 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 |
+|---|---|---|---|---|---|---|---|---|
+| Wins against unseen | 0.43 | 0.48 | 0.46 | 0.42 | 0.44 | 0.45 | 0.48 | 0.45 |
+| Time under an order | 8% | 2% | 2% | 3% | 2% | 0.5% | 0.6% | 5% |
+
+Flat so far, within noise of its start, and still giving few orders. That is expected
+after six hours; the plan is days.
+
 ## With the pilots
 
 The pilot half of the loop keeps running on Beast's GPUs:

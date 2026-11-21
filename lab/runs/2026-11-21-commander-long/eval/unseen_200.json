@@ -1,0 +1,159 @@
+{
+ "schema": "rlf.eval.commander/1",
+ "a": "learner/commander_200",
+ "b": "unseen",
+ "seed": 20261107,
+ "pilots": [
+  "fighters_pay1_1317",
+  "followers_pay3_810",
+  "fighters_pay1_v8_351",
+  "f995_400",
+  "f99_696",
+  "fighters_pay1_462",
+  "followers_v8_352",
+  "f995_701",
+  "followers_school_600",
+  "followers_dock_v8_2676"
+ ],
+ "missions": {
+  "deathmatch": {
+   "n": 192,
+   "score_a": 0.4791666666666667,
+   "draw_rate": 0.0,
+   "a_on_team0": 0.5208333333333334,
+   "a_on_team1": 0.4375,
+   "end_reasons": {
+    "1": 192
+   },
+   "orders_a": {
+    "orders_given": 91,
+    "orders_ended": 62,
+    "orders_per_ship_min": 0.43605347644832254,
+    "ordered_share": 0.037998945804782816,
+    "order_seconds_median": 6.0,
+    "order_seconds_mean": 5.983870967741935,
+    "orders_under_5s": 0.06451612903225806
+   },
+   "orders_b": {
+    "orders_given": 1299,
+    "orders_ended": 787,
+    "orders_per_ship_min": 6.233221990888243,
+    "ordered_share": 0.9959346234128371,
+    "order_seconds_median": 8.0,
+    "order_seconds_mean": 9.430749682337993,
+    "orders_under_5s": 0.29860228716645487
+   },
+   "secs": 37.5
+  },
+  "carrier_battle": {
+   "n": 192,
+   "score_a": 0.421875,
+   "draw_rate": 0.0,
+   "a_on_team0": 0.4166666666666667,
+   "a_on_team1": 0.4270833333333333,
+   "end_reasons": {
+    "3": 192
+   },
+   "orders_a": {
+    "orders_given": 228,
+    "orders_ended": 184,
+    "orders_per_ship_min": 0.27785206273336527,
+    "ordered_share": 0.023980989069391324,
+    "order_seconds_median": 5.0,
+    "order_seconds_mean": 5.7228260869565215,
+    "orders_under_5s": 0.05434782608695652
+   },
+   "orders_b": {
+    "orders_given": 2749,
+    "orders_ended": 1798,
+    "orders_per_ship_min": 4.109957689413495,
+    "ordered_share": 0.8745467019504253,
+    "order_seconds_median": 8.0,
+    "order_seconds_mean": 10.00222469410456,
+    "orders_under_5s": 0.3003337041156841
+   },
+   "secs": 139.2
+  },
+  "convoy_escort": {
+   "n": 192,
+   "score_a": 0.5208333333333334,
+   "draw_rate": 0.0,
+   "a_on_team0": 0.4479166666666667,
+   "a_on_team1": 0.59375,
+   "end_reasons": {
+    "1": 80,
+    "4": 2,
+    "5": 110
+   },
+   "orders_a": {
+    "orders_given": 86,
+    "orders_ended": 64,
+    "orders_per_ship_min": 0.18397777054121298,
+    "ordered_share": 0.018735307330824704,
+    "order_seconds_median": 6.0,
+    "order_seconds_mean": 6.5,
+    "orders_under_5s": 0.140625
+   },
+   "orders_b": {
+    "orders_given": 2250,
+    "orders_ended": 1294,
+    "orders_per_ship_min": 4.711225162828124,
+    "ordered_share": 0.9723270776793778,
+    "order_seconds_median": 14.0,
+    "order_seconds_mean": 12.754250386398764,
+    "orders_under_5s": 0.20556414219474498
+   },
+   "secs": 90.9
+  },
+  "station_assault": {
+   "n": 192,
+   "score_a": 0.5104166666666666,
+   "draw_rate": 0.0,
+   "a_on_team0": 0.6354166666666666,
+   "a_on_team1": 0.3854166666666667,
+   "end_reasons": {
+    "2": 33,
+    "6": 72,
+    "7": 87
+   },
+   "orders_a": {
+    "orders_given": 183,
+    "orders_ended": 145,
+    "orders_per_ship_min": 0.21808402524584716,
+    "ordered_share": 0.019153524135890075,
+    "order_seconds_median": 5.0,
+    "order_seconds_mean": 5.820689655172414,
+    "orders_under_5s": 0.06896551724137931
+   },
+   "orders_b": {
+    "orders_given": 3394,
+    "orders_ended": 2193,
+    "orders_per_ship_min": 3.7688544513470035,
+    "ordered_share": 0.8611010691129373,
+    "order_seconds_median": 6.0,
+    "order_seconds_mean": 10.607387140902873,
+    "orders_under_5s": 0.3137254901960784
+   },
+   "secs": 205.7
+  }
+ },
+ "score_a": 0.48307291666666663,
+ "orders_a": {
+  "orders_given": 588,
+  "orders_ended": 455,
+  "orders_per_ship_min": 0.2517290915490981,
+  "ordered_share": 0.02244941158562674,
+  "order_seconds_median": 5.0,
+  "order_seconds_mean": 5.898901098901099,
+  "orders_under_5s": 0.07252747252747253
+ },
+ "orders_b": {
+  "orders_given": 9692,
+  "orders_ended": 6072,
+  "orders_per_ship_min": 4.297271812738534,
+  "ordered_share": 0.901099640071222,
+  "order_seconds_median": 8.0,
+  "order_seconds_mean": 10.733201581027668,
+  "orders_under_5s": 0.28474967061923584
+ }
+}

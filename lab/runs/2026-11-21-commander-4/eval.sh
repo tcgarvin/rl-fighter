@@ -92,6 +92,10 @@ EOF
             ;;
     esac
 done
+# The start the long commander run took (commander 3 live 197), on the same matches, so
+# the best of the three can be its start (lab/runs/2026-11-21-commander-long/plan.md).
+commander_cell "$HERE/eval/c3_live_197/live.json" \
+    "$ROOT/lab/runs/2026-11-15-commander-3/live/checkpoints/commander_197.pt" "$LIVE" &
 status=0
 for job in $(jobs -p); do wait "$job" || status=1; done
 echo "$(date +%H:%M:%S) done (status $status)"

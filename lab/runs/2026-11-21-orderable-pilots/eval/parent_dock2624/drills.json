@@ -1,0 +1,1023 @@
+{
+ "pilot": "policy:ppo_bc_2624.pt",
+ "name": "parent_dock2624",
+ "config": {
+  "n_per_kind": 128,
+  "seed": 500000,
+  "hidden_goto": true,
+  "sim_version": 11,
+  "kinds": [
+   "goto",
+   "attack",
+   "defend",
+   "dock_calm",
+   "dock_threat"
+  ]
+ },
+ "kinds": {
+  "goto": {
+   "n_drills": 128,
+   "shown": {
+    "rate": 0.8436482084690554,
+    "se": 0.02072826429705965,
+    "arrived": 259,
+    "late": 48,
+    "censored": 27,
+    "n": 307
+   },
+   "shown_near": {
+    "rate": 0.7848837209302325,
+    "se": 0.03133105910784776,
+    "arrived": 135,
+    "late": 37,
+    "censored": 8,
+    "n": 172
+   },
+   "shown_far": {
+    "rate": 0.9185185185185185,
+    "se": 0.023545424916462516,
+    "arrived": 124,
+    "late": 11,
+    "censored": 19,
+    "n": 135
+   },
+   "shown_enemies_around": {
+    "rate": 0.8505747126436781,
+    "se": 0.027026739723560296,
+    "arrived": 148,
+    "late": 26,
+    "censored": 18,
+    "n": 174
+   },
+   "hidden": {
+    "rate": 0.1678082191780822,
+    "se": 0.02186889803381898,
+    "arrived": 49,
+    "late": 243,
+    "censored": 42,
+    "n": 292
+   },
+   "lift": 0.6758399892909732,
+   "with_deadline": {
+    "rate": 0.8558139534883721,
+    "se": 0.023956979902741225,
+    "arrived": 184,
+    "late": 31,
+    "censored": 21,
+    "n": 215
+   },
+   "no_deadline": {
+    "rate": 0.8152173913043478,
+    "se": 0.04046442294315621,
+    "arrived": 75,
+    "late": 17,
+    "censored": 6,
+    "n": 92
+   },
+   "by_slack": {
+    "tight": {
+     "rate": 0.7735849056603774,
+     "se": 0.05748688109486493,
+     "arrived": 41,
+     "late": 12,
+     "censored": 3,
+     "n": 53
+    },
+    "medium": {
+     "rate": 0.8762886597938144,
+     "se": 0.03343047016062692,
+     "arrived": 85,
+     "late": 12,
+     "censored": 12,
+     "n": 97
+    },
+    "loose": {
+     "rate": 0.8923076923076924,
+     "se": 0.038449702320786865,
+     "arrived": 58,
+     "late": 7,
+     "censored": 6,
+     "n": 65
+    }
+   },
+   "fates": {
+    "n": 307,
+    "killed": 27,
+    "in_time": {
+     "successes": 259,
+     "n": 307,
+     "rate": 0.8436482084690554,
+     "se": 0.02072826429705965
+    },
+    "near_miss": {
+     "successes": 47,
+     "n": 307,
+     "rate": 0.15309446254071662,
+     "se": 0.020550767207920862
+    },
+    "at_enemy": {
+     "successes": 1,
+     "n": 307,
+     "rate": 0.003257328990228013,
+     "se": 0.0032520195669915445
+    },
+    "neither": {
+     "successes": 0,
+     "n": 307,
+     "rate": 0.0,
+     "se": 0.0
+    }
+   },
+   "fates_with_deadline": {
+    "n": 215,
+    "killed": 21,
+    "in_time": {
+     "successes": 184,
+     "n": 215,
+     "rate": 0.8558139534883721,
+     "se": 0.023956979902741225
+    },
+    "near_miss": {
+     "successes": 30,
+     "n": 215,
+     "rate": 0.13953488372093023,
+     "se": 0.023631364647376737
+    },
+    "at_enemy": {
+     "successes": 1,
+     "n": 215,
+     "rate": 0.004651162790697674,
+     "se": 0.004640333526200663
+    },
+    "neither": {
+     "successes": 0,
+     "n": 215,
+     "rate": 0.0,
+     "se": 0.0
+    }
+   },
+   "fates_no_deadline": {
+    "n": 92,
+    "killed": 6,
+    "in_time": {
+     "successes": 75,
+     "n": 92,
+     "rate": 0.8152173913043478,
+     "se": 0.04046442294315621
+    },
+    "near_miss": {
+     "successes": 17,
+     "n": 92,
+     "rate": 0.18478260869565216,
+     "se": 0.04046442294315621
+    },
+    "at_enemy": {
+     "successes": 0,
+     "n": 92,
+     "rate": 0.0,
+     "se": 0.0
+    },
+    "neither": {
+     "successes": 0,
+     "n": 92,
+     "rate": 0.0,
+     "se": 0.0
+    }
+   },
+   "fates_solo": {
+    "n": 18,
+    "killed": 10,
+    "in_time": {
+     "successes": 11,
+     "n": 18,
+     "rate": 0.6111111111111112,
+     "se": 0.11490438561102645
+    },
+    "near_miss": {
+     "successes": 7,
+     "n": 18,
+     "rate": 0.3888888888888889,
+     "se": 0.11490438561102646
+    },
+    "at_enemy": {
+     "successes": 0,
+     "n": 18,
+     "rate": 0.0,
+     "se": 0.0
+    },
+    "neither": {
+     "successes": 0,
+     "n": 18,
+     "rate": 0.0,
+     "se": 0.0
+    }
+   },
+   "note": "The go-to drill changed with SIM_VERSION 8: three orders in four carry a deadline (slack 2 to 8) that the sim pays and charges by, and the match clock no longer gives the deadline away. Go-to numbers from before are not comparable, and the go-to bars were set on the old drills."
+  },
+  "attack": {
+   "n_drills": 256,
+   "target_hit": {
+    "successes": 244,
+    "n": 256,
+    "rate": 0.953125,
+    "se": 0.013210692635223323
+   },
+   "target_damage_per_pilot": {
+    "n": 256,
+    "mean": 62.50764973958333,
+    "se": 4.661807386344995
+   },
+   "other_damage_per_pilot": {
+    "n": 256,
+    "mean": 51.15576171875,
+    "se": 3.9883050346107702
+   },
+   "enemies_busy": {
+    "n_pairs": 96,
+    "chose_named": {
+     "successes": 184,
+     "n": 192,
+     "rate": 0.9583333333333334,
+     "se": 0.014421221984232763
+    },
+    "chose_other": {
+     "successes": 5,
+     "n": 192,
+     "rate": 0.026041666666666668,
+     "se": 0.011493543990334514
+    },
+    "no_choice": {
+     "successes": 3,
+     "n": 192,
+     "rate": 0.015625,
+     "se": 0.008950343154210625
+    },
+    "flip": {
+     "successes": 88,
+     "n": 96,
+     "rate": 0.9166666666666666,
+     "se": 0.028208466682763757
+    },
+    "same_side": {
+     "successes": 5,
+     "n": 96,
+     "rate": 0.052083333333333336,
+     "se": 0.022677691801411687
+    }
+   },
+   "enemies_charging": {
+    "n_pairs": 32,
+    "chose_named": {
+     "successes": 57,
+     "n": 64,
+     "rate": 0.890625,
+     "se": 0.03901364131921519
+    },
+    "chose_other": {
+     "successes": 5,
+     "n": 64,
+     "rate": 0.078125,
+     "se": 0.03354602351038607
+    },
+    "no_choice": {
+     "successes": 2,
+     "n": 64,
+     "rate": 0.03125,
+     "se": 0.02174907954230477
+    },
+    "flip": {
+     "successes": 25,
+     "n": 32,
+     "rate": 0.78125,
+     "se": 0.07307924583542855
+    },
+    "same_side": {
+     "successes": 5,
+     "n": 32,
+     "rate": 0.15625,
+     "se": 0.06418623720763665
+    }
+   },
+   "n_pairs": 128,
+   "chose_named": {
+    "successes": 241,
+    "n": 256,
+    "rate": 0.94140625,
+    "se": 0.014678923355036537
+   },
+   "chose_other": {
+    "successes": 10,
+    "n": 256,
+    "rate": 0.0390625,
+    "se": 0.012108981218395747
+   },
+   "no_choice": {
+    "successes": 5,
+    "n": 256,
+    "rate": 0.01953125,
+    "se": 0.008648920695272632
+   },
+   "flip": {
+    "successes": 113,
+    "n": 128,
+    "rate": 0.8828125,
+    "se": 0.02842954419533132
+   },
+   "same_side": {
+    "successes": 10,
+    "n": 128,
+    "rate": 0.078125,
+    "se": 0.02372062070603734
+   }
+  },
+  "defend": {
+   "n_drills": 256,
+   "more_on_named": {
+    "successes": 216,
+    "n": 256,
+    "rate": 0.84375,
+    "se": 0.022693261794184082
+   },
+   "named_attackers_damage_per_pilot": {
+    "n": 256,
+    "mean": 82.53743489583334,
+    "se": 4.970921851653834
+   },
+   "other_attackers_damage_per_pilot": {
+    "n": 256,
+    "mean": 11.18505859375,
+    "se": 1.6966819022207664
+   },
+   "n_pairs": 128,
+   "chose_named": {
+    "successes": 238,
+    "n": 256,
+    "rate": 0.9296875,
+    "se": 0.01597955876167341
+   },
+   "chose_other": {
+    "successes": 7,
+    "n": 256,
+    "rate": 0.02734375,
+    "se": 0.010192688352123096
+   },
+   "no_choice": {
+    "successes": 11,
+    "n": 256,
+    "rate": 0.04296875,
+    "se": 0.012674167336345127
+   },
+   "flip": {
+    "successes": 110,
+    "n": 128,
+    "rate": 0.859375,
+    "se": 0.03072682172373491
+   },
+   "same_side": {
+    "successes": 7,
+    "n": 128,
+    "rate": 0.0546875,
+    "se": 0.02009679260474285
+   }
+  },
+  "dock_calm": {
+   "n_drills": 128,
+   "n": 128,
+   "docked": {
+    "successes": 73,
+    "n": 128,
+    "rate": 0.5703125,
+    "se": 0.043755013314882525
+   },
+   "shot_down": {
+    "successes": 11,
+    "n": 128,
+    "rate": 0.0859375,
+    "se": 0.024772755652276997
+   },
+   "timed_out": {
+    "successes": 44,
+    "n": 128,
+    "rate": 0.34375,
+    "se": 0.04198083058633726
+   },
+   "docked_of_survivors": {
+    "successes": 73,
+    "n": 117,
+    "rate": 0.6239316239316239,
+    "se": 0.04478256610849965
+   },
+   "seconds_to_dock": {
+    "p10": 8.913333333333334,
+    "median": 16.1,
+    "p90": 28.606666666666666
+   },
+   "fly_throughs_per_drill": {
+    "n": 128,
+    "mean": 0.09375,
+    "se": 0.030249739700838812
+   },
+   "drills_with_a_fly_through": {
+    "successes": 10,
+    "n": 128,
+    "rate": 0.078125,
+    "se": 0.02372062070603734
+   },
+   "hull_at_dock": {
+    "n": 73,
+    "mean": 0.3086218184804263,
+    "se": 0.012568519501511721
+   },
+   "damage_dealt_per_drill": {
+    "n": 128,
+    "mean": 2.90625,
+    "se": 1.6247515520248277
+   },
+   "came_near": {
+    "successes": 86,
+    "n": 128,
+    "rate": 0.671875,
+    "se": 0.041501033907960505
+   },
+   "docked_of_near": {
+    "successes": 73,
+    "n": 86,
+    "rate": 0.8488372093023255,
+    "se": 0.03862650635373264
+   },
+   "closest_m": {
+    "p10": 2.6933081626892093,
+    "median": 17.644874572753906,
+    "p90": 57.47225952148437
+   },
+   "by_base": {
+    "carrier": {
+     "n": 60,
+     "docked": {
+      "successes": 40,
+      "n": 60,
+      "rate": 0.6666666666666666,
+      "se": 0.06085806194501846
+     },
+     "shot_down": {
+      "successes": 2,
+      "n": 60,
+      "rate": 0.03333333333333333,
+      "se": 0.023174059571793568
+     },
+     "timed_out": {
+      "successes": 18,
+      "n": 60,
+      "rate": 0.3,
+      "se": 0.05916079783099616
+     },
+     "docked_of_survivors": {
+      "successes": 40,
+      "n": 58,
+      "rate": 0.6896551724137931,
+      "se": 0.06074691926014174
+     }
+    },
+    "station": {
+     "n": 31,
+     "docked": {
+      "successes": 12,
+      "n": 31,
+      "rate": 0.3870967741935484,
+      "se": 0.08748324477412571
+     },
+     "shot_down": {
+      "successes": 5,
+      "n": 31,
+      "rate": 0.16129032258064516,
+      "se": 0.06605856502852811
+     },
+     "timed_out": {
+      "successes": 14,
+      "n": 31,
+      "rate": 0.45161290322580644,
+      "se": 0.08938114993337111
+     },
+     "docked_of_survivors": {
+      "successes": 12,
+      "n": 26,
+      "rate": 0.46153846153846156,
+      "se": 0.09776752450803732
+     }
+    },
+    "citadel": {
+     "n": 37,
+     "docked": {
+      "successes": 21,
+      "n": 37,
+      "rate": 0.5675675675675675,
+      "se": 0.08144549227036584
+     },
+     "shot_down": {
+      "successes": 4,
+      "n": 37,
+      "rate": 0.10810810810810811,
+      "se": 0.05104866387043433
+     },
+     "timed_out": {
+      "successes": 12,
+      "n": 37,
+      "rate": 0.32432432432432434,
+      "se": 0.07695875641236478
+     },
+     "docked_of_survivors": {
+      "successes": 21,
+      "n": 33,
+      "rate": 0.6363636363636364,
+      "se": 0.08373930663124332
+     }
+    }
+   },
+   "by_hull": {
+    "fighter": {
+     "n": 31,
+     "docked": {
+      "successes": 15,
+      "n": 31,
+      "rate": 0.4838709677419355,
+      "se": 0.08975591530841967
+     },
+     "shot_down": {
+      "successes": 6,
+      "n": 31,
+      "rate": 0.1935483870967742,
+      "se": 0.07095828146194513
+     },
+     "timed_out": {
+      "successes": 10,
+      "n": 31,
+      "rate": 0.3225806451612903,
+      "se": 0.08395897088010118
+     },
+     "docked_of_survivors": {
+      "successes": 15,
+      "n": 25,
+      "rate": 0.6,
+      "se": 0.09797958971132711
+     }
+    },
+    "strafer": {
+     "n": 34,
+     "docked": {
+      "successes": 20,
+      "n": 34,
+      "rate": 0.5882352941176471,
+      "se": 0.08440353576228697
+     },
+     "shot_down": {
+      "successes": 1,
+      "n": 34,
+      "rate": 0.029411764705882353,
+      "se": 0.02897601076893465
+     },
+     "timed_out": {
+      "successes": 13,
+      "n": 34,
+      "rate": 0.38235294117647056,
+      "se": 0.08334181380283408
+     },
+     "docked_of_survivors": {
+      "successes": 20,
+      "n": 33,
+      "rate": 0.6060606060606061,
+      "se": 0.08505811700208933
+     }
+    },
+    "gunship": {
+     "n": 32,
+     "docked": {
+      "successes": 21,
+      "n": 32,
+      "rate": 0.65625,
+      "se": 0.08396166117267452
+     },
+     "shot_down": {
+      "successes": 0,
+      "n": 32,
+      "rate": 0.0,
+      "se": 0.0
+     },
+     "timed_out": {
+      "successes": 11,
+      "n": 32,
+      "rate": 0.34375,
+      "se": 0.08396166117267452
+     },
+     "docked_of_survivors": {
+      "successes": 21,
+      "n": 32,
+      "rate": 0.65625,
+      "se": 0.08396166117267452
+     }
+    },
+    "bomber": {
+     "n": 31,
+     "docked": {
+      "successes": 17,
+      "n": 31,
+      "rate": 0.5483870967741935,
+      "se": 0.08938114993337112
+     },
+     "shot_down": {
+      "successes": 4,
+      "n": 31,
+      "rate": 0.12903225806451613,
+      "se": 0.06021009840370212
+     },
+     "timed_out": {
+      "successes": 10,
+      "n": 31,
+      "rate": 0.3225806451612903,
+      "se": 0.08395897088010118
+     },
+     "docked_of_survivors": {
+      "successes": 17,
+      "n": 27,
+      "rate": 0.6296296296296297,
+      "se": 0.09293489539618284
+     }
+    }
+   },
+   "hidden": {
+    "n": 128,
+    "docked": {
+     "successes": 6,
+     "n": 128,
+     "rate": 0.046875,
+     "se": 0.018682740693075187
+    },
+    "shot_down": {
+     "successes": 63,
+     "n": 128,
+     "rate": 0.4921875,
+     "se": 0.04418877869823737
+    },
+    "timed_out": {
+     "successes": 59,
+     "n": 128,
+     "rate": 0.4609375,
+     "se": 0.044059097483322575
+    },
+    "docked_of_survivors": {
+     "successes": 6,
+     "n": 65,
+     "rate": 0.09230769230769231,
+     "se": 0.03590307084541777
+    }
+   },
+   "lift": 0.5234375
+  },
+  "dock_threat": {
+   "n_drills": 128,
+   "n": 128,
+   "docked": {
+    "successes": 34,
+    "n": 128,
+    "rate": 0.265625,
+    "se": 0.03903807830333337
+   },
+   "shot_down": {
+    "successes": 64,
+    "n": 128,
+    "rate": 0.5,
+    "se": 0.04419417382415922
+   },
+   "timed_out": {
+    "successes": 30,
+    "n": 128,
+    "rate": 0.234375,
+    "se": 0.037441971704454714
+   },
+   "docked_of_survivors": {
+    "successes": 34,
+    "n": 64,
+    "rate": 0.53125,
+    "se": 0.06237781024480981
+   },
+   "seconds_to_dock": {
+    "p10": 10.553333333333333,
+    "median": 19.7,
+    "p90": 34.83
+   },
+   "fly_throughs_per_drill": {
+    "n": 128,
+    "mean": 0.1171875,
+    "se": 0.03256786854803075
+   },
+   "drills_with_a_fly_through": {
+    "successes": 13,
+    "n": 128,
+    "rate": 0.1015625,
+    "se": 0.026699654520492805
+   },
+   "hull_at_dock": {
+    "n": 34,
+    "mean": 0.2832511098069303,
+    "se": 0.01851301690685109
+   },
+   "damage_dealt_per_drill": {
+    "n": 128,
+    "mean": 44.48046875,
+    "se": 8.279341914229578
+   },
+   "came_near": {
+    "successes": 53,
+    "n": 128,
+    "rate": 0.4140625,
+    "se": 0.043536510010075705
+   },
+   "docked_of_near": {
+    "successes": 34,
+    "n": 53,
+    "rate": 0.6415094339622641,
+    "se": 0.06587224343159216
+   },
+   "closest_m": {
+    "p10": 2.6838931798934937,
+    "median": 48.895864486694336,
+    "p90": 206.44058990478516
+   },
+   "by_base": {
+    "carrier": {
+     "n": 64,
+     "docked": {
+      "successes": 18,
+      "n": 64,
+      "rate": 0.28125,
+      "se": 0.056201150663820934
+     },
+     "shot_down": {
+      "successes": 30,
+      "n": 64,
+      "rate": 0.46875,
+      "se": 0.06237781024480981
+     },
+     "timed_out": {
+      "successes": 16,
+      "n": 64,
+      "rate": 0.25,
+      "se": 0.05412658773652741
+     },
+     "docked_of_survivors": {
+      "successes": 18,
+      "n": 34,
+      "rate": 0.5294117647058824,
+      "se": 0.0856008088363528
+     }
+    },
+    "station": {
+     "n": 34,
+     "docked": {
+      "successes": 6,
+      "n": 34,
+      "rate": 0.17647058823529413,
+      "se": 0.06537869767367192
+     },
+     "shot_down": {
+      "successes": 19,
+      "n": 34,
+      "rate": 0.5588235294117647,
+      "se": 0.08515380416833712
+     },
+     "timed_out": {
+      "successes": 9,
+      "n": 34,
+      "rate": 0.2647058823529412,
+      "se": 0.07566114050404803
+     },
+     "docked_of_survivors": {
+      "successes": 6,
+      "n": 15,
+      "rate": 0.4,
+      "se": 0.12649110640673517
+     }
+    },
+    "citadel": {
+     "n": 30,
+     "docked": {
+      "successes": 10,
+      "n": 30,
+      "rate": 0.3333333333333333,
+      "se": 0.08606629658238704
+     },
+     "shot_down": {
+      "successes": 15,
+      "n": 30,
+      "rate": 0.5,
+      "se": 0.09128709291752768
+     },
+     "timed_out": {
+      "successes": 5,
+      "n": 30,
+      "rate": 0.16666666666666666,
+      "se": 0.06804138174397717
+     },
+     "docked_of_survivors": {
+      "successes": 10,
+      "n": 15,
+      "rate": 0.6666666666666666,
+      "se": 0.12171612389003691
+     }
+    }
+   },
+   "by_hull": {
+    "fighter": {
+     "n": 27,
+     "docked": {
+      "successes": 1,
+      "n": 27,
+      "rate": 0.037037037037037035,
+      "se": 0.036344694923159865
+     },
+     "shot_down": {
+      "successes": 19,
+      "n": 27,
+      "rate": 0.7037037037037037,
+      "se": 0.08787718725951697
+     },
+     "timed_out": {
+      "successes": 7,
+      "n": 27,
+      "rate": 0.25925925925925924,
+      "se": 0.08433704334123125
+     },
+     "docked_of_survivors": {
+      "successes": 1,
+      "n": 8,
+      "rate": 0.125,
+      "se": 0.11692679333668567
+     }
+    },
+    "strafer": {
+     "n": 26,
+     "docked": {
+      "successes": 4,
+      "n": 26,
+      "rate": 0.15384615384615385,
+      "se": 0.0707589393082923
+     },
+     "shot_down": {
+      "successes": 18,
+      "n": 26,
+      "rate": 0.6923076923076923,
+      "se": 0.09051513929454648
+     },
+     "timed_out": {
+      "successes": 4,
+      "n": 26,
+      "rate": 0.15384615384615385,
+      "se": 0.0707589393082923
+     },
+     "docked_of_survivors": {
+      "successes": 4,
+      "n": 8,
+      "rate": 0.5,
+      "se": 0.1767766952966369
+     }
+    },
+    "gunship": {
+     "n": 39,
+     "docked": {
+      "successes": 20,
+      "n": 39,
+      "rate": 0.5128205128205128,
+      "se": 0.0800377530231858
+     },
+     "shot_down": {
+      "successes": 6,
+      "n": 39,
+      "rate": 0.15384615384615385,
+      "se": 0.057774432015293135
+     },
+     "timed_out": {
+      "successes": 13,
+      "n": 39,
+      "rate": 0.3333333333333333,
+      "se": 0.07548513560963972
+     },
+     "docked_of_survivors": {
+      "successes": 20,
+      "n": 33,
+      "rate": 0.6060606060606061,
+      "se": 0.08505811700208933
+     }
+    },
+    "bomber": {
+     "n": 36,
+     "docked": {
+      "successes": 9,
+      "n": 36,
+      "rate": 0.25,
+      "se": 0.07216878364870322
+     },
+     "shot_down": {
+      "successes": 21,
+      "n": 36,
+      "rate": 0.5833333333333334,
+      "se": 0.08216777476527244
+     },
+     "timed_out": {
+      "successes": 6,
+      "n": 36,
+      "rate": 0.16666666666666666,
+      "se": 0.06211299937499416
+     },
+     "docked_of_survivors": {
+      "successes": 9,
+      "n": 15,
+      "rate": 0.6,
+      "se": 0.12649110640673517
+     }
+    }
+   },
+   "hidden": {
+    "n": 128,
+    "docked": {
+     "successes": 6,
+     "n": 128,
+     "rate": 0.046875,
+     "se": 0.018682740693075187
+    },
+    "shot_down": {
+     "successes": 74,
+     "n": 128,
+     "rate": 0.578125,
+     "se": 0.04365136062231838
+    },
+    "timed_out": {
+     "successes": 48,
+     "n": 128,
+     "rate": 0.375,
+     "se": 0.0427908248050911
+    },
+    "docked_of_survivors": {
+     "successes": 6,
+     "n": 54,
+     "rate": 0.1111111111111111,
+     "se": 0.042766686606638946
+    }
+   },
+   "lift": 0.21875
+  }
+ },
+ "overall": {
+  "core": {
+   "successes": 482,
+   "n": 563,
+   "rate": 0.8561278863232682,
+   "se": 0.014791200914097889
+  },
+  "core_is": "go-to arrivals (shown) and attack and defend swap-test flips"
+ },
+ "gate": {
+  "verdict": "fail",
+  "statement": "parent_dock2624 failed the drill gate: defend_more_on_named.",
+  "unset": [],
+  "failed": [
+   "defend_more_on_named"
+  ],
+  "met": [
+   "goto_arrival",
+   "goto_lift",
+   "attack_target_hit",
+   "attack_side",
+   "attack_flip",
+   "defend_side",
+   "defend_flip"
+  ],
+  "measured": {
+   "goto_arrival": 0.8436482084690554,
+   "goto_lift": 0.6758399892909732,
+   "attack_target_hit": 0.953125,
+   "attack_side": 0.94140625,
+   "attack_flip": 0.8828125,
+   "defend_more_on_named": 0.84375,
+   "defend_side": 0.9296875,
+   "defend_flip": 0.859375
+  }
+ },
+ "schema": "rlf.eval.drills/1",
+ "dock_gate": {
+  "verdict": "report_only",
+  "statement": "Report only, not a pass: 4 of 4 bars are unset or have nothing to measure (dock_calm_docked, dock_calm_lift, dock_threat_docked, dock_threat_docked_of_survivors).",
+  "unset": [
+   "dock_calm_docked",
+   "dock_calm_lift",
+   "dock_threat_docked",
+   "dock_threat_docked_of_survivors"
+  ],
+  "failed": [],
+  "met": [],
+  "measured": {
+   "dock_calm_docked": 0.5703125,
+   "dock_calm_lift": 0.5234375,
+   "dock_threat_docked": 0.265625,
+   "dock_threat_docked_of_survivors": 0.53125
+  }
+ }
+}

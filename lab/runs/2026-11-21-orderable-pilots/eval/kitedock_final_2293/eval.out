@@ -1,0 +1,71 @@
+11:30:26 lab/runs/2026-11-21-orderable-pilots/eval/kitedock_final_2293/drills.json
+  324 s
+11:35:50 lab/runs/2026-11-21-orderable-pilots/eval/kitedock_final_2293/dockm_carrier.json
+  356 s
+11:41:46 lab/runs/2026-11-21-orderable-pilots/eval/kitedock_final_2293/dockm_station.json
+  391 s
+11:48:17 lab/runs/2026-11-21-orderable-pilots/eval/kitedock_final_2293/missions.json
+  606 s
+11:58:23 lab/runs/2026-11-21-orderable-pilots/eval/kitedock_final_2293/fleet.json
+  48 s
+11:59:11 lab/runs/2026-11-21-orderable-pilots/eval/kitedock_final_2293/oc_base1052_nearest.json
+  500 s
+12:07:31 lab/runs/2026-11-21-orderable-pilots/eval/kitedock_final_2293/oc_base1052_none.json
+  489 s
+12:15:40 lab/runs/2026-11-21-orderable-pilots/eval/kitedock_final_2293/oc_base1052_scripted.json
+  494 s
+12:23:54 lab/runs/2026-11-21-orderable-pilots/eval/kitedock_final_2293/oc_f995_701_nearest.json
+  509 s
+12:32:23 lab/runs/2026-11-21-orderable-pilots/eval/kitedock_final_2293/oc_f995_701_none.json
+  712 s
+12:44:15 lab/runs/2026-11-21-orderable-pilots/eval/kitedock_final_2293/oc_f995_701_scripted.json
+  497 s
+12:52:32 done: lab/runs/2026-11-21-orderable-pilots/eval/kitedock_final_2293
+# lab/runs/2026-11-21-orderable-pilots/eval/kitedock_final_2293
+
+| Measure | Value (± 95%) |
+|---|---|
+| calm dock drills: docked | 0.18 ± 0.07 |
+| calm dock drills: lift over the order hidden | 0.16 ± 0.07 |
+| calm dock drills: shot down | 0.12 ± 0.06 |
+| threat dock drills: docked | 0.09 ± 0.05 |
+| threat dock drills: docked of survivors | 0.14 ± 0.08 |
+| threat dock drills: shot down | 0.39 ± 0.08 |
+| carrier battle: recall completion | 0.01 ± 0.01 |
+| station assault: recall completion | 0.03 ± 0.01 |
+| order drills: goto_arrival | 0.86 ± 0.04 |
+| order drills: goto_lift | 0.70 ± 0.06 |
+| order drills: attack_target_hit | 0.96 ± 0.02 |
+| order drills: attack_side | 0.97 ± 0.02 |
+| order drills: attack_flip | 0.94 ± 0.04 |
+| order drills: defend_more_on_named | 0.89 ± 0.04 |
+| order drills: defend_side | 0.96 ± 0.02 |
+| order drills: defend_flip | 0.92 ± 0.05 |
+| order cost v free followers_school_1052: none | 0.339 ± 0.027 |
+| order cost v free followers_school_1052: nearest | 0.135 ± 0.020 |
+| order cost v free followers_school_1052: scripted | 0.153 ± 0.021 |
+| order cost v free followers_school_1052: cost (nearest − none, paired) | -0.204 ± 0.031 |
+| order cost v free followers_school_1052: nearest, target in arc | 0.11 |
+| order cost v free followers_school_1052: nearest, ships lost a match | 0.72 |
+| order cost v free followers_school_1052: nearest, dealt to target | 54 |
+| order cost v free followers_school_1052: nearest, taken from target | 96 |
+| order cost v free f995_701: none | 0.143 ± 0.020 |
+| order cost v free f995_701: nearest | 0.175 ± 0.022 |
+| order cost v free f995_701: scripted | 0.208 ± 0.023 |
+| order cost v free f995_701: cost (nearest − none, paired) | +0.032 ± 0.030 |
+| order cost v free f995_701: nearest, target in arc | 0.13 |
+| order cost v free f995_701: nearest, ships lost a match | 0.72 |
+| order cost v free f995_701: nearest, dealt to target | 72 |
+| order cost v free f995_701: nearest, taken from target | 108 |
+| vs script: carrier_battle | 0.82 ± 0.05 |
+| vs script: convoy_escort | 0.99 ± 0.01 |
+| vs script: station_assault | 0.54 ± 0.07 |
+| vs script: fleet_v1, all | 0.81 ± 0.05 |
+| vs script: fleet 1v1 | 0.98 ± 0.04 |
+| vs script: fleet 2v2 | 0.77 ± 0.12 |
+| vs script: fleet 3v3 | 0.85 ± 0.10 |
+| vs script: fleet 4v4 | 0.72 ± 0.16 |
+
+carrier: recalls a match 4.00, docked a match 0.04, of survivors 0.04, failures {'never close': 132, 'overshoot': 13, 'too fast': 4, 'circling': 3}
+
+station: recalls a match 4.47, docked a match 0.15, of survivors 0.13, failures {'never close': 120, 'overshoot': 27, 'too fast': 14, 'circling': 5}

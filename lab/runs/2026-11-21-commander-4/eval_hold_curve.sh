@@ -8,6 +8,7 @@
 #   hold_quiet   0 (the start: commander 3 live 197, launch head reset), 10, 30, final
 #   hold         0, and the second run's 10 and final (see plan.md: the first run's 10 to 50
 #                were overwritten when run.sh restarted it), and the first run's 68
+#   hold_ent0    10, 30, final (once it has them): hold_quiet with no entropy bonus
 #
 # Writes eval/<arm>_<update>/citadel_defender_learned.json, as eval.sh does; finished cells
 # are kept. Env: N (512), PY.
@@ -57,6 +58,7 @@ CK=$HERE/hold_quiet/checkpoints
 HK=$HERE/hold/checkpoints
 q_last=$(last hold_quiet)
 h_last=$(last hold)
+EK=$HERE/hold_ent0/checkpoints
 cells=(
     "hold_quiet_0 $(zero hold_quiet)"
     "hold_quiet_10 $CK/commander_10.pt"
@@ -67,6 +69,14 @@ cells=(
     "hold_run2_$h_last $HK/commander_$h_last.pt"
     "hold_run1_68 $HK/commander_68.pt"
 )
+if [[ -d $EK ]]; then
+    e_last=$(last hold_ent0)
+    for u in $(printf '%s\n' 10 30 "$e_last" | sort -un); do
+        if [[ -f $EK/commander_$u.pt ]]; then
+            cells+=("hold_ent0_$u $EK/commander_$u.pt")
+        fi
+    done
+fi
 echo "$(date +%H:%M:%S) ${#cells[@]} cells"
 for cell in "${cells[@]}"; do
     # shellcheck disable=SC2086

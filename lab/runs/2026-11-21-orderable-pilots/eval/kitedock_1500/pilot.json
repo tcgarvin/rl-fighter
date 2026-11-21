@@ -1,0 +1,9 @@
+{
+ "schema": "rlf.live_pilots/1",
+ "pilots": [
+  {
+   "id": "kitedock_1500",
+   "checkpoint": "/home/timg/code/rl-fighter/lab/runs/2026-11-21-orderable-pilots/kitedock/checkpoints/ppo_bc_1500.pt"
+  }
+ ]
+}
