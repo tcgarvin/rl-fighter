@@ -389,7 +389,8 @@ identity per pilot in the file, so a run keeps the file it started with.
 ## Eval
 
 `spacefight.commander.eval` plays commander `--a` against `--b` (JSON
-`rlf.eval.commander/1`): each mission's live rosters in turn, `a` on each side half the
+`rlf.eval.commander/1`): each live mission's rosters in turn (deathmatch, carrier battle,
+convoy escort and, since 2026-11-21, the station assault, the citadel only), `a` on each side half the
 time, pilots drawn ship by ship with a fixed seed. A side is a checkpoint or one of:
 
 - `scripted`: the sim's scripted commander.

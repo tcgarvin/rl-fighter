@@ -37,7 +37,7 @@ from spacefight.commander.decide import decide_learned
 from spacefight.commander.io import check_sim_layout
 from spacefight.commander.pilots import LIVE_PILOTS, PilotStable, live_pilot_checkpoints
 from spacefight.commander.policy import CommanderActor, load_commander
-from spacefight.commander.train import LEARNED, MISSIONS
+from spacefight.commander.train import LEARNED, TRAIN_MISSIONS
 from spacefight.env.rosters import (
     DEATHMATCH,
     RANDOM,
@@ -365,7 +365,7 @@ def evaluate(
     seed: int = 20261107,
     n_threads: int = 8,
     live_pilots: Path = LIVE_PILOTS,
-    missions: Sequence[str] = MISSIONS,
+    missions: Sequence[str] = TRAIN_MISSIONS,
     checkpoint_root: Path = REPO_ROOT,
 ) -> dict[str, Any]:
     """``a`` against ``b`` over ``missions`` (``rlf.eval.commander/1``).
@@ -377,7 +377,8 @@ def evaluate(
         seed: Seed of rosters, sim and pilot draw.
         n_threads: Sim threads.
         live_pilots: The ``rlf.live_pilots/1`` list both sides draw from.
-        missions: The missions played.
+        missions: The missions played: by default every live mission, the station
+            assault last (since 2026-11-21), so the first three keep their old seeds.
         checkpoint_root: The checkout the list's checkpoint paths are relative to.
     """
     check_sim_layout(rlf_sim.commander_io())
