@@ -343,7 +343,7 @@ The training log (`log.jsonl` in the run directory) also records, per update,
 `order_seconds` (the mean seconds a ship goes between changes of its order) and
 `ordered_share` (the share of ship-seconds spent with an order).
 
-**Station assault** (`TrainConfig.mission_weights`' fourth weight, default 0;
+**Station assault** (`TrainConfig.mission_weights`' fourth weight, default 1 since 2026-11-21, so a commander trains on all four live missions equally; the citadel roster on SIM_VERSION >= 10;
 `station_convoy_share`, default 0, the chance a station assault reads as a convoy escort,
 else as a carrier battle). The log scores each enemy per station role
 (`win_unseen_defender`, `win_unseen_attacker`, ...). **A start** (`TrainConfig.init`,

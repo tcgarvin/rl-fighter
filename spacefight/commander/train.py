@@ -131,8 +131,10 @@ class TrainConfig:
     max_snapshots: int = 10
     checkpoint_every: int = 10
     # One weight per ``TRAIN_MISSIONS``; a three-weight tuple (configs from before
-    # SIM_VERSION 9) gets a station weight of 0, which draws exactly as before.
-    mission_weights: tuple[float, ...] = (1.0, 1.0, 1.0, 0.0)
+    # SIM_VERSION 9) gets a station weight of 0, which draws exactly as before. The
+    # default plays every live mission equally, as the live page rotates them (station
+    # assault included since 2026-11-21).
+    mission_weights: tuple[float, ...] = (1.0, 1.0, 1.0, 1.0)
     live_pilots: str = str(LIVE_PILOTS)
     # The chance a station assault reads to the nets as a convoy escort (station side
     # the convoy defender), else as a carrier battle. 0 draws exactly as before.

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -48,7 +49,11 @@ UNSEEN = "unseen"
 
 
 def default_roster() -> tuple[list[str], list[str]]:
-    r = rlf_sim.mission_rosters(STATION_ASSAULT)[0]
+    # STATION_ROSTER names one of the sim's station rosters (e.g. "citadel"); default the
+    # first, the v9 station these measurements were made on.
+    name = os.environ.get("STATION_ROSTER", "")
+    rosters = rlf_sim.mission_rosters(STATION_ASSAULT)
+    r = next(x for x in rosters if x["name"] == name) if name else rosters[0]
     return list(r["fleets"][0]), list(r["fleets"][1])
 
 
