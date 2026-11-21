@@ -10,6 +10,7 @@ and puts a value head on its own trunk. Attention is written out by hand, not wi
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Final
@@ -38,6 +39,8 @@ from spacefight.commander.io import (
     ORDER_ATTACK,
     ORDER_DEFEND,
     ORDER_GOTO,
+    ORDER_KEEP,
+    ORDER_NAMES,
     SQUAD_GLOBAL_DIM,
     SQUAD_GLOBALS,
     SQUAD_OF_SLOT,
@@ -349,6 +352,61 @@ def lean_to_keep(actor: CommanderActor, keep_prior: float) -> None:
         ):
             head.bias.zero_()
             head.bias[0] = math.log(keep_prior * (choices - 1) / (1.0 - keep_prior))
+
+
+def lean_to_hold(actor: CommanderActor, launch_prior: float) -> None:
+    """Re-initialise the launch head so each hull class launches with probability
+    ``launch_prior`` per decision, whatever the state.
+
+    A fresh launch head is near even odds per hull per decision, so a learner empties
+    its hangar in a few seconds and never sees what holding a reserve is worth. The
+    head's six outputs read as ``view(b, 3, 2)``: hull ``h``'s hold logit at ``2h``,
+    its launch logit at ``2h + 1`` (choice 1 is launch, the choice ``launch_mask``
+    gates). The weights restart small, as a new head's, and each hold bias is
+    ``log((1 - p) / p)`` above its launch bias. It mutates ``actor`` in place; use it
+    on a fresh net or right after loading a start.
+
+    Raises:
+        ValueError: ``launch_prior`` is not in (0, 1).
+    """
+    if not 0.0 < launch_prior < 1.0:
+        raise ValueError(f"launch_prior must be in (0, 1), got {launch_prior}")
+    with torch.no_grad():
+        nn.init.orthogonal_(actor.launch.weight, gain=0.01)
+        bias = actor.launch.bias.view(N_LAUNCH_HULLS, 2)
+        bias.zero_()
+        bias[:, 0] = math.log((1.0 - launch_prior) / launch_prior)
+
+
+# How far below its old value a forbidden order's logit goes: e^-30 is about 1e-13.
+FORBID_BIAS: Final = -30.0
+
+
+def forbid_orders(actor: CommanderActor, orders: Sequence[str]) -> None:
+    """Make the order head all but never choose ``orders`` (names in ``ORDER_NAMES``,
+    not "keep", which is the always-allowed fallback).
+
+    Each forbidden choice's weight row is zeroed and ``FORBID_BIAS`` added to its bias,
+    so its logit is a constant about 30 below the others in every state: about 1e-13
+    of the probability. It is only parameters, so eval and the browser export need
+    nothing new. Training does not undo it: a choice never sampled gets a gradient of
+    about its probability (1e-13), which Adam's epsilon (1e-8) turns into steps of about
+    1e-9 (tests/test_commander_policy.py runs PPO-like updates against it). It mutates
+    ``actor`` in place; use it on a fresh net or right after loading a start.
+
+    Raises:
+        ValueError: An unknown order name, or "keep".
+    """
+    for name in orders:
+        if name not in ORDER_NAMES or name == ORDER_NAMES[ORDER_KEEP]:
+            raise ValueError(
+                f"cannot forbid order {name!r}; choose from {ORDER_NAMES[1:]}"
+            )
+    with torch.no_grad():
+        for name in dict.fromkeys(orders):
+            k = ORDER_NAMES.index(name)
+            actor.order.weight[k].zero_()
+            actor.order.bias[k] += FORBID_BIAS
 
 
 def n_params(module: nn.Module) -> int:

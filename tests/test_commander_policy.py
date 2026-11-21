@@ -27,6 +27,8 @@ from spacefight.commander.policy import (
     CommanderCritic,
     act,
     evaluate,
+    forbid_orders,
+    lean_to_hold,
     lean_to_keep,
     load_commander,
     n_params,
@@ -177,3 +179,93 @@ def test_a_fresh_actor_leans_to_keep_on_its_order_and_squad_heads() -> None:
 def test_lean_to_keep_refuses_odds_outside_zero_to_one(prior: float) -> None:
     with pytest.raises(ValueError, match="keep_prior"):
         lean_to_keep(CommanderActor(), prior)
+
+
+def all_allowed(b: int, seed: int = 0) -> CommanderInputs:
+    x = inputs(b, seed)
+    for name in MASK_SHAPES:
+        getattr(x, name)[:] = True
+    x.valid[:] = True
+    return x
+
+
+def scramble(head: torch.nn.Linear, seed: int) -> None:
+    """Weights of a head as large as a trained one's could be."""
+    g = torch.Generator().manual_seed(seed)
+    with torch.no_grad():
+        head.weight.copy_(torch.randn(head.weight.shape, generator=g))
+        head.bias.copy_(torch.randn(head.bias.shape, generator=g) * 3)
+
+
+@pytest.mark.parametrize("prior", [0.03, 0.9])
+def test_lean_to_hold_launches_each_hull_at_its_prior(prior: float) -> None:
+    torch.manual_seed(1)
+    actor = CommanderActor()
+    scramble(actor.launch, 2)
+    lean_to_hold(actor, prior)
+    actions = sample_actions(actor, all_allowed(4096))
+    # 4,096 draws per hull: a standard error of 0.003 at 0.03, 0.005 at 0.9.
+    share = (actions[:, LAUNCH] == 1).float().mean(dim=0)
+    assert share.numpy() == pytest.approx(
+        [prior] * 3, abs=0.02 if prior > 0.5 else 0.01
+    )
+
+
+def test_lean_to_hold_leaves_the_other_heads_alone() -> None:
+    torch.manual_seed(1)
+    actor = CommanderActor()
+    before = {k: v.clone() for k, v in actor.state_dict().items()}
+    lean_to_hold(actor, 0.03)
+    changed = {
+        k for k, v in actor.state_dict().items() if not torch.equal(v, before[k])
+    }
+    assert changed == {"launch.weight", "launch.bias"}
+
+
+@pytest.mark.parametrize("prior", [0.0, 1.0, -0.1])
+def test_lean_to_hold_refuses_odds_outside_zero_to_one(prior: float) -> None:
+    with pytest.raises(ValueError, match="launch_prior"):
+        lean_to_hold(CommanderActor(), prior)
+
+
+def test_a_forbidden_order_is_never_sampled() -> None:
+    torch.manual_seed(0)
+    actor = CommanderActor()
+    lean_to_keep(actor, 0.8)
+    scramble(actor.order, 3)
+    forbid_orders(actor, ("attack",))
+    order = torch.cat(
+        [sample_actions(actor, all_allowed(1024, seed))[:, ORDER] for seed in range(20)]
+    )
+    # 81,920 order draws: none attacks, and the others are all still drawn.
+    assert not (order == ORDER_ATTACK).any()
+    assert set(order.unique().tolist()) == {0, 1, 3, 4}
+
+
+def test_ppo_updates_do_not_undo_a_forbidden_order() -> None:
+    # PPO-like steps (random advantages, an entropy bonus, Adam at 3x the trainer's
+    # rate): a choice never sampled gets a gradient of about its probability, so its
+    # odds stay near e^-30.
+    torch.manual_seed(0)
+    actor = CommanderActor()
+    lean_to_keep(actor, 0.8)
+    forbid_orders(actor, ("attack",))
+    opt = torch.optim.Adam(actor.parameters(), lr=1e-3)
+    for step in range(300):
+        x = all_allowed(64, step)
+        actions, _ = act(actor, x)
+        logp, entropy, _ = evaluate(actor, x, actions)
+        adv = torch.randn(64)
+        loss = -(adv * logp).mean() - 0.01 * entropy.mean()
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
+    with torch.no_grad():
+        p = actor(all_allowed(256, 999)).order.softmax(dim=-1)[..., ORDER_ATTACK]
+    assert float(p.max()) < 1e-10
+
+
+@pytest.mark.parametrize("name", ["keep", "retreat"])
+def test_forbid_orders_refuses_keep_and_unknown_orders(name: str) -> None:
+    with pytest.raises(ValueError, match="cannot forbid"):
+        forbid_orders(CommanderActor(), (name,))

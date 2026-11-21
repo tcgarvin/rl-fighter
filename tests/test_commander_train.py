@@ -9,7 +9,17 @@ import numpy as np
 import pytest
 import torch
 
-from spacefight.commander.policy import CommanderActor, save_commander
+from spacefight.commander.io import (
+    ENTITY_DIM,
+    GLOBAL_DIM,
+    LAUNCH,
+    MASK_SHAPES,
+    MAX_ENTITIES,
+    ORDER,
+    ORDER_ATTACK,
+    CommanderInputs,
+)
+from spacefight.commander.policy import CommanderActor, sample_actions, save_commander
 from spacefight.commander.train import (
     LEARNER,
     NOT_LEARNED,
@@ -24,8 +34,14 @@ from spacefight.commander.train import (
     Trainer,
     Transition,
     initial_actor,
+    train_rosters,
 )
-from spacefight.env.rosters import STATION_AS_CARRIER, STATION_AS_CONVOY, STATION_ASSAULT
+from spacefight.env.rosters import (
+    STATION_AS_CARRIER,
+    STATION_AS_CONVOY,
+    STATION_ASSAULT,
+)
+from spacefight.eval.missions import default_rosters
 
 
 def transition(key, value, reward, done=False, next_value=0.0) -> Transition:
@@ -216,4 +232,104 @@ def test_a_run_can_start_from_a_saved_commander(tmp_path) -> None:
     for name, value in saved.state_dict().items():
         assert torch.equal(actor.state_dict()[name], value), name
     fresh = initial_actor(TrainConfig())
-    assert not torch.equal(fresh.state_dict()["order.bias"], saved.state_dict()["order.bias"])
+    assert not torch.equal(
+        fresh.state_dict()["order.bias"], saved.state_dict()["order.bias"]
+    )
+
+
+def all_allowed_inputs(b: int, seed: int = 0) -> CommanderInputs:
+    rng = np.random.default_rng(seed)
+    arrays = {
+        "globals": rng.normal(size=(b, GLOBAL_DIM)).astype(np.float32),
+        "entities": rng.normal(size=(b, MAX_ENTITIES, ENTITY_DIM)).astype(np.float32),
+        "valid": np.ones((b, MAX_ENTITIES), dtype=bool),
+    } | {name: np.ones((b, *shape), dtype=bool) for name, shape in MASK_SHAPES.items()}
+    return CommanderInputs.from_numpy(arrays)
+
+
+def saved_start(tmp_path, seed: int = 3):
+    torch.manual_seed(seed)
+    saved = CommanderActor()
+    with torch.no_grad():
+        for head in (saved.launch, saved.order):
+            head.weight.normal_()
+            head.bias.normal_(std=3.0)
+    path = tmp_path / "start.pt"
+    save_commander(path, saved, {"update": 7})
+    return saved, path
+
+
+def test_a_launch_prior_resets_the_launch_head_of_a_loaded_start(tmp_path) -> None:
+    saved, path = saved_start(tmp_path)
+    actor = initial_actor(TrainConfig(init=str(path), launch_prior=0.03))
+    for name, value in saved.state_dict().items():
+        if not name.startswith("launch."):
+            assert torch.equal(actor.state_dict()[name], value), name
+    launches = sample_actions(actor, all_allowed_inputs(4096))[:, LAUNCH] == 1
+    assert launches.float().mean() == pytest.approx(0.03, abs=0.006)
+
+
+def test_forbidden_orders_hold_on_a_loaded_start(tmp_path) -> None:
+    _, path = saved_start(tmp_path)
+    actor = initial_actor(TrainConfig(init=str(path), forbid_orders=("attack",)))
+    order = sample_actions(actor, all_allowed_inputs(4096))[:, ORDER]
+    assert not (order == ORDER_ATTACK).any()
+
+
+def test_the_new_start_settings_default_to_the_old_start(tmp_path) -> None:
+    saved, path = saved_start(tmp_path)
+    actor = initial_actor(TrainConfig(init=str(path)))
+    for name, value in saved.state_dict().items():
+        assert torch.equal(actor.state_dict()[name], value), name
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        dict(launch_prior=1.0),
+        dict(launch_prior=-0.1),
+        dict(learner_team=2),
+        dict(forbid_orders=("keep",)),
+        dict(forbid_orders=("retreat",)),
+    ],
+)
+def test_new_settings_refuse_bad_values(bad) -> None:
+    with pytest.raises(ValueError):
+        TrainConfig(**bad)
+
+
+def test_a_pinned_learner_plays_its_team_in_every_match() -> None:
+    shares = dict(mission_weights=(0, 0, 0, 1), opponent_shares=(0.25, 0, 0, 0, 0.75))
+    pinned = assignment_drawer(**shares, learner_team=0)
+    free = assignment_drawer(**shares)
+    a = [Trainer._draw_assignment(pinned) for _ in range(500)]  # type: ignore[arg-type]
+    b = [Trainer._draw_assignment(free) for _ in range(500)]  # type: ignore[arg-type]
+    assert all(x.learner_team == 0 for x in a)
+    assert {x.learner_team for x in b} == {0, 1}
+    # Everything else is drawn as an unpinned run draws it.
+    assert [(x.opponent, x.mission) for x in a] == [(x.opponent, x.mission) for x in b]
+    for x in a:
+        assert x.controllers()[0] == LEARNER and x.controllers()[1] == NOT_LEARNED
+
+
+@pytest.mark.parametrize("shares", [(0, 0, 1, 0, 0), (0.5, 0, 0, 0.5, 0)])
+def test_a_pinned_learner_refuses_self_play(shares) -> None:
+    with pytest.raises(ValueError, match="pinned learner_team"):
+        TrainConfig(learner_team=0, opponent_shares=shares)
+
+
+def test_a_station_roster_picks_that_roster_for_the_station_draws() -> None:
+    rosters = train_rosters(TrainConfig(station_roster="strike of 8"))
+    assert [name for name, _ in rosters[STATION_ASSAULT]] == ["strike of 8"]
+    default = train_rosters(TrainConfig())
+    names = [name for name, _ in default[STATION_ASSAULT]]
+    assert names == [name for name, _ in default_rosters(STATION_ASSAULT)]
+    # The other missions are untouched.
+    for mission, options in default.items():
+        if mission != STATION_ASSAULT:
+            assert [n for n, _ in rosters[mission]] == [n for n, _ in options]
+
+
+def test_an_unknown_station_roster_is_refused() -> None:
+    with pytest.raises(ValueError, match="no roster 'strike of 9'"):
+        TrainConfig(station_roster="strike of 9")

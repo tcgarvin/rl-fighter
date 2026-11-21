@@ -36,6 +36,7 @@ from spacefight.commander.io import (
     MASK_SHAPES,
     ORDER,
     ORDER_KEEP,
+    ORDER_NAMES,
     CommanderInputs,
     check_sim_layout,
 )
@@ -50,6 +51,8 @@ from spacefight.commander.policy import (
     CommanderCritic,
     act,
     evaluate,
+    forbid_orders,
+    lean_to_hold,
     lean_to_keep,
     load_commander,
     n_params,
@@ -69,7 +72,7 @@ from spacefight.env.rosters import (
     make_sampler,
 )
 from spacefight.env.rust_env import RustVecEnv
-from spacefight.eval.missions import default_rosters
+from spacefight.eval.missions import default_rosters, named_roster
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ASSETS = REPO_ROOT / "assets"
@@ -137,6 +140,19 @@ class TrainConfig:
     # A commander checkpoint (``save_commander``) the actor starts from instead of a
     # fresh net (``keep_prior`` then does nothing); the critic starts fresh. "": none.
     init: str = ""
+    # Per hull class, the chance the launch head launches each decision
+    # (policy.lean_to_hold), set after any ``init`` load. 0: the head as it is.
+    launch_prior: float = 0.0
+    # The learner's team in every match (a station assault's team 0 defends); -1 draws
+    # it per match. A pinned learner needs no self or snapshot enemy.
+    learner_team: int = -1
+    # The sim's station-assault roster the station draws play
+    # (``rlf_sim.mission_rosters("station_assault")``, e.g. "strike of 8"). "": the
+    # live default (``spacefight.eval.missions.default_rosters``, the citadel).
+    station_roster: str = ""
+    # Order kinds the learner never picks (policy.forbid_orders, a bias set after any
+    # ``init`` load), e.g. ("attack",).
+    forbid_orders: tuple[str, ...] = ()
     # The checkout that holds the pilots' checkpoints (``live_pilots`` paths resolve
     # against it; a worktree has no weights). "": this checkout.
     pilot_root: str = ""
@@ -172,11 +188,36 @@ class TrainConfig:
                 "station_convoy_share must be in [0, 1], "
                 f"got {self.station_convoy_share}"
             )
+        if not 0.0 <= self.launch_prior < 1.0:
+            raise ValueError(f"launch_prior must be in [0, 1), got {self.launch_prior}")
+        if self.learner_team not in (-1, 0, 1):
+            raise ValueError(
+                f"learner_team must be -1 (either) or 0 or 1, got {self.learner_team}"
+            )
+        if self.learner_team >= 0 and (
+            shares[OPP_SELF] > 0 or shares[OPP_SNAPSHOT] > 0
+        ):
+            # Self-play would train the learner on the other side too, and its
+            # snapshots never played that side.
+            raise ValueError(
+                "a pinned learner_team needs self and snapshot opponent_shares of 0, "
+                f"got {self.opponent_shares}"
+            )
+        if self.station_roster:
+            named_roster(STATION_ASSAULT, self.station_roster)
+        self.forbid_orders = tuple(str(o) for o in self.forbid_orders)
+        for order in self.forbid_orders:
+            if order not in ORDER_NAMES[1:]:
+                raise ValueError(
+                    f"forbid_orders names {order!r}; choose from {ORDER_NAMES[1:]}"
+                )
 
 
 def initial_actor(cfg: TrainConfig) -> CommanderActor:
     """The actor a new run starts from: ``cfg.init``'s weights if it names a commander
-    checkpoint, else a fresh net leaning to "keep" (``cfg.keep_prior``).
+    checkpoint, else a fresh net leaning to "keep" (``cfg.keep_prior``); then, on
+    either, the launch head re-set to ``cfg.launch_prior`` (if > 0) and the orders of
+    ``cfg.forbid_orders`` forbidden.
 
     Raises:
         ValueError: ``cfg.init`` is not a commander file of this io version.
@@ -186,7 +227,23 @@ def initial_actor(cfg: TrainConfig) -> CommanderActor:
     if cfg.init:
         start, _ = load_commander(Path(cfg.init))
         actor.load_state_dict(start.state_dict())
+    if cfg.launch_prior > 0:
+        lean_to_hold(actor, cfg.launch_prior)
+    forbid_orders(actor, cfg.forbid_orders)
     return actor
+
+
+def train_rosters(cfg: TrainConfig) -> dict[str, list[tuple[str, Roster]]]:
+    """Per mission other than the deathmatch, the ``(name, roster)`` options a match
+    draws from: the live defaults, the station assault's ``cfg.station_roster`` if set.
+
+    Raises:
+        ValueError: The sim has no station-assault roster ``cfg.station_roster``.
+    """
+    rosters = {m: default_rosters(m) for m in TRAIN_MISSIONS[1:]}
+    if cfg.station_roster:
+        rosters[STATION_ASSAULT] = [named_roster(STATION_ASSAULT, cfg.station_roster)]
+    return rosters
 
 
 @dataclass
@@ -300,7 +357,7 @@ class Trainer:
         self.dm_sampler = make_sampler(
             PilotsDistribution(mission_weights=(1.0, 0.0, 0.0)), cfg.seed + 7
         )
-        self.mission_rosters = {m: default_rosters(m) for m in TRAIN_MISSIONS[1:]}
+        self.mission_rosters = train_rosters(cfg)
         first = self._draw_assignment()
         roster = self._roster(first)
         self.env = RustVecEnv(
@@ -356,7 +413,10 @@ class Trainer:
         mw = np.asarray(cfg.mission_weights, dtype=np.float64)
         # A trailing zero weight leaves the draw exactly as with three missions.
         mission = TRAIN_MISSIONS[int(self.rng.choice(len(mw), p=mw / mw.sum()))]
+        # Drawn even when pinned, so a pinned run's other draws are an unpinned one's.
         learner_team = int(self.rng.integers(0, 2))
+        if cfg.learner_team >= 0:
+            learner_team = cfg.learner_team
         station_as = STATION_AS_CARRIER
         # Drawn only when it can be convoy, so a share of 0 draws exactly as before.
         if mission == STATION_ASSAULT and cfg.station_convoy_share > 0:
@@ -472,7 +532,7 @@ class Trainer:
         order = a[:, ORDER]
         s["order_heads"] += order.size
         s["order_changes"] += float((order != ORDER_KEEP).sum())
-        for k, name in enumerate(("keep", "none", "attack", "defend", "goto")):
+        for k, name in enumerate(ORDER_NAMES):
             s[f"order_{name}"] += float((order == k).sum())
 
     def _finish(self, done_envs: NDArray, winner: NDArray) -> None:
@@ -740,7 +800,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if key not in known:
             raise SystemExit(f"unknown setting {key!r}")
         base[key] = json.loads(value)
-    for key in ("opponent_shares", "mission_weights"):
+    for key in ("opponent_shares", "mission_weights", "forbid_orders"):
         if key in base:
             base[key] = tuple(base[key])
     cfg = TrainConfig(**base)
