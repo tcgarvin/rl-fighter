@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Preflight for the station-hold commander night: do the station-rules defender hand rules
+# Preflight for commander 4's hold arm: do the station-rules defender hand rules
 # still beat no orders at SIM_VERSION 11 (recalls and relaunches), on the v9 station
 # ("strike of 8", where they were measured) and on the citadel the live page plays?
 # Six cells, one process each, nice 19; cells of one roster pair match by match.
