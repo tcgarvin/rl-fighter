@@ -71,10 +71,15 @@ fixes. It was not restarted: the actor, the critic and their optimiser carry on.
 | The run never met the side it is measured against | `opponent_shares` gave unseen 0. Over 1,235 updates its training win rates did not move: 0.65 to 0.62 against the script, 0.56 to 0.58 against random orders, 0.50 against its snapshots | Enemies are now scripted 0.15, random 0.05, itself 0.25, its snapshots 0.25, unseen 0.3 (the trainer's new default, set in `run.sh` because a resumed run reads its own config) |
 | A run from `init` moved a trained actor on a new critic's advantages | Suspected of unwinding commander 4's launch prior. It does not touch this resume, whose critic has 1,235 updates behind it | `critic_warmup`, 20 updates of critic alone at the start of a run from `init` |
 
-What carries over from before: the order heads are still near even odds (4.8 nats), so
-for now a ship put into a squad still draws a random order. With the fix those heads
-learn only from decisions where they did something. How fast that recovers is one of
-the things the curve will show.
+What carries over from before: the order heads of empty squads are still near even
+odds, so a ship put into an empty squad probably still draws a random order. With the
+fix those heads learn only from decisions where they did something. How fast that
+recovers is one of the things the curve will show. The heads that did count were less
+far gone than the old log suggested: in the first three updates after the fix (1236 to
+1238), 0.19 to 0.20 of them chose something other than keep, a decision had 0.4 to 0.6
+squads with a member, and ships spent 14 to 16% of their time under an order. The
+critic explained 0.72 to 0.82 of the returns' variance, so the resume did not start
+from a cold critic.
 
 **Reading the log across update 1235.** `entropy_order`, `entropy_target`, `_ward` and
 `_point`, and with them `entropy`, now sum only the heads that counted, so they drop at
