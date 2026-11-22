@@ -25,6 +25,7 @@ from spacefight.commander.io import (
     COMMANDER_IO_VERSION,
     DEFEND_WARD,
     ENTITY_DIM,
+    ENTITY_SQUAD,
     GLOBAL_DIM,
     GOTO_POINT,
     LAUNCH,
@@ -213,19 +214,48 @@ def _dists(logits: HeadLogits, validate: bool = True) -> dict[str, Categorical]:
     }
 
 
-def _gates(order: torch.Tensor) -> dict[str, torch.Tensor]:
-    """Per squad, which pointer and point heads the chosen order uses."""
+def squads_with_members(
+    entities: torch.Tensor, squad_actions: torch.Tensor
+) -> torch.Tensor:
+    """Per squad, whether it has a member once a decision's squad moves are applied:
+    ``[B, N_SQUADS]`` bool.
+
+    The decoder gives no order to a squad that ends the decision empty
+    (docs/COMMANDER.md "Decoding"), so such a squad's order head, and its target, ward
+    and point heads, are not part of the decision. Membership before the moves is the
+    entities' squad one-hot (own strike craft only; zeros elsewhere); a move is a
+    sampled squad choice other than "keep", which the masks allow only for own strike
+    craft that are not held.
+
+    Args:
+        entities: ``[B, MAX_ENTITIES, ENTITY_DIM]`` inputs the decision was made from.
+        squad_actions: ``[B, MAX_ENTITIES]`` squad choices (0 keep, 1 no squad, 2-5
+            squad 1-4).
+    """
+    in_squad = entities[..., ENTITY_SQUAD][..., 1:] > 0.5
+    now = torch.where(in_squad.any(dim=-1), in_squad.int().argmax(dim=-1) + 1, 0)
+    after = torch.where(squad_actions == 0, now, squad_actions - 1)
+    squads = torch.arange(1, N_SQUADS + 1, device=after.device)
+    return (after[..., None] == squads).any(dim=1)
+
+
+def _gates(order: torch.Tensor, live: torch.Tensor) -> dict[str, torch.Tensor]:
+    """Per squad, which of its heads are part of the decision: the order head when the
+    squad ends the decision with a member (``live``), and then the pointer or point
+    head the chosen order uses."""
+    live = live.float()
     return {
-        "target": (order == ORDER_ATTACK).float(),
-        "ward": (order == ORDER_DEFEND).float(),
-        "point": (order == ORDER_GOTO).float(),
+        "order": live,
+        "target": live * (order == ORDER_ATTACK).float(),
+        "ward": live * (order == ORDER_DEFEND).float(),
+        "point": live * (order == ORDER_GOTO).float(),
     }
 
 
 def _log_prob_entropy(
-    dists: dict[str, Categorical], acts: dict[str, torch.Tensor]
+    dists: dict[str, Categorical], acts: dict[str, torch.Tensor], live: torch.Tensor
 ) -> tuple[torch.Tensor, torch.Tensor, dict[str, torch.Tensor]]:
-    gates = _gates(acts["order"])
+    gates = _gates(acts["order"], live)
     logp = torch.zeros(acts["order"].shape[0])
     entropy = torch.zeros_like(logp)
     per_head: dict[str, torch.Tensor] = {}
@@ -249,14 +279,16 @@ def act(
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Choose decisions: ``(actions [B, ACTION_DIM] int64, log-prob [B])``.
 
-    Pointer and point heads are filled for every squad; the decoder reads them only
-    when the squad's order chose their kind, and only then do they count in the
-    log-probability.
+    Every head is filled for every squad, but the log-probability counts only what the
+    decoder reads: a squad's order when the squad ends the decision with a member
+    (``squads_with_members``), and its pointer or point head when that order chose
+    their kind.
     """
     dists = _dists(actor(x))
     acts = _choose(dists, deterministic)
     actions = _assemble(acts, x.batch_size)
-    logp, _, _ = _log_prob_entropy(dists, acts)
+    live = squads_with_members(x.entities, acts["squad"])
+    logp, _, _ = _log_prob_entropy(dists, acts, live)
     return actions, logp
 
 
@@ -307,8 +339,15 @@ def _assemble(acts: dict[str, torch.Tensor], b: int) -> torch.Tensor:
 def evaluate(
     actor: CommanderActor, x: CommanderInputs, actions: torch.Tensor
 ) -> tuple[torch.Tensor, torch.Tensor, dict[str, torch.Tensor]]:
-    """``(log-prob [B], entropy [B], entropy per head)`` of ``actions`` under ``actor``."""
-    return _log_prob_entropy(_dists(actor(x)), _split(actions))
+    """``(log-prob [B], entropy [B], entropy per head)`` of ``actions`` under ``actor``.
+
+    Both count only the heads that were part of each decision (see ``act``): the order
+    head of a squad that ends the decision empty adds no log-probability and earns no
+    entropy bonus.
+    """
+    acts = _split(actions)
+    live = squads_with_members(x.entities, acts["squad"])
+    return _log_prob_entropy(_dists(actor(x)), acts, live)
 
 
 class CommanderCritic(nn.Module):

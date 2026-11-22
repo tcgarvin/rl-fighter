@@ -58,6 +58,36 @@ not gated.
 Flat so far, within noise of its start, and still giving few orders. That is expected
 after six hours; the plan is days.
 
+## The fixes (2026-11-21, from update 1235)
+
+A review of the trainer found three faults. The run was stopped at update 1235 (19:25),
+its state copied to `before-fixes-1235/` on Beast (state, config, log, the checkpoint and
+the snapshot pool; the code was commit `318728b`), and resumed from that state with the
+fixes. It was not restarted: the actor, the critic and their optimiser carry on.
+
+| Fault | What it did | Fix |
+|---|---|---|
+| The order heads of empty squads counted in the log-probability and the entropy bonus | The decoder gives an empty squad no order, so nothing but the entropy bonus moved those heads. Their entropy rose from 1.3 to 4.8 nats, and a ship that joined a squad drew a near-random order | A squad's order, target, ward and point heads count only when the squad ends the decision with a member (`docs/COMMANDER.md` "Outputs") |
+| The run never met the side it is measured against | `opponent_shares` gave unseen 0. Over 1,235 updates its training win rates did not move: 0.65 to 0.62 against the script, 0.56 to 0.58 against random orders, 0.50 against its snapshots | Enemies are now scripted 0.15, random 0.05, itself 0.25, its snapshots 0.25, unseen 0.3 (the trainer's new default, set in `run.sh` because a resumed run reads its own config) |
+| A run from `init` moved a trained actor on a new critic's advantages | Suspected of unwinding commander 4's launch prior. It does not touch this resume, whose critic has 1,235 updates behind it | `critic_warmup`, 20 updates of critic alone at the start of a run from `init` |
+
+What carries over from before: the order heads are still near even odds (4.8 nats), so
+for now a ship put into a squad still draws a random order. With the fix those heads
+learn only from decisions where they did something. How fast that recovers is one of
+the things the curve will show.
+
+**Reading the log across update 1235.** `entropy_order`, `entropy_target`, `_ward` and
+`_point`, and with them `entropy`, now sum only the heads that counted, so they drop at
+1236 without the policy having changed. `order_change_rate` and `order_none`,
+`_attack`, `_defend`, `_goto` are now shares of the order heads the decoder read, not of
+all four. New keys: `order_heads_live`, `explained_variance`, `actor_frozen`, and
+`win_unseen` / `n_unseen`.
+
+**The eval loop stopped early.** It ended at 16:50 after update 800, taking a running
+trainer for a stopped one (`grep -q` closed the pipe, `ps` died of SIGPIPE, and
+`pipefail` reported that as "no trainer"). Fixed; restarted with the trainer, it
+measures 900 to 1,200 first and then carries on.
+
 ## With the pilots
 
 The pilot half of the loop keeps running on Beast's GPUs:

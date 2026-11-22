@@ -11,12 +11,16 @@ from spacefight.commander.io import (
     ATTACK_TARGET,
     DEFEND_WARD,
     ENTITY_DIM,
+    ENTITY_SQUAD,
     GLOBAL_DIM,
+    GOTO_POINT,
     LAUNCH,
     MASK_SHAPES,
     MAX_ENTITIES,
+    N_SQUADS,
     ORDER,
     ORDER_ATTACK,
+    ORDER_GOTO,
     ORDER_KEEP,
     SQUAD_OF_SLOT,
     WAYPOINT,
@@ -34,6 +38,7 @@ from spacefight.commander.policy import (
     n_params,
     sample_actions,
     save_commander,
+    squads_with_members,
 )
 
 
@@ -115,6 +120,91 @@ def test_a_target_counts_only_when_its_squad_attacks() -> None:
     changed[:, DEFEND_WARD] = (changed[:, DEFEND_WARD] + 3) % MAX_ENTITIES
     after, _, _ = evaluate(actor, x, changed)
     assert torch.allclose(base, after)
+
+
+def squad_inputs(b: int, members: dict[int, int], seed: int = 0) -> CommanderInputs:
+    """``inputs`` with the squad one-hot written by hand: ``members`` maps a slot to
+    its squad (1-4); every other slot is in none."""
+    x = inputs(b, seed=seed)
+    x.entities[..., ENTITY_SQUAD] = 0.0
+    x.entities[..., ENTITY_SQUAD.start] = 1.0
+    for slot, squad in members.items():
+        x.entities[:, slot, ENTITY_SQUAD] = 0.0
+        x.entities[:, slot, ENTITY_SQUAD.start + squad] = 1.0
+    return x
+
+
+def test_squads_with_members_follows_the_decisions_squad_moves() -> None:
+    x = squad_inputs(1, {0: 1, 1: 1, 2: 3})
+    moves = torch.zeros((1, MAX_ENTITIES), dtype=torch.int64)
+    assert squads_with_members(x.entities, moves).tolist() == [
+        [True, False, True, False]
+    ]
+    moves[0, 2] = 1  # squad 3's only member leaves for no squad
+    moves[0, 0] = 5  # one of squad 1's two members moves to squad 4
+    assert squads_with_members(x.entities, moves).tolist() == [
+        [True, False, False, True]
+    ]
+    moves[0, 1] = 3  # and the other to squad 2: squad 1 ends empty
+    assert squads_with_members(x.entities, moves).tolist() == [
+        [False, True, False, True]
+    ]
+
+
+def test_an_empty_squads_order_is_not_part_of_the_decision() -> None:
+    # The decoder gives no order to a squad that ends the decision empty, so what its
+    # order, target and point heads sampled must not move the log-probability.
+    torch.manual_seed(5)
+    actor = CommanderActor()
+    x = squad_inputs(16, {}, seed=6)
+    actions, logp = act(actor, x)
+    actions[:, SQUAD_OF_SLOT] = 0
+    base, entropy, per_head = evaluate(actor, x, actions)
+    changed = actions.clone()
+    changed[:, ORDER] = ORDER_GOTO
+    changed[:, GOTO_POINT] = (changed[:, GOTO_POINT] + 7) % 25
+    after, _, _ = evaluate(actor, x, changed)
+    assert torch.allclose(base, after)
+    for name in ("order", "target", "ward", "point"):
+        assert float(per_head[name].detach().abs().sum()) == 0.0, name
+    assert (entropy > 0).all()  # the launch, waypoint and squad heads still count
+
+
+def test_an_entropy_bonus_does_not_reach_an_empty_squads_order_head() -> None:
+    torch.manual_seed(5)
+    actor = CommanderActor()
+    x = squad_inputs(16, {}, seed=6)
+    actions = torch.zeros((16, ACTION_DIM), dtype=torch.int64)
+    _, entropy, _ = evaluate(actor, x, actions)
+    entropy.mean().backward()
+    assert actor.order.weight.grad is None or not actor.order.weight.grad.any()
+    assert actor.point.weight.grad is None or not actor.point.weight.grad.any()
+
+
+def test_a_squads_order_counts_once_it_has_a_member() -> None:
+    torch.manual_seed(5)
+    actor = CommanderActor()
+    x = squad_inputs(16, {3: 2}, seed=6)
+    x.order_mask[:] = True
+    actions = torch.zeros((16, ACTION_DIM), dtype=torch.int64)
+    base, _, per_head = evaluate(actor, x, actions)
+    # Only squad 2 is live, so the order entropy is that one head's.
+    squad_2 = torch.distributions.Categorical(logits=actor(x).order[:, 1])
+    assert torch.allclose(per_head["order"], squad_2.entropy())
+    assert (per_head["order"] > 0).all()
+    ordered = actions.clone()
+    ordered[:, ORDER.start + 1] = ORDER_GOTO
+    assert not torch.allclose(base, evaluate(actor, x, ordered)[0])
+    # A ship that joins an empty squad in this decision makes that squad's order count.
+    joined = actions.clone()
+    joined[:, SQUAD_OF_SLOT.start + 7] = 2 + 3  # slot 7 to squad 4
+    assert squads_with_members(x.entities, joined[:, SQUAD_OF_SLOT])[:, 3].all()
+    with_order = joined.clone()
+    with_order[:, ORDER.start + 3] = ORDER_GOTO
+    assert not torch.allclose(
+        evaluate(actor, x, joined)[0], evaluate(actor, x, with_order)[0]
+    )
+    assert N_SQUADS == 4
 
 
 def test_an_all_masked_head_stays_finite() -> None:

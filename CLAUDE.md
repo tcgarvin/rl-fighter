@@ -102,7 +102,9 @@ uv run python -m tools.live_commanders list
 
 # Commander training and eval (docs/COMMANDER.md). A ship keeps a changed order for 5
 # decisions (HOLD_DECISIONS) unless the order is spent; TrainConfig.order_price charges
-# for each ship re-ordered, keep_prior starts a fresh net leaning to "keep". The eval
+# for each ship re-ordered, keep_prior starts a fresh net leaning to "keep". A run from
+# `init` trains its new critic alone for critic_warmup (20) updates, and the default
+# enemies include the unseen side (opponent_shares' fifth entry, 0.3). The eval
 # (rlf.eval.commander/1) also times every ship's orders (orders_a / orders_b); "unseen" is
 # the script with its orders hidden from its own pilots (the no-orders side), and --pilots
 # (the trainer: --set live_pilots=<list>) flies another pilot list than the live ten. Phase 2

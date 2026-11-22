@@ -20,7 +20,11 @@ THREADS=${THREADS:-2}
 mkdir -p "$HERE/eval"
 
 trainer_running() {
-    ps -eo args | grep -v grep | grep -q "commander.train --run-dir $HERE/learner"
+    # grep -c reads all of ps's output. With grep -q it closed the pipe at the first
+    # match, ps died of SIGPIPE and pipefail called a running trainer stopped: the loop
+    # ended at 16:50 on 2026-11-21 with the trainer still running.
+    ps -eo args | grep -v grep \
+        | grep -c "commander.train --run-dir $HERE/learner" > /dev/null
 }
 due() {  # Checkpoints at multiples of EVERY not yet measured, oldest first.
     find "$HERE/learner/checkpoints" -name 'commander_*.pt' -printf '%f\n' 2>/dev/null \

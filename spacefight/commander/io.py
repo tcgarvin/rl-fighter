@@ -42,6 +42,9 @@ ORDER_NAMES: Final = ("keep", "none", "attack", "defend", "goto")
 N_SQUAD_CHOICES: Final = 2 + N_SQUADS  # keep, no squad, squad 1-4
 N_WAYPOINT_CHOICES: Final = 1 + N_POINTS
 
+# Entity columns of an own strike craft's squad one-hot: none, squad 1-4.
+ENTITY_SQUAD: Final = slice(19, 24)
+
 # Per-squad block of the globals: size, kind one-hot (4), hold left, point x, y.
 SQUAD_GLOBALS: Final = slice(18, 50)
 SQUAD_GLOBAL_DIM: Final = 8
@@ -77,6 +80,17 @@ def check_sim_layout(io: Mapping[str, object]) -> None:
             )
         if int(io[key]) != value:  # type: ignore[call-overload]
             raise ValueError(f"sim {key} = {io[key]}, the commander expects {value}")
+    layout = io.get("entity_layout")
+    if not isinstance(layout, Mapping) or "squad" not in layout:
+        raise ValueError(
+            "the sim's commander_io() has no entity_layout['squad']: rebuild rlf_sim"
+        )
+    offset, width = (int(v) for v in layout["squad"])
+    if (offset, offset + width) != (ENTITY_SQUAD.start, ENTITY_SQUAD.stop):
+        raise ValueError(
+            f"sim squad columns are {offset} to {offset + width}, the commander "
+            f"expects {ENTITY_SQUAD.start} to {ENTITY_SQUAD.stop}"
+        )
 
 
 @dataclass

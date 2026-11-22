@@ -11,6 +11,10 @@
 # Env: DEADLINE (required, a `date -d` string), THREADS (5 sim + 5 torch), N_ENVS (128).
 # To change anything mid-run, stop it (SIGTERM), copy this file, and start the copy: never
 # edit this file while it runs (bash reads a running script as it goes).
+#
+# 2026-11-21, from update 1220: the enemies include the side with no orders (unseen),
+# which the run is measured against and had never met (plan.md "The fixes"). A resumed
+# run reads its shares from config.json, so they are set here.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$ROOT"
@@ -26,4 +30,5 @@ OMP_NUM_THREADS=$THREADS exec nice -n 10 .venv/bin/python -m spacefight.commande
     --run-dir "$DIR" --deadline "$DEADLINE" "${resume[@]}" \
     --set init=\""$INIT"\" \
     --set n_envs="${N_ENVS:-128}" --set n_threads="$THREADS" --set torch_threads="$THREADS" \
+    --set opponent_shares='[0.15, 0.05, 0.25, 0.25, 0.3]' \
     > "$DIR.out" 2>&1

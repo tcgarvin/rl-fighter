@@ -37,6 +37,7 @@ from spacefight.commander.io import (
     ORDER,
     ORDER_KEEP,
     ORDER_NAMES,
+    SQUAD_OF_SLOT,
     CommanderInputs,
     check_sim_layout,
 )
@@ -57,6 +58,7 @@ from spacefight.commander.policy import (
     load_commander,
     n_params,
     save_commander,
+    squads_with_members,
 )
 from spacefight.env.rosters import (
     CARRIER_BATTLE,
@@ -125,8 +127,10 @@ class TrainConfig:
     # Enemy commander shares: scripted, random, self, snapshots (snapshots' share goes to
     # self until the first snapshot exists), unseen (the scripted commander with its
     # orders hidden from its own pilots: the side with no orders). Four shares, as configs
-    # from before the unseen enemy have, mean none of it.
-    opponent_shares: tuple[float, ...] = (0.35, 0.1, 0.3, 0.25, 0.0)
+    # from before the unseen enemy have, mean none of it. Unseen is in the default since
+    # 2026-11-21 (before: 0.35, 0.1, 0.3, 0.25, 0): it is the side every commander is
+    # measured against, and the long run trained 1,200 updates without meeting it.
+    opponent_shares: tuple[float, ...] = (0.15, 0.05, 0.25, 0.25, 0.3)
     pfsp_power: float = 1.0
     pfsp_floor: float = 0.1
     snapshot_every: int = 20
@@ -144,6 +148,10 @@ class TrainConfig:
     # A commander checkpoint (``save_commander``) the actor starts from instead of a
     # fresh net (``keep_prior`` then does nothing); the critic starts fresh. "": none.
     init: str = ""
+    # Updates at the start of a run from ``init`` that train the critic alone, the
+    # actor frozen: the start's actor is trained and its critic is new, and advantages
+    # from an untrained critic are noise that would move the actor first. 0: none.
+    critic_warmup: int = 20
     # Per hull class, the chance the launch head launches each decision
     # (policy.lean_to_hold), set after any ``init`` load. 0: the head as it is.
     launch_prior: float = 0.0
@@ -191,6 +199,10 @@ class TrainConfig:
             raise ValueError(
                 "station_convoy_share must be in [0, 1], "
                 f"got {self.station_convoy_share}"
+            )
+        if self.critic_warmup < 0:
+            raise ValueError(
+                f"critic_warmup must not be negative, got {self.critic_warmup}"
             )
         if not 0.0 <= self.launch_prior < 1.0:
             raise ValueError(f"launch_prior must be in [0, 1), got {self.launch_prior}")
@@ -533,7 +545,12 @@ class Trainer:
         s["ships_changed"] += float(changed.sum())
         s["decisions"] += a.shape[0]
         s["launch_orders"] += float((a[:, LAUNCH] == 1).sum())
-        order = a[:, ORDER]
+        # Only the order heads the decoder read: a squad that ends the decision empty
+        # takes no order, so its sample says nothing about what the commander did.
+        live = squads_with_members(
+            torch.from_numpy(entities), actions[:, SQUAD_OF_SLOT]
+        ).numpy()
+        order = a[:, ORDER][live]
         s["order_heads"] += order.size
         s["order_changes"] += float((order != ORDER_KEEP).sum())
         for k, name in enumerate(ORDER_NAMES):
@@ -589,6 +606,10 @@ class Trainer:
 
     # -- update --------------------------------------------------------------
 
+    def actor_frozen(self) -> bool:
+        """Whether the coming update trains the critic alone (``critic_warmup``)."""
+        return bool(self.cfg.init) and self.update < self.cfg.critic_warmup
+
     def _advantages(self, batch: list[Transition]) -> tuple[NDArray, NDArray]:
         cfg = self.cfg
         adv = np.zeros(len(batch), dtype=np.float32)
@@ -622,6 +643,7 @@ class Trainer:
         n = len(batch)
         stats: dict[str, list[float]] = defaultdict(list)
         params = list(self.actor.parameters()) + list(self.critic.parameters())
+        frozen = self.actor_frozen()
         for _ in range(cfg.epochs):
             perm = torch.randperm(n)
             for start in range(0, n, cfg.minibatch):
@@ -636,7 +658,10 @@ class Trainer:
                 v = self.critic(xb, pilot[mb])
                 vf = 0.5 * (v - ret_t[mb]).pow(2).mean()
                 ent = entropy.mean()
-                loss = pg + cfg.vf_coef * vf - cfg.ent_coef * ent
+                loss = cfg.vf_coef * vf
+                if not frozen:
+                    # A frozen actor gets no gradient at all, so Adam leaves it alone.
+                    loss = loss + pg - cfg.ent_coef * ent
                 self.opt.zero_grad()
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(params, cfg.max_grad_norm)
@@ -654,6 +679,19 @@ class Trainer:
                         stats[f"entropy_{name}"].append(float(e.mean()))
         out = {k: float(np.mean(v)) for k, v in stats.items()}
         out["decisions"] = float(n)
+        out["actor_frozen"] = float(frozen)
+        # How much of the returns' variance the values the rollout used explain.
+        values = returns - adv
+        out["explained_variance"] = float(
+            1.0 - np.var(returns - values) / max(float(np.var(returns)), 1e-8)
+        )
+        # Squads a decision that end it with a member: the order heads that count.
+        out["order_heads_live"] = float(
+            squads_with_members(x.entities, actions[:, SQUAD_OF_SLOT])
+            .float()
+            .sum(dim=-1)
+            .mean()
+        )
         out["mean_reward"] = float(np.mean([t.reward for t in batch]))
         out["value_mean"] = float(np.mean([t.value for t in batch]))
         out["return_mean"] = float(returns.mean())
@@ -756,6 +794,9 @@ class Trainer:
                 out[f"n_{name}"] = s[f"n_{name}"]
         if s["decisions"]:
             out["launch_per_decision"] = round(s["launch_orders"] / s["decisions"], 3)
+        if s["order_heads"]:
+            # Of the order heads of squads with a member (absent when no decision had
+            # one): the share that chose something other than keep, and each choice.
             out["order_change_rate"] = round(s["order_changes"] / s["order_heads"], 3)
             for name in ("none", "attack", "defend", "goto"):
                 out[f"order_{name}"] = round(s[f"order_{name}"] / s["order_heads"], 3)

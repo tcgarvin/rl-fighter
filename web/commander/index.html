@@ -893,10 +893,13 @@
             </li>
             <li>
               <strong>The enemy commander.</strong> The scripted commander
-              <span data-fact="train.opp.scripted">35 %</span> of the time, the random one
-              <span data-fact="train.opp.random">10 %</span>, the learner itself
-              <span data-fact="train.opp.self">30 %</span>, and one of its own earlier
-              snapshots <span data-fact="train.opp.snapshot">25 %</span>. A snapshot is
+              <span data-fact="train.opp.scripted">15 %</span> of the time, the random one
+              <span data-fact="train.opp.random">5 %</span>, the learner itself
+              <span data-fact="train.opp.self">25 %</span>, one of its own earlier
+              snapshots <span data-fact="train.opp.snapshot">25 %</span>, and the side
+              with no orders <span data-fact="train.opp.unseen">30 %</span>: the scripted
+              commander with its orders hidden from its own pilots, which every
+              commander is measured against. A snapshot is
               saved every <span data-fact="train.snapshot_every">20</span> updates and the
               latest <span data-fact="train.max_snapshots">10</span> are kept. The ones it
               beats least are drawn most: each is weighted by one minus the learner's score

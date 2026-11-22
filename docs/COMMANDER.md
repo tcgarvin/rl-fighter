@@ -97,8 +97,15 @@ One decision per slow tick, `ACTION_DIM = 40` integers:
 | 32-35 | defend ward of squad k | ship slot 0-19 |
 | 36-39 | go-to point of squad k | map point 0-24 |
 
-A target, ward or point head is part of the decision only when its squad's order chose
-that kind (its log-probability counts only then).
+A squad's order head is part of the decision only when the squad ends the decision with
+a member (the decoder gives an empty squad no order, "Decoding" below), and a target,
+ward or point head only when that order chose its kind. A head that is not part of the
+decision adds nothing to the decision's log-probability and earns no entropy bonus
+(`policy.squads_with_members`, since 2026-11-21). Before that the order heads of empty
+squads counted: nothing the commander did with them had an effect, so the entropy bonus
+alone moved them, toward even odds over the order kinds. In the long run's first 1,200
+updates the order heads' entropy rose from 1.1 to 4.8 nats while ships spent 2 to 7% of
+their time under an order, and a ship that joined a squad drew a near-random order.
 
 **Map points, `N_POINTS = 25`, team frame:** point 0 is the centre; point `1 + 8 r + b` is
 at radius `(0.3, 0.6, 0.85)[r] R` and bearing `45 b` degrees, counter-clockwise from `+x`
@@ -324,9 +331,12 @@ the learner's team at random, the enemy commander from the stable (scripted, ran
 learner itself, its past snapshots; weighted toward the ones it beats least), and every
 strike craft's pilot from the live list. Missions and rosters as on the live page.
 
-**The unseen enemy** (the fifth of `TrainConfig.opponent_shares`, default 0): the
+**The unseen enemy** (the fifth of `TrainConfig.opponent_shares`; the default is
+scripted 0.15, random 0.05, itself 0.25, its snapshots 0.25, unseen 0.3 since 2026-11-21,
+before that 0.35, 0.1, 0.3, 0.25 and no unseen): the
 scripted commander with its orders hidden from its own pilots, so a side that launches
-as the script does and is otherwise not commanded. On 2026-11-15 that side beat the
+as the script does and is otherwise not commanded. It is the side every commander is
+measured against, so a learner meets it in training by default. On 2026-11-15 that side beat the
 scripted commander 0.75 to 0.25 over pilots that follow orders, and every learned
 commander we had. A learner that beats it gives orders worth more than no orders. In the
 third phase none did: with half their matches against it, two fresh commanders learned to
@@ -343,6 +353,15 @@ changed so that no checkpoint loads, or as a deliberate unrelated line for compa
 The plan says which, and why. Pilots do the same: a new pilot is a child of a member
 (`docs/PILOT_TRAINING.md` "The plan in short").
 
+**Critic warm-up** (`TrainConfig.critic_warmup`, default 20 updates, since 2026-11-21):
+a run from `init` has a trained actor and a new critic, so its first updates train the
+critic alone, the actor frozen. Without it the first advantages come from a critic that
+knows nothing, and the actor moves on noise before the critic has caught up; commander
+4's hold arms lost their launch habit within 10 to 30 updates on the same curve in all
+four runs. A fresh net and a resumed run are not warmed up. The log says `actor_frozen`
+and, every update, `explained_variance` (how much of the returns' variance the rollout's
+values explain).
+
 **Keep prior** (`TrainConfig.keep_prior`, default 0.8): a fresh actor's order and squad
 heads start with a bias toward "keep", so an untrained commander keeps with about that
 probability when every choice is allowed, not 1 time in 5 (order) or 1 in 6 (squad). It
@@ -350,7 +369,11 @@ applies to a new network only.
 
 The training log (`log.jsonl` in the run directory) also records, per update,
 `order_seconds` (the mean seconds a ship goes between changes of its order) and
-`ordered_share` (the share of ship-seconds spent with an order).
+`ordered_share` (the share of ship-seconds spent with an order). `order_change_rate`
+and `order_none` / `_attack` / `_defend` / `_goto` are shares of the order heads the
+decoder read (squads with a member; absent when no decision had one), and
+`order_heads_live` is how many of the four a decision has. Before 2026-11-21 they were
+shares of every order head, most of which belonged to empty squads.
 
 **Station assault** (`TrainConfig.mission_weights`' fourth weight, default 1 since 2026-11-21, so a commander trains on all four live missions equally; the citadel roster on SIM_VERSION >= 10;
 `station_convoy_share`, default 0, the chance a station assault reads as a convoy escort,
