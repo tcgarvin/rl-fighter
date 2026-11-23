@@ -1,0 +1,51 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "followers_dockkite_2286",
+ "family": "followers",
+ "founder": "transit_300",
+ "parent": "followers_dock_2624",
+ "relation": "fork",
+ "fork_update": 2624,
+ "settings_changed": {
+  "sim_version": 11,
+  "obs_dim": 592,
+  "dock_bonus": 1.0,
+  "goto_timed_bonus": 3.0,
+  "goto_miss_penalty": 3.0,
+  "drill_share": 0.55,
+  "drill_weights": [
+   4,
+   3,
+   1
+  ],
+  "drill_attack_pool_share": 0.5,
+  "drill_dock_share": 0.4,
+  "drill_dock_threat_share": 0.5,
+  "commander_p": 0.667,
+  "mixed_p": 0.0
+ },
+ "checkpoint": "lab/runs/2026-11-21-orderable-pilots/dockkite/checkpoints/ppo_bc_2286.pt",
+ "sha256": "6ef43915eefdee6c2631d2395436680d9cd04930767bc8cb843b35ca10b2c966",
+ "status": "active",
+ "archived_reason": "",
+ "archived_date": "",
+ "note": "Orderable pilots night: followers_dock_2624 (dockable) given kite drills, with dock drills kept in its mix.",
+ "ratings": [],
+ "drills": [
+  {
+   "phase": "orderable-pilots",
+   "date": "2026-11-21",
+   "scores": {
+    "goto_arrival": 0.8360128617363344,
+    "goto_lift": 0.6945987203221929,
+    "attack_target_hit": 0.95703125,
+    "attack_side": 0.890625,
+    "attack_flip": 0.8046875,
+    "defend_more_on_named": 0.83203125,
+    "defend_side": 0.8828125,
+    "defend_flip": 0.78125
+   },
+   "passed": false
+  }
+ ]
+}

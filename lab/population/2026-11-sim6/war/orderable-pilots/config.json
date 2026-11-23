@@ -1,0 +1,98 @@
+{
+ "schema": "rlf.population.war_config/1",
+ "pilots": [
+  [
+   "f995_400",
+   "c208c3aa979d5fbd10f7bb324194e628e9ba5054e3976865f30362186109b883"
+  ],
+  [
+   "f995_701",
+   "bf3bd0cb3c27889e9be4915f24c9674f375dd8bc815307596068e1f3ef99cf54"
+  ],
+  [
+   "f99_696",
+   "345be910ff548533a41fa5fd1ae65df75c1a0f08e7d50f8494a784d8578ab77f"
+  ],
+  [
+   "fighters_pay1_1317",
+   "420dc5c042ba31c1d24ace7333ff33c14c6e54db74cf3b67a9b098c6cdf6012d"
+  ],
+  [
+   "fighters_pay1_462",
+   "638b4394aa6e465c1e9ada826bb10d73ad72cc347bddfad906d497b374d1597c"
+  ],
+  [
+   "fighters_pay1_v8_351",
+   "c41a780f8c0a2833d0765c32ad9adcd1876ed71f2ddbb789a9c7aab2383a55e1"
+  ],
+  [
+   "followers_dock_2624",
+   "3309950dc907d1fe784f49f32a533915266aa064795fb40c970bf11471f274f1"
+  ],
+  [
+   "followers_dock_v8_2676",
+   "6139b1338b129365aed6a161c5b56c854b727f8cfb76d7f26de8010e68d57506"
+  ],
+  [
+   "followers_dockkite_2286",
+   "6ef43915eefdee6c2631d2395436680d9cd04930767bc8cb843b35ca10b2c966"
+  ],
+  [
+   "followers_pay3_810",
+   "53f35ac92e152e6206b1451c7cb56d74bedcf18c6424436872bc92a957e24977"
+  ],
+  [
+   "followers_school_600",
+   "3bc59822262ec0343fa6aea628a275b86c0d3da13acef34101437dcbbc584fad"
+  ],
+  [
+   "followers_v8_352",
+   "4a012bb278b1c6bf5f4847fe1ab3b910338eba394412f61e6d079275dd610b22"
+  ],
+  [
+   "kite_2205",
+   "8fdf34cc1d3f9a099d091c634971a2bcba634f5bc5554ceebe25288d404317e6"
+  ],
+  [
+   "kite_dock_2293",
+   "bdfbfaa180535bd1aaf99f799963d0cb47cc1964e747a63c5f986a9325a05d67"
+  ],
+  [
+   "kite_pay025_2211",
+   "d76d19b99e568afb5a47f293cd4f18043c4687b43fcd90a1bd046e59c7cedfff"
+  ]
+ ],
+ "commanders": [
+  [
+   "scripted",
+   "scripted",
+   ""
+  ],
+  [
+   "c1_shaped",
+   "learned",
+   "e847aff72c668781b58ec0a4ee7d037f03dcf32a036abd28d48ab19a9c943828"
+  ],
+  [
+   "c1_outcome",
+   "learned",
+   "25026a0bc111079191addae08a43ca8dca9a5ef03620993f5e140d2d70481749"
+  ],
+  [
+   "c1_shaped_s1",
+   "learned",
+   "4c42860da1090e20083eef91838b36a8bddc11a6020ea90b94f491fecb3f7fec"
+  ]
+ ],
+ "n_per_mission": 1440,
+ "chunk": 96,
+ "deathmatch_drafts": 24,
+ "seed": 500000,
+ "missions": [
+  "deathmatch",
+  "carrier_battle",
+  "convoy_escort",
+  "station_assault"
+ ],
+ "sim_version": 11
+}

@@ -1,0 +1,47 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "kite_pay025_2211",
+ "family": "followers",
+ "founder": "transit_300",
+ "parent": "followers_school_1052",
+ "relation": "fork",
+ "fork_update": 1052,
+ "settings_changed": {
+  "sim_version": 8,
+  "obs_dim": 587,
+  "drill_share": 0.4,
+  "drill_weights": [
+   4,
+   3,
+   1
+  ],
+  "drill_attack_pool_share": 0.5,
+  "commander_p": 0.667,
+  "mixed_p": 0.0,
+  "match_order_pay_scale": 0.25
+ },
+ "checkpoint": "lab/runs/2026-11-18-kite-drills/kite_pay025/checkpoints/ppo_bc_2211.pt",
+ "sha256": "d76d19b99e568afb5a47f293cd4f18043c4687b43fcd90a1bd046e59c7cedfff",
+ "status": "active",
+ "archived_reason": "",
+ "archived_date": "",
+ "note": "Kite drills with a quarter of the order pay in matches: ordered onto its nearest enemy it wins 0.33 of 3 v 3s against a free 1052 (its parent 0.14), and pays no cost against f995_701.",
+ "ratings": [],
+ "drills": [
+  {
+   "phase": "orderable-pilots",
+   "date": "2026-11-21",
+   "scores": {
+    "goto_arrival": 0.8571428571428571,
+    "goto_lift": 0.689259645464025,
+    "attack_target_hit": 0.9453125,
+    "attack_side": 0.8984375,
+    "attack_flip": 0.828125,
+    "defend_more_on_named": 0.8671875,
+    "defend_side": 0.90625,
+    "defend_flip": 0.8125
+   },
+   "passed": true
+  }
+ ]
+}

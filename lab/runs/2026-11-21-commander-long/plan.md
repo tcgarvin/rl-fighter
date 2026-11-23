@@ -100,3 +100,10 @@ The pilot half of the loop keeps running on Beast's GPUs:
 WAR changes the live ten, this run keeps the pilots it started with until it is stopped
 and resumed, which changes its pilots in one step that the log can mark. Pairing a
 commander with pilots trained to take its orders comes once one order is worth giving.
+
+## Paused (2026-11-23, update 7149)
+
+Stopped at update 7149 for a pilot phase, its state copied to `paused-7149/` on Beast.
+The curve was flat from about update 3,000; the last checkpoint scores 0.523 against
+unseen and 0.667 against the script. [Results](results.md) has the numbers and how to
+resume.

@@ -1,6 +1,6 @@
 {
  "schema": "rlf.live_commanders/1",
- "entry": "2026-11-08-commander-1",
+ "entry": "2026-11-21-commander-long",
  "commanders": [
   {
    "id": "scripted",
@@ -33,6 +33,15 @@
    "sha256": "4c42860da1090e20083eef91838b36a8bddc11a6020ea90b94f491fecb3f7fec",
    "url": "https://storage.tcgarvin.com/rl-fighter/commanders/c1_shaped_s1/4c42860da1090e20083eef91838b36a8bddc11a6020ea90b94f491fecb3f7fec.pt",
    "update": 324
+  },
+  {
+   "id": "long_7149",
+   "kind": "learned",
+   "note": "Trained for about two days on 2026-11-21 to 23, starting from commander 3's best. It beats the script two games in three and edges the side that gives no orders, mostly by launching well and almost never giving an order: with today's pilots, an order costs a ship more than it gains.",
+   "checkpoint": "lab/runs/2026-11-21-commander-long/learner/checkpoints/commander_7149.pt",
+   "sha256": "67bb7b4e3235ee8547e970ee55e8a23f810d935b018d30ceb823a0fcdf86e22e",
+   "url": "https://storage.tcgarvin.com/rl-fighter/commanders/long_7149/67bb7b4e3235ee8547e970ee55e8a23f810d935b018d30ceb823a0fcdf86e22e.pt",
+   "update": 7149
   }
  ]
 }

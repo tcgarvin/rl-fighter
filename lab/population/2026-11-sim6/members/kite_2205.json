@@ -1,0 +1,46 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "kite_2205",
+ "family": "followers",
+ "founder": "transit_300",
+ "parent": "followers_school_1052",
+ "relation": "fork",
+ "fork_update": 1052,
+ "settings_changed": {
+  "sim_version": 8,
+  "obs_dim": 587,
+  "drill_share": 0.4,
+  "drill_weights": [
+   4,
+   3,
+   1
+  ],
+  "drill_attack_pool_share": 0.5,
+  "commander_p": 0.667,
+  "mixed_p": 0.0
+ },
+ "checkpoint": "lab/runs/2026-11-18-kite-drills/kite/checkpoints/ppo_bc_2205.pt",
+ "sha256": "8fdf34cc1d3f9a099d091c634971a2bcba634f5bc5554ceebe25288d404317e6",
+ "status": "active",
+ "archived_reason": "",
+ "archived_date": "",
+ "note": "Kite drills: followers_school_1052 trained on attack drills against a frozen pool pilot that falls back; ordered onto its nearest enemy it wins 0.42 of 3 v 3s against a free 1052, where its parent won 0.14.",
+ "ratings": [],
+ "drills": [
+  {
+   "phase": "orderable-pilots",
+   "date": "2026-11-21",
+   "scores": {
+    "goto_arrival": 0.8345323741007195,
+    "goto_lift": 0.679493614410797,
+    "attack_target_hit": 0.9609375,
+    "attack_side": 0.96875,
+    "attack_flip": 0.9375,
+    "defend_more_on_named": 0.8828125,
+    "defend_side": 0.9765625,
+    "defend_flip": 0.953125
+   },
+   "passed": true
+  }
+ ]
+}

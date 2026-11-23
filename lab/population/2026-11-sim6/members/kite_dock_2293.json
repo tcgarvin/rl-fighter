@@ -1,0 +1,51 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "kite_dock_2293",
+ "family": "followers",
+ "founder": "transit_300",
+ "parent": "kite_2205",
+ "relation": "fork",
+ "fork_update": 2205,
+ "settings_changed": {
+  "sim_version": 11,
+  "obs_dim": 592,
+  "dock_bonus": 1.0,
+  "goto_timed_bonus": 3.0,
+  "goto_miss_penalty": 3.0,
+  "drill_share": 0.55,
+  "drill_weights": [
+   4,
+   3,
+   1
+  ],
+  "drill_attack_pool_share": 0.5,
+  "drill_dock_share": 0.4,
+  "drill_dock_threat_share": 0.5,
+  "commander_p": 0.667,
+  "mixed_p": 0.0
+ },
+ "checkpoint": "lab/runs/2026-11-21-orderable-pilots/kitedock/checkpoints/ppo_bc_2293.pt",
+ "sha256": "bdfbfaa180535bd1aaf99f799963d0cb47cc1964e747a63c5f986a9325a05d67",
+ "status": "active",
+ "archived_reason": "",
+ "archived_date": "",
+ "note": "Orderable pilots night: kite_2205 (orderable) widened to 592 inputs and taught to dock, with kite drills kept in its mix.",
+ "ratings": [],
+ "drills": [
+  {
+   "phase": "orderable-pilots",
+   "date": "2026-11-21",
+   "scores": {
+    "goto_arrival": 0.8612903225806452,
+    "goto_lift": 0.7035722017752761,
+    "attack_target_hit": 0.9609375,
+    "attack_side": 0.96875,
+    "attack_flip": 0.9375,
+    "defend_more_on_named": 0.88671875,
+    "defend_side": 0.9609375,
+    "defend_flip": 0.921875
+   },
+   "passed": true
+  }
+ ]
+}
