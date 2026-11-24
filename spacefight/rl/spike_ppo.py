@@ -286,6 +286,9 @@ _TRAIN_STATE_FORMAT = "spike_ppo/1"
 # must not replay the episodes the run already trained on).
 ENV_SEED_STRIDE = 1_000_003
 
+# ``SpikeTrainer.teammate_of`` of a slot the learner flies (no teammate).
+NO_TEAMMATE = -1
+
 # Every key of a log.jsonl row (plan §4.3). Rates without data (no episode against
 # an opponent kind this update) are null.
 LOG_KEYS: tuple[str, ...] = (
@@ -364,6 +367,7 @@ LOG_KEYS: tuple[str, ...] = (
     "opponents_scripted",
     "opponents_self",
     "opponents_snapshot",
+    "teammate_rows_share",
     "snapshot_pool",
     "ships_per_match",
     "vs_scripted_win_by_class",
@@ -560,6 +564,15 @@ class PPOConfig:
     # fixes what an order means. Go-to shaping is part of the sim's order pay, so it
     # scales too. 1.0 (the default) is left out of ``to_dict``, like update_device.
     match_order_pay_scale: float = 1.0
+    # Mixed teammates (docs/PILOT_TRAINING.md "Mixed teammates"): in a match that is
+    # not a drill, each strike craft of the learner's side is flown by a frozen pilot
+    # from ``teammate_pool`` (checkpoint paths, drawn uniformly) with chance
+    # ``teammate_share``, drawn per slot when the match starts; at least one slot stays
+    # the learner's. Those rows train nothing and stay out of the learner's figures in
+    # the log, as on the live page where pilots are drawn ship by ship. Both are left
+    # out of ``to_dict`` at their defaults (0 and none).
+    teammate_pool: list[str] = field(default_factory=list)
+    teammate_share: float = 0.0
 
     @classmethod
     def preset(cls, init: str, **overrides: object) -> PPOConfig:
@@ -667,6 +680,7 @@ class PPOConfig:
                 f"beta_heads must be one of {tuple(HEAD_SETS)}, got {self.beta_heads}"
             )
         self._check_commander_stable()
+        self._check_teammates()
         try:
             device = torch.device(self.update_device)
         except RuntimeError as err:
@@ -693,6 +707,25 @@ class PPOConfig:
                 raise ValueError(f"{name} must be a number, got {value!r}")
             if not math.isfinite(value) or value < 0.0:
                 raise ValueError(f"{name} must be finite and >= 0, got {value}")
+
+    def _check_teammates(self) -> None:
+        """The mixed-teammate settings (their files load in the trainer).
+
+        Raises:
+            ValueError: ``teammate_share`` outside [0, 1], a share without a pool,
+                or a pool that is not a list of non-empty paths.
+        """
+        share, pool = self.teammate_share, self.teammate_pool
+        if isinstance(share, bool) or not isinstance(share, (int, float)):
+            raise ValueError(f"teammate_share must be a number, got {share!r}")
+        if not 0.0 <= share <= 1.0:
+            raise ValueError(f"teammate_share must be in [0, 1], got {share}")
+        if not isinstance(pool, list) or any(
+            not isinstance(p, str) or not p for p in pool
+        ):
+            raise ValueError(f"teammate_pool must be a list of paths, got {pool!r}")
+        if share > 0.0 and not pool:
+            raise ValueError("teammate_share > 0 needs a teammate_pool")
 
     def _check_commander_stable(self) -> None:
         """The commander stable's specs and weights (their files load in the trainer).
@@ -755,7 +788,8 @@ class PPOConfig:
     def to_dict(self) -> dict[str, object]:
         """Plain-type dict (yaml / checkpoint meta); ``update_device`` only when it
         is not "cpu", ``match_order_pay_scale`` only when it is not 1.0, ``dock_bonus``
-        only when it is not the sim's default (so older runs write what they did)."""
+        only when it is not the sim's default, the teammate keys only when set (so
+        older runs write what they did)."""
         data = dataclasses.asdict(self)
         if data["update_device"] == "cpu":
             del data["update_device"]
@@ -763,6 +797,8 @@ class PPOConfig:
             del data["match_order_pay_scale"]
         if data["dock_bonus"] == DEFAULT_DOCK_BONUS:
             del data["dock_bonus"]
+        if not data["teammate_pool"] and data["teammate_share"] == 0.0:
+            del data["teammate_pool"], data["teammate_share"]
         return data
 
     @classmethod
@@ -1568,6 +1604,11 @@ class SpikeTrainer:
         for _, path in self.pool.entries:
             if not Path(path).is_file():
                 raise FileNotFoundError(f"pool_seed checkpoint {path} not found")
+        # Mixed teammates' pilots (config.teammate_pool), loaded lazily like the pool.
+        self.teammates = SnapshotPool([(-1, path) for path in config.teammate_pool])
+        for _, path in self.teammates.entries:
+            if not Path(path).is_file():
+                raise FileNotFoundError(f"teammate_pool checkpoint {path} not found")
         self.anchor = self._load_anchor(config.kl_anchor)
         self.next_update = 0
         self.elapsed = 0.0
@@ -1671,6 +1712,12 @@ class SpikeTrainer:
         self.opponents.results.load_state(self._resumed_enemy_results)
         # The learner's team in each env's current match (module docstring).
         self.learner_team = np.zeros(self.n_envs, dtype=np.int8)
+        # [N, S] the teammate_pool index flying each slot of the learner's side in the
+        # current match, NO_TEAMMATE where the learner flies it (``_draw_teammates``).
+        self.teammate_of = np.full((self.n_envs, self.n_ships), NO_TEAMMATE, np.int64)
+        # This update's rows of the learner's side flown by teammates, and all of them.
+        self._teammate_rows = 0
+        self._side_pilot_rows = 0
         # [R] the slot's ship has been present in its env's current match (a slot
         # that was and no longer is holds a dead ship).
         self.seen_present = np.zeros(self.rows, dtype=np.bool_)
@@ -1752,6 +1799,27 @@ class SpikeTrainer:
         """The learner's team for ``envs``' next episode (``config.learner_side``)."""
         if self.config.learner_side == "random" and len(envs):
             self.learner_team[envs] = self.rng.integers(0, 2, size=len(envs))
+        self._draw_teammates(envs)
+
+    def _draw_teammates(self, envs: NDArray[np.integer]) -> None:
+        """Which of ``envs``' learner-side strike craft a teammate flies in their new
+        match (``config.teammate_share``); at least one stays the learner's. Draws
+        nothing (and leaves the rng alone) without a share."""
+        self.teammate_of[envs] = NO_TEAMMATE
+        share = self.config.teammate_share
+        if share <= 0.0 or not len(envs):
+            return
+        shape = (self.n_envs, self.n_ships)
+        team = np.asarray(self.env.team, dtype=np.int64).reshape(shape)[envs]
+        hull = np.asarray(self.env.hull_id, dtype=np.int64).reshape(shape)[envs]
+        own = (team == self.learner_team[envs, None]) & ~np.isin(hull, self.capital_ids)
+        drawn = own & (self.rng.random(own.shape) < share)
+        for k in np.flatnonzero(
+            own.any(axis=1) & (drawn.sum(axis=1) == own.sum(axis=1))
+        ):
+            drawn[k, self.rng.choice(np.flatnonzero(own[k]))] = False
+        picks = self.rng.integers(0, len(self.teammates), size=own.shape)
+        self.teammate_of[envs] = np.where(drawn, picks, NO_TEAMMATE)
 
     def _split_drills(
         self, envs: NDArray[np.integer]
@@ -1793,6 +1861,7 @@ class SpikeTrainer:
         self.opponents.assign(match_envs, update, len(self.pool))
         self._draw_learner_sides(match_envs)
         self.learner_team[drill_envs] = 0
+        self.teammate_of[drill_envs] = NO_TEAMMATE
         self._note_new_matches(envs)
 
     def _note_commanders(self, envs: NDArray[np.integer]) -> None:
@@ -2014,6 +2083,12 @@ class SpikeTrainer:
             "snapshot_pool": self.pool.updates(),
             "order_reward_weight": cfg.order_reward_weight,
             "kl_anchor_coeff": cfg.kl_anchor_coeff,
+            # The learner's side's strike-craft rows a teammate flew (config.teammate_share).
+            "teammate_rows_share": (
+                self._teammate_rows / self._side_pilot_rows
+                if self._side_pilot_rows
+                else 0.0
+            ),
         }
         row.update(reward_stats)
         row.update(tally.log_fields())
@@ -2081,6 +2156,7 @@ class SpikeTrainer:
         rows, n_ships, n_envs = self.rows, self.n_ships, self.n_envs
         tally = EpisodeTally()
         collect = store.collect_range()
+        self._teammate_rows = self._side_pilot_rows = 0
         self.actor.eval()
         for b in collect:
             kinds = self.opponents.kinds
@@ -2096,7 +2172,12 @@ class SpikeTrainer:
             side = np.repeat(self.learner_team, n_ships)
             # Strike craft only: capital ships keep their script's actions.
             pilot = (team >= 0) & ~np.isin(hull, self.capital_ids)
-            own = pilot & (team == side)
+            # The learner's side, less the slots a teammate flies this match.
+            mate_of = self.teammate_of.reshape(rows)
+            mate = pilot & (team == side) & (mate_of != NO_TEAMMATE)
+            own = pilot & (team == side) & ~mate
+            self._teammate_rows += int(mate.sum())
+            self._side_pilot_rows += int(mate.sum()) + int(own.sum())
             learner = own | (pilot & (team == 1 - side) & self_play_env)
             store.learner[b] = learner
             store.side[b] = own
@@ -2164,6 +2245,16 @@ class SpikeTrainer:
                         masks.index(snap_rows),
                     )
                     actions[snap_np] = snap.actions.to(torch.int8).numpy()
+                mate_np = np.flatnonzero(mate)
+                for index in np.unique(mate_of[mate_np]):
+                    rows_k = mate_np[mate_of[mate_np] == index]
+                    rows_t = torch.from_numpy(rows_k)
+                    mate_actor = self.teammates.actor(int(index))
+                    flown = mate_actor.sample(
+                        fit_obs(obs_t[rows_t], mate_actor.obs_dim),
+                        masks.index(rows_t),
+                    )
+                    actions[rows_k] = flown.actions.to(torch.int8).numpy()
             store.log_prob[b] = 0.0
             store.values[b] = 0.0
             store.log_prob[b, policy_np] = out.log_prob.numpy()
