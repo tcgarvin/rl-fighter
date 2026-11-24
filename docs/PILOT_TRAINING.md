@@ -806,6 +806,29 @@ and says `--set update_device=cpu`.
 - **Commander trainer:** no such key. Its learning step is about 11% of an update (4.3 s
   of 39.8 at 4 threads on Beast), so a GPU would save at most that.
 
+### Mixed teammates: `teammate_share`, `teammate_pool`
+
+Until 2026-11-24 the learner flew its whole side. On the live page and in WAR, pilots are
+drawn ship by ship, so every pilot's teammates are other pilots. With `teammate_share`
+above 0, in a match that is not a drill, each strike craft of the learner's side is
+flown by a frozen pilot from `teammate_pool` (checkpoint paths, drawn uniformly) with
+that chance. The draw is per slot, when the match starts, and at least one slot of the
+side stays the learner's. Drills keep the learner on every pilot slot of its team.
+
+- A teammate's rows train nothing (not `learner`) and stay out of the learner's figures
+  (`side`: shots, hits, recalls and docks), but the fleet critic still sees them as part
+  of the team.
+- A teammate narrower than the sim's obs flies on its prefix (`fit_obs`), as snapshots and
+  the live page do.
+- `teammate_rows_share` in the log: the share of the learner side's strike-craft rows a
+  teammate flew that update.
+- Defaults (0, no pool) draw nothing and leave the rng alone, and are left out of
+  `config.yaml`, so older runs write and resume as before
+  (`tests/test_teammates_train.py`).
+
+First used by [horizon and bombers](../lab/runs/2026-11-24-horizon-bombers/plan.md):
+share 0.3, the live ten as the pool.
+
 ## 4. Families
 
 Every neural pilot descends from the script: v1 began as a clone of it (BC, DAgger, then

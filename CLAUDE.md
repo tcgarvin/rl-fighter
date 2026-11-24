@@ -244,6 +244,11 @@ uv run python -m pytest tests/test_goto_sweep.py tests/test_goto_deadline_train.
 # update_device=cuda:0 moves the nets, Adam state and batch over for the update only;
 # rollout and checkpoints stay on the CPU, so a run resumes on any device. Default cpu.
 uv run python -m pytest tests/test_update_device.py -v
+# Mixed teammates (pilot trainer; docs/PILOT_TRAINING.md "Mixed teammates"): --set
+# teammate_share=0.3 --set teammate_pool='[<ckpt>, ...]' has frozen pilots fly that share
+# of the learner side's strike craft in matches (drawn per slot; drills keep the learner);
+# their rows train nothing. Log: teammate_rows_share. Default 0.
+uv run python -m pytest tests/test_teammates_train.py -v
 
 # Pilot population (docs/PILOT_TRAINING.md sections 4-6): records in lab/population/<season>/
 # members/ (rlf.population.member/1; weights stay out of git), all-pairs no-commander round
