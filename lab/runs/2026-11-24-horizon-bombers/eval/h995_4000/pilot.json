@@ -1,0 +1,9 @@
+{
+ "schema": "rlf.live_pilots/1",
+ "pilots": [
+  {
+   "id": "h995_4000",
+   "checkpoint": "/home/timg/code/rl-fighter/lab/runs/2026-11-24-horizon-bombers/h995/checkpoints/ppo_bc_4000.pt"
+  }
+ ]
+}

@@ -1,0 +1,50 @@
+{
+ "schema": "rlf.lab.swap/1",
+ "sim_version": 11,
+ "mission": "deathmatch",
+ "n": 256,
+ "seed": 910000,
+ "pilots": "/home/timg/code/rl-fighter/lab/runs/2026-11-24-horizon-bombers/eval/h995_2000/pilot.json",
+ "base": {
+  "x_score": 0.4375,
+  "x_score_ci95": 0.06088863991409428,
+  "end_reasons": {
+   "eliminated": 0.98046875,
+   "time_limit": 0.01953125
+  },
+  "length_median_s": 51.18333333333334,
+  "slot_damage_to_capital": 0.0,
+  "slot_damage_to_strike": 20.3984375
+ },
+ "swap": {
+  "x_score": 0.4765625,
+  "x_score_ci95": 0.06130252037468946,
+  "end_reasons": {
+   "eliminated": 0.98828125,
+   "time_limit": 0.01171875
+  },
+  "length_median_s": 51.266666666666666,
+  "slot_damage_to_capital": 0.0,
+  "slot_damage_to_strike": 85.25390625
+ },
+ "delta": 0.0390625,
+ "delta_ci95": 0.0873341719072242,
+ "delta_by_roster": {
+  "GFF v FFF": 0.3125,
+  "GFF v FSG": -0.25,
+  "GFF v SSF": 0.0,
+  "GFF v GFF": 0.3125,
+  "GFS v FFF": 0.4375,
+  "GFS v FSG": -0.125,
+  "GFS v SSF": -0.375,
+  "GFS v GFF": 0.0,
+  "GSS v FFF": 0.0,
+  "GSS v FSG": 0.375,
+  "GSS v SSF": -0.125,
+  "GSS v GFF": -0.0625,
+  "GGF v FFF": 0.0625,
+  "GGF v FSG": 0.125,
+  "GGF v SSF": -0.4375,
+  "GGF v GFF": 0.375
+ }
+}

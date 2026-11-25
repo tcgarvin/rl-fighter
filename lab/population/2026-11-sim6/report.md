@@ -1,11 +1,11 @@
 # Pilot population: 2026-11-sim6
 
-Phase orderable-pilots, 2026-11-21.
+Phase horizon-bombers, 2026-11-25.
 
 ## Families
 
 - **fighters**: 8 active, founder f995_701
-- **followers**: 17 active, founder transit_300
+- **followers**: 19 active, founder transit_300
 - **script**: 1 active, founder script
 
 ## Family tree
@@ -37,6 +37,8 @@ Phase orderable-pilots, 2026-11-21.
             - **followers_1793** (followers, active)
               - **followers_v8_352** (followers, active)
                 - **followers_dock_v8_2676** (followers, active)
+                  - **dock_h995_5374** (followers, active)
+                  - **dock_h999_5334** (followers, active)
                 - **followers_pay3_810** (followers, active)
                 - **followers_school_600** (followers, active)
                   - **followers_dock_2624** (followers, active)
@@ -57,44 +59,33 @@ Bold is active. The rest are history, kept for ancestry.
 5760 live-like matches. Wins added per 100 matches a pilot flew
 in, over the script flying its ships, with the 95% interval.
 
-1. **fighters_pay1_1317** +12.0 (+9.2 to +14.8; 4202 ships)
-2. **followers_v8_352** +12.0 (+8.8 to +15.1; 4165 ships)
-3. **fighters_pay1_462** +11.8 (+8.6 to +14.8; 4253 ships)
-4. **f995_701** +11.5 (+8.7 to +14.8; 4129 ships)
-5. **followers_dock_v8_2676** +11.3 (+8.1 to +14.2; 4250 ships)
-6. **f99_696** +11.0 (+7.9 to +13.9; 4275 ships)
-7. **f995_400** +10.9 (+7.9 to +13.9; 4232 ships)
-8. **kite_pay025_2211** +10.7 (+7.5 to +13.4; 4276 ships)
-9. **fighters_pay1_v8_351** +10.3 (+7.4 to +13.2; 4065 ships)
-10. **kite_2205** +10.2 (+7.4 to +13.0; 4262 ships)
-11. **followers_dockkite_2286** +9.8 (+6.9 to +12.6; 4363 ships)
-12. **followers_school_600** +9.2 (+6.1 to +12.3; 4252 ships)
-13. **followers_pay3_810** +8.9 (+6.3 to +11.7; 4199 ships)
-14. **kite_dock_2293** +8.7 (+5.8 to +11.7; 4225 ships)
-15. **followers_dock_2624** +7.5 (+4.3 to +10.4; 4085 ships)
-16. **script** 0, replacement (4207 ships)
+1. **fighters_pay1_1317** +14.2 (+11.5 to +16.8; 5150 ships)
+2. **fighters_pay1_462** +13.1 (+10.1 to +15.6; 5280 ships)
+3. **f99_696** +12.4 (+9.7 to +15.0; 4982 ships)
+4. **kite_pay025_2211** +12.1 (+9.1 to +14.7; 5183 ships)
+5. **fighters_pay1_v8_351** +11.3 (+8.7 to +14.1; 5229 ships)
+6. **followers_v8_352** +10.8 (+7.7 to +13.5; 5168 ships)
+7. **f995_400** +10.6 (+8.2 to +13.5; 5275 ships)
+8. **f995_701** +10.6 (+8.0 to +13.3; 5194 ships)
+9. **kite_2205** +10.5 (+7.7 to +13.3; 5272 ships)
+10. **followers_dock_v8_2676** +8.5 (+5.8 to +11.2; 5222 ships)
+11. **dock_h995_5374** +6.1 (+3.5 to +9.1; 5178 ships)
+12. **dock_h999_5334** +5.5 (+2.6 to +8.5; 5109 ships)
+13. **script** 0, replacement (5198 ships)
 
-## Would-be culls on WAR (orderable-pilots)
+## Would-be culls on WAR (horizon-bombers)
 
 Shadow mode: nobody was culled and no record changed.
 
-- **followers_dock_2624**, Founder cap. Founder transit_300 is
-  over its cap of 4; this is its lowest survivor (WAR +7.5).
-- **kite_dock_2293**, Founder cap. Founder transit_300 is over
-  its cap of 4; this is its lowest survivor (WAR +8.7). Close
-  call.
-- **followers_pay3_810**, Founder cap. Founder transit_300 is
-  over its cap of 4; this is its lowest survivor (WAR +8.9).
-  Close call.
-- **followers_school_600**, Founder cap. Founder transit_300 is
-  over its cap of 4; this is its lowest survivor (WAR +9.2).
-  Close call.
-- **followers_dockkite_2286**, Founder cap. Founder transit_300
-  is over its cap of 4; this is its lowest survivor (WAR +9.8).
-  Close call.
+- **dock_h999_5334**, Founder cap. Founder transit_300 is over
+  its cap of 4; this is its lowest survivor (WAR +5.5).
+- **dock_h995_5374**, Founder cap. Founder transit_300 is over
+  its cap of 4; this is its lowest survivor (WAR +6.1).
 - script stays: replacement level: its WAR is 0 by definition
 - Not measured, so outside the rule: fighters_1832,
   fighters_pay1_school_821, fighters_v8_362, fighters_v8_500,
   followers_1323, followers_1793, followers_513, followers_955,
-  followers_school_1052, followers_solo_1072,
-  followers_v8_blind_360, transit_300
+  followers_dock_2624, followers_dockkite_2286,
+  followers_pay3_810, followers_school_1052,
+  followers_school_600, followers_solo_1072,
+  followers_v8_blind_360, kite_dock_2293, transit_300

@@ -1,12 +1,12 @@
 {
  "schema": "rlf.live_pilots/1",
  "season": "lab/population/2026-11-sim6",
- "entry": "2026-11-21-orderable-pilots",
+ "entry": "2026-11-24-horizon-bombers",
  "pilots": [
   {
    "id": "fighters_pay1_1317",
    "family": "fighters",
-   "rating": 12.02384228698406,
+   "rating": 14.192791767678894,
    "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters_pay1/checkpoints/ppo_bc_1317.pt",
    "sha256": "420dc5c042ba31c1d24ace7333ff33c14c6e54db74cf3b67a9b098c6cdf6012d",
    "url": "https://storage.tcgarvin.com/rl-fighter/pilots/fighters_pay1_1317/420dc5c042ba31c1d24ace7333ff33c14c6e54db74cf3b67a9b098c6cdf6012d.pt",
@@ -18,23 +18,9 @@
    }
   },
   {
-   "id": "followers_v8_352",
-   "family": "followers",
-   "rating": 12.003624046098206,
-   "checkpoint": "lab/runs/2026-11-12-pilots-v8/followers_v8/checkpoints/ppo_bc_352.pt",
-   "sha256": "4a012bb278b1c6bf5f4847fe1ab3b910338eba394412f61e6d079275dd610b22",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/followers_v8_352/4a012bb278b1c6bf5f4847fe1ab3b910338eba394412f61e6d079275dd610b22.pt",
-   "note": "followers_1793 trained a fifth night, and one of the first two pilots here that can see a go-to order's deadline. It has not yet learned to fly by it: alone it still fights first. It adds more wins than its parent.",
-   "follows": {
-    "go_to": 0.51,
-    "attack": 0.72,
-    "defend": 0.76
-   }
-  },
-  {
    "id": "fighters_pay1_462",
    "family": "fighters",
-   "rating": 11.830532814883993,
+   "rating": 13.0534959409098,
    "checkpoint": "lab/runs/2026-11-01-pilot-families/fighters_pay1/checkpoints/ppo_bc_462.pt",
    "sha256": "638b4394aa6e465c1e9ada826bb10d73ad72cc347bddfad906d497b374d1597c",
    "url": "https://storage.tcgarvin.com/rl-fighter/pilots/fighters_pay1_462/638b4394aa6e465c1e9ada826bb10d73ad72cc347bddfad906d497b374d1597c.pt",
@@ -46,37 +32,9 @@
    }
   },
   {
-   "id": "f995_701",
-   "family": "fighters",
-   "rating": 11.538009276739883,
-   "checkpoint": "lab/runs/2026-11-01-fighters-v2/f995/checkpoints/ppo_bc_701.pt",
-   "sha256": "bf3bd0cb3c27889e9be4915f24c9674f375dd8bc815307596068e1f3ef99cf54",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/f995_701/bf3bd0cb3c27889e9be4915f24c9674f375dd8bc815307596068e1f3ef99cf54.pt",
-   "note": "The long-horizon fighter, champion before these lists and founder of the fighters family. Fights hard and ignores orders.",
-   "follows": {
-    "go_to": 0.22,
-    "attack": 0.14,
-    "defend": 0.11
-   }
-  },
-  {
-   "id": "followers_dock_v8_2676",
-   "family": "followers",
-   "rating": 11.310193858582549,
-   "checkpoint": "lab/runs/2026-11-20-dock-pilot/dock352/checkpoints/ppo_bc_2676.pt",
-   "sha256": "6139b1338b129365aed6a161c5b56c854b727f8cfb76d7f26de8010e68d57506",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/followers_dock_v8_2676/6139b1338b129365aed6a161c5b56c854b727f8cfb76d7f26de8010e68d57506.pt",
-   "note": "followers_v8_352 after the same night learning to dock. It learned more slowly than its sibling: it lands on about four clear runs home in ten, and one in seven with enemies chasing it.",
-   "follows": {
-    "go_to": 0.82,
-    "attack": 0.91,
-    "defend": 0.86
-   }
-  },
-  {
    "id": "f99_696",
    "family": "history",
-   "rating": 11.008713562024743,
+   "rating": 12.407241577162962,
    "checkpoint": "lab/runs/2026-11-01-fighters-v2/f99/checkpoints/ppo_bc_696.pt",
    "sha256": "345be910ff548533a41fa5fd1ae65df75c1a0f08e7d50f8494a784d8578ab77f",
    "url": "https://storage.tcgarvin.com/rl-fighter/pilots/f99_696/345be910ff548533a41fa5fd1ae65df75c1a0f08e7d50f8494a784d8578ab77f.pt",
@@ -84,19 +42,9 @@
    "follows": {}
   },
   {
-   "id": "f995_400",
-   "family": "history",
-   "rating": 10.910177653190425,
-   "checkpoint": "lab/runs/2026-11-01-fighters-v2/f995/checkpoints/ppo_bc_400.pt",
-   "sha256": "c208c3aa979d5fbd10f7bb324194e628e9ba5054e3976865f30362186109b883",
-   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/f995_400/c208c3aa979d5fbd10f7bb324194e628e9ba5054e3976865f30362186109b883.pt",
-   "note": "The same training run as f995_701, 301 updates earlier. Beats it in convoy escort.",
-   "follows": {}
-  },
-  {
    "id": "kite_pay025_2211",
    "family": "followers",
-   "rating": 10.68911350640501,
+   "rating": 12.051311914204103,
    "checkpoint": "lab/runs/2026-11-18-kite-drills/kite_pay025/checkpoints/ppo_bc_2211.pt",
    "sha256": "d76d19b99e568afb5a47f293cd4f18043c4687b43fcd90a1bd046e59c7cedfff",
    "url": "https://storage.tcgarvin.com/rl-fighter/pilots/kite_pay025_2211/d76d19b99e568afb5a47f293cd4f18043c4687b43fcd90a1bd046e59c7cedfff.pt",
@@ -110,7 +58,7 @@
   {
    "id": "fighters_pay1_v8_351",
    "family": "fighters",
-   "rating": 10.306624858835434,
+   "rating": 11.303728218810317,
    "checkpoint": "lab/runs/2026-11-12-pilots-v8/fighters_pay1_v8/checkpoints/ppo_bc_351.pt",
    "sha256": "c41a780f8c0a2833d0765c32ad9adcd1876ed71f2ddbb789a9c7aab2383a55e1",
    "url": "https://storage.tcgarvin.com/rl-fighter/pilots/fighters_pay1_v8_351/c41a780f8c0a2833d0765c32ad9adcd1876ed71f2ddbb789a9c7aab2383a55e1.pt",
@@ -122,9 +70,47 @@
    }
   },
   {
+   "id": "followers_v8_352",
+   "family": "followers",
+   "rating": 10.759946665800758,
+   "checkpoint": "lab/runs/2026-11-12-pilots-v8/followers_v8/checkpoints/ppo_bc_352.pt",
+   "sha256": "4a012bb278b1c6bf5f4847fe1ab3b910338eba394412f61e6d079275dd610b22",
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/followers_v8_352/4a012bb278b1c6bf5f4847fe1ab3b910338eba394412f61e6d079275dd610b22.pt",
+   "note": "followers_1793 trained a fifth night, and one of the first two pilots here that can see a go-to order's deadline. It has not yet learned to fly by it: alone it still fights first. It adds more wins than its parent.",
+   "follows": {
+    "go_to": 0.51,
+    "attack": 0.72,
+    "defend": 0.76
+   }
+  },
+  {
+   "id": "f995_400",
+   "family": "history",
+   "rating": 10.635073142407274,
+   "checkpoint": "lab/runs/2026-11-01-fighters-v2/f995/checkpoints/ppo_bc_400.pt",
+   "sha256": "c208c3aa979d5fbd10f7bb324194e628e9ba5054e3976865f30362186109b883",
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/f995_400/c208c3aa979d5fbd10f7bb324194e628e9ba5054e3976865f30362186109b883.pt",
+   "note": "The same training run as f995_701, 301 updates earlier. Beats it in convoy escort.",
+   "follows": {}
+  },
+  {
+   "id": "f995_701",
+   "family": "fighters",
+   "rating": 10.593169253658035,
+   "checkpoint": "lab/runs/2026-11-01-fighters-v2/f995/checkpoints/ppo_bc_701.pt",
+   "sha256": "bf3bd0cb3c27889e9be4915f24c9674f375dd8bc815307596068e1f3ef99cf54",
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/f995_701/bf3bd0cb3c27889e9be4915f24c9674f375dd8bc815307596068e1f3ef99cf54.pt",
+   "note": "The long-horizon fighter, champion before these lists and founder of the fighters family. Fights hard and ignores orders.",
+   "follows": {
+    "go_to": 0.22,
+    "attack": 0.14,
+    "defend": 0.11
+   }
+  },
+  {
    "id": "kite_2205",
    "family": "followers",
-   "rating": 10.233207503711705,
+   "rating": 10.517605774388576,
    "checkpoint": "lab/runs/2026-11-18-kite-drills/kite/checkpoints/ppo_bc_2205.pt",
    "sha256": "8fdf34cc1d3f9a099d091c634971a2bcba634f5bc5554ceebe25288d404317e6",
    "url": "https://storage.tcgarvin.com/rl-fighter/pilots/kite_2205/8fdf34cc1d3f9a099d091c634971a2bcba634f5bc5554ceebe25288d404317e6.pt",
@@ -134,8 +120,22 @@
     "attack": 0.94,
     "defend": 0.95
    }
+  },
+  {
+   "id": "followers_dock_v8_2676",
+   "family": "followers",
+   "rating": 8.492538899767622,
+   "checkpoint": "lab/runs/2026-11-20-dock-pilot/dock352/checkpoints/ppo_bc_2676.pt",
+   "sha256": "6139b1338b129365aed6a161c5b56c854b727f8cfb76d7f26de8010e68d57506",
+   "url": "https://storage.tcgarvin.com/rl-fighter/pilots/followers_dock_v8_2676/6139b1338b129365aed6a161c5b56c854b727f8cfb76d7f26de8010e68d57506.pt",
+   "note": "followers_v8_352 after the same night learning to dock. It learned more slowly than its sibling: it lands on about four clear runs home in ten, and one in seven with enemies chasing it.",
+   "follows": {
+    "go_to": 0.82,
+    "attack": 0.91,
+    "defend": 0.86
+   }
   }
  ],
  "rated_by": "war",
- "war": "lab/population/2026-11-sim6/war/orderable-pilots/war.json"
+ "war": "lab/population/2026-11-sim6/war/horizon-bombers/war.json"
 }

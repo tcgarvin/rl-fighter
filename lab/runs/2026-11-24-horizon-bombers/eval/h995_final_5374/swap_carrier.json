@@ -1,0 +1,37 @@
+{
+ "schema": "rlf.lab.swap/1",
+ "sim_version": 11,
+ "mission": "carrier_battle",
+ "n": 192,
+ "seed": 910000,
+ "pilots": "/home/timg/code/rl-fighter/lab/runs/2026-11-24-horizon-bombers/eval/h995_final_5374/pilot.json",
+ "base": {
+  "x_score": 0.6041666666666666,
+  "x_score_ci95": 0.06935438896118382,
+  "end_reasons": {
+   "time_limit": 0.21354166666666666,
+   "carrier_destroyed": 0.7864583333333334
+  },
+  "length_median_s": 132.71666666666664,
+  "slot_damage_to_capital": 170.44791666666666,
+  "slot_damage_to_strike": 52.322916666666664
+ },
+ "swap": {
+  "x_score": 0.5260416666666666,
+  "x_score_ci95": 0.07081406773984456,
+  "end_reasons": {
+   "time_limit": 0.21354166666666666,
+   "carrier_destroyed": 0.7864583333333334
+  },
+  "length_median_s": 134.85000000000002,
+  "slot_damage_to_capital": 100.78125,
+  "slot_damage_to_strike": 222.65625
+ },
+ "delta": -0.078125,
+ "delta_ci95": 0.09482079361873592,
+ "delta_by_roster": {
+  "wing of 8": 0.015625,
+  "wing of 6": -0.125,
+  "wing of 9": -0.125
+ }
+}

@@ -1,0 +1,105 @@
+added dock_h999_5334 (followers, under transit_300)
+dock_h999_5334: dock_h999_5334 passed the drill gate: every bar met.
+added dock_h995_5374 (followers, under transit_300)
+dock_h995_5374: dock_h995_5374 failed the drill gate: defend_more_on_named.
+03:22:12 WAR: fighters_pay1_1317,followers_v8_352,fighters_pay1_462,f995_701,followers_dock_v8_2676,f99_696,f995_400,kite_pay025_2211,fighters_pay1_v8_351,kite_2205,dock_h999_5334,dock_h995_5374
+deathmatch chunk 1/15: 96 matches in 37s (2.57/s)
+deathmatch chunk 2/15: 96 matches in 54s (1.79/s)
+deathmatch chunk 3/15: 96 matches in 52s (1.86/s)
+deathmatch chunk 4/15: 96 matches in 33s (2.90/s)
+deathmatch chunk 5/15: 96 matches in 54s (1.78/s)
+deathmatch chunk 6/15: 96 matches in 42s (2.30/s)
+deathmatch chunk 7/15: 96 matches in 54s (1.76/s)
+deathmatch chunk 8/15: 96 matches in 39s (2.45/s)
+deathmatch chunk 9/15: 96 matches in 42s (2.29/s)
+deathmatch chunk 10/15: 96 matches in 52s (1.83/s)
+deathmatch chunk 11/15: 96 matches in 46s (2.07/s)
+deathmatch chunk 12/15: 96 matches in 38s (2.53/s)
+deathmatch chunk 13/15: 96 matches in 40s (2.39/s)
+deathmatch chunk 14/15: 96 matches in 37s (2.58/s)
+deathmatch chunk 15/15: 96 matches in 55s (1.76/s)
+carrier_battle chunk 1/15: 96 matches in 114s (0.84/s)
+carrier_battle chunk 2/15: 96 matches in 104s (0.93/s)
+carrier_battle chunk 3/15: 96 matches in 100s (0.96/s)
+carrier_battle chunk 4/15: 96 matches in 133s (0.72/s)
+carrier_battle chunk 5/15: 96 matches in 109s (0.88/s)
+carrier_battle chunk 6/15: 96 matches in 129s (0.74/s)
+carrier_battle chunk 7/15: 96 matches in 100s (0.96/s)
+carrier_battle chunk 8/15: 96 matches in 124s (0.77/s)
+carrier_battle chunk 9/15: 96 matches in 97s (0.99/s)
+carrier_battle chunk 10/15: 96 matches in 132s (0.73/s)
+carrier_battle chunk 11/15: 96 matches in 107s (0.89/s)
+carrier_battle chunk 12/15: 96 matches in 108s (0.89/s)
+carrier_battle chunk 13/15: 96 matches in 125s (0.77/s)
+carrier_battle chunk 14/15: 96 matches in 112s (0.86/s)
+carrier_battle chunk 15/15: 96 matches in 129s (0.74/s)
+convoy_escort chunk 1/15: 96 matches in 70s (1.37/s)
+convoy_escort chunk 2/15: 96 matches in 70s (1.36/s)
+convoy_escort chunk 3/15: 96 matches in 70s (1.37/s)
+convoy_escort chunk 4/15: 96 matches in 70s (1.37/s)
+convoy_escort chunk 5/15: 96 matches in 71s (1.35/s)
+convoy_escort chunk 6/15: 96 matches in 67s (1.43/s)
+convoy_escort chunk 7/15: 96 matches in 70s (1.37/s)
+convoy_escort chunk 8/15: 96 matches in 67s (1.42/s)
+convoy_escort chunk 9/15: 96 matches in 71s (1.36/s)
+convoy_escort chunk 10/15: 96 matches in 67s (1.44/s)
+convoy_escort chunk 11/15: 96 matches in 67s (1.44/s)
+convoy_escort chunk 12/15: 96 matches in 70s (1.38/s)
+convoy_escort chunk 13/15: 96 matches in 69s (1.39/s)
+convoy_escort chunk 14/15: 96 matches in 70s (1.37/s)
+convoy_escort chunk 15/15: 96 matches in 67s (1.43/s)
+station_assault chunk 1/15: 96 matches in 136s (0.70/s)
+station_assault chunk 2/15: 96 matches in 138s (0.70/s)
+station_assault chunk 3/15: 96 matches in 139s (0.69/s)
+station_assault chunk 4/15: 96 matches in 137s (0.70/s)
+station_assault chunk 5/15: 96 matches in 139s (0.69/s)
+station_assault chunk 6/15: 96 matches in 137s (0.70/s)
+station_assault chunk 7/15: 96 matches in 138s (0.69/s)
+station_assault chunk 8/15: 96 matches in 137s (0.70/s)
+station_assault chunk 9/15: 96 matches in 138s (0.69/s)
+station_assault chunk 10/15: 96 matches in 138s (0.70/s)
+station_assault chunk 11/15: 96 matches in 138s (0.70/s)
+station_assault chunk 12/15: 96 matches in 139s (0.69/s)
+station_assault chunk 13/15: 96 matches in 137s (0.70/s)
+station_assault chunk 14/15: 96 matches in 139s (0.69/s)
+station_assault chunk 15/15: 96 matches in 137s (0.70/s)
+# Wins above replacement: 2026-11-sim6
+
+5760 matches (1440 DM, 1440 Carrier, 1440 Convoy, 1440 Station). Wins added per 100 matches a pilot flew in, over the script flying its ships. A draw is half a win.
+
+| Pilot | WAR | 95% CI | Ships |
+|---|--:|---|--:|
+| fighters_pay1_1317 | +14.2 | +11.5 to +16.8 | 5150 |
+| fighters_pay1_462 | +13.1 | +10.1 to +15.6 | 5280 |
+| f99_696 | +12.4 | +9.7 to +15.0 | 4982 |
+| kite_pay025_2211 | +12.1 | +9.1 to +14.7 | 5183 |
+| fighters_pay1_v8_351 | +11.3 | +8.7 to +14.1 | 5229 |
+| followers_v8_352 | +10.8 | +7.7 to +13.5 | 5168 |
+| f995_400 | +10.6 | +8.2 to +13.5 | 5275 |
+| f995_701 | +10.6 | +8.0 to +13.3 | 5194 |
+| kite_2205 | +10.5 | +7.7 to +13.3 | 5272 |
+| followers_dock_v8_2676 | +8.5 | +5.8 to +11.2 | 5222 |
+| dock_h995_5374 | +6.1 | +3.5 to +9.1 | 5178 |
+| dock_h999_5334 | +5.5 | +2.6 to +8.5 | 5109 |
+| script | 0 | replacement | 5198 |
+
+**By mission**
+
+| Pilot | DM | Carrier | Convoy | Station |
+|---|--:|--:|--:|--:|
+| fighters_pay1_1317 | +10.6 | +15.7 | +12.8 | +15.5 |
+| fighters_pay1_462 | +9.9 | +14.9 | +11.6 | +14.1 |
+| f99_696 | +9.0 | +13.6 | +10.8 | +14.1 |
+| kite_pay025_2211 | +9.5 | +13.3 | +10.6 | +13.2 |
+| fighters_pay1_v8_351 | +8.4 | +12.5 | +9.9 | +12.6 |
+| followers_v8_352 | +7.9 | +12.0 | +9.4 | +12.0 |
+| f995_400 | +8.0 | +11.7 | +9.6 | +11.6 |
+| f995_701 | +7.7 | +12.0 | +9.6 | +11.4 |
+| kite_2205 | +7.9 | +11.8 | +9.3 | +11.5 |
+| followers_dock_v8_2676 | +6.2 | +9.4 | +7.6 | +9.4 |
+| dock_h995_5374 | +4.6 | +6.6 | +5.4 | +6.8 |
+| dock_h999_5334 | +4.1 | +6.0 | +5.1 | +6.0 |
+
+95% intervals from 500 bootstrap refits over matches. Ridge prior 1 logit per ship.
+wrote lab/population/2026-11-sim6/report.md
+04:54:03 done: war

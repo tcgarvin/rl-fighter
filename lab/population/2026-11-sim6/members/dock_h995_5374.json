@@ -1,0 +1,45 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "dock_h995_5374",
+ "family": "followers",
+ "founder": "transit_300",
+ "parent": "followers_dock_v8_2676",
+ "relation": "fork",
+ "fork_update": 2676,
+ "settings_changed": {
+  "sim_version": 11,
+  "obs_dim": 592,
+  "gamma": 0.995,
+  "bomber_share": 0.2,
+  "drill_bomber_share": 0.2,
+  "teammate_share": 0.3,
+  "dock_bonus": 1.0,
+  "drill_share": 0.55,
+  "drill_dock_share": 0.5,
+  "drill_dock_threat_share": 0.5
+ },
+ "checkpoint": "lab/runs/2026-11-24-horizon-bombers/h995/checkpoints/ppo_bc_5374.pt",
+ "sha256": "1a5dca331559cdb53be1534b213a990a869e46c0314f139ec5196e14c896cba1",
+ "status": "active",
+ "archived_reason": "",
+ "archived_date": "",
+ "note": "Horizon and bombers night: followers_dock_v8_2676 on its own horizon (gamma 0.995), with bombers in its matches and drills and live pilots as a third of its teammates.",
+ "ratings": [],
+ "drills": [
+  {
+   "phase": "horizon-bombers",
+   "date": "2026-11-25",
+   "scores": {
+    "goto_arrival": 0.9150943396226415,
+    "goto_lift": 0.8013819650407017,
+    "attack_target_hit": 0.90625,
+    "attack_side": 0.9375,
+    "attack_flip": 0.890625,
+    "defend_more_on_named": 0.84375,
+    "defend_side": 0.9609375,
+    "defend_flip": 0.921875
+   },
+   "passed": false
+  }
+ ]
+}

@@ -1,0 +1,165 @@
+{
+ "schema": "rlf.lab.dock/1",
+ "sim_version": 11,
+ "mission": "carrier_battle",
+ "docking": true,
+ "n": 96,
+ "seed": 1100000,
+ "rosters": [
+  [
+   [
+    "carrier",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship"
+   ],
+   [
+    "carrier",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship"
+   ]
+  ],
+  [
+   [
+    "carrier",
+    "fighter",
+    "fighter",
+    "strafer",
+    "fighter",
+    "strafer",
+    "gunship"
+   ],
+   [
+    "carrier",
+    "fighter",
+    "fighter",
+    "strafer",
+    "fighter",
+    "strafer",
+    "gunship"
+   ]
+  ],
+  [
+   [
+    "carrier",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship",
+    "fighter"
+   ],
+   [
+    "carrier",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship",
+    "fighter"
+   ]
+  ]
+ ],
+ "pilots": "/home/timg/code/rl-fighter/lab/runs/2026-11-24-horizon-bombers/eval/h999_4000/pilot.json",
+ "team1_win_rate": 0.4791666666666667,
+ "team1_win_ci95": 0.10045856118131437,
+ "end_reasons": {
+  "time_limit": 0.03125,
+  "carrier_destroyed": 0.96875
+ },
+ "length_median_s": 92.63333333333333,
+ "length_p90_s": 132.63333333333333,
+ "dock": {
+  "recalls": 450,
+  "recalls_per_match": 4.6875,
+  "docked": 39,
+  "docked_per_match": 0.40625,
+  "completion": 0.08666666666666667,
+  "completion_of_survivors": 0.28888888888888886,
+  "seconds_to_dock": {
+   "p25": 5.916666666666666,
+   "p50": 14.766666666666667,
+   "p75": 22.433333333333334
+  },
+  "metres_at_order": {
+   "p25": 112.71269989013672,
+   "p50": 219.41756439208984,
+   "p75": 476.4436340332031
+  },
+  "outcomes": {
+   "killed en route": 315,
+   "match ended": 55,
+   "carrier lost": 41,
+   "docked": 39
+  },
+  "failure_modes": {
+   "never close": 39,
+   "overshoot": 9,
+   "too fast": 4,
+   "circling": 3
+  },
+  "failed_closest_m": {
+   "p25": 27.2974271774292,
+   "p50": 46.771697998046875,
+   "p75": 83.00851821899414
+  },
+  "came_near": 135,
+  "came_near_docked": 39,
+  "inside_not_docked": 26,
+  "inside_not_docked_slowest_rel": {
+   "p25": 19.244446754455566,
+   "p50": 22.657034873962402,
+   "p75": 30.512845039367676
+  },
+  "killed_seconds_after_order": {
+   "p25": 7.4,
+   "p50": 14.833333333333334,
+   "p75": 25.516666666666666
+  },
+  "killed_metres_closed": {
+   "p25": 27.638916969299316,
+   "p50": 116.49949645996094,
+   "p75": 275.6001329421997
+  },
+  "failed_rel_speed_at_closest": {
+   "p25": 14.16267728805542,
+   "p50": 24.43584442138672,
+   "p75": 39.15178108215332
+  },
+  "relaunches": 31,
+  "relaunches_per_match": 0.3229166666666667,
+  "repaired_full": 4,
+  "hull_restored_per_match": 0.16586214823958775,
+  "by_pilot": {
+   "h999_4000": {
+    "recalls": 450,
+    "docked": 39,
+    "completion": 0.08666666666666667,
+    "completion_of_survivors": 0.28888888888888886,
+    "failure_modes": {
+     "never close": 39,
+     "overshoot": 9,
+     "too fast": 4,
+     "circling": 3
+    }
+   }
+  }
+ }
+}
