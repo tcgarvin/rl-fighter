@@ -1,0 +1,50 @@
+{
+ "schema": "rlf.lab.swap/1",
+ "sim_version": 11,
+ "mission": "deathmatch",
+ "n": 1024,
+ "seed": 910000,
+ "pilots": "/home/timg/code/rl-fighter/lab/runs/2026-11-26-fight-ablation/eval/solo_final_4359/pilot.json",
+ "base": {
+  "x_score": 0.537109375,
+  "x_score_ci95": 0.03052543976053668,
+  "end_reasons": {
+   "eliminated": 0.9912109375,
+   "time_limit": 0.0087890625
+  },
+  "length_median_s": 54.583333333333336,
+  "slot_damage_to_capital": 0.0,
+  "slot_damage_to_strike": 37.8564453125
+ },
+ "swap": {
+  "x_score": 0.59423828125,
+  "x_score_ci95": 0.030075587765733876,
+  "end_reasons": {
+   "eliminated": 0.9970703125,
+   "time_limit": 0.0029296875
+  },
+  "length_median_s": 51.03333333333333,
+  "slot_damage_to_capital": 0.0,
+  "slot_damage_to_strike": 109.5703125
+ },
+ "delta": 0.05712890625,
+ "delta_ci95": 0.04122398965050692,
+ "delta_by_roster": {
+  "GFF v FFF": 0.046875,
+  "GFF v FSG": 0.03125,
+  "GFF v SSF": 0.015625,
+  "GFF v GFF": 0.1171875,
+  "GFS v FFF": 0.078125,
+  "GFS v FSG": 0.015625,
+  "GFS v SSF": 0.03125,
+  "GFS v GFF": 0.265625,
+  "GSS v FFF": 0.1015625,
+  "GSS v FSG": -0.21875,
+  "GSS v SSF": -0.2734375,
+  "GSS v GFF": -0.015625,
+  "GGF v FFF": 0.46875,
+  "GGF v FSG": -0.078125,
+  "GGF v SSF": 0.09375,
+  "GGF v GFF": 0.234375
+ }
+}

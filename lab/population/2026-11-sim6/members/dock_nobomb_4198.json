@@ -1,0 +1,45 @@
+{
+ "schema": "rlf.population.member/1",
+ "id": "dock_nobomb_4198",
+ "family": "followers",
+ "founder": "transit_300",
+ "parent": "followers_dock_v8_2676",
+ "relation": "fork",
+ "fork_update": 2676,
+ "settings_changed": {
+  "sim_version": 11,
+  "obs_dim": 592,
+  "gamma": 0.995,
+  "bomber_share": 0.0,
+  "drill_bomber_share": 0.0,
+  "teammate_share": 0.3,
+  "dock_bonus": 1.0,
+  "drill_share": 0.55,
+  "drill_dock_share": 0.5,
+  "drill_dock_threat_share": 0.5
+ },
+ "checkpoint": "lab/runs/2026-11-26-fight-ablation/nobomb/checkpoints/ppo_bc_4198.pt",
+ "sha256": "46b9a4712ae2a70dc11fbddd63ee5c0242868f42ffb48a279a0e5f35a3a4c8bb",
+ "status": "active",
+ "archived_reason": "",
+ "archived_date": "",
+ "note": "Fight ablation night: followers_dock_v8_2676 with live pilots as about a quarter of its teammates and the station assault in its mission mix, without bombers.",
+ "ratings": [],
+ "drills": [
+  {
+   "phase": "fight-ablation",
+   "date": "2026-11-27",
+   "scores": {
+    "goto_arrival": 0.8964401294498382,
+    "goto_lift": 0.7457551979429888,
+    "attack_target_hit": 0.96484375,
+    "attack_side": 0.93359375,
+    "attack_flip": 0.8828125,
+    "defend_more_on_named": 0.85546875,
+    "defend_side": 0.92578125,
+    "defend_flip": 0.8515625
+   },
+   "passed": true
+  }
+ ]
+}

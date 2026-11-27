@@ -404,11 +404,12 @@ def telemetry(run: Path, arm: str, window: int) -> list[str]:
 
 def report(run: Path, arms: Sequence[str]) -> str:
     lines = [
-        f"# Horizon and bombers: report ({run})",
+        f"# Fight ablation: report ({run})",
         "",
         "Measurements only (± is 95%). The parent's column is its full-size eval; the "
-        "periodic columns are at the quick sizes (64 drills a kind, 96 recall matches) "
-        "and have no order cost or wins against the script. Order cost: 3 v 3, the "
+        "periodic columns are at the quick sizes (64 drills a kind, 96 recall matches, "
+        "8 fleet matches a roster, 6 blocks of unordered 3 v 3) and have no ordered 3 v 3 "
+        "or mission wins against the script. Order cost: 3 v 3, the "
         "checkpoint's side ordered (`nearest`) or not (`none`) against a free pilot; "
         "cost is nearest minus none, paired match by match. Bomber swap: the same "
         "matches with side X's first gunship as it is and as a bomber, the checkpoint "

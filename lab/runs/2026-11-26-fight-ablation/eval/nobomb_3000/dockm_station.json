@@ -1,0 +1,118 @@
+{
+ "schema": "rlf.lab.dock/1",
+ "sim_version": 11,
+ "mission": "station_assault",
+ "docking": true,
+ "n": 96,
+ "seed": 1100000,
+ "rosters": [
+  [
+   [
+    "station",
+    "fighter",
+    "strafer",
+    "fighter",
+    "gunship",
+    "fighter",
+    "strafer"
+   ],
+   [
+    "carrier",
+    "fighter",
+    "bomber",
+    "fighter",
+    "bomber",
+    "strafer",
+    "bomber",
+    "fighter",
+    "gunship"
+   ]
+  ]
+ ],
+ "pilots": "/home/timg/code/rl-fighter/lab/runs/2026-11-26-fight-ablation/eval/nobomb_3000/pilot.json",
+ "team1_win_rate": 0.15625,
+ "team1_win_ci95": 0.07301484618321057,
+ "end_reasons": {
+  "time_limit": 0.5833333333333334,
+  "station_destroyed": 0.15625,
+  "assault_repelled": 0.2604166666666667
+ },
+ "length_median_s": 150.0,
+ "length_p90_s": 150.0,
+ "dock": {
+  "recalls": 489,
+  "recalls_per_match": 5.09375,
+  "docked": 72,
+  "docked_per_match": 0.75,
+  "completion": 0.147239263803681,
+  "completion_of_survivors": 0.5806451612903226,
+  "seconds_to_dock": {
+   "p25": 14.6,
+   "p50": 28.05,
+   "p75": 53.858333333333334
+  },
+  "metres_at_order": {
+   "p25": 144.26444244384766,
+   "p50": 224.4794464111328,
+   "p75": 359.39427185058594
+  },
+  "outcomes": {
+   "killed en route": 365,
+   "docked": 72,
+   "match ended": 50,
+   "carrier lost": 2
+  },
+  "failure_modes": {
+   "never close": 26,
+   "too fast": 14,
+   "overshoot": 6,
+   "circling": 4
+  },
+  "failed_closest_m": {
+   "p25": 7.130322337150574,
+   "p50": 34.094783782958984,
+   "p75": 71.9163818359375
+  },
+  "came_near": 185,
+  "came_near_docked": 72,
+  "inside_not_docked": 47,
+  "inside_not_docked_slowest_rel": {
+   "p25": 20.16360569000244,
+   "p50": 22.46239471435547,
+   "p75": 26.114431381225586
+  },
+  "killed_seconds_after_order": {
+   "p25": 4.733333333333333,
+   "p50": 10.9,
+   "p75": 30.033333333333335
+  },
+  "killed_metres_closed": {
+   "p25": 7.822670936584473,
+   "p50": 74.16010665893555,
+   "p75": 162.0170841217041
+  },
+  "failed_rel_speed_at_closest": {
+   "p25": 20.99568748474121,
+   "p50": 24.27458381652832,
+   "p75": 27.79747200012207
+  },
+  "relaunches": 65,
+  "relaunches_per_match": 0.6770833333333334,
+  "repaired_full": 1,
+  "hull_restored_per_match": 0.43152911024511315,
+  "by_pilot": {
+   "nobomb_3000": {
+    "recalls": 489,
+    "docked": 72,
+    "completion": 0.147239263803681,
+    "completion_of_survivors": 0.5806451612903226,
+    "failure_modes": {
+     "never close": 26,
+     "too fast": 14,
+     "overshoot": 6,
+     "circling": 4
+    }
+   }
+  }
+ }
+}

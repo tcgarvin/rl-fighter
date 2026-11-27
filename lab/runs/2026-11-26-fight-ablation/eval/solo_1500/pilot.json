@@ -1,0 +1,9 @@
+{
+ "schema": "rlf.live_pilots/1",
+ "pilots": [
+  {
+   "id": "solo_1500",
+   "checkpoint": "/home/timg/code/rl-fighter/lab/runs/2026-11-26-fight-ablation/solo/checkpoints/ppo_bc_1500.pt"
+  }
+ ]
+}

@@ -1,0 +1,37 @@
+{
+ "schema": "rlf.lab.swap/1",
+ "sim_version": 11,
+ "mission": "carrier_battle",
+ "n": 48,
+ "seed": 910000,
+ "pilots": "/home/timg/code/rl-fighter/lab/runs/2026-11-26-fight-ablation/eval/solo_1000/pilot.json",
+ "base": {
+  "x_score": 0.4791666666666667,
+  "x_score_ci95": 0.1428235512262245,
+  "end_reasons": {
+   "time_limit": 0.20833333333333334,
+   "carrier_destroyed": 0.7916666666666666
+  },
+  "length_median_s": 128.78333333333333,
+  "slot_damage_to_capital": 175.97916666666666,
+  "slot_damage_to_strike": 58.25
+ },
+ "swap": {
+  "x_score": 0.4375,
+  "x_score_ci95": 0.1418265159915376,
+  "end_reasons": {
+   "time_limit": 0.16666666666666666,
+   "carrier_destroyed": 0.8333333333333334
+  },
+  "length_median_s": 134.2,
+  "slot_damage_to_capital": 34.375,
+  "slot_damage_to_strike": 103.125
+ },
+ "delta": -0.041666666666666664,
+ "delta_ci95": 0.1841598070029572,
+ "delta_by_roster": {
+  "wing of 8": 0.0,
+  "wing of 6": -0.125,
+  "wing of 9": 0.0
+ }
+}
