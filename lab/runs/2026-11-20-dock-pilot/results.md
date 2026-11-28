@@ -67,6 +67,8 @@ scripted commander: carrier battles (each side has a carrier, and a side wins by
 destroying the other's) and station assaults (one side defends a station, the other
 attacks it with a carrier and bombers).
 
+<div data-figure="diagram" data-name="dock-loop" data-caption="A dock drill starts with a craft already ordered home, and practises the trip and the landing. The match rows below count the whole loop under the scripted commander."></div>
+
 <!-- figure-idea: the two dock drills side by side: a damaged craft 150 to 350 m from its carrier, station or citadel, alone (calm) or with one or two script craft starting 90 to 200 m behind it (under fire), and the 10 m, 15 m/s capture rule at the bay. -->
 
 | | `followers_school_600` | `dock600` 2624 | `followers_v8_352` | `dock352` 2676 |

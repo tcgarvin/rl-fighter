@@ -57,7 +57,7 @@ A design review then changed three things.
   choice at one moment. The pull now applies only to **transit rows**, moments when a
   ship is on its way to a go-to point or defending a ward no one is threatening.
 
-<!-- figure-idea: shared: what an order is, with the three kinds of this rules version. Attack (a line to a named enemy), defend (a ward with its threat set drawn as the enemies whose weapon range reaches it), go-to (a point and its arrival circle). Marks which moments count as "transit", the only ones the pull touched. -->
+<div data-figure="diagram" data-name="orders" data-caption="Attack, defend and go-to are the kinds of order new in this version of the rules. The go-to deadline and the dock order in the picture came in later versions."></div>
 
 ## What ran
 

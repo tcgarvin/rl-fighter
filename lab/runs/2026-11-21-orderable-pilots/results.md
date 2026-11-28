@@ -62,7 +62,7 @@ family). The order cost is the ordered win rate minus the unordered one, compare
 by match on the same matches. It is a change in the share of matches won, out of 1. A
 negative cost means the order loses fights.
 
-<!-- figure-idea: shared: how the order cost is measured: the same 3 v 3 matches played twice, once with the pilot's side ordered onto its nearest enemies and once unordered, against the same free opponent; the cost is the difference in wins. -->
+<div data-figure="diagram" data-name="order-cost" data-caption="Here the tested side is an arm or its parent, and the free side is followers_school_1052 or f995_701. Run 2 is what the tables call unordered."></div>
 
 ## `kitedock`: the orderable pilot learning to dock
 
@@ -74,6 +74,8 @@ other's) and station assaults (one side defends a station, the other attacks it 
 carrier and bombers). The last row is the win rate against script-flown sides in a
 carrier battle, a station assault and a four-a-side fleet fight (small ships only, last
 side standing).
+
+<div data-figure="diagram" data-name="dock-loop" data-caption="The recalls in the tables below go round this loop, with the scripted commander recalling. A dock drill practises only the trip home and the landing."></div>
 
 | Measure | `kite_2205` (parent) | `kitedock` 2293 |
 |---|---|---|

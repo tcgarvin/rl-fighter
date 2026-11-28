@@ -77,6 +77,8 @@ does for any side without a commander, but its pilots never see its orders. Ther
 with every other match by match. (Command: `eval.sh` → `order_rules.py --k 3 --blocks 24`
 on the 2026-11-17 seeds.)
 
+<div data-figure="diagram" data-name="order-cost" data-caption="Here the tested side is a kite or kite_pay025 checkpoint, and the free side is followers_school_1052 or f995_701. This entry also plays run 1 with the scripted commander's orders."></div>
+
 Each number is the checkpoint side's score, the share of matches won with draws counting
 half, so 0.5 is even. The ± is the margin of error (1.96 standard errors): the true value
 very likely lies within that range. Cost is nearest minus none, paired match by match:
@@ -146,7 +148,7 @@ round, the target within 230 m). Advance is speed toward the enemy fleet's centr
 centroid), and "to target" is speed toward the ship's own target. Damage is per match.
 "Share on target" is damage dealt to the target over all damage dealt.
 
-<!-- figure-idea: shared: the charge and the duel. Two three-ship fleets over the first 30 seconds: the ordered side flying straight at its targets, the free side falling back and taking shots at whoever crosses its nose, with a damage tally for each duel. Helps here because the table's columns (advance, target in arc, dealt to and taken from target) are hard to picture, and several entries on order cost could use it. -->
+<div data-figure="diagram" data-name="charge-and-duel" data-caption="The numbers are the order-cost night's. In the table below kite 2205 still charges like this, but it now deals its target about what it takes back, 146 dealt and 139 taken."></div>
 
 | Side | Lost | Target in arc | Advance (m/s) | To target (m/s) | Dealt to target | Taken from target | Taken from others | Share on target |
 |---|---|---|---|---|---|---|---|---|

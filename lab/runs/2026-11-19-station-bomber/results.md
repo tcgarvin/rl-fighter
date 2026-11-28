@@ -160,7 +160,7 @@ win as 1 and a draw as half. The delta is the bomber score minus the gunship sco
 paired match by match, and n is the number of matches. The last two columns are the
 damage the swapped ship dealt to capital ships and to strike craft.
 
-<!-- figure-idea: shared: the swap test as a picture: the same match played twice, once with a gunship and once with a bomber in that slot, everything else identical; the swap cost recurs in later bomber entries. -->
+<div data-figure="diagram" data-name="swap-test" data-caption="Here every strike craft is flown by the script, or by live pilots drawn ship by ship, with the same draws in both runs."></div>
 
 | Mission | Pilots | n | Side X score, gunship | Side X score, bomber | Delta | Swapped slot's damage as gunship: capital / strike | As bomber: capital / strike |
 |---|---|---|---|---|---|---|---|

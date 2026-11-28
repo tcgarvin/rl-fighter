@@ -131,7 +131,7 @@ side that much in win rate.
 | `c1_shaped` | +0.059 ± 0.073 | −0.175 ± 0.073 | −0.127 ± 0.071 | −0.208 ± 0.072 |
 | `c1_outcome` | +0.014 ± 0.072 | −0.168 ± 0.071 | −0.049 ± 0.077 | −0.188 ± 0.071 |
 
-<!-- figure-idea: shared: what an attack order does to a pilot in a fleet fight: the ordered ship keeps closing on its one target while free pilots fall back, then duels it and loses; many entries from order-cost on rest on this. -->
+<div data-figure="diagram" data-name="charge-and-duel" data-caption="The numbers are from the order-cost night's 3 v 3 fleet fights. In this entry's missions three of the four pilots pay the cost. f995_701, which ignores orders, pays nothing."></div>
 
 The cost of orders is the one in [the order-cost entry](../2026-11-17-order-cost/results.md):
 an ordered pilot charges and duels its one target. A pilot that follows orders at all

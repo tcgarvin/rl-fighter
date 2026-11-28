@@ -154,6 +154,8 @@ with a clear run (calm) or with enemies chasing it (under fire). The last two ar
 matches, where the scripted commander recalls a damaged ship home. Every number from the
 third row down is the share of attempts that ended with the ship docked.
 
+<div data-figure="diagram" data-name="swap-test" data-caption="The parent and each arm flew every strike craft on both sides, in both runs."></div>
+
 | Measure | Parent | `solo` | `nobomb` | `h995` |
 |---|---|---|---|---|
 | Swap cost, deathmatch | −0.16 | **+0.06** | −0.10 | −0.03 |

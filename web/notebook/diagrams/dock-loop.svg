@@ -1,0 +1,99 @@
+<svg class="diagram" viewBox="0 0 360 740" role="img" aria-labelledby="dock-loop-title dock-loop-desc">
+  <title id="dock-loop-title">The recall loop</title>
+  <desc id="dock-loop-desc">Rules version 11. The recall loop follows one carrier and one of its strike craft. Five numbered steps run from top to bottom, with a dashed return arrow labelled back into the fight. Step 1, Damaged, shows an azure dart and an ember dart shooting at each other, and a half empty bar labelled hull. Below half its hull, the scripted commander recalls it. Not while it is finishing a kill, or while it is under an enemy capital ship's guns. Then it is recalled once clear. Step 2, Flies home, shows the dart and a curved azure arrow toward its azure carrier. The pilot still flies it. The order to dock is just more numbers it reads. A short side exit arrow from step 2 leads to a crossed out dart outline, Shot down on the way. When scripts fly every ship, about 3 recalls in 5 end in a dock (0.54 to 0.64 by mission). Nearly all the rest are shot down on the way. Step 3, Docks, shows a carrier with one bay mouth and a small dart arriving nose first at the dashed circle at the mouth. It is taken in within 10 m of a bay's mouth, moving no faster than 15 m/s against the bay. Step 4, Repairs in the hangar, shows the dart inside its carrier and a filling bar labelled hull. Its shield is full at once. Its hull comes back 5% a second. Step 5, Launches again, shows the dart leaving the bay with a short arrow. From 4 s after docking, as the same ship with the same pilot. The scripted commander waits until it has 90% of its hull, unless it needs craft fast. The notes say: If the carrier is destroyed, the craft in its hangar go with it. A station takes its craft back the same way. Only a commander recalls. Learned commanders cannot recall yet.</desc>
+
+  <rect class="box" x="8" y="8" width="318" height="52" rx="3" />
+  <g class="dg-kicker">
+    <text class="dg-small" x="20" y="23">RULES VERSION 11</text>
+  </g>
+  <text class="dg-label dg-label--strong" x="20" y="39">The recall loop</text>
+  <text class="dg-small" x="20" y="52">One carrier and one of its strike craft.</text>
+
+  <path class="dg-line" d="M36,186 V198 M36,270 V382 M36,454 V466 M36,528 V540" />
+  <path class="dg-arrow" d="M33,192 L36,198 L39,192 Z M33,376 L36,382 L39,376 Z M33,460 L36,466 L39,460 Z M33,534 L36,540 L39,534 Z" />
+
+  <rect class="box" x="24" y="72" width="302" height="114" rx="3" />
+  <text class="dg-num" x="36" y="90">1</text>
+  <path class="dg-a" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(55 126)" />
+  <path class="dg-b" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(105 126) rotate(180)" />
+  <path class="dg-stroke-a" d="M62,124 H69 M74,124 H81" />
+  <path class="dg-stroke-b" d="M98,128 H91 M86,128 H79" />
+  <rect class="box" x="46" y="143" width="28" height="5" rx="1" />
+  <rect class="dg-a" x="47" y="144" width="13" height="3" />
+  <text class="dg-small" x="80" y="149">hull</text>
+  <text class="dg-label dg-label--strong" x="126" y="90">Damaged</text>
+  <text class="dg-label" x="126" y="107">Below half its hull, the</text>
+  <text class="dg-label" x="126" y="120">scripted commander recalls it.</text>
+  <text class="dg-small" x="126" y="139">Not while it is finishing a kill,</text>
+  <text class="dg-small" x="126" y="152">or while it is under an enemy</text>
+  <text class="dg-small" x="126" y="165">capital ship's guns. Then it is</text>
+  <text class="dg-small" x="126" y="178">recalled once clear.</text>
+
+  <rect class="box" x="24" y="198" width="302" height="72" rx="3" />
+  <text class="dg-num" x="36" y="216">2</text>
+  <path class="dg-a" d="M-12,-7 L6,-7 L11,-3 L11,3 L6,7 L-12,7 Z" transform="translate(58 245)" />
+  <path class="dg-a" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(105 245) rotate(180)" />
+  <path class="dg-stroke-a" d="M103,235 Q85,221 72,239 M73,233 L72,239 L78,237" />
+  <text class="dg-label dg-label--strong" x="126" y="216">Flies home</text>
+  <text class="dg-label" x="126" y="233">The pilot still flies it. The</text>
+  <text class="dg-label" x="126" y="246">order to dock is just more</text>
+  <text class="dg-label" x="126" y="259">numbers it reads.</text>
+
+  <rect class="box box--sim" x="54" y="282" width="272" height="88" rx="3" />
+  <path class="dg-line" d="M74,270 V277" />
+  <path class="dg-arrow" d="M71,277 L74,282 L77,277 Z" />
+  <path class="dg-stroke-a" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(74 332)" />
+  <path class="dg-line" d="M69,314 L79,324 M79,314 L69,324" />
+  <text class="dg-label dg-label--strong" x="95" y="300">Shot down on the way</text>
+  <text class="dg-small" x="95" y="318">When scripts fly every ship, about 3</text>
+  <text class="dg-small" x="95" y="331">recalls in 5 end in a dock (0.54 to</text>
+  <text class="dg-small" x="95" y="344">0.64 by mission). Nearly all the rest</text>
+  <text class="dg-small" x="95" y="357">are shot down on the way.</text>
+
+  <rect class="box" x="24" y="382" width="302" height="72" rx="3" />
+  <text class="dg-num" x="36" y="400">3</text>
+  <path class="dg-a" d="M-12,-7 L6,-7 L11,-3 L11,3 L6,7 L-12,7 Z" transform="translate(68 427) scale(1.6)" />
+  <rect class="dg-chip" x="77" y="424" width="9" height="6" rx="1" />
+  <circle class="dg-stroke-a dg-dash" cx="86" cy="427" r="7" />
+  <path class="dg-a" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(92 427) rotate(180) scale(0.8)" />
+  <text class="dg-label dg-label--strong" x="126" y="400">Docks</text>
+  <text class="dg-label" x="126" y="417">It is taken in within 10 m of a</text>
+  <text class="dg-label" x="126" y="430">bay's mouth, moving no faster</text>
+  <text class="dg-label" x="126" y="443">than 15 m/s against the bay.</text>
+
+  <rect class="box" x="24" y="466" width="302" height="62" rx="3" />
+  <text class="dg-num" x="36" y="484">4</text>
+  <path class="dg-a" d="M-12,-7 L6,-7 L11,-3 L11,3 L6,7 L-12,7 Z" transform="translate(73 497) scale(1.6)" />
+  <path class="dg-chip" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(73 497)" />
+  <rect class="box" x="54" y="513" width="38" height="5" rx="1" />
+  <rect class="dg-a" x="55" y="514" width="26" height="3" />
+  <text class="dg-small" x="98" y="522">hull</text>
+  <path class="dg-stroke-a" d="M85,509 H99 M96,506 L99,509 L96,512" />
+  <text class="dg-label dg-label--strong" x="126" y="484">Repairs in the hangar</text>
+  <text class="dg-label" x="126" y="501">Its shield is full at once.</text>
+  <text class="dg-label" x="126" y="514">Its hull comes back 5% a second.</text>
+
+  <rect class="box" x="24" y="540" width="302" height="104" rx="3" />
+  <text class="dg-num" x="36" y="558">5</text>
+  <path class="dg-a" d="M-12,-7 L6,-7 L11,-3 L11,3 L6,7 L-12,7 Z" transform="translate(57 592)" />
+  <rect class="dg-chip" x="63" y="589" width="5" height="6" rx="1" />
+  <path class="dg-stroke-a" d="M70,592 H91 M87,588 L91,592 L87,596" />
+  <path class="dg-a" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(105 592)" />
+  <text class="dg-label dg-label--strong" x="126" y="558">Launches again</text>
+  <text class="dg-label" x="126" y="575">From 4 s after docking, as the</text>
+  <text class="dg-label" x="126" y="588">same ship with the same pilot.</text>
+  <text class="dg-small" x="126" y="607">The scripted commander waits</text>
+  <text class="dg-small" x="126" y="620">until it has 90% of its hull,</text>
+  <text class="dg-small" x="126" y="633">unless it needs craft fast.</text>
+
+  <path class="dg-loop" d="M326,592 H346 Q352,592 352,586 V130 Q352,124 346,124 H332" />
+  <path class="dg-arrow" d="M333,120 L326,124 L333,128 Z" />
+  <text class="dg-small" text-anchor="middle" transform="translate(340 450) rotate(-90)">back into the fight</text>
+
+  <rect class="box" x="8" y="654" width="344" height="82" rx="3" />
+  <text class="dg-small" x="20" y="668">If the carrier is destroyed, the craft in its</text>
+  <text class="dg-small" x="20" y="681">hangar go with it.</text>
+  <text class="dg-small" x="20" y="699">A station takes its craft back the same way.</text>
+  <text class="dg-small" x="20" y="716">Only a commander recalls. Learned commanders</text>
+  <text class="dg-small" x="20" y="729">cannot recall yet.</text>
+</svg>

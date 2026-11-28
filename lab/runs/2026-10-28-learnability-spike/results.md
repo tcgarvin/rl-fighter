@@ -22,6 +22,8 @@ RL Fighter is a space-combat game in which every ship is flown by a small neural
 
 The run had been waiting on [the version 2 rules](../2026-10-28-sim-v2/results.md), finished the same day. They made duels last about 43 seconds, with three or four attacking runs (passes) each, instead of ending on the first head-on meeting. Those rules also changed the script so that after each pass it extends, flying straight out of gun range before it turns back, instead of staying in a brawl after the merge (the moment the two ships meet and cross). That made it a better pilot to copy.
 
+<div data-figure="diagram" data-name="pilot" data-caption="This first run trained the network on the fighter alone, in duels against the script. Orders, the bomber and one network for every hull all came later."></div>
+
 ## What we did
 
 The run had three stages, and the rest of the entry uses their short names.

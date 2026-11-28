@@ -64,7 +64,7 @@ run asked whether the duel recipe carries over to three ship types and bigger fi
 - Timeline from `run.out`: DAgger 19:30–19:54, PPO 19:54 to 23:46 (with the
   break), gate evals 23:46–23:57.
 
-<!-- figure-idea: shared: the three small ship types side by side (fighter, strafer, gunship), with what each one's pilot controls (thrusters, weapons, and the gunship's turning turrets). It would show why "one network for every hull" was a real question. -->
+<div data-figure="diagram" data-name="pilot" data-caption="This run asked whether one network could fly the three hulls of the time: fighter, strafer and gunship. The order numbers came in rules version 5 and the bomber in version 9, after this run."></div>
 
 ## Gates (fleet suite `fleet_v1`, 1024 matches; duels n = 512)
 

@@ -49,8 +49,6 @@ Retreats and surrender were left out (the owner's call).
 
 <div data-figure="diagram" data-name="missions" data-caption="Docking needs a carrier or a station to land on, so it happens only in the carrier battle and the station assault. In deathmatch and convoy escort the new rule never comes into play."></div>
 
-<!-- figure-idea: shared: the recall loop on one carrier: a craft drops below half hull, the commander recalls it, it flies home, docks, repairs in the hangar at 5% a second and relaunches as the same ship after at least 4 s. Many dock entries could reuse it. -->
-
 ## The rules
 
 The rules are in `docs/SIM_SPEC.md` §0.9 (what changed), §5.11 (the rules) and §7.2 (the
@@ -73,6 +71,8 @@ owner removed it the same day: docking is to be taught, not stood in for. Under 
 scripted commanders, which now make the same recalls themselves, the two versions played
 identical matches, so the measurements below hold for either.
 
+<div data-figure="diagram" data-name="dock-loop" data-caption="The loop as built in this entry, with the scripted commander recalling. The share that make it home is for craft the script flies. The live pilots, untrained, finished about 1 recall in 70."></div>
+
 **What the pilot sees.** A pilot reads a fixed list of numbers each moment (its own
 speed, nearby ships, its orders). A dock order adds five numbers at the end of that list,
 which grows from 587 to 592: a "dock" flag, the bay's velocity relative to the ship, and
@@ -82,7 +82,7 @@ bay's mouth, with a 10 m radius and no deadline. So the live pilots below fly th
 order as a go-to, which is what they can understand today. Their matches are the same
 with and without the new numbers, since they do not read them.
 
-<!-- figure-idea: shared: what a pilot sees and controls: its inputs as a strip of numbers (own state, nearby ships, its order), with the new five dock numbers appended at the end, and its outputs (thrusters, turrets, trigger). -->
+<div data-figure="diagram" data-name="pilot" data-caption="In this version the row grows from 587 to 592 numbers. The five new ones, at the end, are the dock order: a dock flag, how the bay moves and which way its mouth faces. A pilot trained before reads only the first 587."></div>
 
 **How the tables were measured.** Capital ships are always flown by the sim's scripts,
 and both commanders are scripted. Each row from `dock_eval.py` is 512 matches, set up by

@@ -94,7 +94,7 @@ The score changes are ± 0.04 in deathmatches and ± 0.09 in carrier battles. Th
 −0.16 and the 0.38 above are different pilots: that figure was for the live pilots of
 2026-11-19, before this parent was trained.
 
-<!-- figure-idea: shared: the bomber swap. The same match run twice side by side, identical except that one side's first gunship is a bomber in the second run, with the difference in result read off as the swap cost. Used in this entry and the fight ablation. -->
+<div data-figure="diagram" data-name="swap-test" data-caption="Here the pilot under test flies every strike craft on both sides, in both runs."></div>
 
 A pilot in a bomber used to barely fight. Now it does about as well as a gunship in that
 slot. The swap cost was near zero by update 2,000, and the damage kept rising after. It is
@@ -108,6 +108,8 @@ Each number is the share of attempts that ended with the ship docked. The first 
 are dock drills: a damaged ship ordered home, either with a clear run (calm) or with
 enemies chasing it (under fire). The last two are real matches, where the scripted
 commander recalls a ship when its hull is below half.
+
+<div data-figure="diagram" data-name="dock-loop" data-caption="The match recalls below go round this loop. Most of the failures stop at step 2: the craft never gets close to its bay."></div>
 
 | Docked | Parent | `h999` | `h995` | Script |
 |---|---|---|---|---|

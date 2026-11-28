@@ -78,6 +78,8 @@ underneath it, as it does for any side without a commander, but its pilots never
 orders. The checkpoint's side gets `nearest` (each ship ordered onto its own nearest
 enemy, chosen again every 2 s) or `none` (no orders, the control).
 
+<div data-figure="diagram" data-name="order-cost" data-caption="Here the tested side is a checkpoint of this run, and the free side is followers_school_1052 in both runs."></div>
+
 Each number is the checkpoint side's score, the share of matches won with draws counting
 half, so 0.5 is even. Each cell is 1,152 matches on the same starting setups as the
 order-cost night, so the two columns pair match by match. The cost is nearest minus
@@ -145,7 +147,7 @@ the JSONs' `sides`.) Lost is ships lost per match. "In arc" shares are of a ship
 fleet's centre (its centroid). "Share on target" is damage dealt to the target over all
 damage dealt.
 
-<!-- figure-idea: shared: the charge and the duel. Two three-ship fleets over the first 30 seconds: the ordered side flying straight at its targets, the free side falling back and taking shots at whoever crosses its nose, with a damage tally for each duel. Helps here because "advance", "in arc" and "share on target" are hard to picture from a table, and several entries on order cost could use it. -->
+<div data-figure="diagram" data-name="charge-and-duel" data-caption="The numbers are the order-cost night's. In the table below the parent, followers_school_1052, does the same when ordered: it advances at 13.5 m/s, puts 0.98 of its damage on its target, and takes 118 from it while dealing 88."></div>
 
 | Side | Lost | Target in arc | Other in arc | Advance (m/s) | Dealt to target | Dealt to others | Taken from target | Taken from others | Share on target |
 |---|---|---|---|---|---|---|---|---|---|

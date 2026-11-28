@@ -66,6 +66,8 @@ and a centroid is a group's centre, the average of its ships' positions:
 | `near250` | As `nearest`, but no order while that enemy is farther than 250 m |
 | `none` | An external commander that gives no orders: the control |
 
+<div data-figure="diagram" data-name="order-cost" data-caption="This entry built the test. The same four order-following pilots fly both sides, and the fights are 2 v 2 as well as 3 v 3. Each rule in the table above takes the place of run 1, and the control that gives no orders is run 2."></div>
+
 ## Verdict in detail
 
 An attack order on each ship's own nearest enemy (`nearest`) costs a 3 v 3 as much as the
@@ -158,7 +160,7 @@ falling back:
 | `nearest`: ordered ships lost so far | 0 | 0 | 0 | 0 | 0.02 | 0.19 | 0.47 | 0.74 | 0.93 |
 | `nearest`: unseen ships lost so far | 0 | 0 | 0 | 0 | 0.01 | 0.05 | 0.16 | 0.33 | 0.47 |
 
-<!-- figure-idea: the opening of a 3 v 3 as a short animation or strip of frames from the timeline above: with no orders both fleets close to about 370 m and fall back to 500 m; with `nearest` the ordered fleet keeps coming while the free fleet runs, and its ships start dying from 14 s. -->
+<div data-figure="diagram" data-name="charge-and-duel" data-caption="The 3 v 3 rows of the two tables above, drawn for the rule that sends each ship at the enemy nearest it. The comparison box is the control, with no orders on either side."></div>
 
 The first ship lost in each match, 3 v 3. The first two rows are shares of matches, the
 next two shares of those first losses, and the last a count:

@@ -1,0 +1,71 @@
+<svg class="diagram" viewBox="0 0 360 684" role="img" aria-labelledby="order-cost-title order-cost-desc">
+  <title id="order-cost-title">How the cost of an order is measured</title>
+  <desc id="order-cost-desc">The order-cost test uses fleet fights, three ships a side, all six of one hull: fighter, strafer or gunship. Two match panels show three azure darts on the left, labelled pilots being tested, and three ember darts on the right, labelled free side. In Run 1: ordered, each ship is ordered to attack the enemy nearest it, chosen again every 2 s. Its pilot sees the order. Each azure dart has an order line with an open arrowhead pointing toward the enemy nearest it, which is ringed in azure. A down arrow leads to Run 2 beside the note: The same matches again: same starts, same line-ups, same pilots. Run 2: no orders shows the same ships in exactly the same places within its panel, without order lines or target rings. The same pilots get no orders at all. They fight on their own judgment. The free side, in both runs, is the same opponent in both runs, flying free. Its own commander gives orders, but they are hidden from its pilots, so they fight on their own judgment. Below that panel's heading, an ember box labelled its commander sends a dashed ember order line toward an ember dart. The line stops at a short wall bar labelled hidden before reaching the ship. The cost is calculated as Order cost = win rate in run 1 minus win rate in run 2, compared match by match, 1,152 matches in each run. Below zero: the order loses fights. Near zero: the order is cheap to follow. Win rate: the share of matches won, out of 1, a draw counting half.</desc>
+
+  <text class="dg-label dg-label--strong" x="20" y="20">The order-cost test</text>
+  <text class="dg-small" x="20" y="37">Fleet fights, three ships a side, all six of one hull:</text>
+  <text class="dg-small" x="20" y="50">fighter, strafer or gunship.</text>
+
+  <rect class="box" x="8" y="62" width="344" height="154" rx="3" />
+  <text class="dg-label dg-label--strong" x="20" y="80">Run 1: ordered</text>
+  <text class="dg-small" x="94" y="98" text-anchor="middle">pilots being tested</text>
+  <text class="dg-small" x="266" y="98" text-anchor="middle">free side</text>
+  <g aria-hidden="true">
+    <path class="dg-a" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(94 118)" />
+    <path class="dg-a" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(94 143)" />
+    <path class="dg-a" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(94 168)" />
+    <path class="dg-b" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(266 118) rotate(180)" />
+    <path class="dg-b" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(266 143) rotate(180)" />
+    <path class="dg-b" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(266 168) rotate(180)" />
+    <path class="dg-stroke-a" d="M104,118 H249 M244,114 L249,118 L244,122 M104,143 H249 M244,139 L249,143 L244,147 M104,168 H249 M244,164 L249,168 L244,172" />
+    <circle class="dg-stroke-a" cx="266" cy="118" r="10" />
+    <circle class="dg-stroke-a" cx="266" cy="143" r="10" />
+    <circle class="dg-stroke-a" cx="266" cy="168" r="10" />
+  </g>
+  <text class="dg-small" x="20" y="190">Each ship is ordered to attack the enemy nearest it,</text>
+  <text class="dg-small" x="20" y="203">chosen again every 2 s. Its pilot sees the order.</text>
+
+  <path class="dg-line" d="M36,216 V251" aria-hidden="true" />
+  <path class="dg-arrow" d="M32,251 L36,258 L40,251 Z" aria-hidden="true" />
+  <text class="dg-small" x="52" y="234">The same matches again:</text>
+  <text class="dg-small" x="52" y="247">same starts, same line-ups, same pilots</text>
+
+  <rect class="box" x="8" y="258" width="344" height="148" rx="3" />
+  <text class="dg-label dg-label--strong" x="20" y="276">Run 2: no orders</text>
+  <text class="dg-small" x="94" y="294" text-anchor="middle">pilots being tested</text>
+  <text class="dg-small" x="266" y="294" text-anchor="middle">free side</text>
+  <g aria-hidden="true">
+    <path class="dg-a" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(94 314)" />
+    <path class="dg-a" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(94 339)" />
+    <path class="dg-a" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(94 364)" />
+    <path class="dg-b" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(266 314) rotate(180)" />
+    <path class="dg-b" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(266 339) rotate(180)" />
+    <path class="dg-b" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(266 364) rotate(180)" />
+  </g>
+  <text class="dg-small" x="20" y="382">The same pilots get no orders at all.</text>
+  <text class="dg-small" x="20" y="395">They fight on their own judgment.</text>
+
+  <rect class="box" x="8" y="418" width="344" height="108" rx="3" />
+  <text class="dg-label dg-label--strong" x="20" y="436">The free side, in both runs</text>
+  <rect class="box dg-stroke-b" x="20" y="448" width="84" height="24" rx="3" />
+  <text class="dg-small" x="26" y="463">its commander</text>
+  <text class="dg-small" x="172" y="450" text-anchor="middle">hidden</text>
+  <g aria-hidden="true">
+    <path class="dg-stroke-b dg-dash" d="M104,460 H168" />
+    <path class="dg-line" d="M172,455 V469" />
+    <path class="dg-b" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(192 460) rotate(180)" />
+  </g>
+  <text class="dg-small" x="20" y="488">The same opponent in both runs, flying free. Its own</text>
+  <text class="dg-small" x="20" y="501">commander gives orders, but they are hidden from</text>
+  <text class="dg-small" x="20" y="514">its pilots, so they fight on their own judgment.</text>
+
+  <rect class="box" x="8" y="538" width="344" height="138" rx="3" />
+  <text class="dg-label dg-label--strong" x="20" y="556">The cost</text>
+  <text class="dg-label dg-label--strong" x="20" y="574">Order cost = win rate in run 1</text>
+  <text class="dg-label dg-label--strong" x="20" y="587">minus win rate in run 2</text>
+  <text class="dg-small" x="20" y="605">compared match by match, 1,152 matches in each run</text>
+  <text class="dg-small" x="20" y="624">Below zero: the order loses fights.</text>
+  <text class="dg-small" x="20" y="637">Near zero: the order is cheap to follow.</text>
+  <text class="dg-small" x="20" y="656">Win rate: the share of matches won, out of 1, a draw</text>
+  <text class="dg-small" x="20" y="669">counting half.</text>
+</svg>

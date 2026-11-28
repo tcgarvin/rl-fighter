@@ -1,0 +1,125 @@
+<svg class="diagram" viewBox="0 0 360 987" role="img" aria-labelledby="charge-and-duel-title charge-and-duel-desc">
+  <title id="charge-and-duel-title">What an attack order does in a fleet fight</title>
+  <desc id="charge-and-duel-desc">Three ships a side, the first 30 seconds. Measured on the order-cost night: the same four order-following pilots on both sides. Azure: every ship ordered to attack the enemy nearest it. Ember: free, its orders hidden from its pilots. Only the gap is to scale. Arrows show direction. Four frames show the gap between the fleets' centres at the same scale, with azure darts facing the ember fleet. At 0 s, the gap is 482 m. Both fleets fly in, with arrows showing direction and no target rings because no order has been given yet. From 4 s on, short azure order arrows point toward target rings. At 4 s, the gap is 365 m. Orders since 2 s. The ordered side keeps flying at its targets, at 12 to 16 m/s. The free side turns and runs, as fast as 29 m/s away. The ember darts face away, with a motion arrow pointing right. At 20 s, the gap is 302 m. The free side has stopped falling back. The duels are on. Ships lost so far, a match: ordered 0.47, free 0.16. At 28 s, the gap is 261 m. Ships lost so far, a match: ordered 0.93, free 0.47. Two azure darts remain, with a small x marking a lost ship. Three ember darts remain. In the last two frames the ember darts face the fight. For comparison, no orders on either side: both fleets close to about 370 m, then both fall back to about 500 m by 8 s. Almost no ship is lost before 14 s. The duel, close up: an azure ship faces its ringed ember target, linked by an azure order arrow. Another ember ship crosses the azure ship's nose inside a narrow dashed gun arc and passes unshot. Beside it, the label a free ship takes the shot identifies an ember pilot shooting at an azure ship crossing its nose. The ordered pilot shoots only its target. A free pilot takes whatever shot comes. Damage in the first 30 s, a match, compares the Ordered side and Free side. Damage dealt to its own target: 101 and 112. Damage dealt to other enemies: 2 and 40. Damage taken from its own target: 127 and 71. For the free side, its own target is the enemy its hidden order named. The first ship lost was the ordered side's in 0.68 of matches, and 0.73 of those were killed by the very enemy they were sent at. The ordered ship charges, duels its one target, and loses.</desc>
+  <text class="dg-small dg-label--strong" x="20" y="18">Three ships a side, the first 30 seconds</text>
+  <text class="dg-small" x="20" y="34">Measured on the order-cost night: the same four</text>
+  <text class="dg-small" x="20" y="47">order-following pilots on both sides.</text>
+  <text class="dg-small" x="20" y="63">Azure: every ship ordered to attack the enemy nearest it.</text>
+  <text class="dg-small" x="20" y="76">Ember: free, its orders hidden from its pilots.</text>
+  <text class="dg-small" x="20" y="90">Only the gap is to scale. Arrows show direction.</text>
+  <rect class="box" x="8" y="98" width="344" height="104" rx="3" />
+  <text class="dg-label dg-label--strong" x="20" y="114">0 s</text>
+  <text class="dg-small" x="176.55" y="114" text-anchor="middle">482 m</text>
+  <path class="dg-line" d="M 44 121 H 309.1 M 44 118 V 124 M 309.1 118 V 124" />
+  <g aria-hidden="true">
+    <path class="dg-a" transform="translate(44 132)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+    <path class="dg-a" transform="translate(44 150)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+    <path class="dg-a" transform="translate(44 168)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+    <path class="dg-stroke-a" d="M 54 132 H 76 M 72 129 L 76 132 L 72 135 M 54 150 H 76 M 72 147 L 76 150 L 72 153 M 54 168 H 76 M 72 165 L 76 168 L 72 171" />
+    <path class="dg-b" transform="translate(309.1 132) rotate(180)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+    <path class="dg-b" transform="translate(309.1 150) rotate(180)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+    <path class="dg-b" transform="translate(309.1 168) rotate(180)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+  </g>
+  <text class="dg-small" x="20" y="194">Both fleets fly in.</text>
+  <rect class="box" x="8" y="210" width="344" height="130" rx="3" />
+  <text class="dg-label dg-label--strong" x="20" y="226">4 s</text>
+  <text class="dg-small" x="176.55" y="226" text-anchor="middle">365 m</text>
+  <path class="dg-line" d="M 76.175 233 H 276.925 M 76.175 230 V 236 M 276.925 230 V 236" />
+  <g aria-hidden="true">
+    <path class="dg-a" transform="translate(76.175 244)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+    <path class="dg-a" transform="translate(76.175 262)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+    <path class="dg-a" transform="translate(76.175 280)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+    <path class="dg-stroke-a" d="M 86.175 244 H 108.175 M 104.175 241 L 108.175 244 L 104.175 247 M 86.175 262 H 108.175 M 104.175 259 L 108.175 262 L 104.175 265 M 86.175 280 H 108.175 M 104.175 277 L 108.175 280 L 104.175 283" />
+    <circle class="dg-stroke-a" cx="276.925" cy="244" r="6" />
+    <circle class="dg-stroke-a" cx="276.925" cy="262" r="6" />
+    <circle class="dg-stroke-a" cx="276.925" cy="280" r="6" />
+    <path class="dg-b" transform="translate(276.925 244)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+    <path class="dg-b" transform="translate(276.925 262)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+    <path class="dg-b" transform="translate(276.925 280)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+    <path class="dg-stroke-b" d="M 289 262 H 315 M 310 258 L 315 262 L 310 266" />
+  </g>
+  <text class="dg-small" x="20" y="306">Orders since 2 s. The ordered side keeps flying at</text>
+  <text class="dg-small" x="20" y="319">its targets, at 12 to 16 m/s. The free side turns</text>
+  <text class="dg-small" x="20" y="332">and runs, as fast as 29 m/s away.</text>
+  <rect class="box" x="8" y="348" width="344" height="130" rx="3" />
+  <text class="dg-label dg-label--strong" x="20" y="364">20 s</text>
+  <text class="dg-small" x="176.55" y="364" text-anchor="middle">302 m</text>
+  <path class="dg-line" d="M 93.5 371 H 259.6 M 93.5 368 V 374 M 259.6 368 V 374" />
+  <g aria-hidden="true">
+    <path class="dg-a" transform="translate(93.5 382)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+    <path class="dg-a" transform="translate(93.5 400)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+    <path class="dg-a" transform="translate(93.5 418)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+    <path class="dg-stroke-a" d="M 103.5 382 H 125.5 M 121.5 379 L 125.5 382 L 121.5 385 M 103.5 400 H 125.5 M 121.5 397 L 125.5 400 L 121.5 403 M 103.5 418 H 125.5 M 121.5 415 L 125.5 418 L 121.5 421" />
+    <circle class="dg-stroke-a" cx="259.6" cy="382" r="6" />
+    <circle class="dg-stroke-a" cx="259.6" cy="400" r="6" />
+    <circle class="dg-stroke-a" cx="259.6" cy="418" r="6" />
+    <path class="dg-b" transform="translate(259.6 382) rotate(180)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+    <path class="dg-b" transform="translate(259.6 400) rotate(180)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+    <path class="dg-b" transform="translate(259.6 418) rotate(180)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+  </g>
+  <text class="dg-small" x="20" y="444">The free side has stopped falling back.</text>
+  <text class="dg-small" x="20" y="457">The duels are on.</text>
+  <text class="dg-small" x="20" y="470">Ships lost so far, a match: ordered 0.47, free 0.16</text>
+  <rect class="box" x="8" y="486" width="344" height="104" rx="3" />
+  <text class="dg-label dg-label--strong" x="20" y="502">28 s</text>
+  <text class="dg-small" x="176.55" y="502" text-anchor="middle">261 m</text>
+  <path class="dg-line" d="M 104.775 509 H 248.325 M 104.775 506 V 512 M 248.325 506 V 512" />
+  <g aria-hidden="true">
+    <path class="dg-a" transform="translate(104.775 520)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+    <path class="dg-a" transform="translate(104.775 538)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+    <path class="dg-line" d="M 101.775 553 L 107.775 559 M 101.775 559 L 107.775 553" />
+    <path class="dg-stroke-a" d="M 114.775 520 H 136.775 M 132.775 517 L 136.775 520 L 132.775 523 M 114.775 538 H 136.775 M 132.775 535 L 136.775 538 L 132.775 541" />
+    <circle class="dg-stroke-a" cx="248.325" cy="520" r="6" />
+    <circle class="dg-stroke-a" cx="248.325" cy="538" r="6" />
+    <circle class="dg-stroke-a" cx="248.325" cy="556" r="6" />
+    <path class="dg-b" transform="translate(248.325 520) rotate(180)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+    <path class="dg-b" transform="translate(248.325 538) rotate(180)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+    <path class="dg-b" transform="translate(248.325 556) rotate(180)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+  </g>
+  <text class="dg-small" x="20" y="582">Ships lost so far, a match: ordered 0.93, free 0.47</text>
+  <rect class="box" x="8" y="598" width="344" height="66" rx="3" />
+  <text class="dg-label dg-label--strong" x="20" y="614">For comparison, no orders on either side</text>
+  <text class="dg-small" x="20" y="630">Both fleets close to about 370 m, then both fall</text>
+  <text class="dg-small" x="20" y="643">back to about 500 m by 8 s.</text>
+  <text class="dg-small" x="20" y="656">Almost no ship is lost before 14 s.</text>
+  <rect class="box" x="8" y="672" width="344" height="235" rx="3" />
+  <text class="dg-label dg-label--strong" x="20" y="688">The duel, close up</text>
+  <g aria-hidden="true">
+    <path class="dg-line dg-dash" d="M 50 715 L 148 697 Q 151 715 148 733 Z" />
+    <path class="dg-a" transform="translate(44 715)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+    <path class="dg-stroke-a" d="M 55 715 H 161 M 156 711 L 161 715 L 156 719" />
+    <circle class="dg-stroke-a" cx="174" cy="715" r="9" />
+    <path class="dg-b" transform="translate(174 715) rotate(180)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+    <path class="dg-b" transform="translate(99 715) rotate(90)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+    <path class="dg-stroke-b" d="M 99 724 V 732 M 96 729 L 99 732 L 102 729" />
+    <path class="dg-b" transform="translate(318 715) rotate(180)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+    <path class="dg-stroke-b" d="M 307 715 H 275" />
+    <path class="dg-a" transform="translate(263 715) rotate(90)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+    <path class="dg-line" d="M 263 724 V 732 M 260 729 L 263 732 L 266 729" />
+  </g>
+  <text class="dg-small" x="70" y="752">passes unshot</text>
+  <text class="dg-small" x="287" y="752" text-anchor="middle">a free ship</text>
+  <text class="dg-small" x="287" y="765" text-anchor="middle">takes the shot</text>
+  <text class="dg-small" x="20" y="781">The ordered pilot shoots only its target. A free</text>
+  <text class="dg-small" x="20" y="794">pilot takes whatever shot comes.</text>
+  <text class="dg-label dg-label--strong" x="20" y="812">Damage in the first 30 s, a match</text>
+  <text class="dg-small" x="274" y="828" text-anchor="end">Ordered side</text>
+  <text class="dg-small" x="340" y="828" text-anchor="end">Free side</text>
+  <path class="dg-fan" d="M 20 833 H 340" />
+  <text class="dg-small" x="20" y="846">dealt to its own target</text>
+  <text class="dg-num" x="274" y="846" text-anchor="end">101</text>
+  <text class="dg-num" x="340" y="846" text-anchor="end">112</text>
+  <text class="dg-small" x="20" y="860">dealt to other enemies</text>
+  <text class="dg-num" x="274" y="860" text-anchor="end">2</text>
+  <text class="dg-num" x="340" y="860" text-anchor="end">40</text>
+  <text class="dg-small" x="20" y="874">taken from its own target</text>
+  <text class="dg-num" x="274" y="874" text-anchor="end">127</text>
+  <text class="dg-num" x="340" y="874" text-anchor="end">71</text>
+  <text class="dg-small" x="20" y="888">For the free side, its own target is the enemy its</text>
+  <text class="dg-small" x="20" y="901">hidden order named.</text>
+  <text class="dg-label" x="20" y="923">The first ship lost was the ordered side's</text>
+  <text class="dg-label" x="20" y="937">in 0.68 of matches, and 0.73 of those were</text>
+  <text class="dg-label" x="20" y="951">killed by the very enemy they were sent at.</text>
+  <text class="dg-label dg-label--strong" x="20" y="967">The ordered ship charges, duels its one target,</text>
+  <text class="dg-label dg-label--strong" x="20" y="981">and loses.</text>
+</svg>

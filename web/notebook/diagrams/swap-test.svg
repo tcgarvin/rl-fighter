@@ -1,0 +1,69 @@
+<svg class="diagram" viewBox="0 0 360 612" role="img" aria-labelledby="swap-test-title swap-test-desc">
+  <title id="swap-test-title">The bomber swap test</title>
+  <desc id="swap-test-desc">The bomber swap test shows the same match played twice. One ship changes. Run 1: as drawn shows three azure ships on the left facing three ember ships on the right, seen from above. Azure is the side tested, with its first gunship and two fighters. Its gunship has three turret chips, a thin solid azure ring and the label its first gunship beside it. The ember side has a gunship, a fighter and a strafer facing left in a formation mirroring the azure side. A downward arrow says replay the same match. Run 2: one swap repeats every ship in the same place except the azure gunship, now a bomber, same pilot, marked with a dashed azure ring and its label beside it in the same position as in Run 1. Same line-up, same starting positions, same pilots in every seat. The two hulls are shown side by side. Gunship: slow, with three turrets that aim on their own. Bomber: slow, a torpedo fixed to its nose, for big ships. The cost is defined as Swap cost = the side's win rate with the bomber minus with the gunship, compared match by match. Zero: the bomber costs the side nothing. Below zero: the side wins less with the bomber. Played in fleet fights of three a side where that side has a gunship, and in carrier battles.</desc>
+
+  <text class="dg-label dg-label--strong" x="20" y="24">The bomber swap test</text>
+  <text class="dg-small" x="20" y="41">The same match played twice. One ship changes.</text>
+
+  <rect class="box" x="8" y="55" width="344" height="125" rx="3" />
+  <text class="dg-label dg-label--strong" x="20" y="73">Run 1: as drawn</text>
+  <text class="dg-small" x="20" y="94">the side tested</text>
+  <g aria-hidden="true">
+    <circle class="dg-stroke-a" cx="88" cy="124" r="14" />
+    <path class="dg-a" transform="translate(88 124)" d="M-8,-6 L3,-6 L8,0 L3,6 L-8,6 L-6,0 Z" />
+    <circle class="dg-chip" cx="84" cy="121" r="1.6" />
+    <circle class="dg-chip" cx="84" cy="127" r="1.6" />
+    <circle class="dg-chip" cx="90" cy="124" r="1.6" />
+    <path class="dg-a" transform="translate(54 147)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+    <path class="dg-a" transform="translate(125 147)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+    <path class="dg-b" transform="translate(272 124) rotate(180)" d="M-8,-6 L3,-6 L8,0 L3,6 L-8,6 L-6,0 Z" />
+    <path class="dg-b" transform="translate(306 147) rotate(180)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+    <path class="dg-b" transform="translate(235 147) rotate(180)" d="M-5,-5 L-1,-5 L6,0 L-1,5 L-5,5 L-3,0 Z" />
+  </g>
+  <text class="dg-small" x="110" y="127">its first gunship</text>
+
+  <path class="dg-line" d="M36,180 V207" />
+  <path class="dg-arrow" d="M32,207 L36,214 L40,207 Z" />
+  <text class="dg-small" x="52" y="200">replay the same match</text>
+
+  <rect class="box" x="8" y="214" width="344" height="160" rx="3" />
+  <text class="dg-label dg-label--strong" x="20" y="232">Run 2: one swap</text>
+  <text class="dg-small" x="20" y="253">the side tested</text>
+  <g aria-hidden="true">
+    <circle class="dg-stroke-a dg-dash" cx="88" cy="283" r="14" />
+    <path class="dg-a" transform="translate(88 283)" d="M-6,-6 L-2,-6 L6,-2 L6,2 L-2,6 L-6,6 L-3,0 Z" />
+    <path class="dg-a" transform="translate(54 306)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+    <path class="dg-a" transform="translate(125 306)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+    <path class="dg-b" transform="translate(272 283) rotate(180)" d="M-8,-6 L3,-6 L8,0 L3,6 L-8,6 L-6,0 Z" />
+    <path class="dg-b" transform="translate(306 306) rotate(180)" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" />
+    <path class="dg-b" transform="translate(235 306) rotate(180)" d="M-5,-5 L-1,-5 L6,0 L-1,5 L-5,5 L-3,0 Z" />
+  </g>
+  <text class="dg-small" x="110" y="286">now a bomber, same pilot</text>
+  <text class="dg-small" x="20" y="350">Same line-up, same starting positions, same</text>
+  <text class="dg-small" x="20" y="363">pilots in every seat.</text>
+
+  <text class="dg-label dg-label--strong" x="20" y="392">The two hulls</text>
+  <g aria-hidden="true">
+    <path class="dg-a" transform="translate(30 411)" d="M-8,-6 L3,-6 L8,0 L3,6 L-8,6 L-6,0 Z" />
+    <circle class="dg-chip" cx="26" cy="408" r="1.6" />
+    <circle class="dg-chip" cx="26" cy="414" r="1.6" />
+    <circle class="dg-chip" cx="32" cy="411" r="1.6" />
+    <path class="dg-a" transform="translate(200 411)" d="M-6,-6 L-2,-6 L6,-2 L6,2 L-2,6 L-6,6 L-3,0 Z" />
+  </g>
+  <text class="dg-label dg-label--strong" x="48" y="415">Gunship</text>
+  <text class="dg-label dg-label--strong" x="218" y="415">Bomber</text>
+  <text class="dg-small" x="20" y="435">slow, with three turrets</text>
+  <text class="dg-small" x="20" y="448">that aim on their own</text>
+  <text class="dg-small" x="190" y="435">slow, a torpedo fixed to</text>
+  <text class="dg-small" x="190" y="448">its nose, for big ships</text>
+
+  <rect class="box" x="8" y="462" width="344" height="142" rx="3" />
+  <text class="dg-label dg-label--strong" x="20" y="480">The cost</text>
+  <text class="dg-label dg-label--strong" x="20" y="497">Swap cost = the side's win rate with the</text>
+  <text class="dg-label dg-label--strong" x="20" y="510">bomber minus with the gunship</text>
+  <text class="dg-small" x="20" y="526">compared match by match</text>
+  <text class="dg-label" x="20" y="545">Zero: the bomber costs the side nothing.</text>
+  <text class="dg-label" x="20" y="558">Below zero: the side wins less with the bomber.</text>
+  <text class="dg-small" x="20" y="581">Played in fleet fights of three a side where that</text>
+  <text class="dg-small" x="20" y="594">side has a gunship, and in carrier battles.</text>
+</svg>

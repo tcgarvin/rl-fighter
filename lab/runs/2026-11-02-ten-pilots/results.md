@@ -15,8 +15,6 @@ You can look at them yourself: **tap a ship on the live page**. The camera comes
 and a panel says which net is flying. "Details", or a second tap, opens the odds that net
 gives each thruster, turret and trigger, a few times a second, alongside what it actually drew.
 
-<!-- figure-idea: shared: what a pilot sees and controls, one ship with the inputs it reads (its own speed, nearby ships, its order) going into a small network and the outputs it sets (thrusters, turret, trigger); it would make "the odds that net gives each thruster" concrete -->
-
 ## Where this fits
 
 RL Fighter is a space-combat game in which every ship is flown by a small neural network
@@ -30,6 +28,8 @@ every pilot as a member of a **season** (all pilots trained under one version of
 game's rules) and training three families of them, under a plan written beforehand
 ([the first pilot families](../2026-11-01-pilot-families/plan.md)). This list is the first
 result: the ten best of that season after one night of training.
+
+<div data-figure="diagram" data-name="pilot" data-caption="Each of the ten is a network like this one. The odds it gives each choice are what the live page shows when you open a ship's details. The Pilot page explains more."></div>
 
 A pilot's name is its training line followed by the training update (one round of
 training) it was saved at: `fighters_506` is the `fighters` line after 506 updates.

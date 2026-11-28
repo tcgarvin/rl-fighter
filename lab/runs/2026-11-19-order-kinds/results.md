@@ -48,6 +48,8 @@ side on either team. There are **1,152 matches a row**, on the same starting set
 order-cost night (the 2026-11-17 seeds), so every row pairs match by match with `none`
 (the rule that gives no orders).
 
+<div data-figure="diagram" data-name="order-cost" data-caption="Here followers_school_1052 flies both sides, and a second table repeats the test with f995_701 on half as many matches. Each kind of order in this entry takes the place of the attack orders in run 1."></div>
+
 A score is the ordered side's share of matches won, draws counting half, so 0.5 is even.
 A cost is the change in that score caused by the orders: a row's score minus the `none`
 row's, taken match by match. The ± is the margin of error (1.96 standard errors, paired
