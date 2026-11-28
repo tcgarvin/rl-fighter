@@ -77,6 +77,8 @@ A design review then changed three things.
   network), run concurrently 09:44–11:42 (about 23 s per update). Baseline 09:31–09:44,
   gate evals 11:42–14:07.
 
+<div data-figure="diagram" data-name="training-methods" data-caption="Here the transit arm had the pull only while a ship flew to a go-to point or guarded a ward no one threatened. The reward arm had no pull at all."></div>
+
 ## How following was measured
 
 - **Shown and hidden.** Each pilot flies the same matches twice, once with its orders

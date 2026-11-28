@@ -51,6 +51,9 @@ run asked whether the duel recipe carries over to three ship types and bigger fi
   update is one round of play and adjustment, and the script pull is an extra
   training term that pulls the pilot's choices toward the scripts', fading to nothing.
   Candidates: each arm's DAgger best and PPO updates 200, 400 and 600.
+
+<div data-figure="diagram" data-name="training-methods" data-caption="Both arms here used all three steps, copying the scripts of all three hulls, with a script pull that faded to nothing during trial and error."></div>
+
 - The plan's three hypotheses. H1: this recipe gives a fleet pilot that meets all four
   gates (the pass marks below). H2: the warm arm beats the fresh one. H0, the null: one
   shared network cannot serve three kinds of ship, and some ship type stays below its

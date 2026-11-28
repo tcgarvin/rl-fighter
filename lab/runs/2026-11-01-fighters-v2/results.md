@@ -118,7 +118,7 @@ an even fight and a draw counts half. "Mean" is the average of the two missions.
 checkpoint, and dipped to 0.49 at 400, so one seed of it is noisy. This is one seed (one
 random setup) per arm, and the gap is a single comparison.
 
-<!-- figure-idea: shared: the discount as a fading weight on future reward, drawn for gamma 0.99 and 0.995 over the next ten seconds of a dogfight. Helps the reader see what "a longer horizon" means in the title. -->
+<div data-figure="diagram" data-name="discount" data-caption="The f99 and f995 arms differed only in the discount, 0.99 against 0.995. The 0.999 curve is from a later run."></div>
 
 ## Gate F (fresh seed 310000, n = 1032 per mission, `reward_300` rebalanced rosters)
 

@@ -56,6 +56,8 @@ exactly as before.
 | Garrison (team 0) | citadel, fighter, strafer, fighter, gunship, fighter, strafer, fighter |
 | Attackers (team 1) | carrier, dreadnought, fighter, bomber, fighter, bomber, strafer, bomber, fighter, gunship, fighter |
 
+<div data-figure="diagram" data-name="station-layout" data-caption="The citadel roster above, laid out. The dreadnought starts 40 m ahead of its carrier and 75 m to one side. Here both commanders are scripted."></div>
+
 The citadel is a static carrier-role hull (it launches and takes back strike craft, as a
 carrier does) with 3,200 hp, a 600 hp shield and twelve turrets on a ring of six
 modules: two lances (anti-capital), six flak (bursting shells against strike craft) and

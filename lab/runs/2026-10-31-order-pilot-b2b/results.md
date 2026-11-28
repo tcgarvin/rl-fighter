@@ -40,7 +40,7 @@ This run attacks both. It starts from `w1_400`, pulls the pilot toward the **tea
 (the hand-written, "scripted", pilot that flies every order), and makes holding a point
 pay more, with random hold points drawn near the fight.
 
-<!-- figure-idea: shared: the script pull. One moment of training: the pilot's own choice, the script's choice for the same moment, and the pull that drags the first toward the second, applied only on some moments (here: every moment with an order). Helps here and in the next order-pilot run, where the same mechanism is applied to fewer moments. -->
+<div data-figure="diagram" data-name="training-methods" data-caption="This run started from a trained pilot and used trial and error with the pull on every moment with an order, on the movement controls only. The second arm first ran one round of correction on those moments."></div>
 
 ## What ran
 

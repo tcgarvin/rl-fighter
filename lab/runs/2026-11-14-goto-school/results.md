@@ -145,7 +145,7 @@ twice the straight-flight time plus 10 s:
 | `fighters_v8_362` | 0.05 | 0.34 | 0.46 | 0.11 |
 | `fighters_v8_500` | 0.08 | 0.45 | 0.65 | 0.14 |
 
-<!-- figure-idea: shared: the go-to sweep. One lone ship, one start, flown three times at allowances of 2, 5 and 8, with the script's straight path to the circle beside a pilot's path that detours to the parked enemy first. Shows at a glance what "fights first" means. -->
+<div data-figure="diagram" data-name="goto-sweep" data-caption="The table above gives the share in time at allowances of 2, 5 and 8 and with no deadline. At 2 the script made 0.96 of its deadlines."></div>
 
 Everyone is a little better and nobody is close. At an allowance of 2 the best of them
 makes one deadline in eight. In the layout where the only enemy is parked at the edge of

@@ -42,8 +42,6 @@ to a side's share of matches won. The question here was whether a commander can 
 
 <div data-figure="diagram" data-name="missions" data-caption="The station assault is bottom right. This entry plays it under rules version 9, with the first station and no dreadnought."></div>
 
-<!-- figure-idea: shared: the station assault laid out from above (station with its picket and reserve, the attacker's carrier at its patrol distance and at 170 m, the jump-in trio), with a timeline of when the script launches the reserve (2 s) against hold_late (about 30 s); it makes the two decisions concrete before the tables. -->
-
 ## How it was run
 
 The plan, the two arms and the bars (pass marks set before the run) are in
@@ -62,6 +60,8 @@ ran from 02:06 to the 13:30 deadline:
 - `from_c3`: started from a commander that commander 3's night had trained over the same
   live ten (the arm named `live` there), as saved at its update 197. It had learned to
   keep its ships under an order only 5 to 6% of the time. It reached update 392.
+
+<div data-figure="diagram" data-name="station-layout" data-caption="The two decisions this run hoped a commander would learn, under rules version 9 with no dreadnought. The script launches the reserve about 2 s in. The hand rule hold_late waits about 30 s."></div>
 
 The station assault adds no new inputs to the networks. It reaches them dressed as an
 older mission: as a carrier battle for both sides (the **carrier reading**) or as a

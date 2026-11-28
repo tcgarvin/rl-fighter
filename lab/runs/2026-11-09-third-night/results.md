@@ -47,7 +47,7 @@ WAR is how many more games his team wins with him than with a "replacement" play
 kind any team can find cheaply. Here the replacement is the script: any side can always have
 its ships flown by it, so it scores 0 by definition.
 
-<!-- figure-idea: shared: how WAR works. A grid of matches, each ship coloured by the pilot drawn for it (the script among them), the matches' results feeding a fit, and out the other end each pilot's wins per 100 over the script. Helps a reader see why random mixing lets the fit tell one pilot's share from its teammates'. -->
+<div data-figure="diagram" data-name="war" data-caption="This night's WAR played 4,320 matches, 1,440 in each of the live page's three missions, with each side's commander drawn from the four in the live stable."></div>
 
 How it is measured:
 

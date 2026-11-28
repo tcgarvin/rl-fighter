@@ -95,3 +95,16 @@
 .diagram .dg-dash {
   stroke-dasharray: 3 3;
 }
+
+/* Curves on a chart (the notebook's discount diagram). Plain foreground strokes, so a
+   curve is never read as one of the two sides. */
+.diagram .dg-curve {
+  stroke: var(--fg);
+  stroke-width: 1.8;
+  fill: none;
+}
+
+.diagram .dg-curve-soft {
+  stroke: var(--fg-soft);
+  stroke-width: 1.3;
+}

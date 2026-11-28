@@ -1,0 +1,65 @@
+<svg class="diagram" viewBox="0 0 360 639" role="img" aria-labelledby="unseen-side-title unseen-side-desc">
+  <title id="unseen-side-title">The unseen side</title>
+  <desc id="unseen-side-desc">The unseen side is the side every commander is measured against: the scripted commander with its orders hidden from its own pilots. The first box, The scripted commander, is labelled orders shown. An azure box labelled scripted commander sends three solid azure order lines with open arrowheads to three azure darts on the right. Its pilots see each order and fly it. The second box, The unseen side, is labelled the same commander, orders hidden. It repeats the commander and three darts in the same positions in ember. Three dashed ember order lines stop before a short vertical wall labelled hidden. No line reaches a pilot. It gives orders by the same rules, but none reach its pilots. They see exactly what a ship with no order sees, and fight on their own judgment. It still launches its craft and steers its carrier as the script does. The final box, How a commander is measured, shows an azure box labelled commander being tested with three azure darts against an ember box labelled unseen side with three ember darts. There are no order lines in this match strip. About 0.50: its orders are worth no more than none. Clearly above 0.50: its orders help. The number is the share of matches it wins against the unseen side, a draw counting half. A commander that gives no orders and launches as the script does scores about 0.50.</desc>
+
+  <text class="dg-label dg-label--strong" x="20" y="24">The unseen side</text>
+  <text class="dg-small" x="20" y="41">The side every commander is measured against:</text>
+  <text class="dg-small" x="20" y="54">the scripted commander with its orders hidden</text>
+  <text class="dg-small" x="20" y="67">from its own pilots.</text>
+
+  <rect class="box" x="8" y="81" width="344" height="125" rx="3" />
+  <text class="dg-label dg-label--strong" x="20" y="99">The scripted commander</text>
+  <text class="dg-small" x="20" y="114">orders shown</text>
+  <rect class="box dg-stroke-a" x="20" y="133" width="112" height="28" rx="3" />
+  <text class="dg-small" x="76" y="150" text-anchor="middle">scripted commander</text>
+  <g aria-hidden="true">
+    <path class="dg-stroke-a" d="M132,147 L280,127 M274,124 L280,127 L275,132 M132,147 H280 M275,143 L280,147 L275,151 M132,147 L280,167 M275,162 L280,167 L274,170" />
+    <path class="dg-a" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(296 127)" />
+    <path class="dg-a" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(296 147)" />
+    <path class="dg-a" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(296 167)" />
+  </g>
+  <text class="dg-small" x="20" y="192">Its pilots see each order and fly it.</text>
+
+  <rect class="box" x="8" y="218" width="344" height="191" rx="3" />
+  <text class="dg-label dg-label--strong" x="20" y="236">The unseen side</text>
+  <text class="dg-small" x="20" y="251">the same commander, orders hidden</text>
+  <rect class="box dg-stroke-b" x="20" y="270" width="112" height="28" rx="3" />
+  <text class="dg-small" x="76" y="287" text-anchor="middle">scripted commander</text>
+  <text class="dg-small" x="280" y="254" text-anchor="middle">hidden</text>
+  <g aria-hidden="true">
+    <path class="dg-stroke-b dg-dash" d="M132,284 L276,264 M132,284 H276 M132,284 L276,304" />
+    <path class="dg-line" d="M280,260 V310" />
+    <path class="dg-b" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(296 264)" />
+    <path class="dg-b" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(296 284)" />
+    <path class="dg-b" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(296 304)" />
+  </g>
+  <text class="dg-small" x="20" y="327">It gives orders by the same rules, but none reach</text>
+  <text class="dg-small" x="20" y="340">its pilots. They see exactly what a ship with no</text>
+  <text class="dg-small" x="20" y="353">order sees, and fight on their own judgment.</text>
+  <text class="dg-small" x="20" y="382">It still launches its craft and steers its carrier</text>
+  <text class="dg-small" x="20" y="395">as the script does.</text>
+
+  <rect class="box" x="8" y="421" width="344" height="210" rx="3" />
+  <text class="dg-label dg-label--strong" x="20" y="439">How a commander is measured</text>
+  <rect class="box dg-stroke-a" x="20" y="453" width="126" height="34" rx="3" />
+  <text class="dg-small" x="83" y="467" text-anchor="middle">commander being</text>
+  <text class="dg-small" x="83" y="480" text-anchor="middle">tested</text>
+  <text class="dg-small" x="180" y="474" text-anchor="middle">against</text>
+  <rect class="box dg-stroke-b" x="214" y="453" width="126" height="34" rx="3" />
+  <text class="dg-small" x="277" y="474" text-anchor="middle">unseen side</text>
+  <g aria-hidden="true">
+    <path class="dg-a" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(51 502)" />
+    <path class="dg-a" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(83 502)" />
+    <path class="dg-a" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(115 502)" />
+    <path class="dg-b" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(245 502) rotate(180)" />
+    <path class="dg-b" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(277 502) rotate(180)" />
+    <path class="dg-b" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(309 502) rotate(180)" />
+  </g>
+  <text class="dg-label" x="20" y="527">About 0.50: its orders are worth</text>
+  <text class="dg-label" x="20" y="540">no more than none.</text>
+  <text class="dg-label" x="20" y="558">Clearly above 0.50: its orders help.</text>
+  <text class="dg-small" x="20" y="580">The number is the share of matches it wins against</text>
+  <text class="dg-small" x="20" y="593">the unseen side, a draw counting half. A commander</text>
+  <text class="dg-small" x="20" y="606">that gives no orders and launches as the script</text>
+  <text class="dg-small" x="20" y="619">does scores about 0.50.</text>
+</svg>

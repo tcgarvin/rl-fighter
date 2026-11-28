@@ -1,0 +1,112 @@
+<svg class="diagram" viewBox="0 0 360 779" role="img" aria-labelledby="training-methods-title training-methods-desc">
+  <title id="training-methods-title">Three ways to train a pilot, and the script pull</title>
+  <desc id="training-methods-desc">Three ways to train a pilot. Used in this order when used together. A run may use one, two or all three. Three numbered boxes are joined by down arrows. Step 1, Copy the script. The entries call it behaviour cloning, BC. Record the script, the hand-written pilot, flying many matches. Train the network to pick the same action the script picked at each moment. An outlined azure ship follows a dashed track beside a stack of recorded moments. Step 2, Let the copy fly, and correct it. The entries call it DAgger. The copy flies on its own and drifts into situations the script never got into. At each one the script says what it would have done there. The copy trains on those answers too. A filled azure ship drifts off a dashed straight track. Thin arrows point back toward the straight track, showing what the script would have done. Step 3, Trial and error. The entries call it PPO. The pilot plays many matches and earns points for good outcomes, such as damage dealt and wins, and loses some for bad ones. After each batch it is adjusted to do more of what earned points. One round is an update. A dashed circle with three arrowheads joins play, points and adjust in a repeating cycle. The script pull, during trial and error. The entries also say teacher. One moment is shown. The pilot's odds for one control are three azure bars labelled left, straight and right, with left tallest. The script's choice for the same moment is one outlined bar labelled right. A thick arrow labelled pull points from the pilot's bars toward the script's choice. An extra term in the adjustment pulls the pilot's choices toward the script's. It acts only on some moments of training, and its strength fades over the run, to nothing. A strip labelled moments of training has some squares filled azure, with the key pulled. Which moments, and how strongly, changed from run to run.</desc>
+
+  <text class="dg-label dg-label--strong" x="20" y="24">Three ways to train a pilot</text>
+  <text class="dg-small" x="20" y="41">Used in this order when used together.</text>
+  <text class="dg-small" x="20" y="54">A run may use one, two or all three.</text>
+
+  <rect class="box" x="8" y="68" width="344" height="114" rx="3" />
+  <text class="dg-num" x="20" y="86">1</text>
+  <text class="dg-label dg-label--strong" x="82" y="86">Copy the script.</text>
+  <text class="dg-small" x="82" y="102">the entries call it behaviour cloning, BC</text>
+  <g aria-hidden="true">
+    <path class="dg-loop" d="M22,125 H57" />
+    <path class="dg-stroke-a" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(65 125)" />
+    <rect class="box" x="33" y="142" width="26" height="16" rx="3" />
+    <rect class="box" x="38" y="147" width="26" height="16" rx="3" />
+    <rect class="box" x="43" y="152" width="26" height="16" rx="3" />
+  </g>
+  <text class="dg-small" x="82" y="122">Record the script, the hand-written</text>
+  <text class="dg-small" x="82" y="135">pilot, flying many matches. Train the</text>
+  <text class="dg-small" x="82" y="148">network to pick the same action the</text>
+  <text class="dg-small" x="82" y="161">script picked at each moment.</text>
+
+  <path class="dg-line" d="M24,182 V196" />
+  <path class="dg-arrow" d="M21,190 L24,196 L27,190 Z" />
+  <rect class="box" x="8" y="196" width="344" height="120" rx="3" />
+  <text class="dg-num" x="20" y="214">2</text>
+  <text class="dg-label dg-label--strong" x="82" y="214">Let the copy fly, and correct it.</text>
+  <text class="dg-small" x="82" y="230">the entries call it DAgger</text>
+  <g aria-hidden="true">
+    <path class="dg-loop" d="M22,253 H76" />
+    <path class="dg-stroke-a" d="M22,253 C34,253 40,256 46,268 S58,286 70,290" />
+    <path class="dg-stroke-a" d="M46,268 V256 M43.5,259.5 L46,256 L48.5,259.5" />
+    <path class="dg-stroke-a" d="M63.5,287.4 V256 M61,259.5 L63.5,256 L66,259.5" />
+    <path class="dg-a" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(70 290) rotate(18)" />
+  </g>
+  <text class="dg-small" x="82" y="250">The copy flies on its own and drifts</text>
+  <text class="dg-small" x="82" y="263">into situations the script never got</text>
+  <text class="dg-small" x="82" y="276">into. At each one the script says what</text>
+  <text class="dg-small" x="82" y="289">it would have done there. The copy</text>
+  <text class="dg-small" x="82" y="302">trains on those answers too.</text>
+
+  <path class="dg-line" d="M24,316 V330" />
+  <path class="dg-arrow" d="M21,324 L24,330 L27,324 Z" />
+  <rect class="box" x="8" y="330" width="344" height="134" rx="3" />
+  <text class="dg-num" x="20" y="348">3</text>
+  <text class="dg-label dg-label--strong" x="82" y="348">Trial and error.</text>
+  <text class="dg-small" x="82" y="364">the entries call it PPO</text>
+  <text class="dg-small" x="44" y="380" text-anchor="middle">play</text>
+  <text class="dg-small" x="63" y="450" text-anchor="middle">points</text>
+  <text class="dg-small" x="27" y="450" text-anchor="middle">adjust</text>
+  <g aria-hidden="true">
+    <circle class="dg-loop" cx="44" cy="410" r="22" />
+    <path class="dg-arrow" d="M-3,-2 L3,0 L-3,2 Z" transform="translate(63.05 399) rotate(60)" />
+    <path class="dg-arrow" d="M-3,-2 L3,0 L-3,2 Z" transform="translate(44 432) rotate(180)" />
+    <path class="dg-arrow" d="M-3,-2 L3,0 L-3,2 Z" transform="translate(24.95 399) rotate(300)" />
+  </g>
+  <text class="dg-small" x="82" y="384">The pilot plays many matches and earns</text>
+  <text class="dg-small" x="82" y="397">points for good outcomes, such as</text>
+  <text class="dg-small" x="82" y="410">damage dealt and wins, and loses some</text>
+  <text class="dg-small" x="82" y="423">for bad ones. After each batch it is</text>
+  <text class="dg-small" x="82" y="436">adjusted to do more of what earned</text>
+  <text class="dg-small" x="82" y="449">points. One round is an update.</text>
+
+  <g>
+    <rect class="box" x="8" y="480" width="344" height="290" rx="3" />
+    <text class="dg-label dg-label--strong" x="20" y="498">The script pull, during trial and error</text>
+    <text class="dg-small" x="20" y="514">the entries also say teacher</text>
+    <text class="dg-small" x="87" y="536" text-anchor="middle">the pilot's odds</text>
+    <text class="dg-small" x="272" y="536" text-anchor="middle">the script's choice</text>
+    <g aria-hidden="true">
+      <rect class="dg-a" x="31" y="551" width="16" height="44" />
+      <rect class="dg-a" x="79" y="575" width="16" height="20" />
+      <rect class="dg-a" x="127" y="583" width="16" height="12" />
+      <rect class="box" x="264" y="551" width="16" height="44" rx="3" />
+      <path class="dg-arrow" d="M170,573 H212 V568 L224,576 L212,584 V579 H170 Z" />
+    </g>
+    <text class="dg-small" x="39" y="610" text-anchor="middle">left</text>
+    <text class="dg-small" x="87" y="610" text-anchor="middle">straight</text>
+    <text class="dg-small" x="135" y="610" text-anchor="middle">right</text>
+    <text class="dg-small" x="272" y="610" text-anchor="middle">right</text>
+    <text class="dg-small" x="197" y="561" text-anchor="middle">pull</text>
+    <text class="dg-label" x="20" y="641">An extra term in the adjustment pulls the pilot's</text>
+    <text class="dg-label" x="20" y="654">choices toward the script's.</text>
+    <text class="dg-small" x="20" y="674">It acts only on some moments of training, and its</text>
+    <text class="dg-small" x="20" y="687">strength fades over the run, to nothing.</text>
+    <text class="dg-small" x="20" y="708">moments of training</text>
+    <rect class="dg-a" x="286" y="700" width="8" height="8" />
+    <text class="dg-small" x="300" y="708">pulled</text>
+    <g aria-hidden="true">
+      <rect class="box" x="20" y="718" width="8" height="8" rx="1" />
+      <rect class="dg-a" x="38" y="718" width="8" height="8" />
+      <rect class="box" x="56" y="718" width="8" height="8" rx="1" />
+      <rect class="box" x="74" y="718" width="8" height="8" rx="1" />
+      <rect class="dg-a" x="92" y="718" width="8" height="8" />
+      <rect class="box" x="110" y="718" width="8" height="8" rx="1" />
+      <rect class="box" x="128" y="718" width="8" height="8" rx="1" />
+      <rect class="dg-a" x="146" y="718" width="8" height="8" />
+      <rect class="box" x="164" y="718" width="8" height="8" rx="1" />
+      <rect class="box" x="182" y="718" width="8" height="8" rx="1" />
+      <rect class="box" x="200" y="718" width="8" height="8" rx="1" />
+      <rect class="dg-a" x="218" y="718" width="8" height="8" />
+      <rect class="box" x="236" y="718" width="8" height="8" rx="1" />
+      <rect class="dg-a" x="254" y="718" width="8" height="8" />
+      <rect class="box" x="272" y="718" width="8" height="8" rx="1" />
+      <rect class="box" x="290" y="718" width="8" height="8" rx="1" />
+    </g>
+    <text class="dg-small" x="20" y="744">Which moments, and how strongly, changed from</text>
+    <text class="dg-small" x="20" y="757">run to run.</text>
+  </g>
+</svg>

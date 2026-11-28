@@ -107,6 +107,8 @@ The scripted side keeps its ships under an order 91% of the time. That it loses 
 to a side that gives almost none is the same finding as every phase before: with these
 pilots, an order costs more than it brings.
 
+<div data-figure="diagram" data-name="unseen-side" data-caption="The table's two rows are these two sides. The long run's commander won 0.523 against the unseen side and 0.667 against the scripted commander with its orders shown."></div>
+
 ## What it means
 
 The trainer now works as intended. The critic's predictions account for about 80% of the

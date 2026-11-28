@@ -117,6 +117,8 @@ WAR is borrowed from baseball. Pilots are dropped at random into matches like th
 page's, and a statistical fit estimates how many more matches out of 100 a side wins with
 that pilot flying its ships instead of the script. 0 is the script's level.
 
+<div data-figure="diagram" data-name="war" data-caption="This round played 5,760 matches, 1,440 in each of the four live missions. The station assault was in WAR for the first time."></div>
+
 The two new pilots joined the season as children of their parents and played a WAR round
 with the ten live pilots and both parents: 5,760 matches, 1,440 in each of the four live
 missions. The station assault is in WAR for the first time, against the citadel, the big

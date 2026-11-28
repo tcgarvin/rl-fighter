@@ -40,7 +40,7 @@ pilots fight on their own judgment. Before training it beat the scripted command
 every squad, so about 0.50 against the unseen side is a commander that learned to stay out
 of the way. Clearly above 0.50 would be orders that help.
 
-<!-- figure-idea: shared: the unseen side. Two sides with the same scripted commander sending the same orders; on one side the order arrows reach the pilots, on the other they stop at a wall, so the pilots fly on their own. Explains the control used in this entry and the order-cost entries after it. -->
+<div data-figure="diagram" data-name="unseen-side" data-caption="Before this night's training the unseen side beat the scripted commander 0.75 to 0.25 over pilots that follow orders. Each arm then played half its matches against it."></div>
 
 ## The night
 

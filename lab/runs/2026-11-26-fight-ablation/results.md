@@ -186,6 +186,8 @@ with commanders drawn from the live commander stable, the commanders the live pa
 ([war.md](../../population/2026-11-sim6/war/fight-ablation/war.md)). The 95% interval is
 the range the true WAR very likely lies in.
 
+<div data-figure="diagram" data-name="war" data-caption="As in the horizon-bombers round, the live ten and the two new members over 5,760 matches. Compare these ratings with each other, not with that round's."></div>
+
 | Pilot | WAR | 95% interval |
 |---|--:|---|
 | `kite_pay025_2211` | +11.6 | +8.9 to +14.3 |

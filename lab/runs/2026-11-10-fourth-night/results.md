@@ -80,6 +80,8 @@ the four-times line), `fighters_959` (+8.3) and `transit_300` (+2.6).
 Everyone's number is lower than yesterday's. That is the new crash rules and a stronger
 field, not pilots getting worse: scores only compare within one morning's matches.
 
+<div data-figure="diagram" data-name="war" data-caption="Each morning's WAR is a new fit over new matches, here under the new crash rules. So the numbers above compare with each other, not with yesterday's."></div>
+
 ## What the night answered
 
 **Twice the price: less wasted fire, no cost in wins.** All three new pilots score above

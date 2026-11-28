@@ -55,6 +55,8 @@ rest docked in the carrier. The roster (the list of ships each side gets) is "st
 | Garrison (team 0) | station, fighter, strafer, fighter, gunship, fighter, strafer |
 | Attackers (team 1) | carrier, fighter, bomber, fighter, bomber, strafer, bomber, fighter, gunship |
 
+<div data-figure="diagram" data-name="station-layout" data-caption="The strike of 8 above, laid out. This entry is rules version 9, so there is no dreadnought yet. The two decisions come from the hand-rule test the same night."></div>
+
 How a match ends:
 
 - The attacker wins by destroying the station (`station_destroyed`).

@@ -67,6 +67,8 @@ ten pilots that fly on the website's front page. Commander 3's `live` 197 is tha
 arm trained over the live ten, saved at update 197; the name is the arm's, and it did not
 fly on the live page.
 
+<div data-figure="diagram" data-name="unseen-side" data-caption="Every number in the table below is a share of matches won against this side."></div>
+
 | Commander | Pilots | Wins | Deathmatch | Carrier | Convoy | Station | Time under an order |
 |---|---|---|---|---|---|---|---|
 | `kite` 190 | own | **0.496** | 0.49 | 0.52 | 0.49 | 0.49 | 10% |

@@ -64,7 +64,7 @@ The figure in brackets is how much a reward 30 seconds in the future counts, aga
 for a reward now. The member id is each copy's name in the season, the record of every
 pilot trained under these rules: its line, its arm and the update it was saved at.
 
-<!-- figure-idea: shared: what the discount does. A curve of how much a reward counts against how many seconds ahead it comes, at 0.99, 0.995 and 0.999, with the 30-second mark showing 0.011 against 0.41. Makes "horizon" and "gamma" concrete wherever they appear. -->
+<div data-figure="diagram" data-name="discount" data-caption="The two arms here kept 0.995 and moved to 0.999. At 30 s ahead a reward counts 0.011 against 0.41."></div>
 
 The full tables, with the evals every 1,000 updates, are in [report.md](report.md). An
 eval is a batch of matches played only to measure, with no training. ± is the margin of
@@ -184,6 +184,8 @@ covered the live ten and the two new members: 5,760 matches, 1,440 in each live 
 drawn from the live commander stable, the commanders the live page uses
 ([war.md](../../population/2026-11-sim6/war/horizon-bombers/war.md)). The 95% interval is
 the range the true WAR very likely lies in.
+
+<div data-figure="diagram" data-name="war" data-caption="This round rated the live ten and the two new members over 5,760 matches, 1,440 in each live mission."></div>
 
 | Pilot | WAR | 95% interval |
 |---|--:|---|

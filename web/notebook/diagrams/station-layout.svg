@@ -1,0 +1,86 @@
+<svg class="diagram" viewBox="0 0 360 789" role="img" aria-labelledby="station-layout-title station-layout-desc">
+  <title id="station-layout-title">The station assault from above</title>
+  <desc id="station-layout-desc">Azure defends a fixed station. Ember attacks from the far side. The map is seen from above, with the station at the top and the attackers coming up from the bottom. The azure octagonal station has a chip core and four turret dots inside its hull. A full dashed azure circle shows that its flak reaches about 230 m. Two azure darts below the station are the picket, out from the start. A linked dashed box to the left of the station contains three small azure darts representing the reserve, docked inside. The ember carrier below the circle is on patrol, out of reach. A linked dashed box contains three small craft, including a bomber, representing the rest docked inside. A dashed ember line leads from the carrier's nose up to a tick marked 170 m. Three ember craft with dashed jumping-in arcs point up: a fighter, a bomber and a fighter jump in at speed. Ahead of them, two wide bomber chevrons and short dashed tracks point toward the station. Bombers fire torpedoes from within 240 m, inside the flak. A dashed ember warship beside and ahead of the carrier is the dreadnought, from rules version 10. Two decisions that are not orders are shown below. 1. When the station launches its reserve. The reserve waits docked inside. The scripted commander launches it in the first seconds. A hand rule holds it until the station is hurt. 2. Where the attacker parks its carrier. The scripted commander keeps it on patrol, out of reach. A hand rule brings it in to 170 m once all its craft are out. From rules version 10, the station is the citadel, much bigger, with twelve turrets and four bays. Each turret and bay can be shot off on its own. A dreadnought, a heavy warship, joins the attackers. It waits outside the citadel's reach until the strike goes in.</desc>
+
+  <text class="dg-label dg-label--strong" x="20" y="20">The station assault from above</text>
+  <text class="dg-small" x="20" y="37">Azure defends a fixed station.</text>
+  <text class="dg-small" x="20" y="50">Ember attacks from the far side.</text>
+
+  <rect class="box" x="8" y="62" width="344" height="408" rx="3"/>
+  <g aria-hidden="true">
+    <circle class="dg-stroke-a dg-dash" cx="180" cy="170" r="104"/>
+    <path class="dg-line" d="M70 171 H157.6 M172 247 H188 M190 386 L232 400"/>
+    <path class="dg-stroke-b dg-dash" d="M180 362.6 V247"/>
+
+    <g transform="translate(180 170) scale(1.6)">
+      <path class="dg-a" d="M-14 -9 L-5 -18 L5 -18 L14 -9 L14 9 L5 18 L-5 18 L-14 9 Z"/>
+      <circle class="dg-chip" cx="0" cy="0" r="7"/>
+      <circle class="dg-chip" cx="-9" cy="-10" r="2"/>
+      <circle class="dg-chip" cx="9" cy="-10" r="2"/>
+      <circle class="dg-chip" cx="-9" cy="10" r="2"/>
+      <circle class="dg-chip" cx="9" cy="10" r="2"/>
+    </g>
+    <rect class="box box--sim" x="18" y="160" width="52" height="22" rx="3"/>
+    <path class="dg-a" d="M-6 -4 L6 0 L-6 4 L-3 0 Z" transform="translate(29 171) rotate(90) scale(0.7)"/>
+    <path class="dg-a" d="M-6 -4 L6 0 L-6 4 L-3 0 Z" transform="translate(44 171) rotate(90) scale(0.7)"/>
+    <path class="dg-a" d="M-6 -4 L6 0 L-6 4 L-3 0 Z" transform="translate(59 171) rotate(90) scale(0.7)"/>
+    <path class="dg-a" d="M-6 -4 L6 0 L-6 4 L-3 0 Z" transform="translate(166 207) rotate(90)"/>
+    <path class="dg-a" d="M-6 -4 L6 0 L-6 4 L-3 0 Z" transform="translate(194 207) rotate(90)"/>
+
+    <path class="dg-stroke-b dg-dash" d="M128 290 V274 M232 290 V274"/>
+    <path class="dg-b" d="M-6 -6 L-2 -6 L6 -2 L6 2 L-2 6 L-6 6 L-3 0 Z" transform="translate(128 296) rotate(-90)"/>
+    <path class="dg-b" d="M-6 -6 L-2 -6 L6 -2 L-2 6 L-6 6 L-3 0 Z" transform="translate(232 296) rotate(-90)"/>
+
+    <path class="dg-loop" d="M50 344 Q56 350 62 344 M86 356 Q92 362 98 356 M294 344 Q300 350 306 344"/>
+    <path class="dg-b" d="M-6 -4 L6 0 L-6 4 L-3 0 Z" transform="translate(56 330) rotate(-90)"/>
+    <path class="dg-b" d="M-6 -6 L-2 -6 L6 -2 L6 2 L-2 6 L-6 6 L-3 0 Z" transform="translate(92 342) rotate(-90)"/>
+    <path class="dg-b" d="M-6 -4 L6 0 L-6 4 L-3 0 Z" transform="translate(300 330) rotate(-90)"/>
+
+    <path class="dg-b" d="M-12 -7 L6 -7 L11 -3 L11 3 L6 7 L-12 7 Z" transform="translate(180 378) rotate(-90) scale(1.4)"/>
+    <path class="dg-stroke-b dg-dash" d="M35 -9 L-25 -9 L-35 0 L-25 9 L29 9 L35 3 Z" transform="translate(214 358) rotate(90) scale(0.55)"/>
+    <rect class="box box--sim" x="232" y="400" width="46" height="20" rx="3"/>
+    <path class="dg-b" d="M-6 -4 L6 0 L-6 4 L-3 0 Z" transform="translate(241 410) rotate(-90) scale(0.7)"/>
+    <path class="dg-b" d="M-6 -6 L-2 -6 L6 -2 L6 2 L-2 6 L-6 6 L-3 0 Z" transform="translate(255 410) rotate(-90) scale(0.7)"/>
+    <path class="dg-b" d="M-6 -4 L6 0 L-6 4 L-3 0 Z" transform="translate(269 410) rotate(-90) scale(0.7)"/>
+  </g>
+  <text class="dg-small" x="262" y="86">flak reaches</text>
+  <text class="dg-small" x="262" y="99">about 230 m</text>
+  <text class="dg-small" x="14" y="128">reserve,</text>
+  <text class="dg-small" x="14" y="141">docked inside</text>
+  <text class="dg-small" x="212" y="173">station</text>
+  <text class="dg-small" x="204" y="206">picket, out</text>
+  <text class="dg-small" x="204" y="219">from the start</text>
+  <text class="dg-small" x="192" y="251">170 m</text>
+  <text class="dg-small" x="244" y="300">bombers</text>
+  <text class="dg-small" x="18" y="366">three jump in</text>
+  <text class="dg-small" x="18" y="379">at speed</text>
+  <text class="dg-small" x="238" y="358">dreadnought,</text>
+  <text class="dg-small" x="238" y="371">from rules</text>
+  <text class="dg-small" x="238" y="384">version 10</text>
+  <text class="dg-small" x="180" y="412" text-anchor="middle">carrier, on patrol</text>
+  <text class="dg-small" x="180" y="425" text-anchor="middle">out of reach</text>
+  <text class="dg-small" x="284" y="408">rest docked</text>
+  <text class="dg-small" x="284" y="421">inside</text>
+  <text class="dg-small" x="18" y="448">Bombers fire torpedoes from within 240 m,</text>
+  <text class="dg-small" x="18" y="461">inside the flak.</text>
+
+  <rect class="box" x="8" y="482" width="344" height="167" rx="3"/>
+  <text class="dg-label dg-label--strong" x="20" y="501">Two decisions that are not orders</text>
+  <text class="dg-label" x="20" y="521">1. When the station launches its reserve.</text>
+  <text class="dg-small" x="20" y="537">The reserve waits docked inside. The scripted</text>
+  <text class="dg-small" x="20" y="550">commander launches it in the first seconds. A hand</text>
+  <text class="dg-small" x="20" y="563">rule holds it until the station is hurt.</text>
+  <text class="dg-label" x="20" y="585">2. Where the attacker parks its carrier.</text>
+  <text class="dg-small" x="20" y="601">The scripted commander keeps it on patrol, out of</text>
+  <text class="dg-small" x="20" y="614">reach. A hand rule brings it in to 170 m once all</text>
+  <text class="dg-small" x="20" y="627">its craft are out.</text>
+
+  <rect class="box box--sim" x="8" y="661" width="344" height="120" rx="3"/>
+  <text class="dg-label dg-label--strong" x="20" y="680">From rules version 10</text>
+  <text class="dg-small" x="20" y="697">The station is the citadel, much bigger, with twelve</text>
+  <text class="dg-small" x="20" y="710">turrets and four bays. Each turret and bay can be</text>
+  <text class="dg-small" x="20" y="723">shot off on its own.</text>
+  <text class="dg-small" x="20" y="744">A dreadnought, a heavy warship, joins the attackers.</text>
+  <text class="dg-small" x="20" y="757">It waits outside the citadel's reach until the</text>
+  <text class="dg-small" x="20" y="770">strike goes in.</text>
+</svg>

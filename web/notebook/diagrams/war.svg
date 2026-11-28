@@ -1,0 +1,121 @@
+<svg class="diagram" viewBox="0 0 360 839" role="img" aria-labelledby="war-title war-desc">
+  <title id="war-title">How wins above replacement works</title>
+  <desc id="war-desc">Wins above replacement (WAR). How much a pilot adds to whatever side it flies for, in matches like the live page's. Borrowed from baseball. The replacement is the script, the hand-written pilot. A vertical sequence starts with 1. Many matches, pilots drawn at random. The key names pilots A, B, C and D, and S = the script. Three example matches each show three azure strike craft on the left facing right and three ember strike craft on the right facing left, seen from above. Each craft has its pilot's letter beneath it. In match 1, azure has A, S, C and ember has B, D, S. Azure won. In match 2, azure has S, B, D and ember has A, S, C. Ember won. In match 3, azure has D, A, S and ember has S, C, B. The result is draw, half each. There are ... and thousands more. Each strike craft's pilot is drawn at random, ship by ship, from the pilots being rated and the script. Missions, line-ups and commanders are drawn as on the live page. An arrow leads to 2. A fit sorts out who added what. Because the draws are random, each pilot flies beside and against every other. A statistical fit over all the matches at once tells each pilot's share of a win from its teammates'. It allows for the mission, the side and the commanders. Below the text, three small boxes labelled azure won, ember won and draw, half each feed through thin converging lines into a small box labelled the fit. Another arrow leads to 3. Each pilot's score. A horizontal dot-and-whisker chart has a vertical line labelled 0: the script's level. A is clearly to the right of zero, B a bit less, C small but right of zero, and D's line crosses zero. Its axis note is wins added per 100 matches, over the script flying the same ships. The key says dot: the estimate, and line: the margin of error, the range the true value very likely lies in. For every match a pilot flew in: the fit's chance that its side wins, minus the same with the script flying its ships. Averaged and times 100. A draw counts half. The final box says Read it within one table. Compare pilots within one WAR table, not across nights. Each table is its own fit, over its own matches and its own pilots. A pilot's score moves with the company it is rated in.</desc>
+
+  <text class="dg-label dg-label--strong" x="20" y="18">Wins above replacement (WAR)</text>
+  <text class="dg-small" x="20" y="34">How much a pilot adds to whatever side it flies for,</text>
+  <text class="dg-small" x="20" y="47">in matches like the live page's.</text>
+  <text class="dg-small" x="20" y="60">Borrowed from baseball. The replacement is the script,</text>
+  <text class="dg-small" x="20" y="73">the hand-written pilot.</text>
+
+  <rect class="box" x="8" y="84" width="344" height="188" rx="3" />
+  <text class="dg-label dg-label--strong" x="20" y="102">1. Many matches, pilots drawn at random</text>
+  <text class="dg-small" x="20" y="118">Pilots: A B C D</text>
+  <text class="dg-small" x="180" y="118">S = the script</text>
+
+  <g aria-hidden="true">
+    <path class="dg-a" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(90 132)" />
+    <path class="dg-a" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(113 132)" />
+    <path class="dg-a" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(136 132)" />
+    <path class="dg-b" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(180 132) rotate(180)" />
+    <path class="dg-b" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(203 132) rotate(180)" />
+    <path class="dg-b" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(226 132) rotate(180)" />
+    <path class="dg-a" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(90 156)" />
+    <path class="dg-a" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(113 156)" />
+    <path class="dg-a" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(136 156)" />
+    <path class="dg-b" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(180 156) rotate(180)" />
+    <path class="dg-b" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(203 156) rotate(180)" />
+    <path class="dg-b" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(226 156) rotate(180)" />
+    <path class="dg-a" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(90 180)" />
+    <path class="dg-a" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(113 180)" />
+    <path class="dg-a" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(136 180)" />
+    <path class="dg-b" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(180 180) rotate(180)" />
+    <path class="dg-b" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(203 180) rotate(180)" />
+    <path class="dg-b" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(226 180) rotate(180)" />
+  </g>
+  <text class="dg-small" x="20" y="136">match 1</text>
+  <text class="dg-small" x="90" y="147" text-anchor="middle">A</text>
+  <text class="dg-small" x="113" y="147" text-anchor="middle">S</text>
+  <text class="dg-small" x="136" y="147" text-anchor="middle">C</text>
+  <text class="dg-small" x="180" y="147" text-anchor="middle">B</text>
+  <text class="dg-small" x="203" y="147" text-anchor="middle">D</text>
+  <text class="dg-small" x="226" y="147" text-anchor="middle">S</text>
+  <text class="dg-small" x="252" y="136">azure won</text>
+  <text class="dg-small" x="20" y="160">match 2</text>
+  <text class="dg-small" x="90" y="171" text-anchor="middle">S</text>
+  <text class="dg-small" x="113" y="171" text-anchor="middle">B</text>
+  <text class="dg-small" x="136" y="171" text-anchor="middle">D</text>
+  <text class="dg-small" x="180" y="171" text-anchor="middle">A</text>
+  <text class="dg-small" x="203" y="171" text-anchor="middle">S</text>
+  <text class="dg-small" x="226" y="171" text-anchor="middle">C</text>
+  <text class="dg-small" x="252" y="160">ember won</text>
+  <text class="dg-small" x="20" y="184">match 3</text>
+  <text class="dg-small" x="90" y="195" text-anchor="middle">D</text>
+  <text class="dg-small" x="113" y="195" text-anchor="middle">A</text>
+  <text class="dg-small" x="136" y="195" text-anchor="middle">S</text>
+  <text class="dg-small" x="180" y="195" text-anchor="middle">S</text>
+  <text class="dg-small" x="203" y="195" text-anchor="middle">C</text>
+  <text class="dg-small" x="226" y="195" text-anchor="middle">B</text>
+  <text class="dg-small" x="252" y="184">draw, half each</text>
+  <text class="dg-small" x="20" y="207">... and thousands more.</text>
+  <text class="dg-small" x="20" y="223">Each strike craft's pilot is drawn at random,</text>
+  <text class="dg-small" x="20" y="236">ship by ship, from the pilots being rated and</text>
+  <text class="dg-small" x="20" y="249">the script. Missions, line-ups and commanders</text>
+  <text class="dg-small" x="20" y="262">are drawn as on the live page.</text>
+
+  <path class="dg-line" d="M36,272 V283" aria-hidden="true" />
+  <path class="dg-arrow" d="M32,283 L36,290 L40,283 Z" aria-hidden="true" />
+  <rect class="box" x="8" y="290" width="344" height="168" rx="3" />
+  <text class="dg-label dg-label--strong" x="20" y="308">2. A fit sorts out who added what</text>
+  <text class="dg-small" x="20" y="326">Because the draws are random, each pilot flies</text>
+  <text class="dg-small" x="20" y="339">beside and against every other. A statistical fit</text>
+  <text class="dg-small" x="20" y="352">over all the matches at once tells each pilot's</text>
+  <text class="dg-small" x="20" y="365">share of a win from its teammates'. It allows for</text>
+  <text class="dg-small" x="20" y="378">the mission, the side and the commanders.</text>
+
+  <g aria-hidden="true">
+    <rect class="box" x="28" y="392" width="88" height="18" rx="3" />
+    <rect class="box" x="132" y="392" width="88" height="18" rx="3" />
+    <rect class="box" x="236" y="392" width="88" height="18" rx="3" />
+    <path class="dg-fan" d="M72,410 L180,426 M176,410 L180,426 M280,410 L180,426" />
+    <rect class="box" x="154" y="426" width="52" height="20" rx="3" />
+  </g>
+  <text class="dg-small" x="72" y="404" text-anchor="middle">azure won</text>
+  <text class="dg-small" x="176" y="404" text-anchor="middle">ember won</text>
+  <text class="dg-small" x="280" y="404" text-anchor="middle">draw, half each</text>
+  <text class="dg-small" x="180" y="440" text-anchor="middle">the fit</text>
+
+  <path class="dg-line" d="M36,458 V469" aria-hidden="true" />
+  <path class="dg-arrow" d="M32,469 L36,476 L40,469 Z" aria-hidden="true" />
+  <rect class="box" x="8" y="476" width="344" height="251" rx="3" />
+  <text class="dg-label dg-label--strong" x="20" y="494">3. Each pilot's score</text>
+  <text class="dg-small" x="112" y="512">0: the script's level</text>
+  <g aria-hidden="true">
+    <path class="dg-line" d="M112,520 V586" />
+    <path class="dg-line" d="M246,530 H292 M246,527 V533 M292,527 V533 M203,546 H244 M203,543 V549 M244,543 V549 M135,562 H171 M135,559 V565 M171,559 V565 M93,578 H138 M93,575 V581 M138,575 V581" />
+    <circle class="dg-a" cx="270" cy="530" r="3" />
+    <circle class="dg-a" cx="224" cy="546" r="3" />
+    <circle class="dg-a" cx="153" cy="562" r="3" />
+    <circle class="dg-a" cx="117" cy="578" r="3" />
+  </g>
+  <text class="dg-small" x="30" y="533">A</text>
+  <text class="dg-small" x="30" y="549">B</text>
+  <text class="dg-small" x="30" y="565">C</text>
+  <text class="dg-small" x="30" y="581">D</text>
+  <text class="dg-small" x="20" y="599">wins added per 100 matches, over the script</text>
+  <text class="dg-small" x="20" y="612">flying the same ships</text>
+  <text class="dg-small" x="20" y="629">dot: the estimate</text>
+  <text class="dg-small" x="20" y="642">line: the margin of error, the range the</text>
+  <text class="dg-small" x="20" y="655">true value very likely lies in</text>
+  <text class="dg-small" x="20" y="676">For every match a pilot flew in: the fit's chance</text>
+  <text class="dg-small" x="20" y="689">that its side wins, minus the same with the script</text>
+  <text class="dg-small" x="20" y="702">flying its ships. Averaged and times 100. A draw</text>
+  <text class="dg-small" x="20" y="715">counts half.</text>
+
+  <rect class="box box--sim" x="8" y="739" width="344" height="92" rx="3" />
+  <text class="dg-label dg-label--strong" x="20" y="757">Read it within one table</text>
+  <text class="dg-label" x="20" y="775">Compare pilots within one WAR table, not across nights.</text>
+  <text class="dg-small" x="20" y="793">Each table is its own fit, over its own matches and</text>
+  <text class="dg-small" x="20" y="806">its own pilots. A pilot's score moves with the</text>
+  <text class="dg-small" x="20" y="819">company it is rated in.</text>
+</svg>

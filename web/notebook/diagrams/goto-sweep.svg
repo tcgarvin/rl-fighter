@@ -1,0 +1,100 @@
+<svg class="diagram" viewBox="0 0 360 814" role="img" aria-labelledby="goto-sweep-title goto-sweep-desc">
+  <title id="goto-sweep-title">The go-to sweep</title>
+  <desc id="goto-sweep-desc">The go-to sweep. One ship alone, ordered to fly to a circle. The same start is flown again and again, each time with a different time allowed. One start, two ways to fly it shows a map from above, with an azure fighter at lower left and a dashed azure target circle at lower right, labelled circle. An ember fighter sits just inside the curved map edge at the top, labelled parked enemy: it cannot shoot. A solid azure order line goes straight to the circle, labelled the script: straight there. A dashed azure route curves up, loops around the enemy below the map edge, then comes down to the circle, labelled many trained pilots: to the enemy first, then late. At an allowance of 2, trained pilots missed the most deadlines against the harmless parked enemy. What varies between starts has three mini maps, each with a lone azure ship, a route and a dashed target circle. Parked shows one enemy fighter at rest on the map's edge, which cannot shoot. One armed shows a script-flown fighter beside the route. Three armed shows a script-flown fighter, strafer and gunship beside the route. The lone ship is a fighter, strafer or gunship, 150, 300 or 500 m from the circle's edge. The circle's radius is 20 or 60 m. Six starts of each: 324 starts. The time allowed has a clock and a scale marked 0.8, 1, 1.5, 2, 3, 5 and 8, with no deadline set apart at the right. A bracket under 0.8 and 1 says at or past what a ship can do. An allowance of 2 is twice the time a straight flight at full speed takes, plus 3 s to turn. Each start is flown at every allowance, and once with no deadline. Then it counts as in time if it arrives within twice the straight flight plus 10 s. The match clock is the same at every allowance, so it gives nothing away. A pilot that reads the deadline flies differently at 2 than at 8. One that ignores it flies the same every time.</desc>
+
+  <text class="dg-label dg-label--strong" x="20" y="24">The go-to sweep</text>
+  <text class="dg-small" x="20" y="41">One ship alone, ordered to fly to a circle. The same start is</text>
+  <text class="dg-small" x="20" y="54">flown again and again, each time with a different time allowed.</text>
+
+  <rect class="box" x="8" y="68" width="344" height="230" rx="3" />
+  <text class="dg-label dg-label--strong" x="20" y="86">One start, two ways to fly it</text>
+  <g aria-hidden="true">
+    <path class="dg-fan" d="M178,112 Q256,80 336,108" />
+    <path class="dg-stroke-a dg-dash" d="M54,212 C72,184 167,187 226,138 C214,112 234,102 252,110 C274,119 264,148 244,143 C237,163 265,190 290,203" />
+    <path class="dg-stroke-a" d="M284,202 L290,203 L287,197" />
+    <path class="dg-b" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(245 120) rotate(180)" />
+    <path class="dg-a" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(50 219)" />
+    <path class="dg-stroke-a" d="M62,219 H280 M275,215 L280,219 L275,223" />
+    <circle class="dg-stroke-a dg-dash" cx="300" cy="219" r="18" />
+  </g>
+  <text class="dg-small" x="274" y="124">parked enemy:</text>
+  <text class="dg-small" x="274" y="137">it cannot shoot</text>
+  <text class="dg-small" x="55" y="148">many trained pilots:</text>
+  <text class="dg-small" x="55" y="161">to the enemy first, then late</text>
+  <text class="dg-small" x="100" y="207">the script: straight there</text>
+  <text class="dg-small" x="300" y="251" text-anchor="middle">circle</text>
+  <text class="dg-small" x="20" y="272">At an allowance of 2, trained pilots missed the most</text>
+  <text class="dg-small" x="20" y="285">deadlines against the harmless parked enemy.</text>
+
+  <rect class="box" x="8" y="310" width="344" height="234" rx="3" />
+  <text class="dg-label dg-label--strong" x="20" y="328">What varies between starts</text>
+  <rect class="box" x="20" y="340" width="100" height="137" rx="3" />
+  <rect class="box" x="130" y="340" width="100" height="137" rx="3" />
+  <rect class="box" x="240" y="340" width="100" height="137" rx="3" />
+  <text class="dg-label dg-label--strong" x="28" y="357">Parked</text>
+  <text class="dg-label dg-label--strong" x="138" y="357">One armed</text>
+  <text class="dg-label dg-label--strong" x="248" y="357">Three armed</text>
+  <g aria-hidden="true">
+    <path class="dg-fan" d="M48,368 Q80,359 111,375" />
+    <path class="dg-b" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(79 366) rotate(180)" />
+    <path class="dg-a" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(35 388)" />
+    <path class="dg-stroke-a" d="M44,388 H92 M88,385 L92,388 L88,391" />
+    <circle class="dg-stroke-a dg-dash" cx="102" cy="388" r="7" />
+
+    <path class="dg-b" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(177 374) rotate(180)" />
+    <path class="dg-a" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(145 388)" />
+    <path class="dg-stroke-a" d="M154,388 H202 M198,385 L202,388 L198,391" />
+    <circle class="dg-stroke-a dg-dash" cx="212" cy="388" r="7" />
+
+    <path class="dg-b" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(267 374) rotate(180)" />
+    <path class="dg-b" d="M-5,-5 L-1,-5 L6,0 L-1,5 L-5,5 L-3,0 Z" transform="translate(286 374) rotate(180)" />
+    <path class="dg-b" d="M-8,-6 L3,-6 L8,0 L3,6 L-8,6 L-6,0 Z" transform="translate(307 373) rotate(180)" />
+    <path class="dg-a" d="M-6,-4 L6,0 L-6,4 L-3,0 Z" transform="translate(255 388)" />
+    <path class="dg-stroke-a" d="M264,388 H312 M308,385 L312,388 L308,391" />
+    <circle class="dg-stroke-a dg-dash" cx="322" cy="388" r="7" />
+  </g>
+  <text class="dg-small" x="28" y="414">one enemy fighter</text>
+  <text class="dg-small" x="28" y="427">at rest on the map's</text>
+  <text class="dg-small" x="28" y="440">edge, which cannot</text>
+  <text class="dg-small" x="28" y="453">shoot</text>
+  <text class="dg-small" x="138" y="414">a script-flown</text>
+  <text class="dg-small" x="138" y="427">fighter beside</text>
+  <text class="dg-small" x="138" y="440">the route</text>
+  <text class="dg-small" x="248" y="414">a script-flown</text>
+  <text class="dg-small" x="248" y="427">fighter, strafer and</text>
+  <text class="dg-small" x="248" y="440">gunship beside</text>
+  <text class="dg-small" x="248" y="453">the route</text>
+  <text class="dg-small" x="20" y="494">The lone ship is a fighter, strafer or gunship,</text>
+  <text class="dg-small" x="20" y="507">150, 300 or 500 m from the circle's edge.</text>
+  <text class="dg-small" x="20" y="520">The circle's radius is 20 or 60 m.</text>
+  <text class="dg-small" x="20" y="533">Six starts of each: 324 starts.</text>
+
+  <rect class="box" x="8" y="556" width="344" height="198" rx="3" />
+  <g aria-hidden="true">
+    <circle class="dg-line" cx="27" cy="571" r="7" />
+    <path class="dg-line" d="M27,566 V571 L31,573" />
+  </g>
+  <text class="dg-label dg-label--strong" x="44" y="574">The time allowed</text>
+  <path class="dg-line" d="M30,604 H210 M30,600 V608 M60,600 V608 M90,600 V608 M120,600 V608 M150,600 V608 M180,600 V608 M210,600 V608 M274,604 H326 M300,600 V608" aria-hidden="true" />
+  <text class="dg-num" x="30" y="596" text-anchor="middle">0.8</text>
+  <text class="dg-num" x="60" y="596" text-anchor="middle">1</text>
+  <text class="dg-num" x="90" y="596" text-anchor="middle">1.5</text>
+  <text class="dg-num" x="120" y="596" text-anchor="middle">2</text>
+  <text class="dg-num" x="150" y="596" text-anchor="middle">3</text>
+  <text class="dg-num" x="180" y="596" text-anchor="middle">5</text>
+  <text class="dg-num" x="210" y="596" text-anchor="middle">8</text>
+  <text class="dg-small" x="300" y="596" text-anchor="middle">no deadline</text>
+  <path class="dg-line" d="M23,612 V618 H67 V612" aria-hidden="true" />
+  <text class="dg-small" x="20" y="632">at or past what a ship can do</text>
+  <text class="dg-small" x="20" y="651">An allowance of 2 is twice the time a straight flight</text>
+  <text class="dg-small" x="20" y="664">at full speed takes, plus 3 s to turn.</text>
+  <text class="dg-small" x="20" y="683">Each start is flown at every allowance, and once</text>
+  <text class="dg-small" x="20" y="696">with no deadline. Then it counts as in time if it</text>
+  <text class="dg-small" x="20" y="709">arrives within twice the straight flight plus 10 s.</text>
+  <text class="dg-small" x="20" y="728">The match clock is the same at every allowance,</text>
+  <text class="dg-small" x="20" y="741">so it gives nothing away.</text>
+
+  <text class="dg-label" x="20" y="774">A pilot that reads the deadline flies differently</text>
+  <text class="dg-label" x="20" y="788">at 2 than at 8. One that ignores it flies the same</text>
+  <text class="dg-label" x="20" y="802">every time.</text>
+</svg>

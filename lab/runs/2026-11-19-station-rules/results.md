@@ -39,8 +39,6 @@ what these rules found.
 
 <div data-figure="diagram" data-name="missions" data-caption="This entry plays the station assault, bottom right, under rules version 9, with the first station and no dreadnought. The decisions that paid were when the station launches its reserve and where the attacker parks its carrier."></div>
 
-<!-- figure-idea: shared: what a commander controls: orders to each strike craft (attack, defend, go-to) on one side, and the capital-ship decisions (when the bays launch, where the carrier steers) on the other; this entry's whole result is that split. -->
-
 ## The setup
 
 The setup is the station assault with the live pilots. Every strike craft is flown by a
@@ -52,6 +50,8 @@ gunship (fighters and strafers aim their guns by pointing the ship; the slower g
 has turrets that aim themselves). The attacker's carrier brings 3 strike craft that jump
 in, appearing at speed early in the match (the jump-in trio: fighter, bomber, fighter),
 and 5 docked, 3 of them bombers (slow strike craft with a torpedo fixed to the nose).
+
+<div data-figure="diagram" data-name="station-layout" data-caption="The two decisions that paid in this entry are drawn here: holding the station's reserve, and bringing the carrier in to 170 m. Rules version 9, with no dreadnought yet."></div>
 
 One side is commanded by a **rule**, through the sim's external commander, the hook that
 lets a program outside the sim command a side. The other side is `unseen`: the scripted

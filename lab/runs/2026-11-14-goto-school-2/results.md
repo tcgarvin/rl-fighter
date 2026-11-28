@@ -130,7 +130,7 @@ the route, or three. Share in time at the tight allowance of 2:
 | `followers_solo_1072` | 0.05 | 0.29 | 0.40 |
 | `fighters_pay1_school_821` | 0.03 | 0.24 | 0.07 |
 
-<!-- figure-idea: shared: the go-to sweep's three layouts. One lone ship and its circle, shown three ways: an unarmed enemy parked at the map's edge, one armed enemy beside the route, three armed enemies beside it, with a typical pilot path in each. Makes the "parked" result, worst against the harmless enemy, easy to see. -->
+<div data-figure="diagram" data-name="goto-sweep" data-caption="The table above splits the allowance of 2 by these three layouts. Against the parked enemy the script made 0.97 of its deadlines and the trained pilots 0.01 to 0.05."></div>
 
 A lone school pilot makes more deadlines against three armed enemies than against one
 that sits still at the edge of the map. Against the armed ones it improved a lot this
