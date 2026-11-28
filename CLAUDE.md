@@ -302,6 +302,9 @@ uv run python -m pytest tests/test_build_notebook.py tests/test_build_catalogue.
     tests/test_commander_page.py -v
 ```
 
+Notebook entries (`lab/runs/<id>/results.md`) are written for an outsider with no ML
+background: `docs/NOTEBOOK_WRITING.md` has the shape, the rules and the agreed glossary.
+
 How pilots train (scenarios, order drills, families, what earns a place): `docs/PILOT_TRAINING.md`.
 Keep it current when training scenarios change.
 

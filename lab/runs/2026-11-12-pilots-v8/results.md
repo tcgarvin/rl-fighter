@@ -1,19 +1,46 @@
 # Go-to orders get a deadline; one night did not teach pilots to fly by it
 
-Shipped to the live page on 2026-11-14, `SIM_VERSION` 8.
+Shipped to the live page on 2026-11-14, `SIM_VERSION` 8 (the eighth version of the game's
+rules, the one that gave go-to orders a deadline).
 
-<!-- summary: A commander's "go to this point" order can now say by when, and the pilot can see the time running down. Four lines trained for a night under the new rule. They can see the deadline but have not learned to fly by it: alone, a pilot still fights first and arrives in time only when the deadline is long. Two of the new pilots join the live page on their fighting. -->
+<!-- summary: A commander's "go to this point" order can now say by when, and the pilot can see the time running down. Four versions of our pilots trained for a night under the new rule. They can see the deadline but have not learned to fly by it: alone, a pilot still fights first and arrives in time only when the deadline is long. Two of the new pilots join the live page on their fighting. -->
 
-A commander can give a ship three kinds of order: attack that ship, defend that ship, or
+Each side in the game has a commander, a network or a hand-written script that gives its
+ships orders. A commander can give a ship three kinds of order: attack that ship, defend that ship, or
 go to that point. Go-to is the one the pilots follow worst, and three nights of practice
-had not moved it. This entry is a change to the game to fix that, and the first night of
-training under it. The change is in. The lesson did not land in one night.
+had not moved it. This entry is a change to the game to fix that: a go-to order can now
+carry a deadline, the pilot can see it, and arriving in time pays. Then comes the first
+night of training under it. The change is in. The lesson did not land in one night: sent
+somewhere alone, a pilot still fights first and arrives in time only when the deadline is
+long.
+
+## Where this fits
+
+RL Fighter is a space-combat game in which every small ship is flown by a **pilot**, a small
+neural network that learned to fly by trial and error: it plays many matches, scores points
+(reward) for good outcomes and is adjusted to do more of what scored. A **commander**, a
+second network or a hand-written script, sees the whole side and gives its ships orders.
+The [pilot page](/pilot/) and the [commander page](/commander/) explain both.
+
+The days before this entry showed why pilots must follow orders. The
+[second commander night](../2026-11-10-commander-2/results.md) found that no learned
+commander beat one giving random orders, because most pilots ignore orders, so a commander
+has nothing to learn about which order to give. On the pilots' side, the
+[third](../2026-11-09-third-night/results.md) and
+[fourth](../2026-11-10-fourth-night/results.md) nights added practice on go-to orders and
+arrival did not improve. So this pilots' turn began by finding out what pilots actually do
+with a go-to order, and then changed the game to give them a reason to go.
 
 ## What was wrong with go-to
 
 Before changing anything we traced every ship's path in 256 go-to drills per pilot. A
 drill is a short practice match: a squad of one to four ships is told to reach a circle.
-Of the ships still alive when time ran out:
+The pilots are the script (our hand-written pilot, which flies straight to the point),
+`transit_300` (an older pilot trained to follow orders), `f995_701` (an older strong
+fighter) and three pilots from the [fourth night](../2026-11-10-fourth-night/results.md). A pilot's name is its training line
+followed by the update, the round of training, it was saved at: `followers_1793` is the
+`followers` line after 1,793 updates. Of the ships still alive when time ran out, the share
+that ended each way:
 
 | Pilot | In time | Near miss | At the enemy |
 |---|---|---|---|
@@ -28,7 +55,7 @@ A near miss came within 60 m of the circle but was not inside it in time. "At th
 never got that close and was found beside an enemy instead.
 
 - **Pilots do read the order.** In the first five seconds `followers_1793` closes 66 m on
-  the point when it can see the order, and none when the order is hidden.
+  the point when it can see the order, and none when the order is hidden from it.
 - **They fight first.** A lone pilot would fly 500 m to a harmless parked enemy, destroy
   it, and only then fly straight to the point.
 - **Nothing paid for being prompt.** Arriving paid the same whenever the ship arrived, and
@@ -38,9 +65,11 @@ never got that close and was found beside an enemy instead.
 ## What a deadline is
 
 In the new game version a go-to order can say "be there by this time". The pilot gets four
-new inputs, 587 in all where it had 583: whether the order has a deadline, how much time
-is left, how urgent that is for the distance still to fly, and how close it is over the
-last 100 m.
+new inputs (the numbers it sees each moment about itself, other ships and its orders), 587
+in all where it had 583: whether the order has a deadline, how much time is left, how
+urgent that is for the distance still to fly, and a finer reading of distance over the last
+100 m (0 at 100 m outside the circle, 1 at its edge), since the old distance input changed
+little that close.
 
 The pay changes with it. Arriving in time pays 1.0. Missing the deadline costs 1.0, once,
 and the order is then over. Nothing is charged for time used before the deadline, so an
@@ -55,33 +84,42 @@ nothing on the live page shows one.
 ## The night
 
 Four lines trained from 00:53 to 08:00, about 355 updates each. Each carries on from the
-[fourth night](../2026-11-10-fourth-night/)'s pilot of its line: `followers_1793`,
-`fighters_1832` and `fighters_pay1_1317`.
+[fourth night](../2026-11-10-fourth-night/results.md)'s pilot of its line, its parent:
+`followers_1793` (the line trained to follow orders), `fighters_1832` (strong fighters,
+paid well for following orders) and `fighters_pay1_1317` (the same, paid a third as much).
+The fourth line, `followers_v8_blind`, is a second copy of `followers_1793`. The lines also
+differ in their share of training spent in drills, shown in the table. Each new line counts its updates from 0, so
+`followers_v8_352` is the `followers_v8` line after 352 updates.
 
-| Line | Sees the deadline | Order pay |
-|---|---|---|
-| `followers_v8` | Yes | 1 |
-| `fighters_v8` | Yes | 3 |
-| `fighters_pay1_v8` | Yes | 1 |
-| `followers_v8_blind` | No | 1 |
+| Line | Sees the deadline | Order pay | Share of training in drills |
+|---|---|---|---|
+| `followers_v8` | Yes | 1 | 0.35 |
+| `fighters_v8` | Yes | 3 | 0.35 |
+| `fighters_pay1_v8` | Yes | 1 | 0.25 |
+| `followers_v8_blind` | No | 1 | 0.35 |
 
 Order pay multiplies everything an order pays, so for `fighters_v8` a deadline is worth
 plus or minus 3. The blind line is the control: it is paid and charged by deadlines it
 cannot see. If seeing the deadline matters, the seeing twin should pull ahead of it.
 
+<!-- figure-idea: one ship sent to a circle with a deadline, drawn as two paths on the same map: the script's straight line arriving in time, and a trained pilot's detour to a harmless enemy, the kill, then a late straight run to the circle, with the clock on each. Helps a reader see "fights first" and what the deadline was meant to change. -->
+
 ## The ten
 
-The live page flies ten pilots, drawn ship by ship. Wins added per 100 matches over the
-script flying the same ships; each is good to about ±3.4.
+The live page flies ten pilots, drawn ship by ship. Each is scored by wins above
+replacement, as the [third night](../2026-11-09-third-night/results.md) describes: in
+thousands of matches like the live page's, how many more matches out of 100 a side wins with
+this pilot flying its ships instead of the script. Each is good to about ±3.4: ± is the
+margin of error, and the true value is very likely within 3.4 of the number shown.
 
 1. **`f995_701`, +16.8.**
 2. **`fighters_pay1_1317`, +16.7.**
 3. **`f99_696`, +16.7.**
-4. **`followers_v8_352`, +16.6.** New. `followers_1793`, one night on.
+4. **`followers_v8_352`, +16.6.** New: `followers_1793` after one more night of training.
 5. **`fighters_pay1_462`, +15.5.**
 6. **`fighters_pay1_849`, +14.6.**
 7. **`f995_400`, +14.0.**
-8. **`fighters_pay1_v8_351`, +13.0.** New. `fighters_pay1_1317`, one night on.
+8. **`fighters_pay1_v8_351`, +13.0.** New: `fighters_pay1_1317` after one more night of training.
 9. **`followers_1323`, +12.8.**
 10. **`fighters_1832`, +12.4.**
 
@@ -94,9 +132,13 @@ read the first 583 inputs, as before.
 
 ## What the night answered
 
-**Alone, a pilot still fights first.** The cleanest test puts one ship alone on 324
-starts and replays each start at several allowances. Share in time, of ships alive at
-the deadline, at allowances of 2, 5 and 8 and with no deadline at all:
+**Alone, a pilot still fights first.** The cleanest test, the deadline sweep, puts one
+ship alone on 324 starts and replays each start at several allowances. Each number is the
+share in time, of ships alive at the deadline. The columns are allowances of 2, 5 and 8
+times the straight-line flying time, and no deadline at all. With no deadline the ship is
+judged by the old rule, twice the straight-line time plus 10 seconds. For any trip of more
+than about two and a half seconds' flying that is a shorter window than an allowance of 5,
+so that column can read lower:
 
 | Pilot | 2 | 5 | 8 | None |
 |---|---|---|---|---|
@@ -114,7 +156,9 @@ straight-line time or more. No trained pilot makes even one in seven at that all
 They are in time only when the deadline is long enough to finish the fight first.
 
 **The two `fighters` lines may be reading the new inputs. The followers line shows no
-sign.** We flew each new pilot again with its deadline inputs blanked:
+sign.** We flew each new pilot again with its four deadline inputs blanked (set to zero),
+so it flies as if it could not see the deadline. Each row gives one allowance and the share
+in time with the inputs seen and blanked:
 
 | Pilot | Allowance | Seeing | Blanked |
 |---|---|---|---|
@@ -122,12 +166,16 @@ sign.** We flew each new pilot again with its deadline inputs blanked:
 | `fighters_pay1_v8_351` | 8 | 0.49 | 0.37 |
 | `followers_v8_352` | 8 | 0.69 | 0.66 |
 
-The first two gaps are about two and a half times the noise. They are also the largest
-of several we could have picked, and over every allowance together the gap is smaller
-(0.19 against 0.15, and 0.19 against 0.16). Call it a hint. Nobody arrives later when given
-more time, so nobody is spending spare time on purpose.
+The first two gaps are about two and a half times the noise, the range that chance
+alone would give. They are also the largest of several we could have picked. Over every
+allowance from 1.5 up together (the sweep also plays 1.5, tighter than any in training), the
+gap is smaller: 0.19 seeing against 0.15 blanked for `fighters_v8_362`, and 0.19 against 0.16 for
+`fighters_pay1_v8_351`. Call it a hint. A pilot that used a long deadline to fight on the
+way would arrive later when given more time. None does: each arrives about as fast at an
+allowance of 8 as at 1.5, so none is spending spare time on purpose.
 
-**In squads, small gains.** The drills, squads of one to four, share in time:
+**In squads, small gains.** The drills, squads of one to four, share in time, for the
+parent (before) and the night's seeing pilot of each line (after):
 
 | Line | Before | After |
 |---|---|---|
@@ -148,7 +196,7 @@ and the lone-ship table above does not separate them. Since neither learned to h
 control had nothing to show.
 
 **Attack and defend moved a little.** How often a pilot changes target when the order
-changes, before and after:
+changes, measured in drills, parent then child:
 
 | Pilot | Attack | Defend |
 |---|---|---|
@@ -157,15 +205,16 @@ changes, before and after:
 | `followers_v8_352` | 0.72 to 0.72 | 0.74 to 0.76 |
 | `fighters_pay1_v8_351` | 0.21 to 0.26 | 0.23 to 0.33 |
 
-**Fighting: one up, two down.** Wins added per 100, parent to child:
-`followers_v8_352` +11.0 to +16.6, `fighters_pay1_v8_351` +16.7 to +13.0,
+**Fighting: one up, two down.** Wins added per 100 (wins above replacement), parent to
+child: `followers_v8_352` +11.0 to +16.6, `fighters_pay1_v8_351` +16.7 to +13.0,
 `fighters_v8_362` +12.4 to +9.6. Both `fighters` lines gave up some fighting for a little
 following.
 
 ## Why so little moved
 
 **A night is small for this lesson.** One update finishes 16 to 18 matches, and 3 to 5 of
-them are go-to drills. Over the whole night:
+them are go-to drills. Over the whole night, how many go-to drills each line played, how
+many of its ships flew under a deadline, and the share that missed:
 
 | Line | Go-to drills | Ships | Missed |
 |---|---|---|---|
@@ -174,8 +223,8 @@ them are go-to drills. Over the whole night:
 | `fighters_pay1_v8` | 1,100 | 2,070 | 0.57 |
 
 "Ships" is how many flew under a deadline, and "missed" the share of them that were
-alive when it passed and not there. That share hardly fell through the night. First quarter to last: 0.37 to 0.34,
-0.50 to 0.44 and 0.55 to 0.54.
+alive when it passed and not there. That share hardly fell through the night. First
+quarter to last: 0.37 to 0.34, 0.50 to 0.44 and 0.55 to 0.54.
 
 **The pay is close to a wash.** At order pay 1, making a deadline is worth 1 and missing
 it costs 1. Destroying a fighter on the way pays about 0.8, and a bigger ship more. A pilot
@@ -189,7 +238,7 @@ other ways too, so this is not a clean comparison.
 ## One thing that still doesn't fit
 
 The scores above come from mixed matches, ships drawn one by one. We also fly each new
-pilot against its parent with a whole side each:
+pilot against its parent with a whole side each, head to head:
 
 | Pilot | Won | Adds | Parent |
 |---|---|---|---|
@@ -204,14 +253,16 @@ added per 100 in mixed matches, with its parent's beside it.
 For the two `fighters` lines both measures agree. For `followers_v8_352` they do not: it
 loses to its parent head to head, yet adds more wins in mixed matches. Its blind twin
 beats the same parent head to head and adds far fewer wins than it does. The
-[fourth night](../2026-11-10-fourth-night/) saw the same kind of split. It is still not
+[fourth night](../2026-11-10-fourth-night/results.md) saw the same kind of split. It is still not
 explained. The live page flies mixed matches, so the list above goes by that measure.
 
 ## The season's records
 
-All four new pilots are added to the season. Nobody is retired. The cull report, which is
-a report only, notes that the `fighters` family is over its cap of four lines in training
-and names `fighters_v8_362` and `fighters_1832` as the ones it would drop.
+All four new pilots are added to the season, the record of every pilot trained under this
+version of the rules. Nobody is retired. The cull report, which is a report only and
+changes nothing, notes that the `fighters` family (`f995_701` and every pilot trained from
+it) is over its cap of four active pilots and names `fighters_v8_362` and
+`fighters_1832` as the ones it would drop.
 
 The data: `lab/population/2026-11-sim6/war/first-v8-night/war.json` (wins added),
 `lab/population/2026-11-sim6/sweep/first-v8-night/` (one ship alone, by allowance), and

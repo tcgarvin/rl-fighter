@@ -21,7 +21,7 @@ from tools.build_notebook import (
     read_log,
     series_for,
 )
-from tools.lab_markdown import LinkContext, render_markdown
+from tools.lab_markdown import BrokenLinkError, LinkContext, render_markdown
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 WIN = next(m for m in METRICS if m.id == "win_vs_script")
@@ -130,6 +130,36 @@ def test_inline_code_paths_link_to_the_notebook_or_github(tmp_path: Path) -> Non
         "<code>missing/file.py</code>" in body
         and "missing/file.py</code></a>" not in body
     )
+
+
+def test_relative_markdown_links_go_to_the_notebook_or_github(tmp_path: Path) -> None:
+    run = _write_run(tmp_path, "2026-01-02-b", "# B\n", **{"plan.md": "# plan"})
+    _write_run(tmp_path, "2026-01-01-a", "# A\n")
+    (run / "report.md").write_text("report")
+    ctx = LinkContext(tmp_path, run, frozenset({"2026-01-01-a", "2026-01-02-b"}))
+    body = render_markdown(
+        "[last night](../2026-01-01-a/results.md), [its dir](../2026-01-01-a/), "
+        "[plan](plan.md), [report](report.md#table), [site](/pilot/), "
+        "[web](https://example.com/x) and [here](#top).",
+        ctx,
+    ).body
+    assert 'href="/notebook/#2026-01-01-a">last night' in body
+    assert 'href="/notebook/#2026-01-01-a">its dir' in body
+    assert 'href="/notebook/#2026-01-02-b/plan">plan' in body
+    assert (
+        'href="https://github.com/tcgarvin/rl-fighter/blob/main/lab/runs/'
+        '2026-01-02-b/report.md#table"' in body
+    )
+    assert 'href="/pilot/"' in body
+    assert 'href="https://example.com/x"' in body
+    assert 'href="#top"' in body
+
+
+def test_a_relative_link_to_a_missing_file_raises(tmp_path: Path) -> None:
+    run = _write_run(tmp_path, "2026-01-02-b", "# B\n")
+    ctx = LinkContext(tmp_path, run, frozenset({"2026-01-02-b"}))
+    with pytest.raises(BrokenLinkError, match="gone.md"):
+        render_markdown("See [this](gone.md).", ctx)
 
 
 # --- learning curves -------------------------------------------------------

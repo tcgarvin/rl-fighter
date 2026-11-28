@@ -13,7 +13,9 @@ instead of asking the files to change:
   phone instead of widening the page.
 - Inline code that names a file or directory in the repo becomes a link: a lab run's
   ``results.md`` (or its directory) to its notebook entry, a run's ``plan.md`` to the
-  entry's plan section, anything else to GitHub.
+  entry's plan section, anything else to GitHub. Markdown links written relative to
+  the document (``[last night](../2026-01-01-a/results.md)``) go to the same places;
+  one that names a missing file raises ``BrokenLinkError``.
 """
 
 from __future__ import annotations
@@ -39,7 +41,13 @@ _H1 = re.compile(r"<h1>(.*?)</h1>\s*", re.S)
 _TAG = re.compile(r"<[^>]+>")
 _CODE = re.compile(r"<code>([^<]+)</code>")
 _PATH_LIKE = re.compile(r"^[\w.\-/]+$")
+_HREF = re.compile(r'<a href="([^"]*)"')
+_NON_RELATIVE_HREF = re.compile(r"^(?:[a-z][a-z0-9+.-]*:|/|#)", re.I)
 _EXTENSIONS = ["tables", "fenced_code", "sane_lists"]
+
+
+class BrokenLinkError(ValueError):
+    """A lab document links, relative to itself, to a file the repo does not have."""
 
 
 @dataclass(frozen=True)
@@ -102,6 +110,28 @@ def plain_text(fragment: str) -> str:
     return " ".join(html.unescape(_TAG.sub("", fragment)).split())
 
 
+def _site_target(path: Path, ctx: LinkContext) -> str | None:
+    """Where the site serves an existing repo ``path``: its notebook entry or GitHub.
+
+    ``None`` when the path does not exist or lies outside the repo.
+    """
+    root = ctx.repo_root.resolve()
+    path = path.resolve()
+    if not path.exists() or not path.is_relative_to(root):
+        return None
+    rel = path.relative_to(root)
+    parts = rel.parts
+    if len(parts) >= 3 and parts[:2] == ("lab", "runs") and parts[2] in ctx.run_ids:
+        run_id = parts[2]
+        rest = parts[3:]
+        if rest == ("plan.md",):
+            return f"/notebook/#{run_id}/plan"
+        if rest in ((), ("results.md",)):
+            return f"/notebook/#{run_id}"
+    prefix = GITHUB_TREE if path.is_dir() else GITHUB_BLOB
+    return f"{prefix}/{rel.as_posix()}"
+
+
 def _resolve_link(text: str, ctx: LinkContext) -> str | None:
     """Return a link target for an inline-code repo path, or ``None`` if it is not one."""
     candidate = text.split(":", 1)[0].rstrip("/")
@@ -109,22 +139,10 @@ def _resolve_link(text: str, ctx: LinkContext) -> str | None:
         return None
     if "/" not in candidate and "." not in candidate:
         return None
-    root = ctx.repo_root.resolve()
     for base in (ctx.run_dir, ctx.repo_root):
-        path = (base / candidate).resolve()
-        if not path.exists() or not path.is_relative_to(root):
-            continue
-        rel = path.relative_to(root)
-        parts = rel.parts
-        if len(parts) >= 3 and parts[:2] == ("lab", "runs") and parts[2] in ctx.run_ids:
-            run_id = parts[2]
-            rest = parts[3:]
-            if rest == ("plan.md",):
-                return f"/notebook/#{run_id}/plan"
-            if rest in ((), ("results.md",)):
-                return f"/notebook/#{run_id}"
-        prefix = GITHUB_TREE if path.is_dir() else GITHUB_BLOB
-        return f"{prefix}/{rel.as_posix()}"
+        target = _site_target(base / candidate, ctx)
+        if target is not None:
+            return target
     return None
 
 
@@ -140,16 +158,49 @@ def _link_code_paths(body: str, ctx: LinkContext) -> str:
     return _CODE.sub(replace, body)
 
 
+def _rewrite_relative_hrefs(body: str, ctx: LinkContext) -> str:
+    """Point Markdown links written relative to the document at their site targets.
+
+    A link such as ``[last night](../2026-01-01-a/results.md)`` reads correctly in
+    the repo but would resolve against ``/notebook/`` on the site. Links with a
+    scheme, an absolute path or only a fragment are left alone.
+
+    Raises:
+        BrokenLinkError: a relative link names a file that does not exist in the repo.
+    """
+
+    def replace(match: re.Match[str]) -> str:
+        href = html.unescape(match.group(1))
+        if _NON_RELATIVE_HREF.match(href):
+            return match.group(0)
+        path_part, _, fragment = href.partition("#")
+        target = _site_target(ctx.run_dir / path_part, ctx)
+        if target is None:
+            raise BrokenLinkError(
+                f"{ctx.run_dir}: link {href!r} names no file in the repo"
+            )
+        if fragment and not target.startswith("/notebook/"):
+            target = f"{target}#{fragment}"
+        external = ' rel="noopener"' if target.startswith("http") else ""
+        return f'<a href="{html.escape(target)}"{external}'
+
+    return _HREF.sub(replace, body)
+
+
 def render_markdown(md: str, ctx: LinkContext | None = None) -> Rendered:
     """Render one lab Markdown document.
 
     Args:
         md: the document text.
-        ctx: where the document lives; without it inline-code paths stay plain.
+        ctx: where the document lives; without it inline-code paths stay plain and
+            relative links are left as written.
 
     Returns:
         The title (first H1 as plain text, ``"Lab notes"`` if there is none, or
         ``PENDING_TITLE`` when the H1 is still a coordinator TODO) and the HTML.
+
+    Raises:
+        BrokenLinkError: with ``ctx``, a relative link names a missing file.
     """
     body = markdown.markdown(
         _normalise(md), extensions=_EXTENSIONS, output_format="html"
@@ -158,6 +209,7 @@ def render_markdown(md: str, ctx: LinkContext | None = None) -> Rendered:
         "</table>", "</table></div>"
     )
     if ctx is not None:
+        body = _rewrite_relative_hrefs(body, ctx)
         body = _link_code_paths(body, ctx)
     title = "Lab notes"
     h1 = _H1.search(body)

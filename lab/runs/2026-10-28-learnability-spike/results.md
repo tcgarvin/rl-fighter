@@ -4,19 +4,45 @@ Date 2026-10-28 · run dir `2026-10-28-learnability-spike` · branch `spike/lear
 
 Training: `ppo_bc` 1200/1200, `ppo_scratch` 1200/1200. Evals present: 24 of 23 matrix pairings.
 
+(That line is written by the report tool: the run holds 24 test results for the 23 test pairings in the eval matrix below, the extra one being a separate test of update 500.)
+
+<!-- summary: The project's first training run asked whether a small neural network can learn to fly a fighter by driving its thrusters and trigger directly, with no autopilot, in one night on a laptop. It can. Copying our hand-written pilot gave a network that lost almost every duel, a correction step helped a little, and trial-and-error training from that start then beat the hand-written pilot in all 512 test duels. Trial and error from nothing, on the same budget, never learned to shoot. -->
+
 ## What we asked
 
-<!-- hand:asked -->Can a small neural network learn to fly a fighter by driving its thrusters and trigger directly, with no autopilot, in one night on a laptop CPU? We tested three routes: copy a hand-written pilot, copy it and then train by trial and error, or train by trial and error from nothing.<!-- /hand:asked -->
+<!-- hand:asked -->Can a small neural network learn to fly a fighter by driving its thrusters and trigger directly, with no autopilot, in one night on a laptop CPU? We tested three routes: copy a hand-written pilot, copy it and then train by trial and error, or train by trial and error from nothing.
+
+"No autopilot" means the network sets each thruster, the trigger and the ship's power split itself, many times a second. Nothing steers for it, so chasing, aiming and dodging all have to be learned. The hand-written pilot is the script: a pilot written as rules, which is also the opponent every learned pilot is measured against.
+
+The answer is yes, by the second route. The copy alone won 0.6 % of its duels against the script, and 15 % after a correction step. Trial-and-error training from that copy won 0.994 of its duels against the script after about 400 updates (roughly 35 minutes), and all 512 duels of the final test at the end. Trial and error from nothing, on the same budget, never learned to shoot.<!-- /hand:asked -->
+
+## Where this fits
+
+RL Fighter is a space-combat game in which every ship is flown by a small neural network. The game runs in a simulation, a program that plays thousands of matches at once, far faster than real time, so a network can practise. This was the project's first training run, and it tested what the design called the project's biggest risk: whether a network can learn to fly at this low level at all, on a laptop's processor, in a night.
+
+The run had been waiting on [the version 2 rules](../2026-10-28-sim-v2/results.md), finished the same day. They made duels last about 43 seconds, with three or four attacking runs (passes) each, instead of ending on the first head-on meeting. Those rules also changed the script so that after each pass it extends, flying straight out of gun range before it turns back, instead of staying in a brawl after the merge (the moment the two ships meet and cross). That made it a better pilot to copy.
 
 ## What we did
 
-- **Balance (pre-gate, plan §2):** gauss 5 dmg / 0.20 s / 220 m / 200 m/s / 1.0°, fighter 80 hp, plus the scripted pilot extending after a merge; every tried tuple and the before/after sweep is in `lab/runs/2026-10-28-sim-v2/results.md`.
+The run had three stages, and the rest of the entry uses their short names.
+
+- **Behaviour cloning (BC).** The network is trained to copy the script. We recorded 2 million moments of script-against-script duels and trained the network to pick the script's action in each. A little random noise was added to the script's actions while recording (the DART method), so the recording also shows the script recovering from small mistakes.
+- **DAgger.** A correction step. The copy flies, the script says what it would have done in the situations the copy actually gets into, and the copy is trained on those answers too. We ran three rounds.
+- **PPO, trial-and-error training.** The pilot plays many duels, earns points (reward) for damage dealt and for a win, loses points for damage taken and a little for each shot fired (holding the trigger while the gun recharges between shots costs nothing), and is adjusted to do more of what earned points. One round of play and adjustment is an update. Two PPO runs went side by side: `ppo_bc` started from the corrected copy, `ppo_scratch` from random weights. `ppo_bc` also had a script pull, an extra training term that pulls the pilot's choices toward the script's, faded from full strength at update 30 to nothing at update 420.
+
+<!-- figure-idea: shared: the three ways to train a pilot, as a strip of three panels: copy the script (BC), let the copy fly and have the script correct it (DAgger), then trial and error with reward (PPO). Most early entries use this recipe, and its names are opaque. -->
+
+The list below is the run's exact settings, written out from its configuration, followed by the ways the run departed from its plan. It is the record, and a reader can skip to Results. Terms that matter later: "held-out agreement" is how often the copy chose what the script chose, on recorded moments it had not trained on; "256 × 128" is 256 duels played at once for 128 ticks (a tick is 1/30 of a second) per update; β is the strength of the script pull; the critic is a second network, used only in training, that predicts how well things will go, and "warm-up" means it trained alone first; opponent bands give, from a starting update, the shares of duels against the script, against a copy of the pilot itself, and against frozen earlier versions of it.
+
+- **Balance (pre-gate, plan §2):** gauss (the fighter's gun) 5 dmg / 0.20 s / 220 m / 200 m/s / 1.0°, fighter 80 hp, plus the scripted pilot extending after a merge; every tried tuple and the before/after sweep is in `lab/runs/2026-10-28-sim-v2/results.md`.
 - **BC:** 2,000,000 DART rows (p = 0.15); held-out agreement throttle 0.958, fire 0.968, power 0.722; fire precision 0.853 / recall 0.682.
 - **DAgger:** 3 rounds × 2,000,000 on-policy rows labelled by the script; sampled win rate vs the script per round: r0 0.006; r1 0.029; r2 0.080; r3 0.154; best round 3 → `bc_dagger/best.pt` (PPO-BC's init).
 - **ppo_bc:** init `lab/runs/2026-10-28-learnability-spike/bc_dagger/best.pt`, 1200 updates of 256 × 128, actor LR 0.0001, β 0.1 → 0.0 over 30–420, critic warm-up 30, opponent bands `[[0, 1, 0, 0], [360, 0.5, 0.3, 0.2], [720, 0.3, 0.4, 0.3]]`.
 - **ppo_scratch:** init `scratch`, 1200 updates of 256 × 128, actor LR 0.0003, β 0.0 → 0.0 over 30–700, critic warm-up 0, opponent bands `[[0, 1, 0, 0], [360, 0.5, 0.3, 0.2], [720, 0.3, 0.4, 0.3]]`.
 
 ### Deviations from plan
+
+Where the run differed from [the plan](plan.md), and why.
 
 - **Ran interactively in the evening**, not on the 03:00 night schedule of §5.
 - **DAgger added** between BC and PPO (not in the plan): BC alone won 0.6 % vs the
@@ -42,15 +68,19 @@ Training: `ppo_bc` 1200/1200, `ppo_scratch` 1200/1200. Evals present: 24 of 23 m
 
 ### Verdict
 
+Before the run, [the plan](plan.md) (§1) set pass marks for each stage (the table at the end of the next section: the "BC" column holds the marks for the copy, "pass" and "strong" those for the trained pilot) and three hypotheses. **H1**: copying alone already gives a pilot that flies and fights, and PPO from that start beats the script. **H2**: PPO from scratch, on the same budget, does not get as strong. **H0**, the null: nothing beats the script, because driving the thrusters directly is too hard for a small network on this budget. Below, "PPO-BC" is the `ppo_bc` run and "PPO-scratch" the `ppo_scratch` run; "final" is the network after update 1200, "400" and "800" are checkpoints (saved copies) from those updates, and "best" is the checkpoint with the highest win rate in its own training matches.
+
 **PASS**. BC + DAgger misses the BC column on win; PPO-BC final reaches every pass cell.
 
-- **H1** does not hold: BC + DAgger misses the BC column (win 0.154); PPO-BC final beats the script (win 1.000).
+- **H1** does not hold as stated, because only its second half came true: BC + DAgger misses the BC column (win 0.154), so copying alone did not give a pilot that fights; PPO-BC final beats the script (win 1.000).
 - **H2** holds: BC + PPO leads scratch by +0.976 win rate vs the script at equal updates (rule: ≥ 0.15).
-- **H0** is rejected: best learned policy vs the script is PPO-BC final at 1.000 (sampled).
+- **H0** is rejected (the null hypothesis, that nothing beats the script, turned out false): best learned policy vs the script is PPO-BC final at 1.000 (sampled).
 
-PPO-BC best checkpoint so far: update 500 (rollout win vs the script 1.000, 50-update smoothed).
+PPO-BC best checkpoint: update 500 (rollout win vs the script 1.000, 50-update smoothed).
 
 ### §1 criteria (sampled actions, n = 512 vs the script, sides swapped)
+
+Each row is one pilot playing 512 duels against the script, on each side half the time. The columns are the plan's measures. Win rate counts a draw as half, and 0.5 is an even fight. Engagement is the share of time the enemy is within 1.2 times gun range. Hit rate is hits per shot. Outside arena is the share of time spent outside the arena. Kill endings is the share of duels that end in a kill rather than at the time limit. Engine duty is the main engine's average thrust level, from 0 (off) to 1 (full); its marks (0.2–0.95) rule out a pilot that idles or one that holds the throttle flat out all the time. "Sampled" means the pilot picks each action at random, in proportion to how much it favours it, as it does in training. The marks each column is checked against are in the third table, where "0.5 × script" means at least half the script's own value. Together the engagement, hit rate, outside-arena and kill rows check that a pilot flies on purpose, rather than winning by sitting still or circling the edge.
 
 ✓/✗ against the policy's column (BC for BC and BC + DAgger, pass for the PPO policies); 'strong' = every strong cell met; '—' = not evaluated yet.
 
@@ -65,7 +95,7 @@ PPO-BC best checkpoint so far: update 500 (rollout win vs the script 1.000, 50-u
 | PPO-BC 800 | pass | 1.000 ✓ | 0.000 ✓ | 0.848 ✓ | 0.668 ✓ | 0.0000 ✓ | 1.000 ✓ | 0.898 ✓ | yes |
 | PPO-scratch final | pass | 0.024 ✗ | 0.049 ✓ | 0.980 ✓ | 0.000 ✗ | 0.0000 ✓ | 0.000 ✗ | 0.984 ✗ | no |
 
-Argmax rows (second row per §6.1, not used for the verdict):
+Argmax rows (second row per §6.1, not used for the verdict). Here the pilot always takes its single favourite action instead of sampling:
 
 | policy | column | win rate | draw rate | engagement | hit rate | outside arena | kill endings | engine duty | strong |
 |---|---|---|---|---|---|---|---|---|---|
@@ -84,6 +114,8 @@ Argmax rows (second row per §6.1, not used for the verdict):
 | strong | ≥ 0.75 | ≤ 0.1 | ≥ 0.5 | ≥ 1 × script | ≤ 0.01 | ≥ 0.95 | 0.2–0.95 |
 
 ### Eval matrix
+
+Every test pairing. Each row is 512 duels of pilot a against pilot b, with a's numbers: win, draw and loss shares; duel length in ticks (30 a second), the median with the 10th to 90th percentile range; the share ending in a kill; passes, shots, hits and damage dealt per duel; and, as above, hit rate, engagement, outside arena and engine duty. Fire is the share of decisions with the trigger held, speed is in m/s, and nan/stuck counts broken or stuck ships (a health check).
 
 Side a's numbers; '(argmax)' rows have both sides take the argmax.
 
@@ -117,6 +149,8 @@ No NaNs or stuck ships in any eval.
 
 ### Learning curves
 
+How the two PPO runs progressed. "Samples" is the number of pilot decisions trained on so far, and "win vs script (50-upd)" the win rate in the training duels against the script, averaged over the last 50 updates. The H columns are entropy: how much randomness the pilot keeps in a choice, where 0 means it always makes the same one. They are given for the throttle outputs, the fire output, the power output (how the ship splits its power between shields, engines and weapons) and the mean over all outputs.
+
 matplotlib is not installed in the venv, so no PNGs: the per-update curves (rollout win vs the script, raw and 50-update smoothed, and entropy per head group, both runs) are in `learning_curves.csv`. Every 100 updates:
 
 | update | run | samples | win vs script (50-upd) | H throttle | H fire | H power | H mean |
@@ -148,33 +182,37 @@ matplotlib is not installed in the venv, so no PNGs: the per-update curves (roll
 
 ## What it looked like
 
-<!-- hand:looked-like -->Read from a trajectory trace of six champion-vs-script matches (seed 777; distance, nose angle to the enemy, HP and speed every second), not from the summary metrics:
+<!-- hand:looked-like -->Read from a trajectory trace of six champion-vs-script matches (the champion is the final PPO-BC pilot) (seed 777; distance, nose angle to the enemy, HP and speed every second), not from the summary metrics:
 
 - **It aims on the way in.** From 450 m down to about 100 m the learned pilot keeps its nose within 1–2° of the enemy, while the script's nose swings 10–27° off as it closes. The learned pilot is already 10–20 hp up before the ships meet.
 - **It approaches slower.** It holds about 50 m/s on the approach, where the script runs up to 60–70, so it arrives in a steady firing position.
 - **There is no second pass, but a brawl.** After the merge both ships slow to 15–30 m/s and fight a close turning fight at 10–70 m. The script keeps trying to extend (short bursts to 60–70 m/s). The learned pilot stays on it at low speed with its nose usually 5–15° off, while the script's is often 20–90° off. That is why the eval counts one "pass" per match: the ships never leave gun range again.
 - **No edge behaviour seen.** Every traced fight stayed near the centre; outside-arena share is 0 in the eval too.<!-- /hand:looked-like -->
 
+<!-- figure-idea: overhead tracks of one champion-vs-script duel: the learned pilot's steady approach with its nose on the enemy against the script's swinging nose, then the close turning brawl after the merge. It would show why the eval counts one pass per duel. -->
+
 ## What we learned
 
 <!-- hand:learned -->- **H0 rejected, H2 holds by a mile.** BC + DAgger + PPO beat the script in 512 of 512 duels (sampled and argmax), with a hit rate of 0.67 against the script's 0.60. PPO from scratch on the same budget never learned to shoot (win 0.02, 0 hits).
-- **H1 only half held.** Cloning alone did not give a fighter. It matched the script's choices 96 % of the time on the script's own states, yet won 0.6 % of duels. Compounding error was the cause: on its own states it agreed only 78 % of the time, and its argmax play left the arena 28 % of the time. Three DAgger rounds (label the clone's own states with the script) fixed the drift and raised the win rate to 15 %. PPO did the rest in about 400 updates (13 M samples, roughly 35 minutes).
-- **Scratch PPO found "never fire".** Each trigger pull costs a little and random aim never hits, so the fire head collapsed to 0 (entropy 0.66 → 0.00 by update 1000). As planned, we report this rather than rescue it. It is a reward-design finding as much as a learnability one.
-- **Strong, but short.** The champion kills in a median 12 s (the script mirror takes 44 s), in one approach and one brawl. It holds the trigger on 76 % of decisions, which costs nothing while the gun is cycling. Every watchability cell passes, but the duel no longer has the multi-pass rhythm the balance sweep tuned for. Watch this as opponents get stronger.
+- **H1 only half held** (so, as stated, it does not hold). Cloning alone did not give a fighter. It matched the script's choices 96 % of the time on the script's own states, yet won 0.6 % of duels. Compounding error was the cause (small mistakes take the copy into situations the script never flew into, where it has nothing to copy, so the mistakes pile up): on its own states it agreed only 78 % of the time, and its argmax play (always its favourite action) left the arena 28 % of the time. Three DAgger rounds (label the clone's own states with the script) fixed the drift and raised the win rate to 15 %. PPO did the rest in about 400 updates (13 M samples, roughly 35 minutes).
+- **Scratch PPO found "never fire".** Each shot fired costs a little and random aim never hits, so the fire head (the network's trigger output) collapsed to 0 (entropy 0.66 → 0.00 by update 1000). As planned, we report this rather than rescue it. It is a reward-design finding as much as a learnability one.
+- **Strong, but short.** The champion kills in a median 12 s (the script mirror takes 44 s), in one approach and one brawl. It holds the trigger on 76 % of decisions, which costs nothing while the gun is cycling (recharging between shots). Every watchability cell (the checks that it flies on purpose) passes, but the duel no longer has the multi-pass rhythm [the balance sweep](../2026-10-28-sim-v2/results.md) tuned for. Watch this as opponents get stronger.
 - **Throughput ran at a quarter of the plan.** The CPU throttles under sustained load (about 2 GHz), and two concurrent runs got about 6.7 k samples/s each, not 30 k. The night budget should assume this.<!-- /hand:learned -->
 
 ## Next
 
-<!-- hand:next -->**Next experiment:** run the same recipe (BC → DAgger → PPO with a decaying script pull) on the strafer and the gunship, whose turret slew heads this spike never exercised. Then move it onto the M3 attention policy, so that one network flies all three hulls. The question is whether the recipe transfers to other hulls, or whether the fighter's result depended on its simple controls.
+<!-- hand:next -->**Next experiment:** run the same recipe (BC → DAgger → PPO with a decaying script pull) on the strafer and the gunship, the other two ship types (hulls), whose turret slew heads (the outputs that turn a turret) this spike never exercised. Then move it onto the M3 attention policy (a different network design, planned at the time for the third milestone), so that one network flies all three hulls. The question is whether the recipe transfers to other hulls, or whether the fighter's result depended on its simple controls.
 
 Backlog added:
 - Make DAgger a standard step of the BC pipeline (it is cheap: about 5 minutes a round).
-- Add a duel-length / passes watchability signal to the eval gates, so one-pass brawls are visible at promotion time.
+- Add a duel-length / passes watchability signal to the eval gates, so one-pass brawls are visible at promotion time (when a pilot is chosen to fly on the site).
 - Revisit the fire cost for from-scratch learning (for example no cost while the gun is cycling, or a short warm-up without it).
 - Budget nightly runs at the measured throttled throughput.
 - The live page now shows this champion (update 1200) at `/duel/`.<!-- /hand:next -->
 
 ## Numbers
+
+Computing used, for the record.
 
 - `ppo_bc`: 1200 / 1200 updates, 43,201,008 learner samples, 1.78 h of update time (5.34 s/update, 6,738 samples/s), threads 6 sim + 6 torch.
 - `ppo_scratch`: 1200 / 1200 updates, 47,962,307 learner samples, 1.97 h of update time (5.90 s/update, 6,778 samples/s), threads 6 sim + 6 torch.

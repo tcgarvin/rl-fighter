@@ -1,8 +1,118 @@
-# First pilot families
+# First pilot families: the training plan, night by night
 
-Planned 2026-11-01, before any of this was trained. The full plan is
-`docs/PILOT_TRAINING.md`. This file is the exact run. **Nothing starts until the owner says
-the machine is free.**
+<!-- summary: The working plan for the first pilot families: three lines of pilots trained night after night from different starting pilots, to grow a field of about ten for the live page. It asked whether a strong fighter that ignores orders could learn to follow them from a small share of practice drills while keeping its fighting. Over four nights the answer was only partly: following rose a little and never well, and paying more for following cost some fighting. The plan grew a section each night, so it is also the log of those nights. -->
+
+This is a plan, written on 2026-11-01 before any training, for the first **pilot families**.
+A pilot is the small neural network that flies one ship ([how a pilot works](/pilot/)). A
+family, or line, is a pilot and the pilots trained on from it. The plan was to train three
+lines side by side, night after night, so that a field of about ten pilots would grow for
+the [live page](/) (the project's website, which plays matches forever) to choose from. Its
+first question: can a strong fighter that ignores its commander's orders (a commander is
+the part of a side that tells its ships what to do) learn to follow them, if a small share
+of its training is spent on
+**order drills** (short practice scenarios for one order), and keep its fighting? It was
+written under `SIM_VERSION` 6, the sixth version of the game's rules. The fourth night
+moved to version 7.
+
+The plan then served as the lab's log for four nights. Each night got a section written
+before it (what would run) and one written the morning after (what it found), and a later
+section overrules an earlier one where they differ. The biggest such change: from the third
+night pilots were judged by wins above replacement (WAR, explained below), not by pass
+marks on the order drills. The short answer to the first question is partly. By the second
+night the `fighters` line switched target when an attack or defend order named the other
+side about half the time (0.50 and 0.56, from 0.14 and 0.11 for its founder, the pilot it
+started from). It barely improved at reaching a point it was sent to (its
+founder 0.22, then 0.21, 0.30 and 0.24 after nights 1 to 3), and paying more for following
+cost it some fighting. Each night's new pilots also have an entry of their own:
+[the first ten](../2026-11-02-ten-pilots/results.md),
+[the second night](../2026-11-07-second-night/results.md),
+[the third night](../2026-11-09-third-night/results.md) and
+[the fourth night](../2026-11-10-fourth-night/results.md).
+
+The full plan is `docs/PILOT_TRAINING.md`. This file is the exact run. **Nothing starts until
+the owner says the machine is free.**
+
+## Where this fits
+
+RL Fighter is a space-combat game in which every ship is flown by a small neural network
+that learned to fly by trial and error. Each side can also have a **commander** that gives
+its ships orders: attack a named enemy, defend a friendly ship, or go to a point.
+
+By 2026-11-01 we had strong fighters and good followers, but never both in one pilot.
+Pulling pilots toward the hand-written script's choices taught them to follow orders but
+wrecked their fighting ([order pilot B2b](../2026-10-31-order-pilot-b2b/results.md),
+[B3](../2026-11-01-order-pilot-b3/results.md)). The night before this plan,
+[fighters v2](../2026-11-01-fighters-v2/results.md) made `f995_701`, the strongest fighter
+yet, which ignores orders. A commander is worth little if its pilots don't follow, and the
+owner also wanted several different pilots on the live page rather than one. So this plan
+starts three families from three places:
+
+- **`fighters`** from `f995_701`, the best fighter, which follows nothing. Night 1: a tenth
+  of its training matches are order drills, and order pay 3 (following an order earns
+  three times the usual extra reward).
+- **`followers`** from `transit_300`, the best trained follower and a weak fighter, from
+  [B3](../2026-11-01-order-pilot-b3/results.md). Night 1: a quarter drills, order pay 1.
+- **`scratch`** from random weights, the only line not descended from the script, kept as
+  a long shot for variety. Night 1: a tenth drills, order pay 1.
+
+The full night-1 settings are in "Arms (night 1)", after the steps.
+
+A pilot's name is its line followed by the training update it was saved at: `fighters_506`
+is the `fighters` line after 506 updates.
+
+<!-- figure-idea: shared: a family tree of pilots, founders at the top (the script, f995_701, transit_300, random weights) and each night's children below, with archived members greyed out; it would let a reader follow which pilot descends from which across these nights -->
+
+## Terms used below
+
+The rest of this file is the working record and uses these terms throughout:
+
+- **The script**: our hand-written, rule-based pilot. It is the yardstick, and it follows
+  orders well.
+- **Update**: one round of training: play a batch of matches, then adjust the network once.
+  A night is a few hundred updates. **Arm**: one line's training run on a given night.
+  A **checkpoint** is a saved copy of the network; a **resume** continues from one.
+- **Drills and the gate**: drills are short scenarios that test one order. **Go-to
+  arrival** is the share of go-to drills in which the pilot reaches the point in time.
+  **Lift** is that share with the order shown minus with the order hidden, so it counts
+  only arrivals the order caused. **Flip** (attack or defend): the same start is played
+  twice with the other side's enemy or friend named, and a flip is the pilot switching
+  sides with the order, which shows it read the order rather than doing what it would
+  have done anyway. The **gate** is a set of pass marks (**bars**) on these. The two
+  founders, `f995_701` and `transit_300`, are **exempt** from it.
+- **Order pay**: the extra reward for following an order. "Order pay 3" counts it three
+  times over, "order pay 1" once.
+- **Commander / no commander** shares: the fraction of training matches in which both sides
+  get orders from a commander (the scripted one until night 3), or neither side gets any.
+  The rest are drills.
+- **Enemy pool**: frozen copies of earlier pilots the learner trains against, drawn more
+  often when they beat it. **Pool seeds** are the pilots put in the pool by hand.
+- **Rows**: one ship's one decision, the unit training learns from.
+- **Population, members, round robin**: every pilot of this rules version is kept on record
+  as a member. In a round robin every member plays every other, one pilot flying a whole
+  side with no commander, and gets a **combat rating** like a chess rating (a gap of 100
+  points means roughly 64 wins to 36).
+- **Archived** is a status in those records, and it changed meaning during these nights.
+  On nights 1 and 2 a pilot that failed the order gate was marked archived, but it stayed
+  in the round robin, its line could still train on from it, and the live page, which
+  picked by rating, could still fly it. On 2026-11-07 the owner dropped the gate as a
+  reason to archive, and those pilots were restored to active. From night 3 archiving went
+  by WAR (the "WAR culls"), and an archived pilot left the running for the live page.
+- **Missions** (also "modes"): deathmatch (small ships only, 1 to 4 a side; a side wins by
+  destroying every enemy), carrier battle (each side has a carrier that launches its small
+  ships; destroying the enemy carrier wins) and convoy escort (one side's escorts guard
+  cargo ships flying to a jump point to escape; the other side wins by destroying at least
+  half of them).
+- **Shadow culls**: a report of who the culling rules would have archived, which archives
+  nobody. The **founder cap** allows at most four active members descended from one
+  founder.
+- **WAR** (wins above replacement, from night 3): how many more matches out of 100 a side
+  wins with that pilot flying its ships instead of the script, in matches like the live
+  page's. 0 is script level. **±** is the margin of error: the true value is very likely
+  within that range.
+- **Threads, `SMOKE=1`**: threads are how many processor cores a job uses. `SMOKE=1` runs
+  a script at tiny sizes as a rehearsal.
+
+<!-- figure-idea: shared: the swap test in an order drill, two panels from the same start with the named enemy (or friend) on opposite sides, and a pilot that turns toward the named side in both (a flip) beside one that goes the same way both times; "flip" is the measure most of these tables report -->
 
 ## Steps
 
@@ -12,19 +122,68 @@ the machine is free.**
    then the round robin across 9 existing pilots. Set the bars in
    `spacefight/eval/drill_bars.yaml` from the drill results.
 3. **Speed and memory check:** `run.sh` for about 10 minutes, all arms. Read update time
-   and memory. Each learner's rollout obs buffer is about 2 GB at 256 envs and 20 slots,
-   and the machine has 29 GB. If memory is tight, set `N_ENVS` lower for all arms.
+   and memory. Each learner's rollout obs buffer (what its ships saw during one update's
+   matches) is about 2 GB at 256 envs (matches played at once) and 20 slots (ships a
+   match), and the machine has 29 GB. If memory is tight, set `N_ENVS` lower for all arms.
 4. **First night (`run.sh`):** resumes from step 3.
 5. **Morning:** drill evals on each arm's latest checkpoint, add those that train usefully
    to the population, round robin into a new results directory, report with shadow culls.
 
+## Arms (night 1)
+
+The first night's settings, as planned. The settings list is the record and can be skipped.
+"Discount 0.995" is how far ahead the pilot weighs future reward (higher looks further
+ahead), "script pull" and "KL anchor" are terms that hold a pilot near another pilot's
+choices (none here), and LR is the learning rate, the size of each adjustment.
+
+All arms: preset `pilots_v1`, discount 0.995 with order pay following it, no script pull,
+no KL anchor, constant LR, 4 sim + 4 torch threads, checkpoints every 50 updates.
+
+| Arm | Starts from | Drills | Commander | No commander | Order pay | Enemies |
+|---|---|---|---|---|---|---|
+| `fighters` | `f995_701` | 0.10 | 0.30 | 0.60 | 3 | 0.2 script, 0.4 self, 0.4 pool (weighted) |
+| `followers` | `transit_300` | 0.25 | 0.50 | 0.25 | 1 | same |
+| `scratch` | Random weights | 0.10 | 0.30 | 0.60 | 1 | 0.5 script, 0.5 self |
+
+Pool: `f995_701`, `transit_300`, `reward_300`, `w1_400`, v1 for half of draws, this run's
+checkpoints for the rest.
+
+**Why these settings:**
+
+- **`fighters` at order pay 3:** this is the plan's first question. Can a small share of
+  drills give a strong fighter some following while it keeps its combat? Pay of 3 gives
+  the question a real chance. If combat falls badly, the next try is 1.
+- **`followers` at order pay 1:** it already follows and needs combat, so team reward
+  should dominate. Its script pull ends here.
+- **`scratch`:** actor LR 3e-4 rather than 1e-4, since it starts from nothing, and no
+  frozen pool at first, since strong enemies would give it nothing to learn from.
+
+## What each morning reads
+
+| Question | Measure |
+|---|---|
+| Does `fighters` learn orders? | Drill flip rates and go-to lift against `f995_701` |
+| Does `fighters` keep combat? | No-commander matches against `f995_701` |
+| Does `followers` gain combat? | No-commander matches against `transit_300` |
+| Does `followers` keep following? | Its drill results against `transit_300`'s |
+| Is `scratch` alive? | Deathmatch against the script. If it can't beat the script by morning, its slot goes to another family |
+
+**Fighters' fallback:** if following does not improve, raise the drill share. If that fails,
+move to separate skill networks (`docs/PILOT_TRAINING.md` section 4).
+
+`f995_701` stays live throughout. Nothing here deploys.
+
 ## What the measuring found (2026-11-01 evening)
+
+Before any training, the existing pilots were measured, both to set the gate's bars and to
+rank the field. Drill numbers are shares of drills, from 0 to 1.
 
 - **Checks:** `scripts/check.sh` and the full pytest suite pass (690 passed, 1 skipped).
 - **Drills:** the script and `transit_300` flip with the order at 0.87 to 1.00; `f995_701`,
   `reward_300` and `hide_644` at 0.10 to 0.18. Bars are set between them, and `transit_300`
   passes (`docs/PILOT_TRAINING.md` section 2, `eval/`).
-- **Round robin:** a straight ladder with no cycles: `f995_701` +270, `f995_400` +260,
+- **Round robin:** a straight ladder with no cycles (no rock-paper-scissors trio where A
+  beats B, B beats C and C beats A). Combat ratings: `f995_701` +270, `f995_400` +260,
   `f99_696` +232, `hide_644` +1, `reward_300` -42, `transit_300` -74, `w1_400` -94, v1 -159,
   script -394.
 - **Speed:** 36 s an update for `fighters` and `followers`, 42 s for `scratch`, all three
@@ -37,6 +196,10 @@ the machine is free.**
 
 Trained 18:51 to 21:34 and 01:40 to 06:00, about 7 hours after the owner needed the machine
 for 4: `fighters` 506 updates, `followers` 513, `scratch` 417.
+
+Each row is a pilot: a new one, or the parent it started from. Combat is its round-robin
+rating. The next three columns are drill results (shares from 0 to 1), and Gate is whether
+it met every bar.
 
 | Pilot | Combat | Go-to arrival | Attack flip | Defend flip | Gate |
 |---|---|---|---|---|---|
@@ -54,12 +217,15 @@ for 4: `fighters` 506 updates, `followers` 513, `scratch` 417.
 - **Does `followers` gain combat?** Yes, +215 points. It beats `transit_300` 0.82, 0.70, 0.86.
 - **Does `followers` keep following?** Mostly. Go-to fell from 0.70 to 0.62, 0.02 above its
   bar, and defend flip from 1.00 to 0.86. Attack flip held.
-- **Is `scratch` alive?** Barely. 0.00 in deathmatch against the script. Under this plan's
-  rule its slot goes to another family.
-- **Variety:** still no cycles in any mode. Sibling lines are not yet rock-paper-scissors.
+- **Is `scratch` alive?** Barely. Its win rate in deathmatch against the script is 0.00: it
+  won none. Under this plan's rule (beat the script by morning) its slot goes to another
+  family.
+- **Variety:** still no cycles in any mode (mission). Sibling lines are not yet
+  rock-paper-scissors.
 
-`f995_701` stays live: `fighters_506` beats it but fails the gate, and `followers_513` passes
-the gate but loses to it. The gate archived `fighters_506` and `scratch_417`, and the
+`f995_701` stays live (it was the live page's champion pilot): `fighters_506` beats it but fails the gate, and `followers_513` passes
+the gate but loses to it. The gate archived `fighters_506` and `scratch_417` (in the early
+sense, see "Archived" above: `fighters_506` was restored on 2026-11-07), and the
 `fighters` line continues from `fighters_506`'s checkpoint regardless.
 
 **Next night, unless the owner says otherwise:** `fighters` from update 506 with
@@ -76,26 +242,34 @@ from `fighters_506`, with night 1's drills (0.10) and pool. Its only difference 
 answers whether pay 3 moved following. It is also a new branch under `f995_701`, rather
 than another child of the top pilot.
 
+In the table, Drills, Commander and No commander are the shares of training matches of each
+kind, and bold marks what changed from night 1.
+
 | Arm | Starts from | Drills | Commander | No commander | Order pay | Pool seeds |
 |---|---|---|---|---|---|---|
 | `fighters` | its update 506 (resume) | **0.25** | 0.25 | 0.50 | 3 | night 1's + `fighters_506`, `followers_513` |
 | `followers` | its update 513 (resume) | 0.25 | 0.50 | 0.25 | 1 | night 1's + `fighters_506`, `followers_513` |
 | `fighters_pay1` | `f995_701` | 0.10 | 0.30 | 0.60 | **1** | night 1's |
 
-**A resume bug, fixed first.** Before this fix, a resume rebuilt the enemy pool from the
+**A resume bug, fixed first.** (A detail of how a resumed run picks its enemies; a reader
+can skip it.) Before this fix, a resume rebuilt the enemy pool from the
 checkpoint and ignored a changed `pool_seed`, but took the count of seeds from the config. So the
 two new seeds would never have been drawn, and the run's own update-50 and update-100
 snapshots would have been sampled as seeds. `reseed_pool` (`spacefight/rl/spike_ppo.py`)
-now puts the config's seeds first and moves the weighted-sampling results with their
-entries. On the real checkpoints all 14 and 15 results carry over and the new seeds
+now puts the config's seeds first and moves the weighted-sampling results (each entry's
+record against the learner, which sets how often it is drawn) with their entries. On the real checkpoints all 14 and 15 results carry over and the new seeds
 start even.
+
+<!-- figure-idea: shared: a training night as a timeline, parents resumed into arms in the evening, checkpoints through the night, then the unattended morning (drills, new members, round robin or WAR, report) and the live list; every night section below follows this shape -->
 
 **Morning, unattended:** `morning.sh` runs drills on each arm's latest checkpoint, adds
 the three as members with their drill records, plays the round robin seeded with
 `first-night`'s 66 pairs (39 new pairs), and writes the report with shadow culls. It
 archives nothing; gate archiving is decided when reading the report. Expect about 1.5 hours
-at 12 threads (night 1's pairs took about 2 minutes each), so the PPO deadline sits that
-far before the results are wanted.
+at 12 threads (night 1's pairs took about 2 minutes each), so the PPO (training) deadline
+sits that far before the results are wanted.
+
+The launch command, kept for the record:
 
 ```bash
 cd ~/code/rl-fighter && DEADLINE="07:30" PHASE=second-night nohup setsid bash -c \
@@ -112,7 +286,8 @@ to end on the smoke checkpoints against a copy of the season.
 
 Trained 01:17 to 07:30: `fighters` to update 959, `followers` to 955, `fighters_pay1` to 462.
 Morning evals ran unattended, 07:30 to 08:51. Ratings are in the second-night field
-(15 members, 105 pairs), so they are not comparable with the first night's.
+(15 members, 105 pairs), so they are not comparable with the first night's. The columns
+are as in the first night's table.
 
 | Pilot | Combat | Go-to arrival | Attack flip | Defend flip | Gate |
 |---|---|---|---|---|---|
@@ -133,23 +308,34 @@ Morning evals ran unattended, 07:30 to 08:51. Ratings are in the second-night fi
   `fighters_959` wins 0.46, 0.47 and 0.54 against `fighters_506`. It still fails every bar.
 - **Does `followers` keep following?** No. Go-to fell again, 0.62 to 0.50, under its 0.60
   bar. Combat rose: it beats `followers_513` 0.69, 0.61, 0.55.
-- **Variety:** one cycle, in convoy escort only, on an edge at z 1.9.
+- **Variety:** one cycle (three pilots that beat each other in a ring), in convoy escort
+  only, on an edge at z 1.9: the weakest of the ring's three head-to-head results is 1.9
+  standard errors from an even split, at the edge of what chance alone would give.
 
-All three failed the gate and are archived. Would-be culls are `transit_300` and
-`followers_513`, at the bottom of their families. The live page took the ten highest rated
-(logbook `lab/runs/2026-11-07-second-night`), dropping `transit_300`, `w1_400` and `v1`.
+All three failed the gate and are archived. (Later that day the owner dropped the gate as
+a reason to archive, and all three were restored to active; see "Archived" above.)
+Would-be culls (the shadow report) are
+`transit_300` and `followers_513`, at the bottom of their families. The live page took the
+ten highest rated
+([the second night's logbook entry](../2026-11-07-second-night/results.md)),
+dropping `transit_300`, `w1_400` and `v1`.
 
 **Next, for the owner to choose:** the drill share has now been raised and following
-improved only slowly, so the plan's fallback is separate skill networks
-(`docs/PILOT_TRAINING.md` section 4). For `followers`, go-to falls each night that combat
+improved only slowly, so the plan's fallback is separate skill networks, one for fighting
+and one for following (`docs/PILOT_TRAINING.md` section 4). For `followers`, go-to falls each night that combat
 rises, so it may need go-to drills weighted up, or a go-to bar it trains against.
 
 ## Night 3 (prepared 2026-11-08)
 
 The owner's plan: pilots train under the learned commanders that went live this morning
-(`lab/runs/2026-11-08-commander-1`), with more drills weighted to go-to, and the morning
-judges them by wins above replacement (WAR) in live-like matches instead of the drill
-gate and round robin. All three lines resume.
+([the first learned commanders](../2026-11-08-commander-1/results.md), about level with the
+scripted one), with more drills weighted to go-to, and the morning judges them by wins
+above replacement (WAR) in live-like matches instead of the drill gate and round robin.
+All three lines resume.
+
+In the table, Drills is the share of training matches that are drills, with night 2's value in
+brackets. Go-to : attack : defend is how the drills are split among the three orders.
+Commander is the share of training matches that have a commander.
 
 | Arm | Starts from | Drills | Go-to : attack : defend | Commander | Order pay |
 |---|---|---|---|---|---|
@@ -158,8 +344,9 @@ gate and round robin. All three lines resume.
 | `fighters_pay1` | its update 462 | **0.25** (0.10) | **2 : 1 : 1** | 0.25 | 1 |
 
 - **Commanders:** every non-drill match that shows orders draws each side's commander from
-  the live stable (the script, `c1_shaped`, `c1_outcome`, `c1_shaped_s1`), as the live page
-  does (`commander_stable=[live]`). Hidden-orders matches and drills are unchanged.
+  the live stable, the commanders the live page draws from (the script, `c1_shaped`,
+  `c1_outcome`, `c1_shaped_s1`), as the live page does (`commander_stable=[live]`).
+  Hidden-orders (no commander) matches and drills are unchanged.
 - **Pool seeds:** night 2's plus `fighters_959`, `followers_955`, `fighters_pay1_462` and
   `f99_696`, the top pilot by WAR.
 - **Why go-to:** it is every line's weakest order. `followers` lost go-to two nights
@@ -169,7 +356,8 @@ gate and round robin. All three lines resume.
 matches, the ten live pilots and `transit_300` under the live commander stable): `f99_696`
 +20.6, `f995_701` +19.3, `fighters_pay1_462` +18.7, `f995_400` +18.1, `fighters_506` and
 `fighters_959` +16.8, `followers_955` +14.8, `reward_300` +14.3, `hide_644` +8.7,
-`followers_513` +8.5, `transit_300` +0.9 (about ±3). The live list is already the top ten.
+`followers_513` +8.5, `transit_300` +0.9 (about ±3; each number is extra wins per 100
+matches over the script). The live list is already the top ten.
 The WAR shadow cull takes nobody.
 
 **Morning, unattended (`morning.sh`):** drill evals on each arm's latest checkpoint (a
@@ -214,23 +402,28 @@ measurement.
   0.69 under a learned commander, 0.46 to 0.61 under the script.
 
 **Decisions (2026-11-09):**
-- WAR culls applied, the first real ones: `fighters_959` and `fighters_506` archived on
-  the founder cap (`f995_701`'s six active, cap 4). Nobody below replacement.
-  `transit_300` at +0.2 stays (its CI spans 0). Active: four `fighters`, four
+- WAR culls applied, the first real ones (earlier WAR culls were only reported, and the
+  gate's archivings had been undone on 2026-11-07): `fighters_959` and `fighters_506`
+  archived on the founder cap (`f995_701`'s six active, cap 4). Nobody below replacement (script
+  level). `transit_300` at +0.2 stays (its CI, the margin-of-error range, spans 0). Active: four `fighters`, four
   `followers`, the script.
-- Live list by WAR (`publish --war`, `"rated_by": "war"`; the inspector now reads
+- Live list by WAR (`publish --war`, `"rated_by": "war"`; the inspector, the panel that
+  opens when a viewer taps a ship on the live page, now reads
   "+16 wins per 100 matches over the script"): in `fighters_1338`, `followers_1323`,
-  `fighters_pay1_849`; out `reward_300`, `followers_513`, `hide_644`. Logbook entry
-  `lab/runs/2026-11-09-third-night`.
-- Next by the loop: commander round 2, against these pilots.
+  `fighters_pay1_849`; out `reward_300`, `followers_513`, `hide_644`.
+  [Logbook entry](../2026-11-09-third-night/results.md).
+- Next by the loop (commanders and pilots train in turn): commander round 2, against these
+  pilots.
 
 ## Night 4 (prepared 2026-11-09): the price of a shot, and of a crash
 
 The owner's plan: ships fire into empty space a lot, so a shot should cost more. The sim's
-`FIRE_COST` (0.002 per shot fired) makes a gauss shot worth taking at a hit rate of about
-4% on hull, 8% on shields, and recent evals show 5-40% hit rates with triggers held
+`FIRE_COST` (0.002 per shot fired) makes a gauss shot (the fighter's gun) worth taking at a
+hit rate of about 4% on hull, 8% on shields (ships carry shields that take damage before
+the hull, and a shield point pays half what a hull point does), and recent evals show 5-40% hit rates with triggers held
 35-80% of decisions. The sim is unchanged (a recharging capacitor was considered and
-turned down); the trainer adds `extra_fire_cost` per shot fired as shaping.
+turned down); the trainer adds `extra_fire_cost` per shot fired as shaping (a reward
+term used only in training, which the game itself does not charge).
 
 | Arm | Starts from | Fire cost per shot | Else |
 |---|---|---|---|
@@ -246,12 +439,17 @@ turned down); the trainer adds `extra_fire_cost` per shot fired as shaping.
   quarters of night 3's updates per arm.
 - Pool seeds and commanders as night 3.
 
-**The sim moves to `SIM_VERSION` 7 the same night** (owner, 2026-11-09): a small ship
+**The sim moves to `SIM_VERSION` 7 the same night** (owner, 2026-11-09). `SIM_VERSION` is
+the version number of the game's rules, raised whenever a rule changes. A small ship
 that crashes into a big one looked like it paid nothing for it. Crash damage keeps the
-v3 energy term (both ships alike, through shields), and each ship also takes 1.25 hull
-points per m/s of its own velocity change above 12 m/s, past its shield, times its
-impact arc (SIM_SPEC §0.5, §5.5). A fighter at full speed into a capital ship dies at
-any bearing; the capital ship takes what it took before. Obs and actions are v6's, so
+v3 energy term (the crash rule since rules version 3: damage that grows with the closing
+speed, the same for both ships, taken by shields first), and each ship also takes 1.25
+hull points per m/s of its own velocity change above 12 m/s, past its shield, times its
+impact arc (a multiplier for where on the ship it was hit: a fighter's nose takes 1.5x)
+(SIM_SPEC §0.5, §5.5). So a small ship that hits a big one now takes far more than the
+big one does. A fighter at full speed into a capital ship dies at
+any bearing; the capital ship takes what it took before. Obs and actions (what a pilot
+sees and what it controls) are v6's, so
 every pilot still flies (`PILOT_COMPAT_VERSIONS` adds 7) and the season goes on: all
 four lines fine-tune under v7 and the morning re-rates the whole field under v7.
 
@@ -267,9 +465,15 @@ four lines fine-tune under v7 and the morning re-rates the whole field under v7.
   the shooting columns (trigger share, shots, hit rate) are barely touched by it.
 
 **The critic learns what a dead ship is worth the same night** (found and decided
-2026-11-09, that evening). A ship's last steps bootstrap from the critic's value of its row after it
-died, since only a match end is a terminal. Those rows were never in the value loss, so
-that value was whatever the critic happened to output for an all-zero obs. On the same
+2026-11-09, that evening). The critic is a second network used only in training, which
+predicts how much reward is still to come and so helps judge each choice. In short: it had
+never been taught what a dead ship's future is worth, and from this night it is. The
+detail: training judges a ship's last steps partly by the critic's guess of what comes
+after them (it "bootstraps" from that guess), and after a death that guess is the
+critic's value of the dead ship's row, since only a match end counts as a terminal (a
+point with nothing after it). Dead ships' rows were never in the value loss (the error
+the critic is trained to shrink), so that value was whatever the critic happened to
+output for the all-zero inputs a dead ship has. On the same
 dead rows of one rollout (the right answer is near 0: only the discounted win or loss is
 left):
 
@@ -285,7 +489,8 @@ left):
 A win pays 1 and 80 hull points of damage 0.8, so every line carried its own accidental
 bonus or penalty for dying, and it drifted from night to night. From tonight
 (`value_only_rows`, on by default) the critic also trains on the learner's rows that
-cannot act but have been present in their match: dead ships and the control lock. They
+cannot act but have been present in their match: dead ships and the control lock (the
+moment after a ship arrives in the match, before it may act). They
 are in the value loss only. Craft still in a carrier's bay are left out (nothing
 bootstraps from them).
 
@@ -349,7 +554,7 @@ and never reach the actor's loss or the advantage normalisation, and of the free
 
 Ran 22:30 to 08:31: `fighters` 1340-1832, `fighters_fire4` 1340-1827, `followers`
 1325-1793, `fighters_pay1` 851-1317 (about 58 s an update with four arms). Morning
-08:31 to 09:46. Logbook entry `lab/runs/2026-11-10-fourth-night`.
+08:31 to 09:46. [Logbook entry](../2026-11-10-fourth-night/results.md).
 
 - **The freeze worked.** Ten updates in, value loss was at or under night 3's on every
   arm; KL after unfreezing 0.014 to 0.015 (0.011 before), 0.013 by the end.
@@ -383,42 +588,3 @@ Ran 22:30 to 08:31: `fighters` 1340-1832, `fighters_fire4` 1340-1827, `followers
   `fighters_506`, `followers_955`, `fighters_959`. The live page moves to `SIM_VERSION` 7.
 - `run.sh`'s `N_UPDATES` default is 6000: it caps an arm's total updates, and 1500 would
   have ended this night after about 160.
-
-## Arms (night 1)
-
-All arms: preset `pilots_v1`, discount 0.995 with order pay following it, no script pull,
-no KL anchor, constant LR, 4 sim + 4 torch threads, checkpoints every 50 updates.
-
-| Arm | Starts from | Drills | Commander | No commander | Order pay | Enemies |
-|---|---|---|---|---|---|---|
-| `fighters` | `f995_701` | 0.10 | 0.30 | 0.60 | 3 | 0.2 script, 0.4 self, 0.4 pool (weighted) |
-| `followers` | `transit_300` | 0.25 | 0.50 | 0.25 | 1 | same |
-| `scratch` | Random weights | 0.10 | 0.30 | 0.60 | 1 | 0.5 script, 0.5 self |
-
-Pool: `f995_701`, `transit_300`, `reward_300`, `w1_400`, v1 for half of draws, this run's
-checkpoints for the rest.
-
-**Why these settings:**
-
-- **`fighters` at order pay 3:** this is the plan's first question. Can a small share of
-  drills give a strong fighter some following while it keeps its combat? Pay of 3 gives
-  the question a real chance. If combat falls badly, the next try is 1.
-- **`followers` at order pay 1:** it already follows and needs combat, so team reward
-  should dominate. Its script pull ends here.
-- **`scratch`:** actor LR 3e-4 rather than 1e-4, since it starts from nothing, and no
-  frozen pool at first, since strong enemies would give it nothing to learn from.
-
-## What each morning reads
-
-| Question | Measure |
-|---|---|
-| Does `fighters` learn orders? | Drill flip rates and go-to lift against `f995_701` |
-| Does `fighters` keep combat? | No-commander matches against `f995_701` |
-| Does `followers` gain combat? | No-commander matches against `transit_300` |
-| Does `followers` keep following? | Its drill results against `transit_300`'s |
-| Is `scratch` alive? | Deathmatch against the script. If it can't beat the script by morning, its slot goes to another family |
-
-**Fighters' fallback:** if following does not improve, raise the drill share. If that fails,
-move to separate skill networks (`docs/PILOT_TRAINING.md` section 4).
-
-`f995_701` stays live throughout. Nothing here deploys.

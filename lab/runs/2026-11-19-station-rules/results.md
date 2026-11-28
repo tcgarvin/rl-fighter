@@ -1,48 +1,94 @@
 # Station assault: hand rules beat no orders through launches and the carrier, not orders
 
-Yes, a simple hand-written commander beats "no orders" in the station assault, in both
-roles. Neither rule that does it gives a strike craft an order. On defence, keeping the
-reserve docked until the station's hull falls below 60% wins 0.75 of matches against
-0.56 for the no-orders side (+0.19 ± 0.04, paired). Launching it only when the main wave
-arrives gives +0.14. On attack, bringing the carrier to 170 m of the station once its
-hangar is empty wins 0.57 against 0.44 (+0.13 ± 0.04), mostly by turning clock endings
-into station kills. Every rule that does order strike craft (go-to, defend, attack, and
-the script itself) is level with no orders or worse, by 0.03 to 0.17. The convoy reading
-gives the same answer. `SIM_VERSION` 9; no sim change.
+We asked whether a simple hand-written commander could beat a side that gives no orders
+in [the station assault](../2026-11-19-station-bomber/results.md), the mission added the
+same night, in which one side defends a space station and the other attacks it with a
+carrier and its strike craft (the small piloted ships). Yes, by a lot, in both roles,
+and neither rule that does it gives a strike craft an order. On defence, keeping the
+station's reserve ships docked until its hull falls below 60% raises the defender's win
+rate from 0.56 to 0.75 (+0.19 ± 0.04, where ± is the margin of error). Launching them only when the main wave arrives
+gives +0.14. On attack, bringing the carrier to 170 m of the station once its hangar is
+empty raises the attacker's win rate from 0.44 to 0.57 (+0.13 ± 0.04), mostly by turning
+matches that would have run out the 150 s clock, which the defender wins, into station
+kills. Every rule that does order strike craft (go-to, defend, attack, and the script
+itself) is level with no orders or worse, by 0.03 to 0.17 in win rate.
+
+The networks were trained before the station assault existed, so the sim presents it to
+them as a mission they know, a carrier battle or a convoy escort. Presenting it as a
+convoy escort (the convoy reading) instead of a carrier battle gives the same answer.
+`SIM_VERSION` 9 (the ninth version of the game's rules); no sim change.
 
 <!-- summary: We asked whether a simple hand-written commander could beat a side that gives no orders in the new station assault. It can, by a lot, but only through the two decisions that are not orders: when the station launches its reserve ships, and where the attacker parks its carrier. Every rule that told the fighters what to do lost ground, as in fleet fights, so a commander trained on this mission has real decisions to learn, and its orders to pilots are not yet among them. -->
 
-The setup is [the station assault](../2026-11-19-station-bomber/results.md) with the
-live pilots. Every strike craft is flown by a pilot from `lab/live_pilots.json`, drawn
-per slot per match as on the live page. Capital ships are flown by the sim's scripts.
-The roster is the default "strike of 8": a station with 2 picket ships and 4 in reserve,
-against a carrier with 3 strike craft jumping in and 5 docked, 3 of them bombers.
+## Where this fits
 
-One side is commanded by a **rule**, through the sim's external commander. The other
-side is `unseen`: the scripted commander with its orders hidden from its own pilots, as
-in every "no orders" measurement since 2026-11-15. An external commander has to launch
-and steer its carrier itself. `station_rules.py` ports the script's station logistics
-(launches and the attacker carrier's waypoint, no squads), so the rule `none` launches
+RL Fighter is a space-combat game in which every small ship (a strike craft) is flown by
+a neural network, a pilot, that learned by trial and error. Each side also has a
+commander that gives its ships orders and directs its big ships, which scripts fly: when
+to launch craft from the bays, and where the carrier steers. In fleet fights, orders had only cost:
+[commander 3](../2026-11-15-commander-3/results.md) found that a side whose pilots get
+no orders beats every commander we had, [the order-cost
+night](../2026-11-17-order-cost/results.md) found that an ordered pilot charges its target
+and loses the duel, and [order kinds](../2026-11-19-order-kinds/results.md), the same
+night as this entry, found a go-to costs a fifth of what an attack order does. The
+station assault was built that night to give a commander decisions that matter. Before
+training a commander on it, we wanted to know whether any decision there is worth
+anything: if no hand rule beats no orders, a learned commander has nothing to find. The
+[station commander](../2026-11-19-station-commander/results.md) run then tried to learn
+what these rules found.
+
+<!-- figure-idea: shared: what a commander controls: orders to each strike craft (attack, defend, go-to) on one side, and the capital-ship decisions (when the bays launch, where the carrier steers) on the other; this entry's whole result is that split. -->
+
+## The setup
+
+The setup is the station assault with the live pilots. Every strike craft is flown by a
+pilot from `lab/live_pilots.json` (the ten trained pilots the live page draws from),
+drawn at random for each ship in each match, as on the live page. Capital ships are
+flown by the sim's scripts. The roster is the default "strike of 8". The station has 2
+picket ships already out guarding it and 4 in reserve inside: fighters, strafers and one
+gunship (fighters and strafers aim their guns by pointing the ship; the slower gunship
+has turrets that aim themselves). The attacker's carrier brings 3 strike craft that jump
+in, appearing at speed early in the match (the jump-in trio: fighter, bomber, fighter),
+and 5 docked, 3 of them bombers (slow strike craft with a torpedo fixed to the nose).
+
+One side is commanded by a **rule**, through the sim's external commander, the hook that
+lets a program outside the sim command a side. The other side is `unseen`: the scripted
+commander with its orders hidden from its own pilots, as in every "no orders"
+measurement since [2026-11-15](../2026-11-15-commander-3/results.md). An external
+commander has to launch and steer its carrier itself. `station_rules.py` copies the
+script's station logistics (launches and the attacker carrier's waypoint, without the
+script's squads, its groups of ships that share an order), so the rule `none` launches
 exactly as `unseen` does. On 96 matches per role, `none` reproduces the script-hidden
 baseline match for match. So `none` is the baseline row in every table: unseen against
 unseen.
 
-Each cell on the **carrier** reading is 1,024 matches, and each on the **convoy**
-reading is 512 (the station's side reads as a convoy defender, `docs/COMMANDER.md`).
-Every cell plays the same seeds, rosters and pilot draws. The ± is 1.96 standard errors.
-Deltas are paired match by match against `none`. Orders change the matches early, and
-the pilots' sampling then diverges, so pairing narrows the interval very little.
+As in the station assault entry, the networks see the mission either as a carrier
+battle, each side with a carrier (the **carrier** reading), or as a convoy escort with
+the station's side as the defending escort (the **convoy** reading). Each cell (one
+rule, one role, one reading) on the carrier reading is 1,024 matches, and each on the
+convoy reading is 512 (the station's side reads as a convoy defender,
+`docs/COMMANDER.md`). Every cell plays the same seeds, rosters and pilot draws. The ± is
+the margin of error: the true value very likely lies within that range (1.96 standard
+errors). Deltas are paired match by match against `none`. Orders change the matches
+early, and the pilots' random choices then diverge, so pairing narrows the interval very
+little.
 
 ## The rules
+
+Each rule is a small hand-written commander for one side. The table gives which side it
+commands, what it does and why we tried it. The order kinds are go-to (fly to a point),
+defend (stay near a friendly ship and protect it) and attack (go after a named enemy). A
+ship under no order is "free" and flies on its own judgment. Flak is the anti-craft guns
+of the capital ships. A commander acts on its slow tick, every 2 s.
 
 | Rule | Side | What it does | Why |
 |---|---|---|---|
 | `none` | either | The script's launches and carrier waypoint, no orders | The baseline: launches like `unseen` |
-| `scripted` | either | The sim's script, its orders shown to its pilots | Its orders cost pilots 0.12 to 0.23 here (2026-11-19 station run) |
-| `rally_release` | attacker | Whole wing (and each later launch) one squad: go-to 320 m from the station on the line to the carrier, radius 60 m, v8 deadline (2 × the slowest ship's straight-line time + 3 s). Free on arrival or a miss | The turrets punish a wing that arrives piecemeal. A go-to is the cheap order (0.08 in a 3 v 3), and its arrival edge, 260 m out, is outside the 230 m flak |
+| `scripted` | either | The sim's script, its orders shown to its pilots | Its orders cost pilots 0.12 to 0.23 here ([the station run](../2026-11-19-station-bomber/results.md)) |
+| `rally_release` | attacker | Whole wing (and each later launch) one squad: go-to 320 m from the station on the line to the carrier, radius 60 m, with a deadline (rules version 8: 2 × the slowest ship's straight-line time + 3 s). Free on arrival or a miss | The turrets punish a wing that arrives piecemeal. A go-to is the cheap order ([0.08 in a 3 v 3](../2026-11-19-order-kinds/results.md)), and its arrival edge, 260 m out, is outside the 230 m flak |
 | `bomber_only` | attacker | Bombers only: go-to 180 m from the station (arrival edge at the torpedo's 240 m range), deadline, then free. Nobody else ordered | The bombers are what kills the station when the script flies them (52% of its damage) |
 | `escort_bombers` | attacker | `bomber_only`, plus the gunship defends the lead bomber (nearest the station, kept until it is gone). Fighters and strafers free | Defend wins gunship fights (+0.17 to +0.29) and loses fighter and strafer fights |
-| `carrier_push` | attacker | No orders. Once the hangar is empty (t = 6 s), the carrier's waypoint is 170 m short of the station (the script's carrier-battle standoff, inside both sides' flak) instead of its patrol 430 m out | Added after the first smoke runs: the carrier deals about a fifth of the station's damage under the patrol, and once its hangar is empty it is a gun platform whose loss does not end the match |
+| `carrier_push` | attacker | No orders. Once the hangar is empty (t = 6 s), the carrier's waypoint is 170 m short of the station (the script's carrier-battle standoff, the distance it holds from its target, inside both sides' flak) instead of its patrol 430 m out | Added after the first smoke runs (small trial runs): the carrier deals about a fifth of the station's damage under the patrol, and once its hangar is empty it is a gun platform whose loss does not end the match |
 | `hold_reserve` | defender | No orders. Launch nothing until 4 attacking strike craft are within 320 m of the station (the main wave; the jump-in trio is 3), then every bay every slow tick | See below: the script launches at once |
 | `hold_late` | defender | No orders. Launch nothing until the station's hull is below 60%, then every bay | The latest launch that still uses the reserve |
 | `hold_never` | defender | No orders, no launches: the picket alone | Added after `hold_late`: what the reserve is worth at all |
@@ -53,7 +99,7 @@ the pilots' sampling then diverges, so pairing narrows the interval very little.
 bay every slow tick until the hangar is empty, which is the right call when only the
 attacker can lose to the clock. The defender keeps 3 strike craft out and scrambles
 every bay while any attacking strike craft is within 320 m of the station. The
-attacker's jump-in trio (fighter, bomber, fighter) arrives about 390 m out at 1.4 times
+attacker's jump-in trio arrives about 390 m out at 1.4 times
 its speed cap and is inside 320 m by t = 2 s. So the script empties the station's hangar
 in the first 4 s of every match, into those three ships. The defender's launch rules
 change only that timing.
@@ -61,6 +107,12 @@ change only that timing.
 ## Results
 
 ### Carrier reading (1,024 matches a cell)
+
+"Attacker win" is the share of matches the attacker won. "Rule side's score" is the same
+for whichever side the rule commands (a draw counts half). "vs `none`" is how much the
+rule changes that score against the no-orders baseline, paired match by match. The end
+columns are the shares of matches ending with the station destroyed, the assault
+repelled, or the clock, and "Median s" is the median match length in seconds.
 
 | Rule | Attacker win | Rule side's score | vs `none` (paired) | End: station / repelled / clock | Median s |
 |---|---|---|---|---|---|
@@ -81,6 +133,8 @@ change only that timing.
 | `hunt_bombers` | 0.554 ± 0.030 | 0.446 | −0.118 ± 0.040 | 0.55 / 0.27 / 0.18 | 111 |
 
 ### Convoy reading (512 matches a cell)
+
+The same columns, on the convoy reading, for the rules that mattered most.
 
 | Rule | Attacker win | Rule side's score | vs `none` (paired) | End: station / repelled / clock |
 |---|---|---|---|---|
@@ -155,9 +209,11 @@ What this says:
    defending gunship survives 0.75 of matches under `hold_late` against 0.32. Most of
    those wins are assaults repelled (0.67 against 0.43), not the clock (0.08).
 
+<!-- figure-idea: the defender's launch timing as a timeline with its payoff: never launch (0.075), launch at once into the jump-in trio (0.56), on the main wave (0.70), at 60% hull (0.75); makes the "late is best, never is worst" shape visible at a glance. -->
+
 ## What we learned
 
-- **A hand rule beats no orders, by 0.13 to 0.20 of a match, in both roles.** The
+- **A hand rule beats no orders, by 0.13 to 0.20 in win rate, in both roles.** The
   defender gains most by timing its launches (`hold_late` +0.19 ± 0.04, `hold_reserve`
   +0.14). The attacker gains by moving its carrier (`carrier_push` +0.13 ± 0.04, +0.15
   on the convoy reading). These are the station assault's biggest effects of any
@@ -168,25 +224,31 @@ What this says:
   that made defend pay for gunships there does not help here: the one gunship defending
   a bomber costs 0.06, and the one gunship defending the station costs 0.03.
 - **So the mission gives a commander something to learn, in its launch and waypoint
-  heads.** A learned commander can see what these rules use: the station's hull
-  fraction (entity feature 14), every enemy's position, and the hangar counts. Its
-  waypoint head's centre point is about 157 m from the station, close to the 170 m
-  standoff. Launch timing has a steep payoff that is not monotone (never −0.49, at once
-  0, on the main wave +0.14, at 60% hull +0.19), which a policy-gradient learner should
-  find. Two cautions. Against the `unseen` stable, a commander that learns these will
-  also have to learn to give almost no strike-craft orders, as the phase-3 commanders
-  did. And a bomber reads as the gunship class, so no commander can tell bombers apart
+  heads** (the parts of its network that choose launches and where its carrier goes). A
+  learned commander can see what these rules use: the station's hull fraction (entity
+  feature 14, one of its inputs), every enemy's position, and the hangar counts. One of
+  the points its waypoint head can pick, the arena's centre, is about 157 m from the
+  station, close to the 170 m standoff. Launch timing has a steep payoff that is not
+  monotone, that is, it does not simply rise the later the launch (never −0.49, at once
+  0, on the main wave +0.14, at 60% hull +0.19), which a policy-gradient learner (one
+  trained by trial and error, as ours are) should find. Two cautions. Against the
+  `unseen` side among its training opponents, a commander that learns these will also
+  have to learn to give almost no strike-craft orders, as the [phase-3
+  commanders](../2026-11-15-commander-3/results.md) did. And a bomber reads as the gunship class, so no commander can tell bombers apart
   yet.
 - **The script's own logistics are beatable, and cheaply.** Its defender empties the
   hangar into the jump-in trio, and its attacking carrier stays out of reach until the
   wing is gone. These are hand-tunable, but changing them changes the script-against-
-  script balance (0.55) and WAR's replacement level, so it is a separate decision.
+  script balance (0.55) and WAR's replacement level (the script is the zero point of
+  WAR, wins above replacement, our rating of pilots), so it is a separate decision.
 - **Not measured:** the threshold sweep for `hold_late` (only 0.6 was tried), a push to
   other standoff distances, both winning rules on opposite sides of one match, and
   scripted pilots (they read the script's orders, so the rules here would change their
   flying too).
 
 ## Files
+
+The record of how to rerun this; a reader can skip it.
 
 - `station_rules.py`: the eval (`rlf.lab.station_rules/1`), the rules and the port of
   the script's station logistics. It reuses `PilotPool` from

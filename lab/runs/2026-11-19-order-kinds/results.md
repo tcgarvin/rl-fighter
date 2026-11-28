@@ -1,52 +1,96 @@
 # What go-to and defend orders cost a fleet fight
 
-A go-to costs a 3 v 3 about a fifth of what an attack order costs, and a defend order
-about 60%. With `followers_school_1052` on both sides, a side sent once to the middle of
-the field, then free, scores 0.42 against a side with no orders. Without orders it scores
-0.50; ordered onto its nearest enemies, 0.14. So the go-to costs 0.08 ± 0.04 and attack
-costs 0.37. Defending each other costs 0.21 ± 0.04. A go-to back to a rally point costs
-0.14. Those averages hide a split by hull. In fighter and strafer fights, a defend or a
-rally costs 0.34 to 0.47, as much as an attack order. In gunship fights the same orders
-*win* 0.17 to 0.29 over no orders. The deadline on a go-to changes nothing. No rule of
-the game changed (`SIM_VERSION` 8), and no Rust change was needed.
+An attack order loses our pilots most of their fleet fights. We measured what the other
+kinds of order cost: a go-to (fly to a point) and a defend (stay near a friendly ship and
+protect it). A go-to costs far less than an attack, and a defend sits in between. But the
+cost depends on the ship type. Holding back or defending loses fighter and strafer fights
+badly and wins fights of gunships, whose turrets reach nearly all round, so a commander has
+a real choice to make.
 
-<!-- summary: We measured what the other order kinds cost a pilot in a fleet fight, after two days showed that an attack order loses most of them. A go-to that ends on arrival costs about a fifth of what an attack order does, and a defend order about 60%. But the cost depends on the hull: holding back or defending loses fighter and strafer fights badly and wins gunship fights, so a commander has a real choice to make. -->
+In win rate (the share of matches won, out of 1), a go-to cost the ordered side about
+0.08 in three-a-side fights and an attack order 0.37. The numbers are in "The answer in
+numbers" below, after the setup.
 
-The setup is the same-pilot measure of [2026-11-17](../2026-11-17-order-cost/results.md),
-as rerun in [2026-11-18](../2026-11-18-mixed-orders/results.md)'s `eval_before`. One
-pilot flies every ship on both sides. The **ordered** side gets orders its pilots see,
-from one rule. The **unseen** side gets the scripted commander's orders, hidden from its
-own pilots. Rosters are even 3 v 3 of one hull (fighter, strafer, gunship, 8 rosters
-each), each played with the ordered side on either team. There are **1,152 matches a
-row**, on the 2026-11-17 seeds, so every row pairs match by match with `none`. The ± is
-1.96 standard errors, paired for the cost.
+<!-- summary: Two days of tests showed that an attack order loses our pilots most of their fleet fights, so we measured what the other kinds of order cost. A go-to (fly to a point) that ends on arrival costs about a fifth of what an attack order does, and a defend order about 60%. But the cost depends on the ship type: holding back or defending loses fighter and strafer fights badly and wins gunship fights, so a commander has a real choice to make. -->
 
-`none` and `nearest` were run again with the new script, at 3 threads instead of 4.
-`nearest` repeats 0.136 exactly. `none` gives 0.502 against 0.503 before: torch's thread
-count changes a few matches. Every cost below is paired against this run's `none`. On a
-48-match block at the same thread count, the new script reproduces the old one's output
-on `nearest` and `none` field for field.
+## Where this fits
+
+RL Fighter is a space-combat game in which every ship is flown by a small neural network,
+a pilot, that learned to fly by trial and error. A commander (a second network, or a
+hand-written script) can give each ship an order: attack a named enemy, go to a point,
+defend a friendly ship. This entry is about fleet fights: small ships only, here three a
+side, where a side wins by destroying every enemy, or at the 90 s time limit by having
+more hull and shields left. [The order-cost night](../2026-11-17-order-cost/results.md) found
+that an attack order loses a fleet fight whichever enemy it names: the ordered pilots
+charge, shoot only their targets and lose those duels to pilots with no orders. [The
+mixed-orders run](../2026-11-18-mixed-orders/results.md) and [the kite-drill run](../2026-11-18-kite-drills/results.md)
+tried to train that cost away, and only the second made a dent. Nobody had measured the
+other kinds of order. That mattered for what to build next: a new scenario, and the
+commanders that play it, could lean on whichever orders are cheap. [The piracy
+design](../2026-11-19-piracy-design/plan.md), written the same day, is built on go-to
+orders for this reason.
+
+## How we measured
+
+The test is the one from [the order-cost night](../2026-11-17-order-cost/results.md),
+with one pilot flying every ship on both sides, as rerun before [the mixed-orders
+run](../2026-11-18-mixed-orders/results.md) (its `eval_before`). The pilot is
+`followers_school_1052`, of the followers family (the line bred to fight and to follow
+orders), saved at update 1052 (round 1052 of training) of [its go-to
+school](../2026-11-14-goto-school-2/results.md). The **ordered** side gets orders its
+pilots see, from one fixed rule (the rules are listed below). The **unseen** side gets
+the scripted commander's orders, hidden from its own pilots, so it flies free, on its own
+judgment. In every match all six ships are one hull, or ship type: fighter, strafer or
+gunship. Fighters and strafers have guns fixed to the nose, so they must point at a target
+to shoot. The gunship is slower, with turrets that aim on their own. Each hull's 3 v 3
+line-up (roster) is repeated 8 times in the rotation, and each is played with the ordered
+side on either team. There are **1,152 matches a row**, on the same starting setups as the
+order-cost night (the 2026-11-17 seeds), so every row pairs match by match with `none`
+(the rule that gives no orders).
+
+A score is the ordered side's share of matches won, draws counting half, so 0.5 is even.
+A cost is the change in that score caused by the orders: a row's score minus the `none`
+row's, taken match by match. The ± is the margin of error (1.96 standard errors, paired
+for the cost): the true value very likely lies within that range.
+
+The next paragraph is a check that the numbers reproduce, and a reader can skip it.
+`none` and `nearest` were run again with the updated measuring program (`order_rules.py`),
+at 3 threads instead of 4. `nearest` repeats 0.136 exactly. `none` gives 0.502 against
+0.503 before: the number of threads the network library (torch) uses changes a few
+matches. Every cost below is paired against this run's `none`. On a 48-match block at
+the same thread count, the updated program reproduces the old one's output on `nearest`
+and `none` field for field.
 
 ## The rules
 
+A rule here is a fixed recipe for the ordered side's orders, standing in for a commander.
 The new rules are in `../2026-11-17-order-cost/order_rules.py`. The old rules are
-unchanged. A go-to is sent once, at the first slow tick (t = 2 s), to the whole side as
-one squad, and never sent again. Its radius is 60 m, the learned commander's
-`GOTO_RADIUS`.
+unchanged. A go-to is sent once, at the first slow tick (the commander layer acts every
+2 s, first at t = 2 s), to the whole side as one squad (a group of ships sharing one
+order), and never sent again. Its radius is 60 m, the learned commander's `GOTO_RADIUS`:
+a ship has arrived once it is within 60 m of the point. "Centroid" below is the centre of
+a fleet's ships. In a defend order the ship being defended is the ward.
+
+<!-- figure-idea: shared: what an order is, drawn for each kind. An attack arrow to a named enemy, a go-to circle the ship flies into (after which it is free), a defend ring around a ward with its threats marked, on one sketch of a 3 v 3. Helps here because the entry compares the kinds, and the rules table is hard to picture. -->
 
 | Rule | Orders |
 |---|---|
 | `goto_front` | Go to the midpoint between the two fleets' centroids. At t = 2 s that is about 225 m ahead and 225 m short of the enemy, at the edge of its gun range. It is where two fleets of one hull meet, and the go-to a commander would give to "take the middle". No deadline. |
-| `goto_front_deadline` | The same point, with a v8 deadline: 2 times the slowest ship's straight-line time to the circle at its speed cap, plus 3 s. That is the tight end of the drills' 2 to 8. |
+| `goto_front_deadline` | The same point, with a deadline (go-to orders can carry one since rules version 8; a ship that misses it is no longer under the order): 2 times the slowest ship's straight-line time to the circle at its speed cap, plus 3 s. That is the tight end of the 2 to 8 times used in training drills. |
 | `goto_rally` | Go to a point 120 m behind the side's own centroid, away from the enemy: regroup, then fight. The fleets start in a 30 m cluster, so a rally *at* the centroid would be complete on the spot. |
 | `defend_ward` | One ship is the ward and gets no order. The other two are one squad defending it. The ward is the ship nearest the side's centroid, kept until it dies. Then the survivor nearest the survivors' centroid takes over, while two are left. |
-| `defend_ring` | Each ship is its own squad, defending the next live ship in slot order. With two left they defend each other; with one, it has no order. Every ship is ordered, as under `nearest`, so this is the defend row to compare with attack. Each ship is also a ward: escorts covering each other. |
-| `nearest`, `none` | From 2026-11-17: every ship ordered to attack the enemy nearest it, chosen again every 2 s; no orders at all. |
+| `defend_ring` | Each ship is its own squad, defending the next live ship in the side's ship list. With two left they defend each other; with one, it has no order. Every ship is ordered, as under `nearest`, so this is the defend row to compare with attack. Each ship is also a ward: escorts covering each other. |
+| `nearest`, `none` | From the order-cost night: every ship ordered to attack the enemy nearest it, chosen again every 2 s; no orders at all. |
 
 The sim's scripted commander uses go-to the same way, with a radius of 60 to 80 m, no
 deadline, and a point re-sent only if it moves more than 120 m (`sticky_goto`). It sends
-defend only for a carrier or a transport. No deathmatch convention exists for defend, so
-the two arrangements above bracket it.
+defend only to protect a carrier or a freighter (big ships of the other missions), never
+in a fleet fight, so there is no standard
+way to use defend here. The two arrangements above bracket it.
+
+The next paragraph is the technical detail of how a finished go-to looks to the pilot,
+and a reader can skip it. In short: once a ship arrives, or misses its deadline, its
+pilot sees exactly what a pilot that was never ordered sees.
 
 **A completed go-to is "no order" to the pilot.** Once the ship is inside the circle, or
 has missed the deadline, its effective order is none (SIM_SPEC §0.4 row 2, §0.6 row 3).
@@ -60,9 +104,25 @@ stays complete (`GOTO_SAME_POINT`). One to a new point, or with a new deadline, 
 over. That is why the rules send the go-to once: a midpoint re-sent every 2 s would
 drift and restart it.
 
+## The answer in numbers
+
+A go-to costs a 3 v 3 about a fifth of what an attack order costs, and a defend order
+about 60%. A side sent once to the middle of the field (`goto_front`), then free, scores
+0.42 against a side with no orders. Without orders it scores 0.50; ordered onto its
+nearest enemies, 0.14. So the go-to costs 0.08 ± 0.04 and attack costs 0.37. Defending
+each other costs 0.21 ± 0.04. A go-to back to a rally point (`goto_rally`) costs 0.14.
+Those averages hide a split by hull (ship type). In fighter and strafer fights, a defend
+or a rally costs 0.34 to 0.47, as much as an attack order. In gunship fights the same
+orders *win* 0.17 to 0.29 over no orders. The deadline on a go-to changes nothing. No rule
+of the game changed (`SIM_VERSION` 8, the version number of the game's rules), and no
+change to the sim (the game's Rust code) was needed.
+
 ## The cost
 
-`followers_school_1052`, 3 v 3, 1,152 matches a row (by hull, 384 each):
+`followers_school_1052`, 3 v 3, 1,152 matches a row (by hull, 384 each). "Ordered score"
+is the ordered side's share of matches won. The cost is that score minus `none`'s, paired
+match by match, and negative means the order loses matches. The hull columns give the
+same cost within fights of one hull; the `none` row gives that hull's score in brackets.
 
 | Rule | Ordered score | Cost vs `none` (paired) | Fighter cost | Strafer cost | Gunship cost |
 |---|---|---|---|---|---|
@@ -74,8 +134,12 @@ drift and restart it.
 | `defend_ward` | 0.287 ± 0.026 | −0.215 ± 0.038 | −0.42 ± 0.06 | −0.40 ± 0.05 | +0.17 ± 0.07 |
 | `defend_ring` | 0.288 ± 0.026 | **−0.214 ± 0.038** | −0.46 ± 0.05 | −0.47 ± 0.05 | **+0.29 ± 0.06** |
 
-`f995_701` (the live list's top pilot, which "fights hard and ignores orders"; a v6 pilot
-with 583 inputs, so it cannot see a deadline), 576 matches a row:
+The same test with `f995_701` flying both sides, 576 matches a row. `f995_701` is the top
+pilot of the live list (the ten pilots the project's website draws from), which "fights
+hard and ignores orders". It founded the fighters family, a different line from 1052, on
+[the Fighters v2 night](../2026-11-01-fighters-v2/results.md). It was trained under an
+older rules version (v6) with 583 inputs (the numbers a pilot sees), so it cannot see a
+deadline. The last column is the share of ordered ships that reached the go-to point:
 
 | Rule | Ordered score | Cost vs `none` (paired) | Go-to ships that arrived |
 |---|---|---|---|
@@ -87,20 +151,22 @@ with 583 inputs, so it cannot see a deadline), 576 matches a row:
 | `defend_ward` | 0.484 ± 0.040 | +0.025 ± 0.054 | |
 | `defend_ring` | 0.571 ± 0.039 | +0.113 ± 0.053 | |
 
-For `f995_701` no order costs much. Every row is within 0.11 of `none`, and the signs
+For `f995_701` no order costs much. Every row is within about 0.11 of `none`, and the signs
 are mixed. It barely follows a go-to (it arrives at the middle 38% of the time and at
 the rally point 9%). Its attack and defend rows come out slightly *ahead*, by about two
-standard errors. Hull by hull, the costs are in `tables.md`. They swing by up to ±0.3 at
-192 matches a hull, which is close to noise.
+standard errors, the edge of the margin of error. Hull by hull, the costs are in
+`tables.md`. They swing by up to ±0.3 at 192 matches a hull, which is close to noise.
 
 ## What the ordered side does (`followers_school_1052`, first 30 s)
 
-Per match, ordered side, with the free side under `none` as the reference. "Advance" is
-speed toward the enemy fleet's centroid. "Under an order" is the share of time alive with
-an effective order. Damage is hull and shield. For defend, "on threats" is the share of a
-defender's damage that lands on its ward's threat set. That set is approximated as an
-enemy within its gun range plus 40 m of the ward, or one that hit the ward in the last
-5 s.
+This table shows how the ordered side flew in the first 30 seconds, per match, with the
+free side under `none` as the reference. Lost is ships lost. "Advance" is speed toward the
+enemy fleet's centroid. "Under an order" is the share of time alive with an order still in
+force. "Enemy in arc" is the share of time alive with an enemy where its guns can hit it.
+Dealt and Taken are damage, hull and shield together. For defend, "on threats" is the
+share of a defender's damage that lands on its ward's threat set. That set is approximated
+as an enemy within its gun range plus 40 m of the ward, or one that hit the ward in the
+last 5 s.
 
 | Side | Lost | Advance (m/s) | Under an order | Enemy in arc | Dealt | Taken | Other |
 |---|---|---|---|---|---|---|---|
@@ -112,7 +178,10 @@ enemy within its gun range plus 40 m of the ward, or one that hit the ward in th
 | `defend_ward` | 0.49 | −2.8 | 0.61 | 0.054 | 61 | 94 | 0.40 on threats; 181 m from the ward; wards lost 0.35 |
 | `defend_ring` | 0.42 | −7.1 | 0.93 | **0.027** | **25** | 70 | 0.33 on threats; 131 m from the ward; wards lost 0.42 |
 
-Over time (2-s bins starting at t; "lost" is ships lost by the end of the bin):
+Over time (2-s bins starting at t; "toward" is speed toward the other fleet, negative
+when falling back; "lost" is ships lost by the end of the bin):
+
+<!-- figure-idea: the first 30 seconds of a gunship 3 v 3 and a fighter 3 v 3, both under defend_ring, seen from above: the defenders backing off, the free side walking in, and who is left at 30 s. Helps because the hull split (the same passive order wins with gunships and loses with fighters) is the entry's most useful finding and easiest to see in motion. -->
 
 | t (s) | 2 | 4 | 6 | 8 | 12 | 16 | 20 | 28 |
 |---|---|---|---|---|---|---|---|---|
@@ -128,21 +197,22 @@ Over time (2-s bins starting at t; "lost" is ships lost by the end of the bin):
 
 What this says:
 
-1. **The go-to's cost is the charge, and it is a quarter of the attack's.** Sent to the
-   middle, the side flies in at 30 to 41 m/s while the free side falls back, faster than
-   it does against free pilots (−30 m/s). It arrives at about t = 6 s, with the fleets' centroids
-   320 to 340 m apart. From then on it flies like a free side: −4 to +8 m/s, the control's −3 to
-   +9. The charge leaves it a little behind (0.84 ships lost by 30 s against 0.68), and
-   that is the 0.08. Under `nearest` the side keeps closing at +12 to +19 m/s until it
-   dies.
+1. **The go-to's cost is the charge, and it is about a fifth of the attack's.** Sent to
+   the middle, the side flies in at 30 to 36 m/s (up to 41 with a deadline, in
+   `tables.md`). Meanwhile the free side falls back at 30 to 34 m/s, faster than the 22 m/s
+   at which free sides fall back from each other under `none`. The ordered side arrives at
+   about t = 6 s, with the fleets' centroids 320 to 340 m apart. From then on it flies like
+   a free side: −4 to +8 m/s, the no-orders control's −3 to +9. The charge leaves it a
+   little behind (0.84 ships lost by 30 s against the unseen side's 0.68), and that is the
+   0.08. Under `nearest` the side keeps closing at +12 to +19 m/s until it dies.
 2. **The deadline makes no difference.** With one, the pilots fly faster (median arrival
    3.4 s against 4.5) and all of them arrive in time. The score is the same (0.418 and
    0.422, paired difference 0.00 ± 0.04).
 3. **Defending is passive, and that is the cost.** Defenders fall back and keep falling
    back (−7 m/s under `defend_ring`). They have an enemy in arc a third as often as free
    pilots, and deal 25 damage in the first 30 s against 112. They stay 130 to 180 m from
-   their ward, well outside any escort ring. The free side walks in at +10 to +20 m/s and
-   picks wards off: one is lost in 35% to 42% of matches by 30 s. Matches run longer
+   their ward, not close beside it (a defend order sets no distance to keep). The free
+   side walks in at +10 to +20 m/s and picks wards off: one is lost in 35% to 42% of matches by 30 s. Matches run longer
    (63 s against 58 without orders), and the ordered side loses them later.
 4. **The same passivity wins with gunships.** A gunship's turrets cover almost all round
    and it flies at 24 m/s. A gunship side that holds back while the enemy comes to it wins
@@ -151,12 +221,12 @@ What this says:
    game: they fall back and come in again. Against a side that holds still, that loses.
 5. **Rally is a falling-back go-to with the same split.** It takes 14 s to arrive, most
    of it flying away from the enemy (−34 m/s), and 9% of the ships die before they get
-   there. Fighters and strafers lose 0.34 to 0.36 of a match; gunships gain 0.28.
+   there. Fighters and strafers lose 0.34 to 0.36 in win rate; gunships gain 0.28.
 
 ## What we learned
 
 - **A go-to is the cheap order.** To the middle of the field, then free, it costs 0.08 ±
-  0.04 of a 3 v 3, against 0.37 for attack. The cost is the charge into a side that falls
+  0.04 in win rate in a 3 v 3, against 0.37 for attack. The cost is the charge into a side that falls
   back. A completed go-to leaves the pilot exactly as free as one never ordered, and that
   is how it flies.
 - **Defend is not cheap for fighters and strafers.** It costs them 0.40 to 0.47, more
@@ -179,6 +249,8 @@ What this says:
   has a natural ward), a go-to to a flank, and the gunship result with other pilots.
 
 ## Files
+
+Where the raw results are, for anyone reproducing them.
 
 - `run.sh`: reproduces `out/` (`PILOT=followers_school_1052` by default, 1,152 matches a
   rule; `PILOT=f995_701 BLOCKS=12`). Two chains of 3 threads, `nice -n 19`. Each rule
