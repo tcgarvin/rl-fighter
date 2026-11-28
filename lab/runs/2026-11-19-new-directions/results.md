@@ -68,7 +68,7 @@ three-a-side fights they won when ordered onto the nearest enemy, against 1052 f
 with no orders. The hand rules are a simple hand-written commander, tested on the new
 station.
 
-<!-- figure-idea: shared: the four missions side by side from above (deathmatch, carrier battle, convoy escort, and the new station assault), who wins and how in each; it would let a reader of this overview see what was added and why it reads to the networks as a carrier battle or a convoy. -->
+<div data-figure="diagram" data-name="missions" data-caption="The station assault, bottom right, is the mission this round added. Networks trained before it existed see it as a mission they know: the station as a carrier, or the whole match as a convoy escort."></div>
 
 ## The base assault
 

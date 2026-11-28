@@ -2,6 +2,7 @@
 // checked at build time by tools/commander_facts.py, so the script only adds the site
 // shell. It shares the pilot page's layout and diagram styles.
 import { mountNav } from "../shell/nav";
+import "../shell/diagram.css";
 import "../pilot/pilot.css";
 import "./commander.css";
 

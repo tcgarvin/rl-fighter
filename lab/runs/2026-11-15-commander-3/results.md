@@ -21,6 +21,8 @@ each side has a commander: a second network, or a hand-written script (the scrip
 commander), that sees the whole battle and sends orders to groups of its ships called
 squads. The [commander page](/commander/) explains how one works.
 
+<div data-figure="diagram" data-name="orders" data-caption="The commanders trained here choose, for each squad, one of these orders or none. Given that choice, they learned to give almost no orders."></div>
+
 [The first learned commanders](../2026-11-08-commander-1/results.md) (`c1_shaped` and two
 others, on the live page since) came out about level with the script.
 [The second commander night](../2026-11-10-commander-2/results.md) made a changed order

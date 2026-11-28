@@ -43,7 +43,7 @@ their run names in the tables below. Each pilot's names:
 | `kitedock` 2293 (arm) | `kite_dock_2293` | `kite_2205` | learning to dock |
 | `dockkite` 2286 (arm) | `followers_dockkite_2286` | `dock600` 2624 | learning kite drills |
 
-<!-- figure-idea: shared: a training night: two parents, each with one skill, crossed into two arms that each learn the other's skill, then the final evals beside each parent and the WAR round that decides the live ten. -->
+<div data-figure="diagram" data-name="training-night" data-caption="Here the night had two parents, each with one skill, and one arm from each that learned the other's skill: kitedock learned to dock and dockkite took kite drills. Their WAR round was still running when this entry was written."></div>
 
 The [plan](plan.md) has the arms and the training mix. [report.md](report.md) has every
 measure, each arm beside its parent and at every 500 updates. The final evals (batches of

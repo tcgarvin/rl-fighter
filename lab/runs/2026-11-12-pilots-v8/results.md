@@ -91,6 +91,8 @@ The fourth line, `followers_v8_blind`, is a second copy of `followers_1793`. The
 differ in their share of training spent in drills, shown in the table. Each new line counts its updates from 0, so
 `followers_v8_352` is the `followers_v8` line after 352 updates.
 
+<div data-figure="diagram" data-name="training-night" data-caption="Here four lines trained for about 355 rounds each. Three carried on from their own parents of the fourth night, and followers_v8_blind was a second copy of followers_1793 that could not see the deadline."></div>
+
 | Line | Sees the deadline | Order pay | Share of training in drills |
 |---|---|---|---|
 | `followers_v8` | Yes | 1 | 0.35 |

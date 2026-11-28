@@ -23,6 +23,8 @@ second network or a hand-written script, gives a side's ships orders. An attack 
 names one enemy for a ship to go after. The [commander page](/commander/) explains how
 it works.
 
+<div data-figure="diagram" data-name="orders" data-caption="Every rule tested in this entry gives attack orders, except the control, which gives none. The ordered pilot sees which enemy to go after and still chooses how to fly at it."></div>
+
 Two days earlier, [the third commander night](../2026-11-15-commander-3/results.md) found
 that a side whose pilots get no orders beat every commander we had, and that new
 commanders came level with it only by learning to give almost no orders. The measurements

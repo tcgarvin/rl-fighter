@@ -42,7 +42,7 @@ training) follows one lead. On Beast, the lab's desktop with two graphics cards,
 same night [orderable pilots](../2026-11-21-orderable-pilots/results.md) trained the other half: a
 pilot that both takes an attack order cheaply and comes home when recalled.
 
-<!-- figure-idea: shared: what a commander does: one network sees the whole side and, once a second, gives each squad attack, defend, go-to or no order and decides which reserve ships launch; the pilots then fly on their own. -->
+<div data-figure="diagram" data-name="orders" data-caption="Each arm of this night trains a learned commander. Besides its orders it decides which reserve ships launch, which the picture leaves out. It cannot send the dock order, which only the scripted commander gives."></div>
 
 The [plan](plan.md) has the arms, the reasons for each, and the notes written during the
 night. "Unseen" is the scripted commander (the hand-written one) with its orders hidden

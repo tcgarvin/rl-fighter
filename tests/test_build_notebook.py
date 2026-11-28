@@ -11,6 +11,7 @@ import pytest
 from tools.build_notebook import (
     MAX_POINTS,
     METRICS,
+    DIAGRAMS_DIR,
     NotebookError,
     build_notebook,
     classify_artefact,
@@ -18,6 +19,7 @@ from tools.build_notebook import (
     parse_sim_version_text,
     parse_summary,
     parse_verdict,
+    place_diagrams,
     read_log,
     series_for,
 )
@@ -160,6 +162,56 @@ def test_a_relative_link_to_a_missing_file_raises(tmp_path: Path) -> None:
     ctx = LinkContext(tmp_path, run, frozenset({"2026-01-02-b"}))
     with pytest.raises(BrokenLinkError, match="gone.md"):
         render_markdown("See [this](gone.md).", ctx)
+
+
+def _write_diagram(root: Path, name: str, svg: str) -> None:
+    path = root / DIAGRAMS_DIR / f"{name}.svg"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(svg)
+
+
+def test_a_diagram_block_becomes_its_shared_svg_with_title_and_caption(
+    tmp_path: Path,
+) -> None:
+    _write_diagram(
+        tmp_path, "orders", '<svg class="diagram" viewBox="0 0 360 200"></svg>\n'
+    )
+    rendered = render_markdown(
+        "# T\n\nText.\n\n"
+        '<div data-figure="diagram" data-name="orders" data-title="What an order is" '
+        'data-caption="Attack &amp; defend"></div>\n'
+    )
+    body = place_diagrams(rendered.body_without_title, Path("results.md"), tmp_path)
+    assert '<figure class="figure nb-diagram" data-diagram="orders">' in body
+    assert '<p class="figure__title">What an order is</p>' in body
+    assert '<svg class="diagram" viewBox="0 0 360 200"></svg>' in body
+    assert (
+        '<figcaption class="figure__caption">Attack &amp; defend</figcaption>' in body
+    )
+    assert "data-figure" not in body
+
+
+def test_a_diagram_block_naming_a_missing_or_malformed_file_raises(
+    tmp_path: Path,
+) -> None:
+    block = '<div data-figure="diagram" data-name="{}"></div>'
+    with pytest.raises(NotebookError, match="has no file"):
+        place_diagrams(block.format("gone"), Path("results.md"), tmp_path)
+    with pytest.raises(NotebookError, match="needs data-name"):
+        place_diagrams(block.format("../x"), Path("results.md"), tmp_path)
+    _write_diagram(tmp_path, "bad", "<div>not a diagram</div>")
+    with pytest.raises(NotebookError, match="one <svg"):
+        place_diagrams(block.format("bad"), Path("results.md"), tmp_path)
+
+
+def test_every_diagram_in_the_repo_is_an_svg_diagram() -> None:
+    for path in sorted((REPO_ROOT / DIAGRAMS_DIR).glob("*.svg")):
+        body = place_diagrams(
+            f'<div data-figure="diagram" data-name="{path.stem}"></div>',
+            path,
+            REPO_ROOT,
+        )
+        assert "<svg" in body and "<title" in body and "<desc" in body, path
 
 
 # --- learning curves -------------------------------------------------------

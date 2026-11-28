@@ -46,9 +46,12 @@ may land on any entry first, so every entry stands on its own.
   AI assistants; say that rather than naming roles.
 - **Dense records** (parameter lists, deviations): keep them, with a sentence saying a
   reader can skip them, or move them under `## Details` near the end.
-- **Figures.** Where a picture would help, leave `<!-- figure-idea: ... -->` (dropped
-  on render; start it with `shared:` if many entries could use it). Films go in with
-  `<div data-figure="compare" ...>` (see `CLAUDE.md`).
+- **Figures.** Shared explainer diagrams live in `web/notebook/diagrams/<name>.svg`
+  and go in with `<div data-figure="diagram" data-name="<name>" data-caption="..."></div>`
+  (optional `data-title`). Check the ones there before drawing a new one. Films go in
+  with `<div data-figure="compare" ...>` (see `CLAUDE.md`). Where a picture would help
+  but none exists, leave `<!-- figure-idea: ... -->` (dropped on render; start it with
+  `shared:` if many entries could use it).
 - **Voice.** Short, plain, declarative sentences, "we", numbers stated exactly. Say how
   sure we are ("within the noise", "we have not tested whether"). No hype or filler, no
   dashes or semicolons in prose.

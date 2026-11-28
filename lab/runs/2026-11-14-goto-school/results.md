@@ -30,7 +30,7 @@ arrived in time hardly more often than before. A lone pilot would fly to an enem
 destroy it, and only then fly to the point. A commander's go-to is only worth giving if
 pilots go when told, so this night tried the two most likely fixes.
 
-<!-- figure-idea: shared: what an order is. A commander above a side, arrows to its ships for attack (a named enemy), defend (a friendly ship) and go-to (a circle on the map with a clock), so a reader sees the three orders before any numbers. -->
+<div data-figure="diagram" data-name="orders" data-caption="This night is about the go-to and its clock. In the practice drills a go-to usually carries a deadline. The commanders in real matches do not set one yet."></div>
 
 ## The night
 

@@ -64,7 +64,7 @@ updates 2459 and 2548, and both pay arms at 3494 and 3478 (sent a stop signal, S
 at 17:56). No rule of the game changed (`SIM_VERSION` 8, the version number of the game's
 rules).
 
-<!-- figure-idea: shared: a training night. A parent pilot at the top, the night's arms branching from it (here control, mixed, mixed_all, then pay0 and pay025), each trained for a set number of updates, and the morning's measurements below. Helps here because five arms in two parts are compared against each other and the parent. -->
+<div data-figure="diagram" data-name="training-night" data-caption="Here one parent, followers_school_1052, was copied into five arms in two parts, and they trained on through the next day. This run had no WAR round: the arms were measured on the order cost and the practice drills."></div>
 
 ## The cost, against a free 1052
 

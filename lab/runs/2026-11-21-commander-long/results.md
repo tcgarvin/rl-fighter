@@ -39,7 +39,7 @@ Every commander so far had trained for a single night, often with shortcuts adde
 owner's reading was that patience, not more shortcuts, was what was missing. So this run
 asks what one commander finds on the plain defaults if it is given days.
 
-<!-- figure-idea: shared: what a commander is. One side seen from above: the commander sees every ship, launches craft from the carrier, groups ships into squads and gives each squad an order (attack, defend, go to), while each pilot still flies its own ship. Helps every commander entry, since "order heads", "squads" and "time under an order" only make sense with this picture. -->
+<div data-figure="diagram" data-name="orders" data-caption="The commander trained here is a learned one. It also launches craft from its carrier, which the picture leaves out. By the end of the run its ships spent 0.2% of their time under any of these orders."></div>
 
 ## The curve
 
@@ -53,6 +53,8 @@ columns after it split that by mission: team deathmatch (small ships only), carr
 battle (destroy the enemy carrier), convoy escort (guard or attack freighters flying to a
 jump point) and station assault (attack or defend a static station). "Time under an
 order" is the share of its ships' time spent carrying an order.
+
+<div data-figure="diagram" data-name="missions" data-caption="The four mission columns in the table below are these four missions, the ones the live page plays."></div>
 
 | Updates | Checkpoints | Wins | Deathmatch | Carrier | Convoy | Station | Time under an order |
 |---|---|---|---|---|---|---|---|

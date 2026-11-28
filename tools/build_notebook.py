@@ -25,6 +25,10 @@ Each run directory is read as it is; the formats differ between runs:
   drawn with a draggable divider where the write-up has ``<div data-figure="compare"
   data-src="clip.mp4" data-view="wide" data-caption="..."></div>`` (``data-view`` is
   the film's ``--view``).
+- ``web/notebook/diagrams/<name>.svg``: shared explainer diagrams (inline SVG in the
+  house style of ``web/src/shell/diagram.css``), drawn into the entry where the
+  write-up has ``<div data-figure="diagram" data-name="orders" data-caption="...">
+  </div>`` (optional ``data-title``). Many entries can show the same one.
 - ``lab/live_pilots.json``: the pilots flying now, for the index's "Flying now" card.
 
     python -m tools.build_notebook [--runs lab/runs] [--champions lab/champions]
@@ -34,6 +38,7 @@ Each run directory is read as it is; the formats differ between runs:
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import math
 import re
@@ -59,6 +64,7 @@ RUN_SCHEMA = "rlf.notebook.run/1"
 MATCHUPS_SCHEMA = "rlf.notebook.matchups/1"
 LIVE_PILOTS_SCHEMA = "rlf.live_pilots/1"
 COMPARE_VIEWS = ("wide", "phone")
+DIAGRAMS_DIR = Path("web/notebook/diagrams")
 MAX_POINTS = 300
 WIN_SMOOTHING_UPDATES = 50
 TICKS_PER_SECOND = 30.0
@@ -78,6 +84,9 @@ _SIM_VERSION_TEXT = re.compile(r"SIM_VERSION\W{0,4}(\d+)|\bsim v(\d+)\b", re.I)
 _SENTENCE_END = re.compile(r"(?<=[.?!])\s+(?=[A-Z0-9*`(])")
 _COMPARE_FIGURE = re.compile(r"<div\b[^>]*\bdata-figure=\"compare\"[^>]*>")
 _DATA_ATTRIBUTE = re.compile(r"\bdata-([a-z]+)=\"([^\"]*)\"")
+_DIAGRAM_FIGURE = re.compile(r"<div\b[^>]*\bdata-figure=\"diagram\"[^>]*>\s*</div>")
+_DIAGRAM_NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+_DIAGRAM_SVG = re.compile(r"^\s*<svg\b[^>]*\bclass=\"diagram\"")
 
 
 class NotebookError(ValueError):
@@ -579,6 +588,58 @@ def build_media(run_dir: Path, results_md: str) -> dict[str, str]:
     return media
 
 
+def place_diagrams(body: str, source: Path, repo_root: Path) -> str:
+    """Draw each ``data-figure="diagram"`` block as its shared SVG with a caption.
+
+    Args:
+        body: an entry's rendered HTML.
+        source: the Markdown file it came from, for error messages.
+        repo_root: the checkout that holds ``DIAGRAMS_DIR``.
+
+    Returns:
+        The HTML with every diagram block replaced by a ``<figure>``.
+
+    Raises:
+        NotebookError: a block has no valid ``data-name``, names a diagram that
+            ``DIAGRAMS_DIR`` does not have, or the file is not an
+            ``<svg class="diagram">``.
+    """
+
+    def figure(match: re.Match[str]) -> str:
+        attributes = {
+            key: html.unescape(value)
+            for key, value in _DATA_ATTRIBUTE.findall(match.group(0))
+        }
+        name = attributes.get("name", "")
+        if not _DIAGRAM_NAME.match(name):
+            raise NotebookError(
+                f"{source}: diagram figure needs data-name, a file name in "
+                f"{DIAGRAMS_DIR} without .svg (got {name!r})"
+            )
+        path = repo_root / DIAGRAMS_DIR / f"{name}.svg"
+        if not path.is_file():
+            raise NotebookError(f"{source}: diagram {name!r} has no file {path}")
+        svg = path.read_text()
+        if not _DIAGRAM_SVG.match(svg):
+            raise NotebookError(
+                f'{path}: a diagram is one <svg class="diagram"> element'
+            )
+        title = attributes.get("title", "")
+        caption = attributes.get("caption", "")
+        parts = [f'<figure class="figure nb-diagram" data-diagram="{name}">']
+        if title:
+            parts.append(f'<p class="figure__title">{html.escape(title)}</p>')
+        parts.append(svg.strip())
+        if caption:
+            parts.append(
+                f'<figcaption class="figure__caption">{html.escape(caption)}</figcaption>'
+            )
+        parts.append("</figure>")
+        return "\n".join(parts)
+
+    return _DIAGRAM_FIGURE.sub(figure, body)
+
+
 def build_run(
     run_dir: Path,
     run_ids: frozenset[str],
@@ -639,9 +700,17 @@ def build_run(
     page = {
         "schema": RUN_SCHEMA,
         **meta,
-        "results_html": results.body_without_title if results is not None else None,
+        "results_html": (
+            place_diagrams(results.body_without_title, results_path, repo_root)
+            if results is not None
+            else None
+        ),
         "plan_title": plan.title if plan is not None else None,
-        "plan_html": plan.body_without_title if plan is not None else None,
+        "plan_html": (
+            place_diagrams(plan.body_without_title, plan_path, repo_root)
+            if plan is not None
+            else None
+        ),
         "charts": charts,
         "arms": arms,
         "matchups": matchups,

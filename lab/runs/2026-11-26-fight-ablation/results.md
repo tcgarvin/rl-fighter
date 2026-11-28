@@ -60,6 +60,8 @@ with two graphics cards, from 13:22 on 2026-11-26 to 03:00 the next morning, at 
 ahead a pilot weighs reward). Last round's `h995` arm is the reference with all three
 changes.
 
+<div data-figure="diagram" data-name="training-night" data-caption="Here one parent, followers_dock_v8_2676, was copied into two arms, solo and nobomb, each leaving out one of last round's changes. They trained from 13:22 to 03:00. In the WAR round one of them, dock_solo_4359, joined the live ten."></div>
+
 | Arm | Bombers outside the station assault | Teammates | Updates |
 |---|---|---|---|
 | `solo` | yes | no | 4,359 |

@@ -45,7 +45,7 @@ it faces), widening it from 587 to 592 numbers read each moment. Both trained on
 desktop with two graphics cards, from 18:20 to 01:30, about 8 s an update. The member id is the name each new pilot joined the season
 under.
 
-<!-- figure-idea: shared: a training night: parent pilots, an arm started from each, periodic quick evals, the final evals beside the parent, and the WAR round that decides the live ten. -->
+<div data-figure="diagram" data-name="training-night" data-caption="Here the night had two parents, followers_school_600 and its own parent followers_v8_352, and one arm from each, given the five new dock inputs. Both trained from 18:20 to 01:30."></div>
 
 | Arm | Parent | Updates | Member id |
 |---|---|---|---|

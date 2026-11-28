@@ -47,7 +47,7 @@ per shot, in a new version of the game where a fighter that hits a carrier flat 
   the night before). An update is one round of training: play a batch of matches, then
   adjust the network once.
 
-<!-- figure-idea: shared: a training night. A parent pilot at the top, the night's lines (arms) branching from it, each trained through the night, then the morning's measurements (practice drills, head-to-head against the parent, WAR) and which pilots go live. Helps here because four lines ran and are compared against their parents and each other. -->
+<div data-figure="diagram" data-name="training-night" data-caption="This night had no single parent. Three lines carried on from their own pilots of the night before, and the fourth, fighters_fire4, started as a copy of fighters that paid four times as much per shot. Each trained for about 480 rounds."></div>
 
 ## The ten
 

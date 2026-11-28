@@ -64,6 +64,8 @@ thrusters keep it for 5 s.
 In a fleet fight an attack order tells a pilot nothing it could not see, and makes it
 charge. Here an order carries facts the pilot does not have.
 
+<div data-figure="diagram" data-name="orders" data-caption="Piracy would be built mostly from go-to orders, which cost a side little in fleet fights. The commander sees every ship and picks the points. Its pilots fly there, or not."></div>
+
 - **A pilot sees its 7 nearest ships.** The other lanes are outside its view, and so
   are the hull to board and the exit. The commander sees every ship in the match (its
   inputs have room for 20), and a go-to
@@ -151,7 +153,6 @@ A bar is a pass mark set in advance.
    orders hidden. No bar: this is the baseline. Record disables, time in the ring
    (after a go-to, and under an attack order on the hull), boardings and escapes.
    Prediction: pirates with no orders steal under 0.1 cargoes a match.
-   <!-- figure-idea: shared: what an order is: the commander picks a point or a ship, the pilot sees it in its order block, then flies (or does not); here it is the whole reason the mission exists. -->
 3. **Hand-rule commander.** Rules in Python through the external commander: go-tos and
    the one attack. 576 paired matches a row (± 0.04, the margin of error), with
    `followers_school_1052` (of the followers family, after go-to school; the best order

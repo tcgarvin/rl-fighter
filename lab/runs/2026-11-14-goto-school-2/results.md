@@ -50,6 +50,8 @@ moment, so it can read go-to deadlines.
 | `followers_solo` | `followers_school_600` | 7 go-to drills in 10 flown by one ship alone, where it was 1 in 4 |
 | `fighters_pay1_school` | `fighters_pay1_v8_351` | What `followers_school` got on its first night: go-to drills as most of its training, a deadline worth 3 |
 
+<div data-figure="diagram" data-name="training-night" data-caption="Here three lines trained for about 460 rounds each. Two started from the same parent, followers_school_600, and differed only in how often a ship drilled alone. The third carried on from fighters_pay1_v8_351."></div>
+
 In a go-to drill a squad of one to four ships is told to reach a circle on the map,
 usually by a deadline. "A deadline worth 3" means arriving in time pays 3 points of reward
 and missing costs 3, where destroying a fighter pays about 0.8. `fighters_pay1_v8_351` is

@@ -39,7 +39,7 @@ and the movement of the big ships. The next step, called stage B in the project 
 (`docs/M3_PLAN.md`, where this survey is milestone M3, stage A, work package WP-S2),
 teaches pilots to follow orders by copying hand-written pilots that already do.
 
-<!-- figure-idea: shared: the missions side by side (deathmatch, carrier battle, convoy escort): who starts where, what each side must do to win, and how the match ends. Helps here because the whole entry is about whether each mission ends the right way. -->
+<div data-figure="diagram" data-name="missions" data-caption="This survey played the first three missions. The station assault, bottom right, did not exist yet: it came three weeks later, in rules version 9."></div>
 <!-- figure-idea: shared: the command layer, a commander above its side's ships, sending launches, a carrier waypoint and one order per squad (attack, guard, hold) down to the pilots. -->
 
 ## Verdict in detail

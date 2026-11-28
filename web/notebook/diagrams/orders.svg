@@ -1,0 +1,105 @@
+<svg class="diagram" viewBox="0 0 360 656" role="img" aria-labelledby="orders-title orders-desc">
+  <title id="orders-title">What a commander and its orders are</title>
+  <desc id="orders-desc">The Commander sees the whole side and every ship. It is a network, or the hand-written scripted commander. A learned one decides once a second, the scripted one every two seconds. Thin lines connect it to squads in one side seen from above. Each squad is a group of azure strike craft. Ember craft form a group on the right labelled enemy. Attack tells a squad to go after one named enemy, shown in a target ring. Defend tells a squad to stay near a friendly ship, the ward, and fight what threatens it. A dashed ring surrounds the azure carrier serving as the ward. One approaching ember craft is labelled threat, with a dashed ember arrow toward the ward. Go-to tells a squad to fly into the circle. Once inside, the order is done and the ship is free. A clock marks that from rules version 8 a go-to can carry a deadline, so far set only in practice drills. Dock, added in rules version 11, sends one damaged ship home to its carrier to land and repair. So far only the scripted commander sends it. A single damaged dart and a curved arrow toward a carrier illustrate Dock. The bottom box shows what the pilot does with it. A strip represents the hundreds of numbers it reads each moment, with a few azure cells labelled its order. The pilot sees its order only as a few more numbers among its inputs. It still sets its own thrusters, turrets and trigger. It can follow the order or ignore it. There is no autopilot.</desc>
+
+  <rect class="box" x="8" y="8" width="344" height="108" rx="3" />
+  <text class="dg-label dg-label--strong" x="20" y="27">Commander</text>
+  <text class="dg-label" x="20" y="45">Sees the whole side and every ship.</text>
+  <text class="dg-label" x="20" y="61">A network, or the hand-written</text>
+  <text class="dg-label" x="20" y="74">scripted commander.</text>
+  <text class="dg-label" x="20" y="90">A learned one decides once a second,</text>
+  <text class="dg-label" x="20" y="103">the scripted one every two seconds.</text>
+
+  <path class="dg-fan" d="M30,116 Q12,120 12,142 L12,321 M12,176 L28,176 M12,244 L28,244 M12,321 L28,321" />
+  <text class="dg-label dg-label--strong" x="28" y="137">One side seen from above</text>
+
+  <path class="dg-a" d="M45,170 L34,166 L37,170 L34,174 Z M45,183 L34,179 L37,183 L34,187 Z M58,177 L47,173 L50,177 L47,181 Z" />
+  <text class="dg-small" x="30" y="201">squad</text>
+  <path class="dg-stroke-a" d="M62,176 L102,176 M97,172 L102,176 L97,180" />
+  <circle class="dg-stroke-a" cx="119" cy="176" r="11" />
+  <path class="dg-b" d="M113,176 L124,172 L121,176 L124,180 Z" />
+  <text class="dg-small" x="119" y="201" text-anchor="middle">target</text>
+  <text class="dg-label dg-label--strong" x="150" y="159">Attack</text>
+  <text class="dg-small" x="150" y="176">go after one named enemy</text>
+  <text class="dg-small" x="320" y="193" text-anchor="middle">enemy</text>
+  <path class="dg-b" d="M304,206 L315,202 L312,206 L315,210 Z M326,219 L337,215 L334,219 L337,223 Z M276,219 L287,215 L284,219 L287,223 Z" />
+  <text class="dg-small" x="278" y="205" text-anchor="middle">threat</text>
+  <path class="dg-stroke-b dg-dash" d="M270,219 Q194,206 123,237" />
+  <path class="dg-stroke-b" d="M127,232 L123,237 L129,238" />
+
+  <circle class="dg-stroke-a dg-dash" cx="96" cy="244" r="25" />
+  <path class="dg-a" d="M107,244 L100,234 L86,234 L86,254 L100,254 Z" />
+  <path class="dg-a" d="M46,237 L35,233 L38,237 L35,241 Z M46,251 L35,247 L38,251 L35,255 Z M59,244 L48,240 L51,244 L48,248 Z" />
+  <text class="dg-small" x="29" y="279">squad</text>
+  <text class="dg-small" x="96" y="284" text-anchor="middle">ward</text>
+  <text class="dg-label dg-label--strong" x="150" y="245">Defend</text>
+  <text class="dg-small" x="150" y="262">stay near a friendly ship, the ward,</text>
+  <text class="dg-small" x="150" y="275">and fight what threatens it</text>
+
+  <path class="dg-a" d="M45,315 L34,311 L37,315 L34,319 Z M45,328 L34,324 L37,328 L34,332 Z M58,321 L47,317 L50,321 L47,325 Z" />
+  <path class="dg-stroke-a" d="M62,321 L107,321 M102,317 L107,321 L102,325" />
+  <circle class="dg-stroke-a" cx="119" cy="321" r="13" />
+  <circle class="dg-a" cx="119" cy="321" r="2" />
+  <text class="dg-small" x="30" y="349">squad</text>
+  <text class="dg-label dg-label--strong" x="150" y="302">Go-to</text>
+  <text class="dg-small" x="150" y="319">fly into the circle. Once inside,</text>
+  <text class="dg-small" x="150" y="332">the order is done and the ship is free</text>
+  <circle class="dg-line" cx="35" cy="367" r="7" />
+  <path class="dg-line" d="M35,362 L35,367 L39,369" />
+  <text class="dg-small" x="50" y="362">From rules version 8 a go-to can carry a</text>
+  <text class="dg-small" x="50" y="375">deadline (so far set only in practice drills)</text>
+
+  <path class="dg-line" d="M20,391 L340,391" />
+  <text class="dg-small" x="20" y="408">Added in rules version 11</text>
+  <path class="dg-a" d="M32,437 L39,427 L53,427 L53,447 L39,447 Z" />
+  <path class="dg-a" d="M104,437 L115,433 L113,437 L116,439 L111,439 L115,441 Z" />
+  <path class="dg-stroke-a" d="M107,429 Q82,413 59,432 M60,426 L59,432 L65,431" />
+  <text class="dg-small" x="22" y="460">carrier</text>
+  <text class="dg-small" x="83" y="460">damaged</text>
+  <text class="dg-label dg-label--strong" x="150" y="425">Dock</text>
+  <text class="dg-small" x="150" y="440">one damaged ship is sent home to repair.</text>
+  <text class="dg-small" x="150" y="453">So far only the scripted commander</text>
+  <text class="dg-small" x="150" y="466">sends it.</text>
+
+  <rect class="box" x="8" y="478" width="344" height="174" rx="3" />
+  <text class="dg-label dg-label--strong" x="20" y="495">What the pilot does with it</text>
+  <text class="dg-small" x="20" y="511">the hundreds of numbers it reads each moment</text>
+  <g class="box">
+    <rect x="20" y="519" width="9" height="11" rx="1" />
+    <rect x="32" y="519" width="9" height="11" rx="1" />
+    <rect x="44" y="519" width="9" height="11" rx="1" />
+    <rect x="56" y="519" width="9" height="11" rx="1" />
+    <rect x="68" y="519" width="9" height="11" rx="1" />
+    <rect x="80" y="519" width="9" height="11" rx="1" />
+    <rect x="92" y="519" width="9" height="11" rx="1" />
+    <rect x="104" y="519" width="9" height="11" rx="1" />
+    <rect x="116" y="519" width="9" height="11" rx="1" />
+    <rect x="128" y="519" width="9" height="11" rx="1" />
+    <rect x="140" y="519" width="9" height="11" rx="1" />
+    <rect x="152" y="519" width="9" height="11" rx="1" />
+    <rect x="164" y="519" width="9" height="11" rx="1" />
+    <rect x="176" y="519" width="9" height="11" rx="1" />
+    <rect x="188" y="519" width="9" height="11" rx="1" />
+    <rect x="200" y="519" width="9" height="11" rx="1" />
+    <rect x="212" y="519" width="9" height="11" rx="1" />
+    <rect x="224" y="519" width="9" height="11" rx="1" />
+    <rect x="236" y="519" width="9" height="11" rx="1" />
+    <rect x="248" y="519" width="9" height="11" rx="1" />
+    <rect x="296" y="519" width="9" height="11" rx="1" />
+    <rect x="308" y="519" width="9" height="11" rx="1" />
+    <rect x="320" y="519" width="9" height="11" rx="1" />
+  </g>
+  <g class="dg-a">
+    <rect x="260" y="519" width="9" height="11" rx="1" />
+    <rect x="272" y="519" width="9" height="11" rx="1" />
+    <rect x="284" y="519" width="9" height="11" rx="1" />
+  </g>
+  <path class="dg-stroke-a" d="M260,534 L260,537 L293,537 L293,534" />
+  <text class="dg-small" x="276" y="549" text-anchor="middle">its order</text>
+  <text class="dg-label" x="20" y="565">The pilot sees its order only as a few more</text>
+  <text class="dg-label" x="20" y="578">numbers among its inputs.</text>
+  <text class="dg-label" x="20" y="593">It still sets its own thrusters, turrets</text>
+  <text class="dg-label" x="20" y="606">and trigger.</text>
+  <text class="dg-label dg-label--strong" x="20" y="621">It can follow the order or ignore it.</text>
+  <text class="dg-label dg-label--strong" x="20" y="634">There is no autopilot.</text>
+</svg>

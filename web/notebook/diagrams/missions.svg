@@ -1,0 +1,110 @@
+<svg class="diagram" viewBox="0 0 360 752" role="img" aria-labelledby="missions-title missions-desc">
+  <title id="missions-title">The four missions</title>
+  <desc id="missions-desc">Azure and ember are the two sides. Each map is seen from above. A shared dashed arc legend means jumping in. Four panels show round arenas. At top left, Team deathmatch, subtitled fleet fight, shows three azure strike craft jumping in from the left and three ember strike craft from the right, facing each other. Strike craft only, one to four a side. Win by destroying every enemy. At the time limit (90 s) the side with more hull and shields left wins. At top right, Carrier battle, subtitled a carrier a side, shows a carrier at each side, two strike craft jumping in ahead of each, and a short arrow from each carrier bay to a departing craft. Each side has a carrier that launches its strike craft. Win by destroying the enemy carrier. At the time limit (150 s) the side whose carrier has more hull left wins. At bottom left, Convoy escort, subtitled freighters and their escort, shows three azure freighters in a column heading up, azure escorts on either side, a dashed route to a dashed circle labelled jump point, and ember attackers arriving from both sides. Escorts guard freighters flying to a jump point, where they charge and jump out. The other side attacks. The attacker wins by destroying at least half the freighters. The defender wins when more than half escape. At the time limit (120 s) the attacker wins. At bottom right, Station assault, subtitled rules version 9 on, shows a fixed azure station with turret dots and two nearby guards on the left. An ember carrier is on the right, with strike craft jumping in ahead of it and wider chevrons labelled bombers heading toward the station. A dashed ember warship beside the carrier is labelled dreadnought. A fixed station defends with its own ships and a reserve inside. The attacker brings a carrier, bombers and, from rules version 10, a dreadnought. It wins only by destroying the station. At the time limit (150 s) the defender wins. From rules version 10 the station is the much bigger citadel.</desc>
+
+  <text class="dg-small" x="180" y="14" text-anchor="middle">Azure and ember are the two sides.</text>
+  <text class="dg-small" x="180" y="28" text-anchor="middle">Each map is seen from above.</text>
+
+  <path class="dg-loop" d="M152 35 Q146 41 152 47" aria-hidden="true"/>
+  <text class="dg-small" x="160" y="45">jumping in</text>
+
+  <rect class="box" x="4" y="60" width="172" height="288" rx="3"/>
+  <rect class="box" x="184" y="60" width="172" height="288" rx="3"/>
+  <rect class="box" x="4" y="364" width="172" height="380" rx="3"/>
+  <rect class="box" x="184" y="364" width="172" height="380" rx="3"/>
+
+  <g aria-hidden="true">
+    <circle class="dg-fan" cx="90" cy="128" r="60" opacity="0.6"/>
+    <path class="dg-loop" d="M43 102 Q37 108 43 114 M37 122 Q31 128 37 134 M43 142 Q37 148 43 154 M137 102 Q143 108 137 114 M143 122 Q149 128 143 134 M137 142 Q143 148 137 154"/>
+    <path class="dg-a" d="M47 104 L59 108 L47 112 L50 108 Z M41 124 L53 128 L41 132 L44 128 Z M47 144 L59 148 L47 152 L50 148 Z"/>
+    <path class="dg-b" d="M133 104 L121 108 L133 112 L130 108 Z M139 124 L127 128 L139 132 L136 128 Z M133 144 L121 148 L133 152 L130 148 Z"/>
+  </g>
+  <text class="dg-label dg-label--strong" x="14" y="208">Team deathmatch</text>
+  <text class="dg-small" x="14" y="222">fleet fight</text>
+  <text class="dg-small" x="14" y="240">Strike craft only,</text>
+  <text class="dg-small" x="14" y="253">one to four a side.</text>
+  <text class="dg-small" x="14" y="275">Win by destroying</text>
+  <text class="dg-small" x="14" y="288">every enemy.</text>
+  <text class="dg-small" x="14" y="310">At the time limit (90 s)</text>
+  <text class="dg-small" x="14" y="323">the side with more hull</text>
+  <text class="dg-small" x="14" y="336">and shields left wins.</text>
+
+  <g aria-hidden="true">
+    <circle class="dg-fan" cx="270" cy="128" r="60" opacity="0.6"/>
+    <path class="dg-a" d="M214 121 L230 121 L235 125 L235 131 L230 135 L214 135 Z"/>
+    <path class="dg-b" d="M326 121 L310 121 L305 125 L305 131 L310 135 L326 135 Z"/>
+    <path class="dg-loop" d="M242 103 Q236 109 242 115 M247 141 Q241 147 247 153 M298 103 Q304 109 298 115 M293 141 Q299 147 293 153"/>
+    <path class="dg-a" d="M246 105 L258 109 L246 113 L249 109 Z M251 143 L263 147 L251 151 L254 147 Z M249 124 L261 128 L249 132 L252 128 Z"/>
+    <path class="dg-b" d="M294 105 L282 109 L294 113 L291 109 Z M289 143 L277 147 L289 151 L286 147 Z M291 124 L279 128 L291 132 L288 128 Z"/>
+    <path class="dg-stroke-a" d="M235 128 L245 128 M242 125 L245 128 L242 131"/>
+    <path class="dg-stroke-b" d="M305 128 L295 128 M298 125 L295 128 L298 131"/>
+  </g>
+  <text class="dg-label dg-label--strong" x="194" y="208">Carrier battle</text>
+  <text class="dg-small" x="194" y="222">a carrier a side</text>
+  <text class="dg-small" x="194" y="240">Each side has a carrier that</text>
+  <text class="dg-small" x="194" y="253">launches its strike craft.</text>
+  <text class="dg-small" x="194" y="275">Win by destroying the</text>
+  <text class="dg-small" x="194" y="288">enemy carrier.</text>
+  <text class="dg-small" x="194" y="310">At the time limit (150 s)</text>
+  <text class="dg-small" x="194" y="323">the side whose carrier has</text>
+  <text class="dg-small" x="194" y="336">more hull left wins.</text>
+
+  <g aria-hidden="true">
+    <circle class="dg-fan" cx="90" cy="432" r="60" opacity="0.6"/>
+    <circle class="dg-loop" cx="90" cy="411" r="8"/>
+    <path class="dg-loop" d="M90 468 L90 424"/>
+    <path class="dg-arrow" d="M87 428 L90 422 L93 428 Z"/>
+    <path class="dg-a" d="M84 447 L84 437 L90 434 L96 437 L96 447 Z M84 464 L84 454 L90 451 L96 454 L96 464 Z M84 481 L84 471 L90 468 L96 471 L96 481 Z"/>
+    <path class="dg-a" d="M61 454 L65 442 L69 454 L65 451 Z M111 454 L115 442 L119 454 L115 451 Z M65 471 L69 459 L73 471 L69 468 Z M107 471 L111 459 L115 471 L111 468 Z"/>
+    <path class="dg-loop" d="M40 423 Q34 429 40 435 M140 423 Q146 429 140 435"/>
+    <path class="dg-b" d="M44 425 L56 429 L44 433 L47 429 Z M136 425 L124 429 L136 433 L133 429 Z"/>
+  </g>
+  <text class="dg-small" x="90" y="395" text-anchor="middle">jump point</text>
+  <text class="dg-label dg-label--strong" x="14" y="512">Convoy escort</text>
+  <text class="dg-small" x="14" y="526">freighters and their escort</text>
+  <text class="dg-small" x="14" y="546">Escorts guard freighters</text>
+  <text class="dg-small" x="14" y="559">flying to a jump point,</text>
+  <text class="dg-small" x="14" y="572">where they charge and jump</text>
+  <text class="dg-small" x="14" y="585">out. The other side attacks.</text>
+  <text class="dg-small" x="14" y="603">The attacker wins by</text>
+  <text class="dg-small" x="14" y="616">destroying at least half</text>
+  <text class="dg-small" x="14" y="629">the freighters.</text>
+  <text class="dg-small" x="14" y="647">The defender wins when</text>
+  <text class="dg-small" x="14" y="660">more than half escape.</text>
+  <text class="dg-small" x="14" y="678">At the time limit (120 s)</text>
+  <text class="dg-small" x="14" y="691">the attacker wins.</text>
+
+  <g aria-hidden="true">
+    <circle class="dg-fan" cx="270" cy="432" r="60" opacity="0.6"/>
+    <path class="dg-a" d="M224 423 L233 414 L243 414 L252 423 L252 441 L243 450 L233 450 L224 441 Z"/>
+    <circle class="dg-chip" cx="238" cy="432" r="7"/>
+    <circle class="dg-a" cx="226" cy="418" r="2"/>
+    <circle class="dg-a" cx="250" cy="418" r="2"/>
+    <circle class="dg-a" cx="226" cy="446" r="2"/>
+    <circle class="dg-a" cx="250" cy="446" r="2"/>
+    <path class="dg-a" d="M253 390 L265 394 L253 398 L256 394 Z M253 448 L265 452 L253 456 L256 452 Z"/>
+    <path class="dg-b" d="M327 425 L311 425 L306 429 L306 435 L311 439 L327 439 Z"/>
+    <path class="dg-loop" d="M300 388 Q306 394 300 400 M298 446 Q304 452 298 458"/>
+    <path class="dg-b" d="M296 390 L284 394 L296 398 L293 394 Z M294 448 L282 452 L294 456 L291 452 Z"/>
+    <path class="dg-b" d="M283 419 L276 423 L276 427 L283 431 L287 431 L284 425 L287 419 Z M280 436 L273 440 L273 444 L280 448 L284 448 L281 442 L284 436 Z"/>
+    <path class="dg-stroke-b dg-dash" d="M310 460 L250 460 L240 469 L250 478 L304 478 L310 472 Z"/>
+  </g>
+  <text class="dg-small" x="280" y="414" text-anchor="middle">bombers</text>
+  <text class="dg-small" x="277" y="473" text-anchor="middle">dreadnought</text>
+  <text class="dg-label dg-label--strong" x="194" y="512">Station assault</text>
+  <text class="dg-small" x="194" y="526">rules version 9 on</text>
+  <text class="dg-small" x="194" y="546">A fixed station defends with</text>
+  <text class="dg-small" x="194" y="559">its own ships and a reserve</text>
+  <text class="dg-small" x="194" y="572">inside.</text>
+  <text class="dg-small" x="194" y="590">The attacker brings a carrier,</text>
+  <text class="dg-small" x="194" y="603">bombers and, from</text>
+  <text class="dg-small" x="194" y="616">rules version 10,</text>
+  <text class="dg-small" x="194" y="629">a dreadnought.</text>
+  <text class="dg-small" x="194" y="647">It wins only by destroying</text>
+  <text class="dg-small" x="194" y="660">the station.</text>
+  <text class="dg-small" x="194" y="678">At the time limit (150 s)</text>
+  <text class="dg-small" x="194" y="691">the defender wins.</text>
+  <text class="dg-small" x="194" y="709">From rules version 10</text>
+  <text class="dg-small" x="194" y="722">the station is the much</text>
+  <text class="dg-small" x="194" y="735">bigger citadel.</text>
+</svg>

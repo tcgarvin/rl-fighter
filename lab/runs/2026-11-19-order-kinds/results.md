@@ -71,7 +71,7 @@ order), and never sent again. Its radius is 60 m, the learned commander's `GOTO_
 a ship has arrived once it is within 60 m of the point. "Centroid" below is the centre of
 a fleet's ships. In a defend order the ship being defended is the ward.
 
-<!-- figure-idea: shared: what an order is, drawn for each kind. An attack arrow to a named enemy, a go-to circle the ship flies into (after which it is free), a defend ring around a ward with its threats marked, on one sketch of a 3 v 3. Helps here because the entry compares the kinds, and the rules table is hard to picture. -->
+<div data-figure="diagram" data-name="orders" data-caption="This entry compares the kinds of order in fleet fights. Its go-to rules send one go-to to the whole side at the start, and one of them adds a deadline."></div>
 
 | Rule | Orders |
 |---|---|

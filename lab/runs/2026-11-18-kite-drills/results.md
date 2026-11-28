@@ -35,7 +35,7 @@ backs away, and most targets were busy attacking a freighter (a slow cargo ship)
 target that falls back and fights. This night added that, as **kite drills** (to kite is
 to fall back while shooting).
 
-<!-- figure-idea: shared: what an order is. A commander above its side, one arrow per ship to the enemy it is told to attack (or a point, or a friend to defend), and the pilot's view with the order as one more thing it sees. Helps here because the whole entry turns on what an attack order makes a pilot do. -->
+<div data-figure="diagram" data-name="orders" data-caption="This entry turns on the attack order. Kite drills practise it against a target that backs away and fights back."></div>
 
 ## What we did
 

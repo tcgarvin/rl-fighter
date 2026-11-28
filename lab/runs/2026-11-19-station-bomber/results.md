@@ -41,7 +41,7 @@ the mission balanced, and can today's pilots fly it?
 
 ## The mission
 
-<!-- figure-idea: shared: the station assault laid out: the station with its picket and bays on the defender's side, the attacking carrier and its jump-in craft arriving from the far side, bombers heading for the station; one of "the four missions" set many entries could share. -->
+<div data-figure="diagram" data-name="missions" data-caption="This entry builds the station assault, bottom right, with the first station and the bomber. The citadel and the dreadnought came one rules version later."></div>
 
 The rules are in `docs/SIM_SPEC.md` §0.7 and §5.10. Team 0 defends a station placed on
 its own side of the arena, 0.35 of the arena's radius from the centre (−0.35 R). It has a

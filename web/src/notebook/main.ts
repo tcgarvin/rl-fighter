@@ -7,6 +7,7 @@ import { formatValue, lineChart } from "./chart";
 import { matchupGrid } from "./matchups";
 import { compareFigure } from "./compare";
 import type { Artefact, ArtefactKind, ChampionRef, IndexRun, NotebookIndex, RunPage, Verdict } from "./types";
+import "../shell/diagram.css";
 import "./notebook.css";
 
 const DATA = "/notebook/data";

@@ -1,0 +1,97 @@
+/* Inline SVG diagrams in the house style, shared by /pilot/, /commander/ and the
+   notebook (web/notebook/diagrams/). */
+
+/* Diagrams: one coordinate system 360 units wide, scaled to the column. */
+.diagram {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 8px 0 0;
+  font-family: var(--font);
+  overflow: visible;
+}
+
+.diagram .dg-label {
+  font-size: 11px;
+  fill: var(--fg-soft);
+}
+
+.diagram .dg-label--strong {
+  fill: var(--fg);
+  font-weight: 600;
+}
+
+.diagram .dg-small {
+  font-size: 10px;
+  fill: var(--muted);
+}
+
+.diagram .dg-num {
+  font-size: 11px;
+  fill: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.diagram .dg-kicker {
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  fill: var(--muted);
+}
+
+.diagram .box {
+  fill: var(--bg-raised);
+  stroke: var(--line-strong);
+}
+
+.diagram .box--sim {
+  stroke-dasharray: 3 3;
+}
+
+.diagram .dg-chip {
+  fill: var(--bg);
+  opacity: 0.85;
+}
+
+.diagram .dg-line,
+.diagram .dg-loop {
+  stroke: var(--line-strong);
+  stroke-width: 1.2;
+  fill: none;
+}
+
+.diagram .dg-loop {
+  stroke-dasharray: 3 3;
+}
+
+.diagram .dg-arrow {
+  fill: var(--fg-soft);
+}
+
+.diagram .dg-fan {
+  stroke: var(--line-strong);
+  fill: none;
+}
+
+/* Sides, for diagrams of matches: azure (team a) and ember (team b), the live page's
+   colours. Fill classes for ships, stroke classes for order lines and rings. */
+.diagram .dg-a {
+  fill: var(--team-a);
+}
+
+.diagram .dg-b {
+  fill: var(--team-b);
+}
+
+.diagram .dg-stroke-a {
+  stroke: var(--team-a);
+  fill: none;
+}
+
+.diagram .dg-stroke-b {
+  stroke: var(--team-b);
+  fill: none;
+}
+
+.diagram .dg-dash {
+  stroke-dasharray: 3 3;
+}

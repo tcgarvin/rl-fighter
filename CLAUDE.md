@@ -304,6 +304,9 @@ uv run python -m pytest tests/test_build_notebook.py tests/test_build_catalogue.
 
 Notebook entries (`lab/runs/<id>/results.md`) are written for an outsider with no ML
 background: `docs/NOTEBOOK_WRITING.md` has the shape, the rules and the agreed glossary.
+Shared explainer diagrams: `web/notebook/diagrams/<name>.svg` (styles in
+`web/src/shell/diagram.css`), placed with `<div data-figure="diagram" data-name="<name>"
+data-caption="..."></div>`.
 
 How pilots train (scenarios, order drills, families, what earns a place): `docs/PILOT_TRAINING.md`.
 Keep it current when training scenarios change.

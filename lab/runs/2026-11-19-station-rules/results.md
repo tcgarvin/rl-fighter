@@ -37,6 +37,8 @@ anything: if no hand rule beats no orders, a learned commander has nothing to fi
 [station commander](../2026-11-19-station-commander/results.md) run then tried to learn
 what these rules found.
 
+<div data-figure="diagram" data-name="missions" data-caption="This entry plays the station assault, bottom right, under rules version 9, with the first station and no dreadnought. The decisions that paid were when the station launches its reserve and where the attacker parks its carrier."></div>
+
 <!-- figure-idea: shared: what a commander controls: orders to each strike craft (attack, defend, go-to) on one side, and the capital-ship decisions (when the bays launch, where the carrier steers) on the other; this entry's whole result is that split. -->
 
 ## The setup

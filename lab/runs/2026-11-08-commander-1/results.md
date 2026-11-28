@@ -77,7 +77,7 @@ followed; the pilots do not yet listen.
 
 ## What they do
 
-<!-- figure-idea: shared: what a commander sees and decides, a top-down battle map with its ships grouped into squads, an order arrow per squad (attack, defend, go-to), and the carrier's launch and move choices; it would make "squads", "orders" and "logistics" concrete -->
+<div data-figure="diagram" data-name="orders" data-caption="These commanders give attack, defend and go-to orders, or none. Go-to deadlines and the dock order came in later versions of the rules. The picture leaves out the commander's other choices: when to launch from the carrier and where the carrier steers."></div>
 
 A commander groups its strike craft into up to four squads and gives each squad one order:
 attack a named enemy, defend a friendly ship, go to a point, or none. Over the last 40

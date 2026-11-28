@@ -1,0 +1,110 @@
+<svg class="diagram" viewBox="0 0 360 772" role="img" aria-labelledby="training-night-title training-night-desc">
+  <title id="training-night-title">A night of pilot training</title>
+  <desc id="training-night-desc">A vertical flow starts with Parent pilot, an existing pilot, already trained. It branches into Arm A, Arm B and an optional dashed Arm C, labelled two or three arms. These are exact copies of the parent, different only in the one setting the night tests. In the band labelled OVERNIGHT, UNATTENDED, each arm follows a long training line. Trial and error: hundreds or thousands of rounds of training. Each round plays a batch of matches and adjusts the network a little. Square markers mean saved copy. Circle markers mean quick check, on some nights: a few short practice drills. All arms reach a box labelled MORNING and Full measurements, such as. Its rows are Practice drills, short scenarios for one skill, such as following an order. Fleet fights against the script, the hand-written pilot, the yardstick. Missions against the script, the carrier battle and the other missions. An arrow leads to The season's population, every pilot trained under one version of the rules. A group of pilot dots shows the night's new pilots filled azure and labelled new, and the others outlined. Another arrow leads to Wins above replacement (WAR). Pilots, the script among them, are dropped at random into matches like the live page's. Each is scored by how many more matches in 100 its side wins than with the script flying instead. The final arrow leads to The ten best by WAR fly the live page. A dashed return arrow runs up the right margin to the parent box, labelled a later night's parent.</desc>
+
+  <rect class="box" x="70" y="8" width="220" height="42" rx="3" />
+  <text class="dg-label dg-label--strong" x="180" y="25" text-anchor="middle">Parent pilot</text>
+  <text class="dg-small" x="180" y="40" text-anchor="middle">an existing pilot, already trained</text>
+
+  <path class="dg-line" d="M180,50 V62 H84 V78 H36 V92 M84,78 V92" />
+  <path class="dg-line dg-dash" d="M84,78 H132 V92" />
+  <rect class="box" x="15" y="92" width="42" height="26" rx="3" />
+  <rect class="box" x="63" y="92" width="42" height="26" rx="3" />
+  <rect class="box box--sim" x="111" y="92" width="42" height="26" rx="3" />
+  <text class="dg-label" x="36" y="109" text-anchor="middle">Arm A</text>
+  <text class="dg-label" x="84" y="109" text-anchor="middle">Arm B</text>
+  <text class="dg-label" x="132" y="109" text-anchor="middle">Arm C</text>
+  <text class="dg-small" x="162" y="80">Exact copies of the parent,</text>
+  <text class="dg-small" x="162" y="94">different only in the one setting</text>
+  <text class="dg-small" x="162" y="108">the night tests</text>
+  <text class="dg-small" x="162" y="126">two or three arms</text>
+
+  <rect class="box" x="8" y="140" width="318" height="180" rx="3" />
+  <path class="dg-line" d="M36,118 V338 M84,118 V338" />
+  <path class="dg-line dg-dash" d="M132,118 V338" />
+  <g class="box">
+    <rect x="33" y="163" width="6" height="6" />
+    <rect x="33" y="194" width="6" height="6" />
+    <rect x="33" y="229" width="6" height="6" />
+    <rect x="33" y="267" width="6" height="6" />
+    <rect x="81" y="163" width="6" height="6" />
+    <rect x="81" y="194" width="6" height="6" />
+    <rect x="81" y="229" width="6" height="6" />
+    <rect x="81" y="267" width="6" height="6" />
+    <circle cx="36" cy="182" r="3" />
+    <circle cx="36" cy="251" r="3" />
+    <circle cx="84" cy="182" r="3" />
+    <circle cx="84" cy="251" r="3" />
+  </g>
+  <g class="box box--sim">
+    <rect x="129" y="163" width="6" height="6" />
+    <rect x="129" y="194" width="6" height="6" />
+    <rect x="129" y="229" width="6" height="6" />
+    <rect x="129" y="267" width="6" height="6" />
+    <circle cx="132" cy="182" r="3" />
+    <circle cx="132" cy="251" r="3" />
+  </g>
+  <text class="dg-small dg-label--strong" x="162" y="154">OVERNIGHT, UNATTENDED</text>
+  <text class="dg-small" x="162" y="174">Trial and error: hundreds</text>
+  <text class="dg-small" x="162" y="187">or thousands of rounds</text>
+  <text class="dg-small" x="162" y="200">of training.</text>
+  <text class="dg-small" x="162" y="219">Each round plays a batch</text>
+  <text class="dg-small" x="162" y="232">of matches and adjusts</text>
+  <text class="dg-small" x="162" y="245">the network a little.</text>
+  <rect class="box" x="165" y="260" width="6" height="6" />
+  <text class="dg-small" x="178" y="266">saved copy</text>
+  <circle class="box" cx="168" cy="280" r="3" />
+  <text class="dg-small" x="178" y="283">quick check, on some nights:</text>
+  <text class="dg-small" x="178" y="296">a few short practice drills</text>
+
+  <path class="dg-arrow" d="M32,337 L36,344 L40,337 Z M80,337 L84,344 L88,337 Z M128,337 L132,344 L136,337 Z" />
+  <rect class="box" x="8" y="344" width="318" height="156" rx="3" />
+  <text class="dg-small dg-label--strong" x="20" y="360">MORNING</text>
+  <text class="dg-label dg-label--strong" x="20" y="377">Full measurements, such as</text>
+  <text class="dg-label dg-label--strong" x="20" y="398">Practice drills</text>
+  <text class="dg-small" x="20" y="411">short scenarios for one skill,</text>
+  <text class="dg-small" x="20" y="423">such as following an order</text>
+  <path class="dg-fan" d="M20,432 H314 M20,465 H314" />
+  <text class="dg-label dg-label--strong" x="20" y="444">Fleet fights against the script</text>
+  <text class="dg-small" x="20" y="457">the hand-written pilot, the yardstick</text>
+  <text class="dg-label dg-label--strong" x="20" y="477">Missions against the script</text>
+  <text class="dg-small" x="20" y="490">the carrier battle and the other missions</text>
+
+  <path class="dg-line" d="M167,500 V516" />
+  <path class="dg-arrow" d="M163,515 L167,522 L171,515 Z" />
+  <rect class="box" x="8" y="522" width="318" height="74" rx="3" />
+  <text class="dg-label dg-label--strong" x="167" y="538" text-anchor="middle">The season's population</text>
+  <text class="dg-small" x="167" y="552" text-anchor="middle">every pilot trained under one version of the rules</text>
+  <g class="box">
+    <circle cx="95" cy="569" r="4" />
+    <circle cx="113" cy="569" r="4" />
+    <circle cx="131" cy="569" r="4" />
+    <circle cx="149" cy="569" r="4" />
+    <circle cx="167" cy="569" r="4" />
+    <circle cx="185" cy="569" r="4" />
+  </g>
+  <g class="dg-a">
+    <circle cx="203" cy="569" r="4" />
+    <circle cx="221" cy="569" r="4" />
+    <circle cx="239" cy="569" r="4" />
+  </g>
+  <text class="dg-small" x="221" y="587" text-anchor="middle">new</text>
+
+  <path class="dg-line" d="M167,596 V612" />
+  <path class="dg-arrow" d="M163,611 L167,618 L171,611 Z" />
+  <rect class="box" x="8" y="618" width="318" height="94" rx="3" />
+  <text class="dg-label dg-label--strong" x="20" y="636">Wins above replacement (WAR)</text>
+  <text class="dg-small" x="20" y="654">Pilots, the script among them, are dropped</text>
+  <text class="dg-small" x="20" y="666">at random into matches like the live page's.</text>
+  <text class="dg-small" x="20" y="682">Each is scored by how many more matches in 100</text>
+  <text class="dg-small" x="20" y="694">its side wins than with the script flying instead.</text>
+
+  <path class="dg-line" d="M167,712 V728" />
+  <path class="dg-arrow" d="M163,727 L167,734 L171,727 Z" />
+  <rect class="box" x="8" y="734" width="318" height="28" rx="3" />
+  <text class="dg-label dg-label--strong" x="167" y="752" text-anchor="middle">The ten best by WAR fly the live page</text>
+
+  <path class="dg-loop" d="M326,748 H346 Q352,748 352,742 V35 Q352,29 346,29 H296" />
+  <path class="dg-arrow" d="M297,25 L290,29 L297,33 Z" />
+  <text class="dg-small" text-anchor="middle" transform="translate(344 420) rotate(-90)">a later night's parent</text>
+</svg>

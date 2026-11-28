@@ -47,6 +47,8 @@ the game. Before any pilot can be taught to come home, the rule itself has to wo
 must not tip the missions that had just been balanced. That is what this entry checks.
 Retreats and surrender were left out (the owner's call).
 
+<div data-figure="diagram" data-name="missions" data-caption="Docking needs a carrier or a station to land on, so it happens only in the carrier battle and the station assault. In deathmatch and convoy escort the new rule never comes into play."></div>
+
 <!-- figure-idea: shared: the recall loop on one carrier: a craft drops below half hull, the commander recalls it, it flies home, docks, repairs in the hangar at 5% a second and relaunches as the same ship after at least 4 s. Many dock entries could reuse it. -->
 
 ## The rules

@@ -40,6 +40,8 @@ defends a static station, the other attacks it with a carrier, strike craft and 
 The hand rules showed it does: launch timing and the carrier's position add 0.13 to 0.19
 to a side's share of matches won. The question here was whether a commander can learn them itself.
 
+<div data-figure="diagram" data-name="missions" data-caption="The station assault is bottom right. This entry plays it under rules version 9, with the first station and no dreadnought."></div>
+
 <!-- figure-idea: shared: the station assault laid out from above (station with its picket and reserve, the attacker's carrier at its patrol distance and at 170 m, the jump-in trio), with a timeline of when the script launches the reserve (2 s) against hold_late (about 30 s); it makes the two decisions concrete before the tables. -->
 
 ## How it was run

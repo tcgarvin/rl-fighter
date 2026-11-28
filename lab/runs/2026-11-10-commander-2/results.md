@@ -22,7 +22,7 @@ ship, go to that point. A commander can be the hand-written one (the scripted co
 a learned network. It decides once a second, and it orders ships in groups: it puts each
 ship in one of up to four squads and gives each squad an order.
 
-<!-- figure-idea: shared: what an order is. A commander above its side, the ships grouped into squads, each squad with its order drawn on the map (an attack arrow to an enemy, a defend ring around a friendly ship, a go-to point), and the pilots free to follow or ignore it. Helps here because squads and squad orders are what the old locks and the new hold act on. -->
+<div data-figure="diagram" data-name="orders" data-caption="Squads and their orders are what the old locks and the new hold act on. Under the hold, a ship given a new order keeps it for five seconds, unless the order is done first."></div>
 
 Two days before, [the first learned commanders](../2026-11-08-commander-1/results.md)
 went onto the live page, about level with the scripted one, and no better than a commander

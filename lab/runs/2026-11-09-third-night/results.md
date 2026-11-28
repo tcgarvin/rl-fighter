@@ -22,7 +22,7 @@ neural network that learned to fly by trial and error. Each side also has a **co
 a second network or a hand-written script that sees the whole side and gives its ships
 orders: attack that ship, defend that one, go to that point.
 
-<!-- figure-idea: shared: what an order is. A commander above a side of ships, with an attack arrow to an enemy, a defend ring around a friendly ship and a go-to point, and the pilots below free to follow or ignore them. Helps here because the night is about pilots learning to follow orders. -->
+<div data-figure="diagram" data-name="orders" data-caption="This night trained pilots to follow these orders, with the go-to practised most. Go-to deadlines and the dock order came in later versions of the rules."></div>
 
 A week before, [ten pilots went onto the live page](../2026-11-02-ten-pilots/results.md).
 Since then each night of training has carried on three lines, each a pilot trained further
@@ -84,6 +84,8 @@ the second night:
   order. Go-to is every line's weakest order, so drills went up to a third of `fighters`
   and `followers` matches (from a quarter) and a quarter of `fighters_pay1`'s (from a
   tenth), with go-to drawn two or three times as often as attack or defend.
+
+<div data-figure="diagram" data-name="training-night" data-caption="This night had no single parent. Each of three lines carried on from its own pilot of the night before, for about 380 rounds of training. It was the first night that WAR picked the live ten."></div>
 
 ## The ten
 

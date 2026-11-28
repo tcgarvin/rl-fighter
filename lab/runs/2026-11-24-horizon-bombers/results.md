@@ -46,7 +46,7 @@ that pilots plan too short: at 0.995, a reward 30 seconds away counts for about 
 now, so breaking off a fight to repair is worth almost nothing to them. This night tested
 that guess, and tried to teach the bomber, in one run.
 
-<!-- figure-idea: shared: a training night. A parent pilot's weights copied into two or three arms that differ in one setting, each trained overnight, measured by quick evals along the way and full evals at the end, then entered into the season and rated by WAR, which picks the live ten. Helps every pilot-training entry read its setup paragraph. -->
+<div data-figure="diagram" data-name="training-night" data-caption="Here one parent, followers_dock_v8_2676, was copied into two arms that differed only in how far ahead they weigh reward. They trained from the morning of 2026-11-24 to 03:00 the next day, with a pause while the machine was needed."></div>
 
 ## The run
 
